@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime
 from datetime import datetime
-from app.database import Base
+from backend.app.database import Base
 
 
 class QuizAttempt(Base):

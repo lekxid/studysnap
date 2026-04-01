@@ -1,18 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models.flashcard import Flashcard
-from app.models.study_room import StudyRoom
-from app.models.user import User
-from app.schemas.ai import (
+from backend.app.database import get_db
+from backend.app.models.flashcard import Flashcard
+from backend.app.models.study_room import StudyRoom
+from backend.app.models.user import User
+from backend.app.schemas.ai import (
     AskAIRequest,
     AskAIResponse,
     GenerateFlashcardsRequest,
     GenerateFlashcardsResponse,
 )
-from app.utils.deps import get_current_user
-from app.services.ai_service import generate_studysnap_answer, generate_basic_flashcards
+from backend.app.utils.deps import get_current_user
+from backend.app.services.ai_service import generate_studysnap_answer, generate_basic_flashcards
 
 router = APIRouter(tags=["AI"])
 
@@ -76,9 +76,9 @@ def generate_flashcards(
 
 
 from pydantic import BaseModel
-from app.models.note import Note
-from app.models.study_room import StudyRoom
-from app.models.flashcard import Flashcard
+from backend.app.models.note import Note
+from backend.app.models.study_room import StudyRoom
+from backend.app.models.flashcard import Flashcard
 
 
 class GenerateFlashcardsRequest(BaseModel):
@@ -153,7 +153,7 @@ def generate_flashcards(
     }
 
 
-from app.models.quiz import Quiz
+from backend.app.models.quiz import Quiz
 
 
 class GenerateQuizzesRequest(BaseModel):

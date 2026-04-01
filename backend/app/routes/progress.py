@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.database import get_db
-from app.models.study_session import StudySession
-from app.models.quiz_attempt import QuizAttempt
-from app.models.user import User
-from app.utils.deps import get_current_user
+from backend.app.database import get_db
+from backend.app.models.study_session import StudySession
+from backend.app.models.quiz_attempt import QuizAttempt
+from backend.app.models.user import User
+from backend.app.utils.deps import get_current_user
 
 router = APIRouter(prefix="/progress", tags=["Progress"])
 

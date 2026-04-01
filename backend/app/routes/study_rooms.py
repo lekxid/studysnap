@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models.study_room import StudyRoom
-from app.models.user import User
-from app.utils.deps import get_current_user
+from backend.app.database import get_db
+from backend.app.models.study_room import StudyRoom
+from backend.app.models.user import User
+from backend.app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Study Rooms"])
 

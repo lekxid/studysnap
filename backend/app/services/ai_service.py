@@ -1,4 +1,4 @@
-from app.config import settings
+from backend.app.config import settings
 
 
 def generate_studysnap_answer(question: str, context: str = "") -> str:
