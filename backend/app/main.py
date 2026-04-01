@@ -1,20 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.database import Base, engine
 
-import app.models
+from backend.app.config import settings
+from backend.app.database import Base, engine
 
-from app.routes.auth import router as auth_router
-from app.routes.study_rooms import router as study_rooms_router
-from app.routes.notes import router as notes_router
-from app.routes.flashcards import router as flashcards_router
-from app.routes.ai import router as ai_router
-from app.routes.quizzes import router as quizzes_router
-from app.routes.dashboard import router as dashboard_router
-from app.routes.room_overview import router as room_overview_router
-from app.routes.progress import router as progress_router
-from app.routes.planner import router as planner_router
+import backend.app.models
+
+from backend.app.routes.auth import router as auth_router
+from backend.app.routes.study_rooms import router as study_rooms_router
+from backend.app.routes.notes import router as notes_router
+from backend.app.routes.flashcards import router as flashcards_router
+from backend.app.routes.ai import router as ai_router
+from backend.app.routes.quizzes import router as quizzes_router
+from backend.app.routes.dashboard import router as dashboard_router
+from backend.app.routes.room_overview import router as room_overview_router
+from backend.app.routes.progress import router as progress_router
+from backend.app.routes.planner import router as planner_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -43,9 +44,11 @@ app.include_router(room_overview_router, prefix="/api/room-overview")
 app.include_router(progress_router, prefix="/api/progress")
 app.include_router(planner_router, prefix="/api/planner")
 
+
 @app.get("/")
 def root():
     return {"message": "StudySnap API backend is running"}
+
 
 @app.get("/health")
 def health():
