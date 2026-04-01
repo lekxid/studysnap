@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
-    database_url: str
+    DATABASE_URL = "sqlite:///./test.db"
     openai_api_key: str = ""
 
     secret_key: str
