@@ -1,4 +1,4 @@
-from app.models.user import User
+from backend.app.models.user import User
 from app.models.study_room import StudyRoom
 from app.models.note import Note
 from app.models.flashcard import Flashcard
