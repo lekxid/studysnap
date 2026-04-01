@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16
+    container_name: studysnap-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: studysnap
+      POSTGRES_USER: studysnap
+      POSTGRES_PASSWORD: studysnap123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: studysnap-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

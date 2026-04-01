@@ -1,0 +1,690 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import AppShell from "@/components/AppShell";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import {
+  apiFetch,
+  createFlashcard,
+  createNote,
+  createQuiz,
+  deleteFlashcard,
+  deleteNote,
+  deleteQuiz,
+  generateFlashcardsFromNotes,
+  generateQuizzesFromNotes,
+  getFlashcards,
+  getNotes,
+  getQuizzes,
+} from "@/lib/api";
+
+type RoomOverview = {
+  room: {
+    id: number;
+    name: string;
+    subject: string;
+    description?: string | null;
+  };
+  counts: {
+    notes: number;
+    flashcards: number;
+    quizzes: number;
+  };
+};
+
+type NoteItem = {
+  id: number;
+  content: string;
+  study_room_id: number;
+  owner_id: number;
+};
+
+type FlashcardItem = {
+  id: number;
+  question: string;
+  answer: string;
+  study_room_id: number;
+  owner_id: number;
+};
+
+type QuizItem = {
+  id: number;
+  question: string;
+  answer: string;
+  study_room_id: number;
+  owner_id: number;
+};
+
+export default function StudyRoomDetailsPage() {
+  const ready = useRequireAuth();
+  const params = useParams();
+  const router = useRouter();
+
+  const roomId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const roomIdNumber = Number(roomId);
+
+  const [data, setData] = useState<RoomOverview | null>(null);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [flashcards, setFlashcards] = useState<FlashcardItem[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+
+  const [noteText, setNoteText] = useState("");
+  const [cardQuestion, setCardQuestion] = useState("");
+  const [cardAnswer, setCardAnswer] = useState("");
+  const [quizQuestion, setQuizQuestion] = useState("");
+  const [quizAnswer, setQuizAnswer] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [flashcardsLoading, setFlashcardsLoading] = useState(false);
+  const [quizzesLoading, setQuizzesLoading] = useState(false);
+
+  const [savingNote, setSavingNote] = useState(false);
+  const [savingFlashcard, setSavingFlashcard] = useState(false);
+  const [savingQuiz, setSavingQuiz] = useState(false);
+  const [generatingFlashcards, setGeneratingFlashcards] = useState(false);
+  const [generatingQuizzes, setGeneratingQuizzes] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function loadRoom() {
+    if (!roomId) return;
+    const res = await apiFetch(`/api/room-overview/${roomId}`);
+    setData(res);
+  }
+
+  async function loadNotes() {
+    if (!roomIdNumber) return;
+    setNotesLoading(true);
+    try {
+      const res = await getNotes(roomIdNumber);
+      setNotes(Array.isArray(res) ? res : []);
+    } finally {
+      setNotesLoading(false);
+    }
+  }
+
+  async function loadFlashcards() {
+    if (!roomIdNumber) return;
+    setFlashcardsLoading(true);
+    try {
+      const res = await getFlashcards(roomIdNumber);
+      setFlashcards(Array.isArray(res) ? res : []);
+    } finally {
+      setFlashcardsLoading(false);
+    }
+  }
+
+  async function loadQuizzes() {
+    if (!roomIdNumber) return;
+    setQuizzesLoading(true);
+    try {
+      const res = await getQuizzes(roomIdNumber);
+      setQuizzes(Array.isArray(res) ? res : []);
+    } finally {
+      setQuizzesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!ready || !roomId) return;
+
+    async function loadAll() {
+      try {
+        setLoading(true);
+        setError("");
+        setSuccess("");
+        await loadRoom();
+        await loadNotes();
+        await loadFlashcards();
+        await loadQuizzes();
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load study room";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadAll();
+  }, [ready, roomId]);
+
+  const xp = useMemo(() => {
+    return notes.length * 10 + flashcards.length * 15 + quizzes.length * 20;
+  }, [notes.length, flashcards.length, quizzes.length]);
+
+  const completion = useMemo(() => {
+    let score = 0;
+    if (notes.length > 0) score += 34;
+    if (flashcards.length > 0) score += 33;
+    if (quizzes.length > 0) score += 33;
+    return score;
+  }, [notes.length, flashcards.length, quizzes.length]);
+
+  async function handleAddNote() {
+    if (!noteText.trim()) {
+      setError("Please enter a note first.");
+      return;
+    }
+
+    try {
+      setSavingNote(true);
+      setError("");
+      setSuccess("");
+      await createNote(roomIdNumber, noteText);
+      setNoteText("");
+      await loadRoom();
+      await loadNotes();
+      setSuccess("Note saved successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create note";
+      setError(message);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleDeleteNote(noteId: number) {
+    try {
+      setError("");
+      setSuccess("");
+      await deleteNote(noteId);
+      await loadRoom();
+      await loadNotes();
+      setSuccess("Note deleted successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete note";
+      setError(message);
+    }
+  }
+
+  async function handleAddFlashcard() {
+    if (!cardQuestion.trim()) {
+      setError("Please enter a flashcard question.");
+      return;
+    }
+
+    if (!cardAnswer.trim()) {
+      setError("Please enter a flashcard answer.");
+      return;
+    }
+
+    try {
+      setSavingFlashcard(true);
+      setError("");
+      setSuccess("");
+      await createFlashcard(roomIdNumber, cardQuestion, cardAnswer);
+      setCardQuestion("");
+      setCardAnswer("");
+      await loadRoom();
+      await loadFlashcards();
+      setSuccess("Flashcard saved successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create flashcard";
+      setError(message);
+    } finally {
+      setSavingFlashcard(false);
+    }
+  }
+
+  async function handleDeleteFlashcard(flashcardId: number) {
+    try {
+      setError("");
+      setSuccess("");
+      await deleteFlashcard(flashcardId);
+      await loadRoom();
+      await loadFlashcards();
+      setSuccess("Flashcard deleted successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete flashcard";
+      setError(message);
+    }
+  }
+
+  async function handleGenerateFlashcards() {
+    try {
+      setGeneratingFlashcards(true);
+      setError("");
+      setSuccess("");
+      const res = await generateFlashcardsFromNotes(roomIdNumber);
+      await loadRoom();
+      await loadFlashcards();
+      setSuccess(
+        `Generated ${res.count ?? 0} flashcard${res.count === 1 ? "" : "s"} from your notes.`
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to generate flashcards";
+      setError(message);
+    } finally {
+      setGeneratingFlashcards(false);
+    }
+  }
+
+  async function handleAddQuiz() {
+    if (!quizQuestion.trim()) {
+      setError("Please enter a quiz question.");
+      return;
+    }
+
+    if (!quizAnswer.trim()) {
+      setError("Please enter a quiz answer.");
+      return;
+    }
+
+    try {
+      setSavingQuiz(true);
+      setError("");
+      setSuccess("");
+      await createQuiz(roomIdNumber, quizQuestion, quizAnswer);
+      setQuizQuestion("");
+      setQuizAnswer("");
+      await loadRoom();
+      await loadQuizzes();
+      setSuccess("Quiz saved successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create quiz";
+      setError(message);
+    } finally {
+      setSavingQuiz(false);
+    }
+  }
+
+  async function handleDeleteQuiz(quizId: number) {
+    try {
+      setError("");
+      setSuccess("");
+      await deleteQuiz(quizId);
+      await loadRoom();
+      await loadQuizzes();
+      setSuccess("Quiz deleted successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete quiz";
+      setError(message);
+    }
+  }
+
+  async function handleGenerateQuizzes() {
+    try {
+      setGeneratingQuizzes(true);
+      setError("");
+      setSuccess("");
+      const res = await generateQuizzesFromNotes(roomIdNumber);
+      await loadRoom();
+      await loadQuizzes();
+      setSuccess(
+        `Generated ${res.count ?? 0} quiz${res.count === 1 ? "" : "zes"} from your notes.`
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to generate quizzes";
+      setError(message);
+    } finally {
+      setGeneratingQuizzes(false);
+    }
+  }
+
+  function handleManualFlashcards() {
+    const section = document.getElementById("manual-flashcards");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handleAskAiTutor() {
+    router.push(`/ai-tutor?roomId=${roomIdNumber}&roomName=${encodeURIComponent(data?.room.name || "")}`);
+  }
+
+  if (!ready) {
+    return <div className="min-h-screen bg-black p-6 text-white">Checking authentication...</div>;
+  }
+
+  return (
+    <AppShell
+      title={data?.room.name || "Study Room"}
+      subtitle={data?.room.subject || "Room overview"}
+    >
+      <div className="mb-6">
+        <button
+          onClick={() => router.push("/study-rooms")}
+          className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+        >
+          ← Back to Study Rooms
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 text-white/70">
+          Loading study room...
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-300">
+          {error}
+        </div>
+      ) : null}
+
+      {success ? (
+        <div className="mb-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-6 text-green-300">
+          {success}
+        </div>
+      ) : null}
+
+      {data ? (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+            <h3 className="text-2xl font-bold text-cyan-300">{data.room.name}</h3>
+            <p className="mt-2 text-sm text-yellow-300">{data.room.subject}</p>
+            <p className="mt-4 text-white/70">
+              {data.room.description || "No description added yet."}
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <p className="text-sm text-white/60">Notes</p>
+              <p className="mt-3 text-4xl font-bold text-cyan-300">{data.counts.notes}</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <p className="text-sm text-white/60">Flashcards</p>
+              <p className="mt-3 text-4xl font-bold text-green-400">{data.counts.flashcards}</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <p className="text-sm text-white/60">Quizzes</p>
+              <p className="mt-3 text-4xl font-bold text-pink-400">{data.counts.quizzes}</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <p className="text-sm text-white/60">Study XP</p>
+              <p className="mt-3 text-4xl font-bold text-yellow-300">{xp}</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <p className="text-sm text-white/60">Completion</p>
+              <p className="mt-3 text-4xl font-bold text-white">{completion}%</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+            <div className="flex items-center justify-between gap-4">
+              <h3 className="text-xl font-semibold text-cyan-300">Room Progress</h3>
+              <span className="text-sm text-white/60">{completion}% complete</span>
+            </div>
+
+            <div className="mt-4 h-4 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-cyan-400 transition-all"
+                style={{ width: `${completion}%` }}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm">
+              <div className="rounded-xl bg-white/5 p-4 text-white/80">
+                {notes.length > 0 ? "✔ Notes added" : "• Add your first note"}
+              </div>
+              <div className="rounded-xl bg-white/5 p-4 text-white/80">
+                {flashcards.length > 0 ? "✔ Flashcards ready" : "• Create or generate flashcards"}
+              </div>
+              <div className="rounded-xl bg-white/5 p-4 text-white/80">
+                {quizzes.length > 0 ? "✔ Quizzes ready" : "• Build a quiz for this room"}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+            <h3 className="text-xl font-semibold text-cyan-300">Room Navigation</h3>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <button
+                onClick={() => router.push("/notes")}
+                className="rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-black"
+              >
+                Open Notes Page
+              </button>
+              <button
+                onClick={() => router.push("/flashcards")}
+                className="rounded-xl bg-yellow-300 px-4 py-3 font-semibold text-black"
+              >
+                Open Flashcards Page
+              </button>
+              <button
+                onClick={() => router.push("/quizzes")}
+                className="rounded-xl bg-pink-400 px-4 py-3 font-semibold text-black"
+              >
+                Open Quizzes Page
+              </button>
+              <button
+                onClick={handleAskAiTutor}
+                className="rounded-xl bg-white px-4 py-3 font-semibold text-black"
+              >
+                Open AI Tutor
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+            <h3 className="text-xl font-semibold text-cyan-300">Quick Actions</h3>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <button
+                onClick={handleGenerateFlashcards}
+                disabled={generatingFlashcards}
+                className="rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {generatingFlashcards ? "Generating..." : "AI Generate Flashcards"}
+              </button>
+              <button
+                onClick={handleGenerateQuizzes}
+                disabled={generatingQuizzes}
+                className="rounded-xl bg-pink-400 px-4 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {generatingQuizzes ? "Generating..." : "AI Generate Quiz"}
+              </button>
+              <button
+                onClick={handleManualFlashcards}
+                className="rounded-xl bg-yellow-300 px-4 py-3 font-semibold text-black"
+              >
+                Manual Flashcards
+              </button>
+              <button
+                onClick={handleAskAiTutor}
+                className="rounded-xl bg-white px-4 py-3 font-semibold text-black"
+              >
+                Ask AI Tutor
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Add Note</h3>
+
+              <textarea
+                className="mt-4 min-h-[180px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+                placeholder="Paste your study notes here..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+              />
+
+              <button
+                onClick={handleAddNote}
+                disabled={savingNote}
+                className="mt-4 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {savingNote ? "Saving..." : "Save Note"}
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Saved Notes</h3>
+
+              {notesLoading ? (
+                <div className="mt-4 text-white/70">Loading notes...</div>
+              ) : notes.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white/5 p-4 text-white/70">
+                  No notes yet for this room.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {notes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="rounded-xl border border-white/10 bg-black p-4"
+                    >
+                      <p className="whitespace-pre-wrap text-sm text-white/80">
+                        {note.content}
+                      </p>
+
+                      <button
+                        onClick={() => handleDeleteNote(note.id)}
+                        className="mt-4 rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300"
+                      >
+                        Delete Note
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div id="manual-flashcards" className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Create Flashcard</h3>
+
+              <input
+                className="mt-4 w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+                placeholder="Question"
+                value={cardQuestion}
+                onChange={(e) => setCardQuestion(e.target.value)}
+              />
+
+              <textarea
+                className="mt-4 min-h-[140px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+                placeholder="Answer"
+                value={cardAnswer}
+                onChange={(e) => setCardAnswer(e.target.value)}
+              />
+
+              <button
+                onClick={handleAddFlashcard}
+                disabled={savingFlashcard}
+                className="mt-4 rounded-xl bg-yellow-300 px-5 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {savingFlashcard ? "Saving..." : "Save Flashcard"}
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Saved Flashcards</h3>
+
+              {flashcardsLoading ? (
+                <div className="mt-4 text-white/70">Loading flashcards...</div>
+              ) : flashcards.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white/5 p-4 text-white/70">
+                  No flashcards yet for this room.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {flashcards.map((card) => (
+                    <div
+                      key={card.id}
+                      className="rounded-xl border border-white/10 bg-black p-4"
+                    >
+                      <p className="text-sm font-semibold text-yellow-300">
+                        Q: {card.question}
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-white/80">
+                        A: {card.answer}
+                      </p>
+
+                      <button
+                        onClick={() => handleDeleteFlashcard(card.id)}
+                        className="mt-4 rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300"
+                      >
+                        Delete Flashcard
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Create Quiz</h3>
+
+              <input
+                className="mt-4 w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+                placeholder="Question"
+                value={quizQuestion}
+                onChange={(e) => setQuizQuestion(e.target.value)}
+              />
+
+              <textarea
+                className="mt-4 min-h-[140px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+                placeholder="Correct answer"
+                value={quizAnswer}
+                onChange={(e) => setQuizAnswer(e.target.value)}
+              />
+
+              <button
+                onClick={handleAddQuiz}
+                disabled={savingQuiz}
+                className="mt-4 rounded-xl bg-pink-400 px-5 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {savingQuiz ? "Saving..." : "Save Quiz"}
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+              <h3 className="text-xl font-semibold text-cyan-300">Saved Quizzes</h3>
+
+              {quizzesLoading ? (
+                <div className="mt-4 text-white/70">Loading quizzes...</div>
+              ) : quizzes.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-white/5 p-4 text-white/70">
+                  No quizzes yet for this room.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {quizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="rounded-xl border border-white/10 bg-black p-4"
+                    >
+                      <p className="text-sm font-semibold text-pink-300">
+                        Q: {quiz.question}
+                      </p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-white/80">
+                        A: {quiz.answer}
+                      </p>
+
+                      <button
+                        onClick={() => handleDeleteQuiz(quiz.id)}
+                        className="mt-4 rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300"
+                      >
+                        Delete Quiz
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </AppShell>
+  );
+}

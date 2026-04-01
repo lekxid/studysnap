@@ -1,0 +1,303 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import AppShell from "@/components/AppShell";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import { askAi } from "@/lib/api";
+import { loadJSON, saveJSON } from "@/lib/storage";
+
+type HistoryItem = {
+  id: number;
+  question: string;
+  context: string;
+  mode: string;
+  answer: string;
+};
+
+const STORAGE_KEY = "studysnap_ai_history";
+
+function AITutorContent() {
+  const ready = useRequireAuth();
+  const searchParams = useSearchParams();
+
+  const [question, setQuestion] = useState("");
+  const [context, setContext] = useState("");
+  const [mode, setMode] = useState("Clear Explain");
+  const [answer, setAnswer] = useState("");
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const roomId = searchParams.get("roomId") || "";
+  const roomName = searchParams.get("roomName") || "";
+
+  useEffect(() => {
+    if (!ready) return;
+    setHistory(loadJSON<HistoryItem[]>(STORAGE_KEY, []));
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    if (roomId || roomName) {
+      const roomContext = [
+        roomName ? `Study Room: ${roomName}` : "",
+        roomId ? `Study Room ID: ${roomId}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      setContext((prev) => {
+        if (prev.trim()) return prev;
+        return roomContext;
+      });
+
+      setQuestion((prev) => {
+        if (prev.trim()) return prev;
+        return roomName
+          ? `Using the context from my study room "${roomName}", explain the key ideas, identify weak areas, and suggest what I should study next.`
+          : "Using this study room context, explain the key ideas, identify weak areas, and suggest what I should study next.";
+      });
+    }
+  }, [ready, roomId, roomName]);
+
+  function saveHistory(next: HistoryItem[]) {
+    setHistory(next);
+    saveJSON(STORAGE_KEY, next);
+  }
+
+  function applyPreset(type: string) {
+    if (type === "simple") {
+      setMode("Easy Explain");
+      setQuestion("Explain this in very simple words");
+    } else if (type === "step") {
+      setMode("Clear Explain");
+      setQuestion("Explain this step by step");
+    } else if (type === "new") {
+      setMode("Easy Explain");
+      setQuestion("Explain like I am completely new to this topic");
+    } else if (type === "deep") {
+      setMode("Deep Explain");
+      setQuestion("Give me a more detailed technical explanation");
+    }
+  }
+
+  async function handleAsk() {
+    if (!question.trim()) {
+      setError("Enter a question first.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    setAnswer("");
+
+    try {
+      const fullQuestion = `[${mode}] ${question.trim()}`;
+      const result = await askAi(fullQuestion, context.trim());
+
+      const finalAnswer =
+        typeof result?.answer === "string"
+          ? result.answer
+          : "No answer returned.";
+
+      setAnswer(finalAnswer);
+
+      const next: HistoryItem[] = [
+        {
+          id: Date.now(),
+          question: question.trim(),
+          context: context.trim(),
+          mode,
+          answer: finalAnswer,
+        },
+        ...history,
+      ].slice(0, 8);
+
+      saveHistory(next);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to contact AI Tutor";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!ready) {
+    return <div className="min-h-screen bg-black p-6 text-white">Checking authentication...</div>;
+  }
+
+  return (
+    <AppShell
+      title="AI Tutor"
+      subtitle="Ask questions, simplify concepts, and get guided explanations"
+    >
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-2xl font-semibold text-cyan-300">Ask anything</h3>
+          <p className="mt-2 text-white/60">
+            Choose a learning mode and ask your question below.
+          </p>
+
+          {roomName ? (
+            <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-200">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  Connected from Study Room: <span className="font-semibold">{roomName}</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setMode("Easy Explain");
+                      setQuestion(`Explain the main ideas in my study room "${roomName}" in simple language.`);
+                    }}
+                    className="rounded-xl bg-cyan-400 px-3 py-2 text-sm font-semibold text-black"
+                  >
+                    Simple
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setMode("Clear Explain");
+                      setQuestion(`Using my study room "${roomName}", explain the topic step by step and highlight the most important points.`);
+                    }}
+                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black"
+                  >
+                    Step-by-Step
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setMode("Deep Explain");
+                      setQuestion(`Using my study room "${roomName}", give me a deeper technical explanation and point out weak areas I should revise.`);
+                    }}
+                    className="rounded-xl bg-yellow-300 px-3 py-2 text-sm font-semibold text-black"
+                  >
+                    Deep
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {["Easy Explain", "Clear Explain", "Deep Explain"].map((item) => (
+              <button
+                key={item}
+                onClick={() => setMode(item)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                  mode === item
+                    ? "bg-cyan-400 text-black"
+                    : "border border-white/20 text-white"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button onClick={() => applyPreset("simple")} className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white">
+              Explain Simply
+            </button>
+            <button onClick={() => applyPreset("step")} className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white">
+              Step-by-Step
+            </button>
+            <button onClick={() => applyPreset("new")} className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white">
+              Like I’m New
+            </button>
+            <button onClick={() => applyPreset("deep")} className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white">
+              Deep Technical
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <textarea
+              className="min-h-[120px] w-full rounded-2xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+              placeholder="Ask your question..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+            />
+
+            <textarea
+              className="min-h-[120px] w-full rounded-2xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+              placeholder="Optional context, notes, pasted lecture text, topic, etc."
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+            />
+
+            <button
+              onClick={handleAsk}
+              disabled={loading}
+              className="rounded-2xl bg-cyan-400 px-6 py-3 font-semibold text-black disabled:opacity-60"
+            >
+              {loading ? "Thinking..." : "Ask AI Tutor"}
+            </button>
+          </div>
+
+          {error ? (
+            <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black p-6">
+            <p className="text-sm font-semibold text-cyan-300">AI Response</p>
+            <div className="mt-4 min-h-[180px] whitespace-pre-wrap text-white/85">
+              {answer || "Your answer will appear here."}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Recent Prompts</h3>
+
+          {history.length === 0 ? (
+            <div className="mt-4 rounded-xl bg-white/5 p-4 text-white/70">
+              No AI history yet.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {history.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setQuestion(item.question);
+                    setContext(item.context);
+                    setMode(item.mode);
+                    setAnswer(item.answer);
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black p-4 text-left"
+                >
+                  <p className="text-sm font-semibold text-cyan-300">{item.mode}</p>
+                  <p className="mt-2 line-clamp-2 text-sm text-white/85">{item.question}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-6 rounded-xl bg-white/5 p-4 text-sm text-white/75">
+            Best demo prompts:
+            <div className="mt-3 space-y-2">
+              <div>• Explain TCP like I am 10 years old</div>
+              <div>• What is subnetting step by step?</div>
+              <div>• Explain OSI model in simple language</div>
+              <div>• Break down routing protocols for beginners</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+export default function AITutorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black p-6 text-white">Loading AI Tutor...</div>}>
+      <AITutorContent />
+    </Suspense>
+  );
+}

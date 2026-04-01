@@ -1,0 +1,197 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import AppShell from "@/components/AppShell";
+
+const modes = [
+  "Easy Explain",
+  "Clear Explain",
+  "Deep Explain",
+  "Explain Simply",
+  "Step-by-Step",
+  "Like I’m New",
+  "Deep Technical",
+];
+
+const demoPrompts = [
+  "Explain TCP like I am 10 years old",
+  "What is subnetting step by step?",
+  "Explain OSI model in simple language",
+  "Break down routing protocols for beginners",
+];
+
+export default function AITutorPage() {
+  const [mode, setMode] = useState("Clear Explain");
+  const [question, setQuestion] = useState("");
+  const [context, setContext] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const canSubmit = useMemo(() => question.trim().length > 0, [question]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!question.trim()) return;
+
+    setLoading(true);
+    setAnswer("");
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      const simulated = `Mode: ${mode}\n\nHere is a polished sample response for:\n"${question}"\n\nThis page is now visually upgraded. Next, we can connect it more deeply to your real AI backend and room-aware context.`;
+
+      setAnswer(simulated);
+      setHistory((prev) => [question, ...prev].slice(0, 6));
+      setQuestion("");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <AppShell
+      title="AI Tutor"
+      subtitle="Choose a learning mode, ask your question, and get a clearer explanation."
+    >
+      <div className="content-grid xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <section className="premium-card rounded-[2rem] p-6 sm:p-8 lg:p-9">
+          <div className="mb-8">
+            <h3 className="text-3xl font-black tracking-tight text-cyan-300">
+              Ask anything
+            </h3>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+              Pick how you want the answer explained, then ask your question below.
+            </p>
+          </div>
+
+          <div className="mb-8 flex flex-wrap gap-3">
+            {modes.map((item) => {
+              const active = mode === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setMode(item)}
+                  className={`rounded-2xl border px-5 py-3 text-sm font-semibold transition ${
+                    active
+                      ? "bg-gradient-to-r from-violet-500/95 via-indigo-500/92 to-sky-500/85 text-white border-transparent shadow-[0_12px_28px_rgba(109,94,252,0.24)]"
+                      : "border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="mb-3 block text-sm font-medium text-slate-200">
+                Your question
+              </label>
+              <textarea
+                className="min-h-[150px] w-full rounded-[1.6rem] px-5 py-4"
+                placeholder="Ask your question..."
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="mb-3 block text-sm font-medium text-slate-200">
+                Optional context
+              </label>
+              <textarea
+                className="min-h-[135px] w-full rounded-[1.6rem] px-5 py-4"
+                placeholder="Optional context, notes, pasted lecture text, topic, etc."
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <button
+                type="submit"
+                disabled={!canSubmit || loading}
+                className="premium-button rounded-[1.2rem] px-6 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Thinking..." : "Ask AI Tutor"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setQuestion("");
+                  setContext("");
+                  setAnswer("");
+                }}
+                className="premium-button-secondary rounded-[1.2rem] px-6 py-3.5 text-sm font-semibold"
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-8">
+            <h4 className="mb-4 text-sm font-bold uppercase tracking-[0.15em] text-slate-400">
+              Response
+            </h4>
+
+            <div className="stat-card rounded-[1.8rem] p-5 sm:p-6">
+              {answer ? (
+                <pre className="whitespace-pre-wrap text-sm leading-7 text-slate-100">
+                  {answer}
+                </pre>
+              ) : (
+                <p className="text-sm leading-7 text-slate-400">
+                  Your answer will appear here after you ask a question.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <aside className="content-grid">
+          <div className="premium-card rounded-[2rem] p-6">
+            <h3 className="text-2xl font-black tracking-tight text-cyan-300">
+              Recent Prompts
+            </h3>
+
+            <div className="mt-5 space-y-4">
+              {history.length === 0 ? (
+                <div className="rounded-[1.3rem] border border-white/8 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
+                  No AI history yet.
+                </div>
+              ) : (
+                history.map((item, index) => (
+                  <div
+                    key={`${item}-${index}`}
+                    className="rounded-[1.3rem] border border-white/8 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-slate-200"
+                  >
+                    {item}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="premium-card rounded-[2rem] p-6">
+            <h3 className="text-lg font-bold text-slate-100">Best demo prompts</h3>
+            <ul className="mt-4 space-y-4 text-sm leading-7 text-slate-300">
+              {demoPrompts.map((item) => (
+                <li
+                  key={item}
+                  className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3"
+                >
+                  • {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </AppShell>
+  );
+}

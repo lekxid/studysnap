@@ -1,0 +1,130 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo } from "react";
+import { useParams } from "next/navigation";
+import AppShell from "@/components/AppShell";
+
+export default function StudyRoomDetailPage() {
+  const params = useParams();
+  const roomId = useMemo(() => {
+    const raw = params?.id;
+    return Array.isArray(raw) ? raw[0] : raw || "unknown";
+  }, [params]);
+
+  const room = {
+    id: roomId,
+    name: `Study Room ${roomId}`,
+    subject: "General Study",
+    description:
+      "This room is now using a clean fallback detail page so the route no longer breaks. Next we can wire it to real backend data.",
+    progress: 42,
+    notes: 3,
+    flashcards: 12,
+    quizzes: 2,
+  };
+
+  return (
+    <AppShell
+      title="Study Room"
+      subtitle="Room overview, quick actions, and linked study tools."
+    >
+      <div className="content-grid">
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/study-rooms"
+            className="premium-button-secondary rounded-[1.2rem] px-5 py-3 text-sm font-semibold"
+          >
+            ← Back to Study Rooms
+          </Link>
+          <button className="premium-button rounded-[1.2rem] px-5 py-3 text-sm font-semibold">
+            Open AI with this room
+          </button>
+        </div>
+
+        <section className="premium-card rounded-[2rem] p-6 sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="gold-chip mb-4">Room ID: {room.id}</div>
+              <h3 className="text-3xl font-black tracking-tight text-white">
+                {room.name}
+              </h3>
+              <p className="mt-2 text-sm font-medium uppercase tracking-[0.18em] text-sky-300">
+                {room.subject}
+              </p>
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300">
+                {room.description}
+              </p>
+            </div>
+
+            <div className="stat-card min-w-[220px] rounded-[1.6rem] p-5">
+              <p className="text-sm font-semibold text-slate-300">Progress</p>
+              <div className="mt-3 text-4xl font-black text-white">
+                {room.progress}%
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 via-indigo-500 to-sky-400"
+                  style={{ width: `${room.progress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="stat-card rounded-[1.7rem] p-6">
+            <p className="text-sm font-semibold text-slate-300">Notes</p>
+            <div className="mt-3 text-4xl font-black text-cyan-300">{room.notes}</div>
+          </div>
+
+          <div className="stat-card rounded-[1.7rem] p-6">
+            <p className="text-sm font-semibold text-slate-300">Flashcards</p>
+            <div className="mt-3 text-4xl font-black text-emerald-300">
+              {room.flashcards}
+            </div>
+          </div>
+
+          <div className="stat-card rounded-[1.7rem] p-6">
+            <p className="text-sm font-semibold text-slate-300">Quizzes</p>
+            <div className="mt-3 text-4xl font-black text-amber-300">
+              {room.quizzes}
+            </div>
+          </div>
+
+          <div className="stat-card rounded-[1.7rem] p-6">
+            <p className="text-sm font-semibold text-slate-300">AI Status</p>
+            <div className="mt-3 text-xl font-bold text-violet-300">
+              Ready to connect
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="premium-card rounded-[2rem] p-6">
+            <h4 className="text-xl font-bold text-white">Room Notes</h4>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              This section is ready for your room-specific notes. Next, we can connect
+              it to real notes saved for this room.
+            </p>
+          </div>
+
+          <div className="premium-card rounded-[2rem] p-6">
+            <h4 className="text-xl font-bold text-white">Quick Actions</h4>
+            <div className="mt-5 flex flex-col gap-3">
+              <button className="premium-button rounded-[1.15rem] px-5 py-3 text-sm font-semibold">
+                Generate flashcards
+              </button>
+              <button className="premium-button-secondary rounded-[1.15rem] px-5 py-3 text-sm font-semibold">
+                Create quiz
+              </button>
+              <button className="premium-button-secondary rounded-[1.15rem] px-5 py-3 text-sm font-semibold">
+                Open planner
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </AppShell>
+  );
+}

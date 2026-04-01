@@ -1,0 +1,139 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import AppShell from "@/components/AppShell";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import { loadJSON, saveJSON } from "@/lib/storage";
+
+type OnboardingState = {
+  explanationStyle: string;
+  subjects: string[];
+  knowledgeLevel: string;
+};
+
+const STORAGE_KEY = "studysnap_onboarding";
+
+const subjectOptions = [
+  "Math",
+  "Science",
+  "Biology",
+  "Chemistry",
+  "Physics",
+  "Networking / IT",
+  "Programming",
+  "Business",
+  "History",
+];
+
+export default function OnboardingPage() {
+  const ready = useRequireAuth();
+
+  const [state, setState] = useState<OnboardingState>({
+    explanationStyle: "Clear Explain",
+    subjects: [],
+    knowledgeLevel: "Medium",
+  });
+
+  useEffect(() => {
+    if (!ready) return;
+    setState(
+      loadJSON<OnboardingState>(STORAGE_KEY, {
+        explanationStyle: "Clear Explain",
+        subjects: [],
+        knowledgeLevel: "Medium",
+      })
+    );
+  }, [ready]);
+
+  function update(next: OnboardingState) {
+    setState(next);
+    saveJSON(STORAGE_KEY, next);
+  }
+
+  function toggleSubject(subject: string) {
+    const exists = state.subjects.includes(subject);
+    const nextSubjects = exists
+      ? state.subjects.filter((s) => s !== subject)
+      : [...state.subjects, subject];
+
+    update({ ...state, subjects: nextSubjects });
+  }
+
+  if (!ready) {
+    return <div className="min-h-screen bg-black text-white p-6">Checking authentication...</div>;
+  }
+
+  return (
+    <AppShell title="Onboarding" subtitle="Personalize StudySnap AI to your learning style">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Step 1 — Explanation Style</h3>
+          <div className="mt-4 grid gap-3">
+            {["Easy Explain", "Clear Explain", "Deep Explain"].map((item) => (
+              <button
+                key={item}
+                onClick={() => update({ ...state, explanationStyle: item })}
+                className={`rounded-xl px-4 py-3 text-left ${
+                  state.explanationStyle === item
+                    ? "border border-cyan-500/20 bg-cyan-500/10 text-white"
+                    : "border border-white/20 text-white"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Step 2 — Subjects</h3>
+          <div className="mt-4 grid gap-3">
+            {subjectOptions.map((subject) => (
+              <button
+                key={subject}
+                onClick={() => toggleSubject(subject)}
+                className={`rounded-xl px-4 py-3 text-left ${
+                  state.subjects.includes(subject)
+                    ? "border border-cyan-500/20 bg-cyan-500/10 text-white"
+                    : "border border-white/20 text-white"
+                }`}
+              >
+                {subject}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Step 3 — Quick Knowledge Check</h3>
+          <div className="mt-4 grid gap-3">
+            {["Beginner", "Medium", "Advanced"].map((item) => (
+              <button
+                key={item}
+                onClick={() => update({ ...state, knowledgeLevel: item })}
+                className={`rounded-xl px-4 py-3 text-left ${
+                  state.knowledgeLevel === item
+                    ? "border border-cyan-500/20 bg-cyan-500/10 text-white"
+                    : "border border-white/20 text-white"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-xl bg-white/5 p-4 text-sm text-white/80">
+            Saved profile:
+            <div className="mt-2 text-white/70">
+              Style: {state.explanationStyle}
+              <br />
+              Level: {state.knowledgeLevel}
+              <br />
+              Subjects: {state.subjects.length ? state.subjects.join(", ") : "None yet"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}

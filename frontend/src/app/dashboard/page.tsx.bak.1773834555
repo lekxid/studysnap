@@ -1,0 +1,136 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import AppShell from "@/components/AppShell";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import { getDashboard } from "@/lib/api";
+import { loadJSON } from "@/lib/storage";
+
+type DashboardData = {
+  total_study_rooms: number;
+  total_notes: number;
+  total_flashcards: number;
+  total_quizzes: number;
+};
+
+export default function DashboardPage() {
+  const ready = useRequireAuth();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState("");
+
+  const [plannerCount, setPlannerCount] = useState(0);
+  const [flashcardsCount, setFlashcardsCount] = useState(0);
+  const [notesCount, setNotesCount] = useState(0);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    async function load() {
+      try {
+        const res = await getDashboard();
+        setData(res);
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load dashboard";
+        setError(message);
+      }
+    }
+
+    load();
+    setPlannerCount(loadJSON<any[]>("studysnap_planner_items", []).length);
+    setFlashcardsCount(loadJSON<any[]>("studysnap_flashcards", []).length);
+    setNotesCount(loadJSON<any[]>("studysnap_notes", []).length);
+  }, [ready]);
+
+  const xp = useMemo(() => {
+    return plannerCount * 10 + flashcardsCount * 5 + notesCount * 4;
+  }, [plannerCount, flashcardsCount, notesCount]);
+
+  if (!ready) {
+    return <div className="min-h-screen bg-black text-white p-6">Checking authentication...</div>;
+  }
+
+  const cards = [
+    { label: "Study Rooms", value: data?.total_study_rooms ?? 0, color: "text-cyan-400" },
+    { label: "Notes", value: (notesCount || (data?.total_notes ?? 0)), color: "text-yellow-300" },
+    { label: "Flashcards", value: (flashcardsCount || (data?.total_flashcards ?? 0)), color: "text-green-400" },
+    { label: "Quizzes", value: data?.total_quizzes ?? 0, color: "text-pink-400" },
+  ];
+
+  return (
+    <AppShell
+      title="Dashboard"
+      subtitle="Your StudySnap command center"
+    >
+      {error ? (
+        <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-lg"
+          >
+            <p className="text-sm text-white/60">{card.label}</p>
+            <p className={`mt-3 text-4xl font-bold ${card.color}`}>{card.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Study Streak</h3>
+          <p className="mt-4 text-4xl font-bold">🔥 5 days</p>
+          <p className="mt-2 text-sm text-white/60">
+            Keep going to unlock streak rewards and XP bonuses.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Study XP</h3>
+          <p className="mt-4 text-4xl font-bold text-yellow-300">{xp} XP</p>
+          <p className="mt-2 text-sm text-white/60">
+            Earn XP by studying, creating flashcards, and planning sessions.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Planner Sessions</h3>
+          <p className="mt-4 text-4xl font-bold">{plannerCount}</p>
+          <p className="mt-2 text-sm text-white/60">
+            Stay ahead with scheduled study blocks and reminders.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Daily Missions</h3>
+          <div className="mt-4 space-y-3 text-sm text-white/80">
+            <div className="rounded-xl bg-white/5 p-4">✔ Review flashcards</div>
+            <div className="rounded-xl bg-white/5 p-4">✔ Ask AI one question</div>
+            <div className="rounded-xl bg-white/5 p-4">✔ Study for 20 minutes</div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">AI Suggestions</h3>
+          <div className="mt-4 space-y-3 text-sm text-white/80">
+            <div className="rounded-xl bg-cyan-500/10 p-4 border border-cyan-500/20">
+              You should review routing protocols next.
+            </div>
+            <div className="rounded-xl bg-cyan-500/10 p-4 border border-cyan-500/20">
+              Your weakest area looks like subnetting.
+            </div>
+            <div className="rounded-xl bg-cyan-500/10 p-4 border border-cyan-500/20">
+              Ask the AI Tutor for a 5-question quiz on TCP/IP.
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}

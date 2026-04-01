@@ -1,0 +1,65 @@
+"use client";
+
+import Link from "next/link";
+import AppShell from "@/components/AppShell";
+
+const rooms = [
+  { id: 1, name: "Networking Fundamentals", subject: "CSTN", progress: 62 },
+  { id: 2, name: "Linux Administration", subject: "Server", progress: 48 },
+  { id: 7, name: "Exam Prep Room", subject: "Mixed Review", progress: 42 },
+];
+
+export default function StudyRoomsPage() {
+  return (
+    <AppShell
+      title="Study Rooms"
+      subtitle="Organize every subject into a room with notes, AI help, flashcards, and quizzes."
+    >
+      <div className="content-grid">
+        <section className="premium-card rounded-[2rem] p-6 sm:p-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-3xl font-black tracking-tight text-white">
+                Your rooms
+              </h3>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+                Click any room to open its dedicated study space.
+              </p>
+            </div>
+
+            <button className="premium-button rounded-[1.2rem] px-5 py-3 text-sm font-semibold">
+              Create room
+            </button>
+          </div>
+        </section>
+
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {rooms.map((room) => (
+            <Link
+              key={room.id}
+              href={`/study-rooms/${room.id}`}
+              className="stat-card rounded-[1.8rem] p-6 transition hover:-translate-y-1 hover:border-white/12"
+            >
+              <div className="gold-chip mb-4">{room.subject}</div>
+              <h4 className="text-2xl font-black tracking-tight text-white">
+                {room.name}
+              </h4>
+              <p className="mt-5 text-sm font-medium text-slate-300">
+                Progress: {room.progress}%
+              </p>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-violet-500 via-indigo-500 to-sky-400"
+                  style={{ width: `${room.progress}%` }}
+                />
+              </div>
+              <p className="mt-5 text-sm font-semibold text-sky-300">
+                Open room →
+              </p>
+            </Link>
+          ))}
+        </section>
+      </div>
+    </AppShell>
+  );
+}
