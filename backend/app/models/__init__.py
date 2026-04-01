@@ -3,5 +3,7 @@ from backend.app.models.study_room import StudyRoom
 from backend.app.models.note import Note
 from backend.app.models.flashcard import Flashcard
 from backend.app.models.quiz import Quiz
-from backend.app.models.progress import Progress
-from backend.app.models.planner import Planner
+from backend.app.models.quiz_attempt import QuizAttempt
+from backend.app.models.quiz_question import QuizQuestion
+from backend.app.models.study_plan import StudyPlan
+from backend.app.models.study_session import StudySession
