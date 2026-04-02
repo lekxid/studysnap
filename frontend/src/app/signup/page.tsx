@@ -31,9 +31,10 @@ export default function SignupPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
+          full_name: name,
           email,
           password,
+          learning_mode: "clear",
         }),
       });
 
