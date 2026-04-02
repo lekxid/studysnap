@@ -1,37 +1,61 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import { login, setToken } from "@/lib/api";
+import { useState } from "react";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
 
     try {
-      const data = await login(email, password);
+      const apiBase =
+        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
+        process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
+        "";
 
-      if (data?.access_token) {
-        setToken(data.access_token);
-        router.push("/dashboard");
-        return;
+      if (!apiBase) {
+        throw new Error("API base URL is not set.");
       }
 
-      setError("Login succeeded but no token was returned.");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
+      const response = await fetch(`${apiBase}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const raw = await response.text();
+      let data: any = null;
+
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = { message: raw || "Unexpected server response." };
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.detail || data?.message || "Login failed.");
+      }
+
+      // Save token if backend returns it
+      if (data?.access_token) {
+        localStorage.setItem("token", data.access_token);
+      }
+
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      setError(err?.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -39,116 +63,69 @@ export default function LoginPage() {
 
   return (
     <main className="premium-bg flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-      <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden border-r border-white/10 p-10 lg:flex lg:flex-col lg:justify-between">
+      <div className="w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+            Sign in
+          </h1>
+          <p className="mt-4 text-base leading-8 text-slate-300">
+            Continue your study streak and jump back into your workspace.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <div className="gold-chip mb-5">Premium study workspace</div>
-            <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight text-white">
-              Welcome back to
-              <span className="glow-title block bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-transparent">
-                StudySnap AI
-              </span>
-            </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
-              Notes, flashcards, study rooms, quizzes, planner tools, and AI help
-              in one focused workspace.
-            </p>
+            <label className="mb-2 block text-sm font-semibold text-slate-200">
+              Email
+            </label>
+            <input
+              type="email"
+              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
           </div>
 
-          <div className="premium-card gold-border mt-10 rounded-[1.75rem] p-6">
-            <p className="text-sm font-semibold text-amber-200">
-              Why students stay here
-            </p>
-            <div className="mt-4 grid gap-3 text-sm text-slate-300">
-              <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                Organized rooms for every subject
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                Faster revision with flashcards and quizzes
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                AI support when you get stuck
-              </div>
-            </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-200">
+              Password
+            </label>
+            <input
+              type="password"
+              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              required
+            />
           </div>
-        </section>
 
-        <section className="flex items-center justify-center p-5 sm:p-8 lg:p-10">
-          <div className="w-full max-w-md">
-            <div className="mb-8">
-              <div className="gold-chip mb-4">Login</div>
-              <h2 className="text-3xl font-black tracking-tight text-white">
-                Sign in
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Continue your study streak and jump back into your workspace.
-              </p>
+          {error ? (
+            <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
             </div>
+          ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  className="w-full rounded-2xl px-4 py-3.5"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-bold disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Logging in..." : "Log in"}
+          </button>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="block text-sm font-medium text-slate-200">
-                    Password
-                  </label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs font-semibold text-amber-200 hover:text-amber-100"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-
-                <input
-                  type="password"
-                  className="w-full rounded-2xl px-4 py-3.5"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Your password"
-                  required
-                />
-              </div>
-
-              {error ? (
-                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {error}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="premium-button w-full rounded-2xl px-4 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Logging in..." : "Log in"}
-              </button>
-            </form>
-
-            <div className="premium-card gold-border mt-6 rounded-2xl px-4 py-4 text-sm text-slate-300">
-              New here?{" "}
-              <Link
-                href="/signup"
-                className="font-semibold text-amber-200 hover:text-amber-100"
-              >
-                Create an account
-              </Link>
-            </div>
+          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-sm text-slate-300">
+            New here?{" "}
+            <Link
+              href="/signup"
+              className="font-semibold text-amber-200 hover:text-amber-100"
+            >
+              Create an account
+            </Link>
           </div>
-        </section>
+        </form>
       </div>
     </main>
   );
