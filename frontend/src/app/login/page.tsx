@@ -24,7 +24,8 @@ export default function LoginPage() {
         throw new Error("API base URL is not set.");
       }
 
-      const response = await fetch(`${apiBase}/auth/login`, {
+      const response = await fetch(`${apiBase}/api/auth/login`
+, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
