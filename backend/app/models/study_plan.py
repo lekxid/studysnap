@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime
 from datetime import datetime
-from backend.app.database import Base
+from app.database import Base
 
 
 class StudyPlan(Base):

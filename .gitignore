@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.env
+
+# Databases
+*.db
+
+# Node
+node_modules/
+.next/
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.before-*
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+frontend@*
+backend/next
+frontend/next
+filename

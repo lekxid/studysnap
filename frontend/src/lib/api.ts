@@ -1,4 +1,4 @@
-const API_BASE = "/backend";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://192.168.133.130:8000";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -99,7 +99,7 @@ export async function generateFlashcardsFromNotes(studyRoomId: number) {
 }
 
 export async function generateQuizzesFromNotes(studyRoomId: number) {
-  return apiFetch("/api/ai/generate-quizzes", {
+  return apiFetch("/api/ai/generate-quiz", {
     method: "POST",
     body: JSON.stringify({
       study_room_id: studyRoomId,

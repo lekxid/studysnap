@@ -1,55 +1,85 @@
-from backend.app.config import settings
+import json
+from openai import OpenAI
+from app.config import settings
+
+client = OpenAI(api_key=settings.openai_api_key)
+
+
+def detect_mode(question: str):
+    modes = [
+        "Easy Explain",
+        "Clear Explain",
+        "Deep Explain",
+        "Explain Simply",
+        "Step-by-Step",
+        "Like I’m New",
+        "Make Flashcards",
+        "Make Quiz",
+        "Summarize Notes",
+        "Test Me Now",
+    ]
+
+    for mode in modes:
+        if question.startswith(mode + ":"):
+            return mode, question.replace(mode + ":", "", 1).strip()
+
+    return "Clear Explain", question.strip()
 
 
 def generate_studysnap_answer(question: str, context: str = "") -> str:
-    question = question.strip()
-    context = context.strip()
+    mode, clean_question = detect_mode(question)
 
-    if not question:
-        return "Please provide a question."
-
-    if context:
-        return (
-            f"StudySnap AI answer:\n\n"
-            f"Question: {question}\n\n"
-            f"Based on your notes/context:\n{context}\n\n"
-            f"Simple explanation:\n"
-            f"This topic means the system is helping you understand the main idea in a clearer way. "
-            f"For this specific question, focus on the key terms, what they do, and one practical example."
-        )
-
-    return (
-        f"StudySnap AI answer:\n\n"
-        f"Question: {question}\n\n"
-        f"Simple explanation:\n"
-        f"Start by breaking the topic into small parts, define the main term, explain how it works, "
-        f"and connect it to a real example."
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": f"You are StudySnap AI Tutor. Mode: {mode}. Explain clearly for students, not childish. Use headings, key points, example, and one quick practice question.",
+            },
+            {
+                "role": "user",
+                "content": f"Question: {clean_question}\n\nStudent notes/context:\n{context}",
+            },
+        ],
+        temperature=0.5,
+        max_tokens=1200,
     )
+
+    return response.choices[0].message.content or "No answer returned."
 
 
 def generate_basic_flashcards(content: str) -> list[dict]:
-    lines = [line.strip() for line in content.splitlines() if line.strip()]
-    text = " ".join(lines).strip()
-
-    if not text:
+    if not content.strip():
         return []
 
-    sentences = [s.strip() for s in text.replace("\n", " ").split(".") if s.strip()]
-    flashcards = []
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "Create 8 student-friendly flashcards from the notes. Return ONLY valid JSON as a list of objects with question and answer keys.",
+            },
+            {
+                "role": "user",
+                "content": content,
+            },
+        ],
+        temperature=0.3,
+        max_tokens=1000,
+    )
 
-    for sentence in sentences[:5]:
-        flashcards.append({
-            "question": f"What does this mean: {sentence[:60]}?",
-            "answer": sentence
-        })
+    text = response.choices[0].message.content or "[]"
 
-    if not flashcards:
-        flashcards.append({
-            "question": "What is the main idea of these notes?",
-            "answer": text[:300]
-        })
-
-    return flashcards
+    try:
+        cards = json.loads(text)
+        return cards[:8]
+    except Exception:
+        return [
+            {
+                "question": "What is the main idea of these notes?",
+                "answer": text[:500],
+            }
+        ]
 
 
 def generate_basic_quiz(content: str) -> list[dict]:
@@ -64,24 +94,13 @@ def generate_basic_quiz(content: str) -> list[dict]:
 
     for sentence in sentences[:5]:
         questions.append({
-            "question": f"Which statement best matches this study point?",
-            "option_a": sentence,
-            "option_b": "This topic is unrelated to the notes.",
-            "option_c": "This means no data is processed at all.",
-            "option_d": "This is only about hardware damage.",
+            "question": "Which option best explains this study point?",
+            "option_a": sentence[:180],
+            "option_b": "This is unrelated to the topic.",
+            "option_c": "This means the topic is not important.",
+            "option_d": "This is only used outside school.",
             "correct_answer": "A",
-            "explanation": sentence
-        })
-
-    if not questions:
-        questions.append({
-            "question": "What is the main idea of the notes?",
-            "option_a": text[:80],
-            "option_b": "No main idea available",
-            "option_c": "Random unrelated topic",
-            "option_d": "Only visual content",
-            "correct_answer": "A",
-            "explanation": text[:200]
+            "explanation": sentence[:300]
         })
 
     return questions
