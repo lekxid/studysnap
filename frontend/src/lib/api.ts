@@ -79,6 +79,18 @@ export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
 
+
+export async function generateLesson(question: string, context?: string) {
+  return apiFetch("/api/ai/lesson", {
+    method: "POST",
+    body: JSON.stringify({
+      question,
+      context: context || "",
+      study_room_id: null,
+    }),
+  });
+}
+
 export async function askAi(question: string, context?: string) {
   return apiFetch("/api/ai/ask", {
     method: "POST",

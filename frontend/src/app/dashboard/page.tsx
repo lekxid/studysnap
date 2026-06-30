@@ -74,12 +74,15 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="gold-chip mb-4">Dashboard</div>
+
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl">
               Welcome, {fullName}
             </h1>
+
             <p className="mt-4 text-base leading-8 text-slate-300">
               Logged in as: {email}
             </p>
+
             <p className="mt-2 text-base leading-8 text-slate-300">
               You are logged in successfully.
             </p>
@@ -97,33 +100,42 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-5">
-            <h2 className="text-xl font-bold text-white">Study Rooms</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Active spaces for your subjects.
-            </p>
-          </div>
+          {[
+            {
+              title: "Study Rooms",
+              desc: "Active spaces for your subjects.",
+              href: "/study-rooms",
+            },
+            {
+              title: "Notes",
+              desc: "Your saved notes and summaries.",
+              href: "/notes",
+            },
+            {
+              title: "Quizzes",
+              desc: "Test your knowledge.",
+              href: "/quizzes",
+            },
+            {
+              title: "AI Tutor",
+              desc: "Ask anything and learn faster.",
+              href: "/ai-tutor",
+            },
+          ].map((item) => (
+            <button
+              key={item.title}
+              onClick={() => (window.location.href = item.href)}
+              className="rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-5 text-left transition hover:-translate-y-1 hover:border-cyan-400/40 hover:bg-slate-800/80"
+            >
+              <h2 className="text-xl font-bold text-white">
+                {item.title}
+              </h2>
 
-          <div className="rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-5">
-            <h2 className="text-xl font-bold text-white">Notes</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Your saved notes and summaries.
-            </p>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-5">
-            <h2 className="text-xl font-bold text-white">Quizzes</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Test your knowledge.
-            </p>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-white/10 bg-slate-900/70 p-5">
-            <h2 className="text-xl font-bold text-white">AI Tutor</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Ask anything and learn faster.
-            </p>
-          </div>
+              <p className="mt-2 text-sm text-slate-300">
+                {item.desc}
+              </p>
+            </button>
+          ))}
         </div>
       </div>
     </main>
