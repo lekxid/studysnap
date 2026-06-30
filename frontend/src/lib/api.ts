@@ -79,7 +79,6 @@ export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
 
-
 export async function generateLesson(question: string, context?: string) {
   return apiFetch("/api/ai/lesson", {
     method: "POST",
@@ -156,11 +155,16 @@ export async function getNotes(studyRoomId: number) {
   return apiFetch(`/api/notes/${studyRoomId}`);
 }
 
-export async function createNote(studyRoomId: number, content: string) {
+export async function createNote(
+  studyRoomId: number,
+  title: string,
+  content: string
+) {
   return apiFetch("/api/notes", {
     method: "POST",
     body: JSON.stringify({
       study_room_id: studyRoomId,
+      title,
       content,
     }),
   });
