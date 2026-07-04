@@ -13,6 +13,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.room_overview import router as room_overview_router
 from app.routes.progress import router as progress_router
 from app.routes.planner import router as planner_router
+from app.routes.pdf_documents import router as pdf_documents_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -35,6 +36,7 @@ app.include_router(dashboard_router, prefix="/api/dashboard")
 app.include_router(room_overview_router, prefix="/api/room-overview")
 app.include_router(progress_router, prefix="/api/progress")
 app.include_router(planner_router, prefix="/api/planner")
+app.include_router(pdf_documents_router, prefix="/api/pdfs")
 
 
 @app.get("/")

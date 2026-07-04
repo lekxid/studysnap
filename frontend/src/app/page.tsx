@@ -1,141 +1,157 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const features = [
-  {
-    title: "AI Tutor",
-    desc: "Ask questions, simplify hard topics, and get step-by-step explanations.",
-  },
-  {
-    title: "Study Rooms",
-    desc: "Keep each subject organized with notes, files, quizzes, and AI support.",
-  },
-  {
-    title: "Flashcards & Quizzes",
-    desc: "Turn notes into active recall tools that help you revise faster.",
-  },
-];
+import AppShell from "@/components/AppShell";
+import { createStudyRoom, getStudyRooms } from "@/lib/api";
 
-const quickStats = [
-  { label: "Learning modes", value: "3" },
-  { label: "Core study tools", value: "6" },
-  { label: "Premium focus", value: "24/7" },
-];
+type StudyRoom = {
+  id: number;
+  name: string;
+  subject: string;
+  description?: string;
+};
 
-export default function HomePage() {
+export default function StudyRoomsPage() {
+  const [rooms, setRooms] = useState<StudyRoom[]>([]);
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadRooms() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getStudyRooms();
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load study rooms.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreateRoom() {
+    if (!name.trim()) {
+      setError("Enter a study room name.");
+      return;
+    }
+
+    if (!subject.trim()) {
+      setError("Enter a subject.");
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setError("");
+
+      await createStudyRoom(name.trim(), subject.trim(), description.trim());
+
+      setName("");
+      setSubject("");
+      setDescription("");
+
+      await loadRooms();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create room.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  useEffect(() => {
+    loadRooms();
+  }, []);
+
   return (
-    <main className="premium-bg min-h-screen text-white">
-      <section className="page-wrap py-8 sm:py-10">
-        <div className="premium-card-strong overflow-hidden rounded-[2rem] border border-white/10">
-          <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
-            <div className="p-6 sm:p-8 lg:p-12">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="brand-mark" />
-                <div className="gold-chip">Premium AI study platform</div>
-              </div>
+    <AppShell
+      title="Study Rooms"
+      subtitle="Create and open your study workspaces"
+    >
+      <div className="content-grid">
+        <section className="gold-card rounded-[2rem] p-6 sm:p-8">
+          <div className="gold-chip mb-4">Rooms</div>
 
-              <h1 className="max-w-4xl text-4xl font-black leading-tight tracking-[-0.05em] text-white sm:text-5xl lg:text-6xl">
-                Study smarter with
-                <span className="glow-title mt-2 block bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-transparent">
-                  StudySnap AI
-                </span>
-              </h1>
+          <h2 className="panel-title text-white">Create a Study Room</h2>
 
-              <p className="panel-muted mt-6 max-w-2xl text-base sm:text-lg">
-                A premium study workspace for AI tutoring, organized study rooms,
-                notes, flashcards, quizzes, and focused planning — all in one app.
-              </p>
+          <p className="panel-muted mt-3">
+            Make a room for each course, subject, or exam topic.
+          </p>
 
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/signup"
-                  className="premium-button rounded-[1.2rem] px-6 py-3.5 text-sm font-bold"
-                >
-                  Get started
-                </Link>
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Room name"
+              className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
+            />
 
-                <Link
-                  href="/login"
-                  className="premium-button-secondary rounded-[1.2rem] px-6 py-3.5 text-sm font-semibold"
-                >
-                  Log in
-                </Link>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject"
+              className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
+            />
 
-                <Link
-                  href="/dashboard"
-                  className="premium-button-secondary rounded-[1.2rem] px-6 py-3.5 text-sm font-semibold"
-                >
-                  Open dashboard
-                </Link>
-              </div>
-
-              <div className="mt-10 grid gap-4 sm:grid-cols-3">
-                {quickStats.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4"
-                  >
-                    <p className="kpi-label">{item.label}</p>
-                    <p className="metric-number mt-3 text-amber-300">
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t border-white/10 p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
-              <div className="gold-card rounded-[1.8rem] p-6">
-                <div className="gold-chip mb-4">Why it feels different</div>
-                <h2 className="panel-title text-white">
-                  Built for real study flow
-                </h2>
-
-                <div className="mt-6 space-y-4">
-                  {features.map((feature) => (
-                    <div
-                      key={feature.title}
-                      className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4"
-                    >
-                      <p className="text-base font-bold text-white">
-                        {feature.title}
-                      </p>
-                      <p className="mt-2 text-sm leading-7 text-slate-300">
-                        {feature.desc}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="premium-card mt-5 rounded-[1.8rem] p-6">
-                <div className="gold-chip mb-4">Study flow</div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-                    <span className="subtle-dot mt-1.5 shrink-0" />
-                    <p className="text-sm leading-7 text-slate-200">
-                      Create your account and personalize your learning style.
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3 rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-                    <span className="subtle-dot mt-1.5 shrink-0" />
-                    <p className="text-sm leading-7 text-slate-200">
-                      Organize subjects into rooms and keep your study materials together.
-                    </p>
-                  </div>
-
-                  <div className="flex items-start gap-3 rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4">
-                    <span className="subtle-dot mt-1.5 shrink-0" />
-                    <p className="text-sm leading-7 text-slate-200">
-                      Use AI Tutor, flashcards, and quizzes to revise faster.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description"
+              className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
+            />
           </div>
-        </div>
-      </section>
-    </main>
+
+          <button
+            onClick={handleCreateRoom}
+            disabled={creating}
+            className="mt-5 rounded-xl bg-cyan-400 px-5 py-3 font-black text-slate-950 transition hover:bg-cyan-300 disabled:opacity-60"
+          >
+            {creating ? "Creating..." : "Create Room"}
+          </button>
+
+          {error ? (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              {error}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {loading ? (
+            <div className="stat-card p-5 text-slate-300">Loading rooms...</div>
+          ) : rooms.length === 0 ? (
+            <div className="stat-card p-5 text-slate-300">
+              No study rooms yet. Create one above.
+            </div>
+          ) : (
+            rooms.map((room) => (
+              <Link
+                key={room.id}
+                href={`/study-rooms/${room.id}`}
+                className="stat-card p-5 transition hover:-translate-y-1 hover:border-cyan-400/40"
+              >
+                <div className="gold-chip mb-4">{room.subject}</div>
+
+                <h3 className="text-xl font-black text-white">{room.name}</h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  {room.description || "Open this study room workspace."}
+                </p>
+
+                <p className="mt-4 text-sm font-bold text-cyan-300">
+                  Open room →
+                </p>
+              </Link>
+            ))
+          )}
+        </section>
+      </div>
+    </AppShell>
   );
 }

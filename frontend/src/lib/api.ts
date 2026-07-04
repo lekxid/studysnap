@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://192.168.133.130:8000";
+const API_BASE = "/backend";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -15,11 +15,41 @@ export function removeToken() {
   localStorage.removeItem("token");
 }
 
+function getErrorMessage(data: unknown): string {
+  if (typeof data === "string") return data;
+
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+
+    if (typeof obj.detail === "string") return obj.detail;
+
+    if (Array.isArray(obj.detail)) {
+      return obj.detail
+        .map((item) => {
+          if (item && typeof item === "object") {
+            const error = item as Record<string, unknown>;
+            return String(error.msg || JSON.stringify(error));
+          }
+          return String(item);
+        })
+        .join(", ");
+    }
+
+    if (typeof obj.message === "string") return obj.message;
+
+    return JSON.stringify(obj);
+  }
+
+  return "Request failed";
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
-
   const headers = new Headers(options.headers || {});
-  headers.set("Content-Type", "application/json");
+
+  if (!(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -32,16 +62,19 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     let message = "Request failed";
+
     try {
       const data = await res.json();
-      message = data.detail || JSON.stringify(data);
+      message = getErrorMessage(data);
     } catch {
       message = await res.text();
     }
+
     throw new Error(message || "Request failed");
   }
 
   const contentType = res.headers.get("content-type") || "";
+
   if (contentType.includes("application/json")) {
     return res.json();
   }
@@ -79,6 +112,16 @@ export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
 
+export async function askAi(question: string, context?: string) {
+  return apiFetch("/api/ai/ask", {
+    method: "POST",
+    body: JSON.stringify({
+      question,
+      context: context || "",
+    }),
+  });
+}
+
 export async function generateLesson(question: string, context?: string) {
   return apiFetch("/api/ai/lesson", {
     method: "POST",
@@ -90,14 +133,127 @@ export async function generateLesson(question: string, context?: string) {
   });
 }
 
-export async function askAi(question: string, context?: string) {
-  return apiFetch("/api/ai/ask", {
+export async function createAIConversation(
+  studyRoomId: number,
+  title = "New Conversation",
+  conversationMode = "general"
+) {
+  return apiFetch("/api/ai/conversations", {
     method: "POST",
     body: JSON.stringify({
-      question,
-      context: context || "",
+      study_room_id: studyRoomId,
+      title,
+      mode: conversationMode,
     }),
   });
+}
+
+export async function getAIConversations(
+  studyRoomId: number,
+  conversationMode = "general"
+) {
+  return apiFetch(
+    `/api/ai/conversations/${studyRoomId}?mode=${encodeURIComponent(
+      conversationMode
+    )}`
+  );
+}
+
+export async function getAIMessages(conversationId: number) {
+  return apiFetch(`/api/ai/messages/${conversationId}`);
+}
+
+export async function sendAIMessage(
+  conversationId: number,
+  content: string,
+  mode = "explain"
+) {
+  return apiFetch("/api/ai/messages", {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      content,
+      mode,
+    }),
+  });
+}
+
+export async function streamAIMessage(
+  conversationId: number,
+  content: string,
+  mode = "explain",
+  onToken: (token: string) => void
+) {
+  const token = getToken();
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE}/api/ai/messages/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      content,
+      mode,
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    let message = "Streaming request failed";
+
+    try {
+      const data = await res.json();
+      message = getErrorMessage(data);
+    } catch {
+      message = await res.text();
+    }
+
+    throw new Error(message || "Streaming request failed");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const event of events) {
+      const lines = event.split("\n");
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+
+        const rawData = line.slice(6);
+
+        if (rawData === "[DONE]") {
+          return;
+        }
+
+        try {
+          const parsedToken = JSON.parse(rawData);
+
+          if (typeof parsedToken === "string") {
+            onToken(parsedToken);
+          }
+        } catch {
+          onToken(rawData);
+        }
+      }
+    }
+  }
 }
 
 export async function generateFlashcardsFromNotes(studyRoomId: number) {
@@ -157,15 +313,15 @@ export async function getNotes(studyRoomId: number) {
 
 export async function createNote(
   studyRoomId: number,
-  title: string,
-  content: string
+  titleOrContent: string,
+  content?: string
 ) {
   return apiFetch("/api/notes", {
     method: "POST",
     body: JSON.stringify({
       study_room_id: studyRoomId,
-      title,
-      content,
+      title: content ? titleOrContent : "Untitled Note",
+      content: content || titleOrContent,
     }),
   });
 }
@@ -223,5 +379,28 @@ export async function createQuiz(
 export async function deleteQuiz(quizId: number) {
   return apiFetch(`/api/quizzes/${quizId}`, {
     method: "DELETE",
+  });
+}
+
+export async function getPDFs(studyRoomId: number) {
+  return apiFetch(`/api/pdfs/${studyRoomId}`);
+}
+
+export async function deletePDF(pdfId: number) {
+  return apiFetch(`/api/pdfs/${pdfId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function summarizePDF(pdfId: number) {
+  return apiFetch(`/api/pdfs/${pdfId}/summary`, {
+    method: "POST",
+  });
+}
+
+export async function chatWithPDF(pdfId: number, question: string) {
+  return apiFetch(`/api/pdfs/${pdfId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
   });
 }

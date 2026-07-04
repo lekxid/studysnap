@@ -1,199 +1,293 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import {
+  createStudyRoom,
+  deleteStudyRoom,
+  getStudyRooms,
+  updateStudyRoom,
+} from "@/lib/api";
 
-const rooms = [
-  {
-    id: 1,
-    name: "Networking Fundamentals",
-    subject: "CSTN",
-    progress: 62,
-    notes: 14,
-    flashcards: 42,
-    quizzes: 6,
-    members: 3,
-  },
-  {
-    id: 2,
-    name: "Linux Administration",
-    subject: "Server",
-    progress: 48,
-    notes: 9,
-    flashcards: 28,
-    quizzes: 4,
-    members: 2,
-  },
-  {
-    id: 7,
-    name: "Exam Prep Room",
-    subject: "Mixed Review",
-    progress: 42,
-    notes: 11,
-    flashcards: 31,
-    quizzes: 5,
-    members: 4,
-  },
-];
+type StudyRoom = {
+  id: number;
+  name: string;
+  subject: string;
+  description?: string | null;
+};
 
 export default function StudyRoomsPage() {
+  const ready = useRequireAuth();
+  const router = useRouter();
+
+  const [rooms, setRooms] = useState<StudyRoom[]>([]);
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [editingRoomId, setEditingRoomId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  async function loadRooms() {
+    try {
+      const data = await getStudyRooms();
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load study rooms";
+      setError(message);
+    }
+  }
+
+  useEffect(() => {
+    if (!ready) return;
+    loadRooms();
+  }, [ready]);
+
+  async function handleCreate() {
+    if (!name.trim()) {
+      setError("Please enter a study room name.");
+      return;
+    }
+
+    if (!subject.trim()) {
+      setError("Please enter a subject.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await createStudyRoom(name, subject, description);
+      setName("");
+      setSubject("");
+      setDescription("");
+      await loadRooms();
+      setSuccess("Study room created successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create study room";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      setError("");
+      setSuccess("");
+      await deleteStudyRoom(id);
+      await loadRooms();
+      setSuccess("Study room deleted successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete study room";
+      setError(message);
+    }
+  }
+
+  function startEdit(room: StudyRoom) {
+    setEditingRoomId(room.id);
+    setEditName(room.name);
+    setEditSubject(room.subject);
+    setEditDescription(room.description || "");
+    setError("");
+    setSuccess("");
+  }
+
+  function cancelEdit() {
+    setEditingRoomId(null);
+    setEditName("");
+    setEditSubject("");
+    setEditDescription("");
+  }
+
+  async function handleSaveEdit() {
+    if (!editingRoomId) return;
+
+    if (!editName.trim()) {
+      setError("Please enter a room name.");
+      return;
+    }
+
+    if (!editSubject.trim()) {
+      setError("Please enter a subject.");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setError("");
+      setSuccess("");
+      await updateStudyRoom(editingRoomId, editName, editSubject, editDescription);
+      await loadRooms();
+      cancelEdit();
+      setSuccess("Study room updated successfully.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update study room";
+      setError(message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  if (!ready) {
+    return <div className="min-h-screen bg-black text-white p-6">Checking authentication...</div>;
+  }
+
   return (
-    <AppShell
-      title="Study Rooms"
-      subtitle="Organize each subject into a clean study space with notes, AI support, quizzes, and flashcards."
-    >
-      <div className="content-grid">
-        <section className="hero-grid">
-          <div className="gold-card rounded-[1.7rem] p-5 sm:rounded-[2rem] sm:p-8">
-            <div className="gold-chip mb-4">Organized learning</div>
+    <AppShell title="Study Rooms" subtitle="Create and organize your real study projects">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-1 rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Create Study Room</h3>
 
-            <h3 className="panel-title text-white text-balance">
-              Turn every subject into its own premium study workspace.
-            </h3>
+          <div className="mt-4 space-y-4">
+            <input
+              className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+              placeholder="Room name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
 
-            <p className="panel-muted mt-4 max-w-2xl">
-              Create separate rooms for classes, exams, projects, or revision.
-              Keep your notes, AI explanations, flashcards, and quizzes inside
-              each room so studying feels structured instead of messy.
-            </p>
+            <input
+              className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+              placeholder="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
 
-            <div className="mt-7 grid gap-3 sm:grid-cols-3 sm:gap-4">
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Total rooms</p>
-                <p className="mt-3 text-3xl font-black text-cyan-300 sm:text-4xl">
-                  3
-                </p>
-              </div>
+            <textarea
+              className="min-h-[120px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
+              placeholder="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
 
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Active progress</p>
-                <p className="mt-3 text-3xl font-black text-amber-300 sm:text-4xl">
-                  51%
-                </p>
-              </div>
-
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Shared rooms</p>
-                <p className="mt-3 text-3xl font-black text-violet-300 sm:text-4xl">
-                  2
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <button className="premium-button rounded-[1.1rem] px-5 py-3 text-sm font-bold">
-                Create New Room
-              </button>
-
-              <button className="premium-button-secondary rounded-[1.1rem] px-5 py-3 text-sm font-semibold">
-                Import Notes
-              </button>
-            </div>
-          </div>
-
-          <div className="premium-card gold-border rounded-[1.7rem] p-5 sm:rounded-[2rem] sm:p-6">
-            <div className="gold-chip mb-4">Best next move</div>
-            <h3 className="panel-title text-white">Suggested focus</h3>
-
-            <div className="mt-6 space-y-4">
-              <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
-                <p className="text-sm font-semibold text-amber-100">
-                  Networking Fundamentals
-                </p>
-                <p className="mt-2 text-sm leading-7 text-slate-300">
-                  This room has the highest momentum. Review it first before your
-                  next quiz.
-                </p>
-              </div>
-
-              <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
-                <p className="text-sm font-semibold text-amber-100">
-                  Linux Administration
-                </p>
-                <p className="mt-2 text-sm leading-7 text-slate-300">
-                  Needs more revision sessions to catch up this week.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 sm:gap-5 xl:grid-cols-3">
-          {rooms.map((room) => (
-            <Link
-              key={room.id}
-              href={`/study-rooms/${room.id}`}
-              className="stat-card p-5 sm:p-6 transition hover:-translate-y-1"
+            <button
+              onClick={handleCreate}
+              disabled={loading}
+              className="w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-black disabled:opacity-50"
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="gold-chip mb-4">{room.subject}</div>
-                  <h4 className="text-2xl font-black tracking-tight text-white">
-                    {room.name}
-                  </h4>
+              {loading ? "Creating..." : "Create Room"}
+            </button>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <h3 className="text-xl font-semibold text-cyan-300">Your Study Rooms</h3>
+
+          {error ? (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+              {error}
+            </div>
+          ) : null}
+
+          {success ? (
+            <div className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-green-300">
+              {success}
+            </div>
+          ) : null}
+
+          {rooms.length === 0 ? (
+            <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
+              No study rooms yet. Create your first one now.
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {rooms.map((room) => (
+                <div
+                  key={room.id}
+                  className="rounded-2xl border border-white/10 bg-black p-5"
+                >
+                  {editingRoomId === room.id ? (
+                    <div className="space-y-3">
+                      <input
+                        className="w-full rounded-xl border border-white/20 bg-[#0a1022] px-4 py-3 text-white outline-none"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Room name"
+                      />
+
+                      <input
+                        className="w-full rounded-xl border border-white/20 bg-[#0a1022] px-4 py-3 text-white outline-none"
+                        value={editSubject}
+                        onChange={(e) => setEditSubject(e.target.value)}
+                        placeholder="Subject"
+                      />
+
+                      <textarea
+                        className="min-h-[100px] w-full rounded-xl border border-white/20 bg-[#0a1022] px-4 py-3 text-white outline-none"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        placeholder="Description"
+                      />
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={savingEdit}
+                          className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                        >
+                          {savingEdit ? "Saving..." : "Save"}
+                        </button>
+
+                        <button
+                          onClick={cancelEdit}
+                          className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="text-lg font-semibold text-cyan-300">{room.name}</h4>
+                      <p className="mt-2 text-sm text-yellow-300">{room.subject}</p>
+                      <p className="mt-3 min-h-[48px] text-sm text-white/70">
+                        {room.description || "No description yet."}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-3">
+                        <button
+                          onClick={() => router.push(`/study-rooms/${room.id}`)}
+                          className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black"
+                        >
+                          Open
+                        </button>
+
+                        <button
+                          onClick={() => startEdit(room)}
+                          className="rounded-xl border border-yellow-400/30 px-4 py-2 text-sm font-semibold text-yellow-300"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(room.id)}
+                          className="rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-
-                <div className="self-start rounded-[1rem] border border-white/10 bg-black/20 px-3 py-2 text-sm font-bold text-amber-100">
-                  {room.progress}%
-                </div>
-              </div>
-
-              <p className="kpi-help mt-5">
-                Keep all study materials, AI help, and practice tools in one
-                room.
-              </p>
-
-              <div className="room-progress mt-5">
-                <span style={{ width: `${room.progress}%` }} />
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-[1.05rem] border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
-                    Notes
-                  </p>
-                  <p className="mt-2 text-lg font-black text-white sm:text-xl">
-                    {room.notes}
-                  </p>
-                </div>
-
-                <div className="rounded-[1.05rem] border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
-                    Flashcards
-                  </p>
-                  <p className="mt-2 text-lg font-black text-white sm:text-xl">
-                    {room.flashcards}
-                  </p>
-                </div>
-
-                <div className="rounded-[1.05rem] border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
-                    Quizzes
-                  </p>
-                  <p className="mt-2 text-lg font-black text-white sm:text-xl">
-                    {room.quizzes}
-                  </p>
-                </div>
-
-                <div className="rounded-[1.05rem] border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
-                    Members
-                  </p>
-                  <p className="mt-2 text-lg font-black text-white sm:text-xl">
-                    {room.members}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-300">
-                  Open full room details
-                </span>
-                <span className="text-lg font-bold text-amber-200">→</span>
-              </div>
-            </Link>
-          ))}
-        </section>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </AppShell>
   );
