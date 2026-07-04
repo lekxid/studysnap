@@ -57,6 +57,8 @@ export default function RoomAIAssistant({
 }: RoomAIAssistantProps) {
   const chatBoxRef = useRef<HTMLDivElement | null>(null);
 
+  const conversationMenuRef = useRef<HTMLDivElement | null>(null);
+
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState("explain");
   const [loading, setLoading] = useState(false);
@@ -355,8 +357,38 @@ async function handleDeleteConversation(conversation: AIConversation) {
   }
 
   async function copyText(text: string) {
-    await navigator.clipboard.writeText(text);
+  try {
+    // Modern Clipboard API (works on HTTPS)
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    // Fallback for HTTP / development environments
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "-9999px";
+    textArea.setAttribute("readonly", "");
+
+    document.body.appendChild(textArea);
+
+    textArea.focus();
+    textArea.select();
+
+    const copied = document.execCommand("copy");
+
+    document.body.removeChild(textArea);
+
+    if (!copied) {
+      throw new Error("Copy command failed.");
+    }
+  } catch (error) {
+    console.error("Copy failed:", error);
+    alert("Unable to copy the response.");
   }
+}
 
   useEffect(() => {
     loadConversations();
@@ -365,6 +397,31 @@ async function handleDeleteConversation(conversation: AIConversation) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+useEffect(() => {
+  function handleClickOutside(event: MouseEvent) {
+    if (
+      conversationMenuRef.current &&
+      !conversationMenuRef.current.contains(event.target as Node)
+    ) {
+      setOpenConversationMenuId(null);
+    }
+  }
+
+  function handleEscape(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      setOpenConversationMenuId(null);
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside);
+  document.addEventListener("keydown", handleEscape);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+    document.removeEventListener("keydown", handleEscape);
+  };
+}, []);
 
   return (
     <section className="rounded-3xl border border-cyan-400/20 bg-[#0a1022] p-6 shadow-2xl shadow-cyan-950/20">
@@ -387,11 +444,11 @@ async function handleDeleteConversation(conversation: AIConversation) {
             onChange={(e) => setMode(e.target.value)}
             className="rounded-2xl border border-white/10 bg-black px-5 py-4 text-sm font-semibold text-white outline-none"
           >
-            <option value="explain">Explain</option>
-            <option value="teach">Teach me</option>
-            <option value="quiz">Create quiz</option>
-            <option value="summarize">Summarize</option>
-            <option value="practice">Practice questions</option>
+            <option className="bg-[#101826] text-white" value="explain">Explain</option>
+<option className="bg-[#101826] text-white" value="teach">Teach me</option>
+<option className="bg-[#101826] text-white" value="quiz">Create quiz</option>
+<option className="bg-[#101826] text-white" value="summarize">Summarize</option>
+<option className="bg-[#101826] text-white" value="practice">Practice questions</option>
           </select>
 
           <button
@@ -427,9 +484,9 @@ async function handleDeleteConversation(conversation: AIConversation) {
               No saved chats yet. Ask a question to create one.
             </p>
           ) : (
-            <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[420px] space-y-2 overflow-visible pr-1">
               {conversations.map((conversation) => (
-  <div key={conversation.id} className="flex gap-2">
+  <div key={conversation.id} className="relative flex gap-2">
     <button
       type="button"
       onClick={() => {
@@ -444,7 +501,14 @@ async function handleDeleteConversation(conversation: AIConversation) {
     >
       <span className="block truncate">{conversation.title}</span>
     </button>
-<div className="relative">
+<div
+  className="relative"
+  ref={
+    openConversationMenuId === conversation.id
+      ? conversationMenuRef
+      : null
+  }
+>
   <button
     type="button"
     onClick={() => toggleConversationMenu(conversation.id)}
@@ -454,7 +518,9 @@ async function handleDeleteConversation(conversation: AIConversation) {
   </button>
 
   {openConversationMenuId === conversation.id && (
-    <div className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-[#101826] shadow-xl z-20">
+    <div
+  className="absolute left-full top-0 z-50 ml-2 w-44 origin-top-left rounded-2xl border border-white/10 bg-[#101826] p-1 shadow-2xl shadow-black/50 ring-1 ring-white/5 transition-all duration-150 ease-out"
+>
 
       <button
         type="button"
@@ -462,7 +528,7 @@ async function handleDeleteConversation(conversation: AIConversation) {
           setOpenConversationMenuId(null);
           handleRenameConversation(conversation);
         }}
-        className="block w-full px-4 py-3 text-left text-sm text-white hover:bg-white/10"
+        className="block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold text-white transition hover:bg-white/10"
       >
         ✏️ Rename
       </button>
@@ -473,7 +539,7 @@ async function handleDeleteConversation(conversation: AIConversation) {
           setOpenConversationMenuId(null);
           handleDeleteConversation(conversation);
         }}
-        className="block w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-500/10"
+        className="block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold text-red-300 transition hover:bg-red-500/10"
       >
         🗑 Delete
       </button>
