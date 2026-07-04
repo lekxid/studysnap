@@ -67,6 +67,8 @@ export default function RoomAIAssistant({
 
   const [renamingConversationId, setRenamingConversationId] = useState<number | null>(null);
 
+  const [openConversationMenuId, setOpenConversationMenuId] = useState<number | null>(null);
+
  function scrollToBottom() {
   setTimeout(() => {
     if (!chatBoxRef.current) return;
@@ -141,6 +143,12 @@ export default function RoomAIAssistant({
   async function handleSelectConversation(conversationId: number) {
   setActiveConversationId(conversationId);
   await loadMessages(conversationId);
+}
+
+function toggleConversationMenu(conversationId: number) {
+  setOpenConversationMenuId((current) =>
+    current === conversationId ? null : conversationId
+  );
 }
 
 async function handleRenameConversation(conversation: AIConversation) {
@@ -424,7 +432,10 @@ async function handleDeleteConversation(conversation: AIConversation) {
   <div key={conversation.id} className="flex gap-2">
     <button
       type="button"
-      onClick={() => handleSelectConversation(conversation.id)}
+      onClick={() => {
+  setOpenConversationMenuId(null);
+  handleSelectConversation(conversation.id);
+}}
       className={`min-w-0 flex-1 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
         activeConversationId === conversation.id
           ? "bg-cyan-400 text-slate-950"
@@ -433,26 +444,43 @@ async function handleDeleteConversation(conversation: AIConversation) {
     >
       <span className="block truncate">{conversation.title}</span>
     </button>
+<div className="relative">
+  <button
+    type="button"
+    onClick={() => toggleConversationMenu(conversation.id)}
+    className="rounded-xl border border-white/10 px-3 py-2 text-white hover:bg-white/10"
+  >
+    ⋮
+  </button>
 
-    <button
-      type="button"
-      onClick={() => handleRenameConversation(conversation)}
-      disabled={renamingConversationId === conversation.id}
-      className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:bg-white/10 disabled:opacity-50"
-      title="Rename chat"
-    >
-      ✏️
-    </button>
+  {openConversationMenuId === conversation.id && (
+    <div className="absolute right-0 mt-2 w-40 rounded-xl border border-white/10 bg-[#101826] shadow-xl z-20">
 
-    <button
-      type="button"
-      onClick={() => handleDeleteConversation(conversation)}
-      disabled={renamingConversationId === conversation.id}
-      className="rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
-      title="Delete chat"
-    >
-      🗑️
-    </button>
+      <button
+        type="button"
+        onClick={() => {
+          setOpenConversationMenuId(null);
+          handleRenameConversation(conversation);
+        }}
+        className="block w-full px-4 py-3 text-left text-sm text-white hover:bg-white/10"
+      >
+        ✏️ Rename
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          setOpenConversationMenuId(null);
+          handleDeleteConversation(conversation);
+        }}
+        className="block w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-500/10"
+      >
+        🗑 Delete
+      </button>
+
+    </div>
+  )}
+</div>
   </div>
 ))}
             </div>
