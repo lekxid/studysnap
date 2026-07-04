@@ -5,8 +5,10 @@ import remarkGfm from "remark-gfm";
 import { useEffect, useRef, useState } from "react";
 import {
   createAIConversation,
+  deleteAIConversation,
   getAIConversations,
   getAIMessages,
+  renameAIConversation,
   streamAIMessage,
 } from "@/lib/api";
 
@@ -63,13 +65,16 @@ export default function RoomAIAssistant({
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomAiMessage[]>([]);
 
-  function scrollToBottom() {
-    setTimeout(() => {
-      if (!chatBoxRef.current) return;
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
-    }, 50);
-  }
+  const [renamingConversationId, setRenamingConversationId] = useState<number | null>(null);
 
+ function scrollToBottom() {
+  setTimeout(() => {
+    if (!chatBoxRef.current) return;
+    chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+  }, 50);
+}
+ 
+      
   async function loadMessages(conversationId: number) {
     try {
       setLoadingHistory(true);
@@ -134,9 +139,79 @@ export default function RoomAIAssistant({
   }
 
   async function handleSelectConversation(conversationId: number) {
-    setActiveConversationId(conversationId);
-    await loadMessages(conversationId);
+  setActiveConversationId(conversationId);
+  await loadMessages(conversationId);
+}
+
+async function handleRenameConversation(conversation: AIConversation) {
+  const newTitle = prompt("Rename conversation", conversation.title);
+
+  if (newTitle === null) return;
+
+  const cleanTitle = newTitle.trim();
+
+  if (!cleanTitle) return;
+
+  try {
+    setRenamingConversationId(conversation.id);
+
+    const updated = await renameAIConversation(
+      conversation.id,
+      cleanTitle
+    );
+
+    setConversations((prev) =>
+      prev.map((item) =>
+        item.id === conversation.id
+          ? {
+              ...item,
+              title: updated.title,
+            }
+          : item
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    alert("Failed to rename conversation.");
+  } finally {
+    setRenamingConversationId(null);
   }
+}
+
+async function handleDeleteConversation(conversation: AIConversation) {
+  const confirmed = confirm(
+    `Delete "${conversation.title}"?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setRenamingConversationId(conversation.id);
+
+    await deleteAIConversation(conversation.id);
+
+    const remaining = conversations.filter(
+      (item) => item.id !== conversation.id
+    );
+
+    setConversations(remaining);
+
+    if (activeConversationId === conversation.id) {
+      if (remaining.length > 0) {
+        setActiveConversationId(remaining[0].id);
+        await loadMessages(remaining[0].id);
+      } else {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Failed to delete conversation.");
+  } finally {
+    setRenamingConversationId(null);
+  }
+}
 
   function handleClearChat() {
     setMessages([]);
@@ -346,19 +421,40 @@ export default function RoomAIAssistant({
           ) : (
             <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
               {conversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => handleSelectConversation(conversation.id)}
-                  className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
-                    activeConversationId === conversation.id
-                      ? "bg-cyan-400 text-slate-950"
-                      : "bg-white/5 text-white hover:bg-white/10"
-                  }`}
-                >
-                  {conversation.title}
-                </button>
-              ))}
+  <div key={conversation.id} className="flex gap-2">
+    <button
+      type="button"
+      onClick={() => handleSelectConversation(conversation.id)}
+      className={`min-w-0 flex-1 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
+        activeConversationId === conversation.id
+          ? "bg-cyan-400 text-slate-950"
+          : "bg-white/5 text-white hover:bg-white/10"
+      }`}
+    >
+      <span className="block truncate">{conversation.title}</span>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => handleRenameConversation(conversation)}
+      disabled={renamingConversationId === conversation.id}
+      className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+      title="Rename chat"
+    >
+      ✏️
+    </button>
+
+    <button
+      type="button"
+      onClick={() => handleDeleteConversation(conversation)}
+      disabled={renamingConversationId === conversation.id}
+      className="rounded-xl border border-red-500/30 px-3 py-2 text-sm text-red-300 transition hover:bg-red-500/10 disabled:opacity-50"
+      title="Delete chat"
+    >
+      🗑️
+    </button>
+  </div>
+))}
             </div>
           )}
         </aside>

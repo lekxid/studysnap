@@ -159,6 +159,22 @@ export async function getAIConversations(
   );
 }
 
+export async function renameAIConversation(
+  conversationId: number,
+  title: string
+) {
+  return apiFetch(`/api/ai/conversations/${conversationId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteAIConversation(conversationId: number) {
+  return apiFetch(`/api/ai/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getAIMessages(conversationId: number) {
   return apiFetch(`/api/ai/messages/${conversationId}`);
 }

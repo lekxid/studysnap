@@ -51,6 +51,9 @@ class CreateConversationRequest(BaseModel):
     title: str = "New Conversation"
     mode: str = "general"
 
+    class UpdateConversationRequest(BaseModel):
+        title: str
+
 
 class CreateMessageRequest(BaseModel):
     conversation_id: int
@@ -168,6 +171,51 @@ def get_conversations(
         for conversation in conversations
     ]
 
+@router.patch("/conversations/{conversation_id}")
+def update_conversation(
+    conversation_id: int,
+    data: UpdateConversationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conversation = verify_conversation(db, conversation_id, current_user.id)
+
+    clean_title = data.title.strip()
+
+    if not clean_title:
+        raise HTTPException(status_code=400, detail="Conversation title cannot be empty")
+
+    conversation.title = clean_title[:100]
+
+    db.commit()
+    db.refresh(conversation)
+
+    return {
+        "id": conversation.id,
+        "title": conversation.title,
+        "mode": conversation.mode,
+        "study_room_id": conversation.study_room_id,
+        "owner_id": conversation.owner_id,
+        "created_at": conversation.created_at,
+    }
+
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conversation = verify_conversation(db, conversation_id, current_user.id)
+
+    db.query(AIMessage).filter(
+        AIMessage.conversation_id == conversation.id,
+    ).delete(synchronize_session=False)
+
+    db.delete(conversation)
+    db.commit()
+
+    return {"message": "Conversation deleted successfully"}
 
 @router.post("/messages")
 def create_message(
