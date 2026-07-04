@@ -51,8 +51,9 @@ class CreateConversationRequest(BaseModel):
     title: str = "New Conversation"
     mode: str = "general"
 
-    class UpdateConversationRequest(BaseModel):
-        title: str
+
+class UpdateConversationRequest(BaseModel):
+    title: str
 
 
 class CreateMessageRequest(BaseModel):
