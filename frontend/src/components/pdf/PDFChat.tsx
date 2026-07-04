@@ -99,6 +99,12 @@ export default function PDFChat({ pdfId, filename }: PDFChatProps) {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleAsk();
+  }
+}}
           placeholder="Ask something about this PDF..."
           className="flex-1 rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30"
         />

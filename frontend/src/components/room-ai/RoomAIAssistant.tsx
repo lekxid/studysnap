@@ -1,7 +1,6 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MessageBubble from "@/components/room-ai/MessageBubble";
 import { useEffect, useRef, useState } from "react";
 import {
   createAIConversation,
@@ -578,41 +577,20 @@ useEffect(() => {
               </div>
             ) : (
               messages.map((message, index) => (
-                <div
-                  key={message.id || index}
-                  className={`rounded-2xl p-5 text-sm leading-7 ${
-                    message.role === "user"
-                      ? "ml-auto max-w-[85%] bg-cyan-400/10 text-cyan-100"
-                      : "mr-auto max-w-[90%] bg-black text-white/85"
-                  }`}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                      {message.role === "user"
-                        ? "You"
-                        : conversationMode === "pdf"
-                          ? "PDF Assistant"
-                          : "StudySnap AI"}
-                    </p>
-
-                    {message.role === "assistant" ? (
-                      <button
-                        type="button"
-                        onClick={() => copyText(message.content)}
-                        className="rounded-lg border border-white/10 px-2 py-1 text-xs text-white/60 hover:bg-white/10"
-                      >
-                        Copy
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div className="prose prose-invert max-w-none prose-p:leading-7 prose-li:leading-7 prose-headings:text-white prose-strong:text-white prose-code:text-cyan-200">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.content}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ))
+  <MessageBubble
+    key={message.id || index}
+    role={message.role}
+    content={message.content}
+    label={
+      message.role === "user"
+        ? "You"
+        : conversationMode === "pdf"
+          ? "PDF Assistant"
+          : "StudySnap AI"
+    }
+    onCopy={() => copyText(message.content)}
+  />
+))
             )}
           </div>
 
