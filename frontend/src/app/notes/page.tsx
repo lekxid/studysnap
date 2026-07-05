@@ -6,6 +6,7 @@ import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
+import NotesAIWorkspace, { AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
 import NotesLibrary from "@/features/notes/NotesLibrary";
 
 type StudyRoom = {
@@ -44,6 +45,7 @@ export default function NotesPage() {
   const [aiContent, setAiContent] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
+  const [aiHistory, setAiHistory] = useState<AIHistoryItem[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -112,7 +114,7 @@ export default function NotesPage() {
     }
 
     try {
-      setAiLoading(true);
+      setSaving(true);
       setError("");
 
       const newNote = await createNote(selectedRoomId, title.trim(), content.trim());
@@ -123,7 +125,7 @@ export default function NotesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save note.");
     } finally {
-      setAiLoading(false);
+      setSaving(false);
     }
   }
 
@@ -139,6 +141,18 @@ export default function NotesPage() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+
+  function addAIHistoryItem(itemTitle: string, itemContent: string) {
+    const newItem: AIHistoryItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      title: itemTitle,
+      content: itemContent,
+      createdAt: new Date().toLocaleString(),
+    };
+
+    setAiHistory((current) => [newItem, ...current]);
   }
 
   async function handleSummarizeNote() {
@@ -158,7 +172,9 @@ export default function NotesPage() {
         content
       );
 
-      setAiContent(String(result.answer || result.response || result.message || result));
+      const output = String(result.answer || result.response || result.message || result);
+      setAiContent(output);
+      addAIHistoryItem(aiTitle, output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to summarize note.");
     } finally {
@@ -183,7 +199,9 @@ export default function NotesPage() {
         content
       );
 
-      setAiContent(String(result.answer || result.response || result.message || result));
+      const output = String(result.answer || result.response || result.message || result);
+      setAiContent(output);
+      addAIHistoryItem(aiTitle, output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to explain note.");
     } finally {
@@ -208,7 +226,9 @@ export default function NotesPage() {
         content
       );
 
-      setAiContent(String(result.lesson || result.answer || result.response || result.message || result));
+      const output = String(result.lesson || result.answer || result.response || result.message || result);
+      setAiContent(output);
+      addAIHistoryItem(aiTitle, output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create lesson.");
     } finally {
@@ -228,7 +248,9 @@ export default function NotesPage() {
 
       setAiTitle("Flashcards");
       await generateFlashcardsFromNotes(selectedRoomId);
-      setAiContent("Flashcards generated. Open Flashcards to review them.");
+      const output = "Flashcards generated. Open Flashcards to review them.";
+      setAiContent(output);
+      addAIHistoryItem("Flashcards", output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate flashcards.");
     } finally {
@@ -248,7 +270,9 @@ export default function NotesPage() {
 
       setAiTitle("Quiz");
       await generateQuizzesFromNotes(selectedRoomId);
-      setAiContent("Quiz generated. Open Quizzes to review it.");
+      const output = "Quiz generated. Open Quizzes to review it.";
+      setAiContent(output);
+      addAIHistoryItem("Quiz", output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate quiz.");
     } finally {
@@ -273,7 +297,9 @@ export default function NotesPage() {
         content
       );
 
-      setAiContent(String(result.answer || result.response || result.message || result));
+      const output = String(result.answer || result.response || result.message || result);
+      setAiContent(output);
+      addAIHistoryItem(aiTitle, output);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to ask AI.");
     } finally {
@@ -322,6 +348,29 @@ export default function NotesPage() {
     setAiStatus("Inserted into note.");
   }
 
+  async function handleCopyAIHistory(itemContent: string) {
+    if (!itemContent.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(itemContent);
+      setAiStatus("Copied history item.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to copy AI history item.");
+    }
+  }
+
+  function handleInsertAIHistory(itemContent: string) {
+    if (!itemContent.trim()) return;
+
+    setContent((current) =>
+      current.trim()
+        ? current + "\n\n" + itemContent
+        : itemContent
+    );
+
+    setAiStatus("Inserted history item into note.");
+  }
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
 
   if (!ready) {
@@ -351,10 +400,6 @@ export default function NotesPage() {
           loadingRooms={loadingRooms}
           saving={saving}
           error={error}
-          aiTitle={aiTitle}
-          aiContent={aiContent}
-          aiLoading={aiLoading}
-          aiStatus={aiStatus}
           onRoomChange={setSelectedRoomId}
           onTitleChange={setTitle}
           onContentChange={setContent}
@@ -365,8 +410,18 @@ export default function NotesPage() {
           onFlashcards={handleFlashcardsNote}
           onQuiz={handleQuizNote}
           onAskAI={handleAskAINote}
-          onCopyAI={handleCopyAI}
-          onInsertAI={handleInsertAI}
+        />
+
+        <NotesAIWorkspace
+          title={aiTitle}
+          content={aiContent}
+          loading={aiLoading}
+          status={aiStatus}
+          history={aiHistory}
+          onCopy={handleCopyAI}
+          onInsert={handleInsertAI}
+          onCopyHistory={handleCopyAIHistory}
+          onInsertHistory={handleInsertAIHistory}
         />
 
         <NotesLibrary

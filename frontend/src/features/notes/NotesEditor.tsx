@@ -1,4 +1,3 @@
-import NotesAIWorkspace from "./NotesAIWorkspace";
 import NotesAIToolbar from "./NotesAIToolbar";
 import { StudyRoom } from "./types";
 
@@ -13,10 +12,6 @@ type Props = {
   loadingRooms: boolean;
   saving: boolean;
   error: string;
-  aiTitle: string;
-  aiContent: string;
-  aiLoading: boolean;
-  aiStatus: string;
   onRoomChange: (roomId: number) => void;
   onTitleChange: (value: string) => void;
   onContentChange: (value: string) => void;
@@ -27,8 +22,6 @@ type Props = {
   onFlashcards: () => void;
   onQuiz: () => void;
   onAskAI: () => void;
-  onCopyAI: () => void;
-  onInsertAI: () => void;
 };
 
 export default function NotesEditor({
@@ -42,10 +35,6 @@ export default function NotesEditor({
   loadingRooms,
   saving,
   error,
-  aiTitle,
-  aiContent,
-  aiLoading,
-  aiStatus,
   onRoomChange,
   onTitleChange,
   onContentChange,
@@ -56,8 +45,6 @@ export default function NotesEditor({
   onFlashcards,
   onQuiz,
   onAskAI,
-  onCopyAI,
-  onInsertAI,
 }: Props) {
   return (
     <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-2xl">
@@ -88,6 +75,7 @@ export default function NotesEditor({
           onQuiz={onQuiz}
           onAskAI={onAskAI}
         />
+
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-white/70">
             Study Room
@@ -146,15 +134,6 @@ export default function NotesEditor({
         >
           {saving ? "Saving Note..." : "Save Note"}
         </button>
-
-        <NotesAIWorkspace
-          title={aiTitle}
-          content={aiContent}
-          loading={aiLoading}
-          status={aiStatus}
-          onCopy={onCopyAI}
-          onInsert={onInsertAI}
-        />
 
         {error ? (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">

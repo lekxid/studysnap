@@ -1,10 +1,22 @@
+import NotesAIResultCard from "./NotesAIResultCard";
+
+export type AIHistoryItem = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
 type Props = {
   title: string;
   content: string;
   loading?: boolean;
   status?: string;
+  history?: AIHistoryItem[];
   onCopy?: () => void;
   onInsert?: () => void;
+  onCopyHistory?: (content: string) => void;
+  onInsertHistory?: (content: string) => void;
 };
 
 export default function NotesAIWorkspace({
@@ -12,8 +24,11 @@ export default function NotesAIWorkspace({
   content,
   loading = false,
   status = "",
+  history = [],
   onCopy,
   onInsert,
+  onCopyHistory,
+  onInsertHistory,
 }: Props) {
   const hasContent = content.trim().length > 0;
 
@@ -39,7 +54,7 @@ export default function NotesAIWorkspace({
         </div>
       </div>
 
-      <div className="min-h-[240px] whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 p-5 text-white/90">
+      <div className="min-h-[220px] whitespace-pre-wrap rounded-xl border border-white/10 bg-black/40 p-5 text-white/90">
         {content || (
           <span className="text-white/40">
             Your AI responses will appear here.
@@ -48,9 +63,7 @@ export default function NotesAIWorkspace({
       </div>
 
       {status ? (
-        <p className="mt-3 text-sm font-medium text-cyan-300">
-          {status}
-        </p>
+        <p className="mt-3 text-sm font-medium text-cyan-300">{status}</p>
       ) : null}
 
       <div className="mt-5 flex flex-wrap gap-3">
@@ -60,7 +73,7 @@ export default function NotesAIWorkspace({
           disabled={!hasContent}
           className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          📋 Copy
+          📋 Copy current
         </button>
 
         <button
@@ -69,8 +82,33 @@ export default function NotesAIWorkspace({
           disabled={!hasContent}
           className="rounded-xl border border-green-400/40 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          ➕ Insert into Note
+          ➕ Insert current
         </button>
+      </div>
+
+      <div className="mt-6 border-t border-white/10 pt-5">
+        <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
+          AI History
+        </h4>
+
+        {history.length === 0 ? (
+          <p className="mt-3 text-sm text-white/40">
+            Your generated summaries, explanations, lessons, and questions will appear here.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {history.map((item) => (
+              <NotesAIResultCard
+                key={item.id}
+                title={item.title}
+                content={item.content}
+                createdAt={item.createdAt}
+                onCopy={() => onCopyHistory?.(item.content)}
+                onInsert={() => onInsertHistory?.(item.content)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
