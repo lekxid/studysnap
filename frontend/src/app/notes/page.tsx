@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
-import { createNote, deleteNote, getNotes, getStudyRooms } from "@/lib/api";
+import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
 import NotesLibrary from "@/features/notes/NotesLibrary";
@@ -31,6 +31,7 @@ export default function NotesPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [notes, setNotes] = useState<NoteItem[]>([]);
 
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [query, setQuery] = useState("");
@@ -38,6 +39,7 @@ export default function NotesPage() {
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -135,6 +137,136 @@ export default function NotesPage() {
     }
   }
 
+  async function handleSummarizeNote() {
+    if (!content.trim()) {
+      setError("Write or select a note first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const result = await askAi(
+        "Summarize these notes clearly with the main points only.",
+        content
+      );
+
+      setContent(String(result.answer || result.response || result.message || result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to summarize note.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleExplainNote() {
+    if (!content.trim()) {
+      setError("Write or select a note first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const result = await askAi(
+        "Explain these notes in simple student-friendly words.",
+        content
+      );
+
+      setContent(String(result.answer || result.response || result.message || result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to explain note.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLessonNote() {
+    if (!content.trim()) {
+      setError("Write or select a note first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const result = await generateLesson(
+        "Turn these notes into a clear mini lesson with examples and quick practice.",
+        content
+      );
+
+      setContent(String(result.lesson || result.answer || result.response || result.message || result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create lesson.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleFlashcardsNote() {
+    if (selectedRoomId === null) {
+      setError("Select a study room first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      await generateFlashcardsFromNotes(selectedRoomId);
+      setError("Flashcards generated. Open Flashcards to review them.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate flashcards.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleQuizNote() {
+    if (selectedRoomId === null) {
+      setError("Select a study room first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      await generateQuizzesFromNotes(selectedRoomId);
+      setError("Quiz generated. Open Quizzes to review it.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate quiz.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAskAINote() {
+    if (!content.trim()) {
+      setError("Write or select a note first.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const result = await askAi(
+        "Based on these notes, ask me 3 helpful study questions and give short answers.",
+        content
+      );
+
+      setContent(String(result.answer || result.response || result.message || result));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to ask AI.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const wordCount = useMemo(() => {
     return content.trim() ? content.trim().split(/\s+/).length : 0;
   }, [content]);
@@ -185,6 +317,12 @@ export default function NotesPage() {
           onTitleChange={setTitle}
           onContentChange={setContent}
           onSave={handleSaveNote}
+          onSummarize={handleSummarizeNote}
+          onExplain={handleExplainNote}
+          onLesson={handleLessonNote}
+          onFlashcards={handleFlashcardsNote}
+          onQuiz={handleQuizNote}
+          onAskAI={handleAskAINote}
         />
 
         <NotesLibrary
@@ -195,6 +333,12 @@ export default function NotesPage() {
           deletingId={deletingId}
           onQueryChange={setQuery}
           onDeleteNote={handleDeleteNote}
+          onSelectNote={(note) => {
+            setEditingNoteId(note.id);
+            setTitle(note.title);
+            setContent(note.content);
+            setSaveStatus("idle");
+          }}
         />
       </div>
     </AppShell>

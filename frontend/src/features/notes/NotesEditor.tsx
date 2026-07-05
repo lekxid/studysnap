@@ -16,6 +16,12 @@ type Props = {
   onTitleChange: (value: string) => void;
   onContentChange: (value: string) => void;
   onSave: () => void;
+  onSummarize: () => void;
+  onExplain: () => void;
+  onLesson: () => void;
+  onFlashcards: () => void;
+  onQuiz: () => void;
+  onAskAI: () => void;
 };
 
 export default function NotesEditor({
@@ -33,6 +39,12 @@ export default function NotesEditor({
   onTitleChange,
   onContentChange,
   onSave,
+  onSummarize,
+  onExplain,
+  onLesson,
+  onFlashcards,
+  onQuiz,
+  onAskAI,
 }: Props) {
   return (
     <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-2xl">
@@ -55,7 +67,14 @@ export default function NotesEditor({
       </div>
 
       <div className="mt-6 space-y-4">
-        <NotesAIToolbar />
+        <NotesAIToolbar
+          onSummarize={onSummarize}
+          onExplain={onExplain}
+          onLesson={onLesson}
+          onFlashcards={onFlashcards}
+          onQuiz={onQuiz}
+          onAskAI={onAskAI}
+        />
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-white/70">
             Study Room
