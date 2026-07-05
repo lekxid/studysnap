@@ -1,3 +1,4 @@
+import NotesAIToolbar from "./NotesAIToolbar";
 import { StudyRoom } from "./types";
 
 type Props = {
@@ -54,6 +55,7 @@ export default function NotesEditor({
       </div>
 
       <div className="mt-6 space-y-4">
+        <NotesAIToolbar />
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-white/70">
             Study Room
