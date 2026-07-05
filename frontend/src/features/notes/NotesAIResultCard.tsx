@@ -2,25 +2,29 @@ type Props = {
   title: string;
   content: string;
   createdAt: string;
+  isPinned?: boolean;
   onCopy?: () => void;
   onInsert?: () => void;
   onSaveAsNote?: () => void;
+  onPin?: () => void;
 };
 
 export default function NotesAIResultCard({
   title,
   content,
   createdAt,
+  isPinned = false,
   onCopy,
   onInsert,
   onSaveAsNote,
+  onPin,
 }: Props) {
   return (
     <article className="rounded-xl border border-white/10 bg-black/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h4 className="text-lg font-semibold text-white">
-            {title}
+            {isPinned ? "📌 " : ""}{title}
           </h4>
 
           <p className="text-xs text-white/40">
@@ -48,6 +52,13 @@ export default function NotesAIResultCard({
             className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10"
           >
             💾 Save
+          </button>
+
+          <button
+            onClick={onPin}
+            className="rounded-lg border border-yellow-400/30 px-3 py-1 text-xs text-yellow-300 hover:bg-yellow-500/10"
+          >
+            {isPinned ? "Unpin" : "⭐ Pin"}
           </button>
         </div>
       </div>

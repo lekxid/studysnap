@@ -5,6 +5,7 @@ export type AIHistoryItem = {
   title: string;
   content: string;
   createdAt: string;
+  pinned?: boolean;
 };
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
   onCopyHistory?: (content: string) => void;
   onInsertHistory?: (content: string) => void;
   onSaveHistoryAsNote?: (title: string, content: string) => void;
+  onTogglePinHistory?: (id: string) => void;
 };
 
 export default function NotesAIWorkspace({
@@ -31,8 +33,11 @@ export default function NotesAIWorkspace({
   onCopyHistory,
   onInsertHistory,
   onSaveHistoryAsNote,
+  onTogglePinHistory,
 }: Props) {
   const hasContent = content.trim().length > 0;
+  const pinnedItems = history.filter((item) => item.pinned);
+  const unpinnedItems = history.filter((item) => !item.pinned);
 
   return (
     <div className="rounded-2xl border border-cyan-500/20 bg-[#08111f] p-5 shadow-xl">
@@ -89,6 +94,30 @@ export default function NotesAIWorkspace({
       </div>
 
       <div className="mt-6 border-t border-white/10 pt-5">
+        {pinnedItems.length > 0 ? (
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-yellow-300">
+              📌 Pinned
+            </h4>
+
+            <div className="mt-4 space-y-4">
+              {pinnedItems.map((item) => (
+                <NotesAIResultCard
+                  key={item.id}
+                  title={item.title}
+                  content={item.content}
+                  createdAt={item.createdAt}
+                  isPinned={item.pinned}
+                  onCopy={() => onCopyHistory?.(item.content)}
+                  onInsert={() => onInsertHistory?.(item.content)}
+                  onSaveAsNote={() => onSaveHistoryAsNote?.(item.title, item.content)}
+                  onPin={() => onTogglePinHistory?.(item.id)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
           AI History
         </h4>
@@ -99,15 +128,17 @@ export default function NotesAIWorkspace({
           </p>
         ) : (
           <div className="mt-4 space-y-4">
-            {history.map((item) => (
+            {unpinnedItems.map((item) => (
               <NotesAIResultCard
                 key={item.id}
                 title={item.title}
                 content={item.content}
                 createdAt={item.createdAt}
+                isPinned={item.pinned}
                 onCopy={() => onCopyHistory?.(item.content)}
                 onInsert={() => onInsertHistory?.(item.content)}
                 onSaveAsNote={() => onSaveHistoryAsNote?.(item.title, item.content)}
+                onPin={() => onTogglePinHistory?.(item.id)}
               />
             ))}
           </div>

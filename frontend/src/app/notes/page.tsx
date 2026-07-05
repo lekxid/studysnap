@@ -398,6 +398,18 @@ export default function NotesPage() {
     }
   }
 
+  function handleTogglePinAIHistory(itemId: string) {
+    setAiHistory((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? { ...item, pinned: !item.pinned }
+          : item
+      )
+    );
+
+    setAiStatus("AI result pin updated.");
+  }
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
 
   if (!ready) {
@@ -450,6 +462,7 @@ export default function NotesPage() {
           onCopyHistory={handleCopyAIHistory}
           onInsertHistory={handleInsertAIHistory}
           onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
+          onTogglePinHistory={handleTogglePinAIHistory}
         />
 
         <NotesLibrary
