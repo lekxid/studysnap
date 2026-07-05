@@ -40,6 +40,10 @@ export default function NotesPage() {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [aiTitle, setAiTitle] = useState("AI Assistant");
+  const [aiContent, setAiContent] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -108,7 +112,7 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
 
       const newNote = await createNote(selectedRoomId, title.trim(), content.trim());
@@ -119,7 +123,7 @@ export default function NotesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save note.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -144,19 +148,21 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
+
+      setAiTitle("Summary");
 
       const result = await askAi(
         "Summarize these notes clearly with the main points only.",
         content
       );
 
-      setContent(String(result.answer || result.response || result.message || result));
+      setAiContent(String(result.answer || result.response || result.message || result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to summarize note.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -167,19 +173,21 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
+
+      setAiTitle("Explanation");
 
       const result = await askAi(
         "Explain these notes in simple student-friendly words.",
         content
       );
 
-      setContent(String(result.answer || result.response || result.message || result));
+      setAiContent(String(result.answer || result.response || result.message || result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to explain note.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -190,19 +198,21 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
+
+      setAiTitle("Lesson");
 
       const result = await generateLesson(
         "Turn these notes into a clear mini lesson with examples and quick practice.",
         content
       );
 
-      setContent(String(result.lesson || result.answer || result.response || result.message || result));
+      setAiContent(String(result.lesson || result.answer || result.response || result.message || result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create lesson.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -213,15 +223,16 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
 
+      setAiTitle("Flashcards");
       await generateFlashcardsFromNotes(selectedRoomId);
-      setError("Flashcards generated. Open Flashcards to review them.");
+      setAiContent("Flashcards generated. Open Flashcards to review them.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate flashcards.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -232,15 +243,16 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
 
+      setAiTitle("Quiz");
       await generateQuizzesFromNotes(selectedRoomId);
-      setError("Quiz generated. Open Quizzes to review it.");
+      setAiContent("Quiz generated. Open Quizzes to review it.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate quiz.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -251,19 +263,21 @@ export default function NotesPage() {
     }
 
     try {
-      setSaving(true);
+      setAiLoading(true);
       setError("");
+
+      setAiTitle("Study Questions");
 
       const result = await askAi(
         "Based on these notes, ask me 3 helpful study questions and give short answers.",
         content
       );
 
-      setContent(String(result.answer || result.response || result.message || result));
+      setAiContent(String(result.answer || result.response || result.message || result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to ask AI.");
     } finally {
-      setSaving(false);
+      setAiLoading(false);
     }
   }
 
@@ -283,6 +297,30 @@ export default function NotesPage() {
         note.content.toLowerCase().includes(q)
     );
   }, [notes, query]);
+
+
+  async function handleCopyAI() {
+    if (!aiContent.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(aiContent);
+      setAiStatus("Copied to clipboard.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to copy AI response.");
+    }
+  }
+
+  function handleInsertAI() {
+    if (!aiContent.trim()) return;
+
+    setContent((current) =>
+      current.trim()
+        ? current + "\n\n" + aiContent
+        : aiContent
+    );
+
+    setAiStatus("Inserted into note.");
+  }
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
 
@@ -313,6 +351,10 @@ export default function NotesPage() {
           loadingRooms={loadingRooms}
           saving={saving}
           error={error}
+          aiTitle={aiTitle}
+          aiContent={aiContent}
+          aiLoading={aiLoading}
+          aiStatus={aiStatus}
           onRoomChange={setSelectedRoomId}
           onTitleChange={setTitle}
           onContentChange={setContent}
@@ -323,6 +365,8 @@ export default function NotesPage() {
           onFlashcards={handleFlashcardsNote}
           onQuiz={handleQuizNote}
           onAskAI={handleAskAINote}
+          onCopyAI={handleCopyAI}
+          onInsertAI={handleInsertAI}
         />
 
         <NotesLibrary
