@@ -144,12 +144,23 @@ export default function NotesPage() {
   }
 
 
-  function addAIHistoryItem(itemTitle: string, itemContent: string) {
+  function addAIHistoryItem(
+    itemTitle: string,
+    itemContent: string,
+    options?: {
+      prompt?: string;
+      context?: string;
+      tool?: "ask" | "lesson" | "flashcards" | "quiz";
+    }
+  ) {
     const newItem: AIHistoryItem = {
       id: `${Date.now()}-${Math.random()}`,
       title: itemTitle,
       content: itemContent,
       createdAt: new Date().toLocaleString(),
+      prompt: options?.prompt,
+      context: options?.context,
+      tool: options?.tool,
     };
 
     setAiHistory((current) => [newItem, ...current]);
@@ -165,16 +176,19 @@ export default function NotesPage() {
       setAiLoading(true);
       setError("");
 
-      setAiTitle("Summary");
+      const prompt = "Summarize these notes clearly with the main points only.";
+      const itemTitle = "Summary";
+      setAiTitle(itemTitle);
 
-      const result = await askAi(
-        "Summarize these notes clearly with the main points only.",
-        content
-      );
+      const result = await askAi(prompt, content);
 
       const output = String(result.answer || result.response || result.message || result);
       setAiContent(output);
-      addAIHistoryItem(aiTitle, output);
+      addAIHistoryItem(itemTitle, output, {
+        prompt,
+        context: content,
+        tool: "ask",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to summarize note.");
     } finally {
@@ -192,16 +206,19 @@ export default function NotesPage() {
       setAiLoading(true);
       setError("");
 
-      setAiTitle("Explanation");
+      const prompt = "Explain these notes in simple student-friendly words.";
+      const itemTitle = "Explanation";
+      setAiTitle(itemTitle);
 
-      const result = await askAi(
-        "Explain these notes in simple student-friendly words.",
-        content
-      );
+      const result = await askAi(prompt, content);
 
       const output = String(result.answer || result.response || result.message || result);
       setAiContent(output);
-      addAIHistoryItem(aiTitle, output);
+      addAIHistoryItem(itemTitle, output, {
+        prompt,
+        context: content,
+        tool: "ask",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to explain note.");
     } finally {
@@ -219,16 +236,19 @@ export default function NotesPage() {
       setAiLoading(true);
       setError("");
 
-      setAiTitle("Lesson");
+      const prompt = "Turn these notes into a clear mini lesson with examples and quick practice.";
+      const itemTitle = "Lesson";
+      setAiTitle(itemTitle);
 
-      const result = await generateLesson(
-        "Turn these notes into a clear mini lesson with examples and quick practice.",
-        content
-      );
+      const result = await generateLesson(prompt, content);
 
       const output = String(result.lesson || result.answer || result.response || result.message || result);
       setAiContent(output);
-      addAIHistoryItem(aiTitle, output);
+      addAIHistoryItem(itemTitle, output, {
+        prompt,
+        context: content,
+        tool: "lesson",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create lesson.");
     } finally {
@@ -250,7 +270,9 @@ export default function NotesPage() {
       await generateFlashcardsFromNotes(selectedRoomId);
       const output = "Flashcards generated. Open Flashcards to review them.";
       setAiContent(output);
-      addAIHistoryItem("Flashcards", output);
+      addAIHistoryItem("Flashcards", output, {
+        tool: "flashcards",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate flashcards.");
     } finally {
@@ -272,7 +294,9 @@ export default function NotesPage() {
       await generateQuizzesFromNotes(selectedRoomId);
       const output = "Quiz generated. Open Quizzes to review it.";
       setAiContent(output);
-      addAIHistoryItem("Quiz", output);
+      addAIHistoryItem("Quiz", output, {
+        tool: "quiz",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate quiz.");
     } finally {
@@ -290,16 +314,19 @@ export default function NotesPage() {
       setAiLoading(true);
       setError("");
 
-      setAiTitle("Study Questions");
+      const prompt = "Based on these notes, ask me 3 helpful study questions and give short answers.";
+      const itemTitle = "Study Questions";
+      setAiTitle(itemTitle);
 
-      const result = await askAi(
-        "Based on these notes, ask me 3 helpful study questions and give short answers.",
-        content
-      );
+      const result = await askAi(prompt, content);
 
       const output = String(result.answer || result.response || result.message || result);
       setAiContent(output);
-      addAIHistoryItem(aiTitle, output);
+      addAIHistoryItem(itemTitle, output, {
+        prompt,
+        context: content,
+        tool: "ask",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to ask AI.");
     } finally {
@@ -410,6 +437,61 @@ export default function NotesPage() {
     setAiStatus("AI result pin updated.");
   }
 
+  async function handleRegenerateAIHistory(itemId: string) {
+    const item = aiHistory.find((historyItem) => historyItem.id === itemId);
+
+    if (!item) {
+      setError("AI history item was not found.");
+      return;
+    }
+
+    if (!item.prompt || item.tool === "flashcards" || item.tool === "quiz") {
+      setAiStatus("Regenerate is not available for this item yet.");
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+      setError("");
+      setAiStatus("Regenerating AI result...");
+
+      const itemContext = item.context || content;
+
+      const result =
+        item.tool === "lesson"
+          ? await generateLesson(item.prompt, itemContext)
+          : await askAi(item.prompt, itemContext);
+
+      const output = String(
+        result.lesson ||
+          result.answer ||
+          result.response ||
+          result.message ||
+          result
+      );
+
+      setAiHistory((current) =>
+        current.map((historyItem) =>
+          historyItem.id === itemId
+            ? {
+                ...historyItem,
+                content: output,
+                createdAt: new Date().toLocaleString(),
+              }
+            : historyItem
+        )
+      );
+
+      setAiTitle(`${item.title} regenerated`);
+      setAiContent(output);
+      setAiStatus("AI result regenerated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to regenerate AI result.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
 
   if (!ready) {
@@ -463,6 +545,7 @@ export default function NotesPage() {
           onInsertHistory={handleInsertAIHistory}
           onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
           onTogglePinHistory={handleTogglePinAIHistory}
+          onRegenerateHistory={handleRegenerateAIHistory}
         />
 
         <NotesLibrary

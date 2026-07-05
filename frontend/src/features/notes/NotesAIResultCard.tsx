@@ -7,6 +7,7 @@ type Props = {
   onInsert?: () => void;
   onSaveAsNote?: () => void;
   onPin?: () => void;
+  onRegenerate?: () => void;
 };
 
 export default function NotesAIResultCard({
@@ -18,13 +19,15 @@ export default function NotesAIResultCard({
   onInsert,
   onSaveAsNote,
   onPin,
+  onRegenerate,
 }: Props) {
   return (
     <article className="rounded-xl border border-white/10 bg-black/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h4 className="text-lg font-semibold text-white">
-            {isPinned ? "📌 " : ""}{title}
+            {isPinned ? "📌 " : ""}
+            {title}
           </h4>
 
           <p className="text-xs text-white/40">
@@ -32,7 +35,7 @@ export default function NotesAIResultCard({
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={onCopy}
             className="rounded-lg border border-cyan-400/30 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10"
@@ -52,6 +55,13 @@ export default function NotesAIResultCard({
             className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10"
           >
             💾 Save
+          </button>
+
+          <button
+            onClick={onRegenerate}
+            className="rounded-lg border border-blue-400/30 px-3 py-1 text-xs text-blue-300 hover:bg-blue-500/10"
+          >
+            🔄 Regenerate
           </button>
 
           <button

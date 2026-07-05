@@ -6,6 +6,9 @@ export type AIHistoryItem = {
   content: string;
   createdAt: string;
   pinned?: boolean;
+  prompt?: string;
+  context?: string;
+  tool?: "ask" | "lesson" | "flashcards" | "quiz";
 };
 
 type Props = {
@@ -20,6 +23,7 @@ type Props = {
   onInsertHistory?: (content: string) => void;
   onSaveHistoryAsNote?: (title: string, content: string) => void;
   onTogglePinHistory?: (id: string) => void;
+  onRegenerateHistory?: (id: string) => void;
 };
 
 export default function NotesAIWorkspace({
@@ -34,6 +38,7 @@ export default function NotesAIWorkspace({
   onInsertHistory,
   onSaveHistoryAsNote,
   onTogglePinHistory,
+  onRegenerateHistory,
 }: Props) {
   const hasContent = content.trim().length > 0;
   const pinnedItems = history.filter((item) => item.pinned);
@@ -110,8 +115,11 @@ export default function NotesAIWorkspace({
                   isPinned={item.pinned}
                   onCopy={() => onCopyHistory?.(item.content)}
                   onInsert={() => onInsertHistory?.(item.content)}
-                  onSaveAsNote={() => onSaveHistoryAsNote?.(item.title, item.content)}
+                  onSaveAsNote={() =>
+                    onSaveHistoryAsNote?.(item.title, item.content)
+                  }
                   onPin={() => onTogglePinHistory?.(item.id)}
+                  onRegenerate={() => onRegenerateHistory?.(item.id)}
                 />
               ))}
             </div>
@@ -137,8 +145,11 @@ export default function NotesAIWorkspace({
                 isPinned={item.pinned}
                 onCopy={() => onCopyHistory?.(item.content)}
                 onInsert={() => onInsertHistory?.(item.content)}
-                onSaveAsNote={() => onSaveHistoryAsNote?.(item.title, item.content)}
+                onSaveAsNote={() =>
+                  onSaveHistoryAsNote?.(item.title, item.content)
+                }
                 onPin={() => onTogglePinHistory?.(item.id)}
+                onRegenerate={() => onRegenerateHistory?.(item.id)}
               />
             ))}
           </div>
