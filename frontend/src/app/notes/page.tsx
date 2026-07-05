@@ -371,6 +371,33 @@ export default function NotesPage() {
     setAiStatus("Inserted history item into note.");
   }
 
+  async function handleSaveAIHistoryAsNote(itemTitle: string, itemContent: string) {
+    if (selectedRoomId === null) {
+      setError("Select a study room first.");
+      return;
+    }
+
+    if (!itemContent.trim()) return;
+
+    try {
+      setSaving(true);
+      setError("");
+
+      const newNote = await createNote(
+        selectedRoomId,
+        `AI ${itemTitle}`,
+        itemContent
+      );
+
+      setNotes((current) => [newNote, ...current]);
+      setAiStatus("AI result saved as a new note.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save AI result as note.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId);
 
   if (!ready) {
@@ -422,6 +449,7 @@ export default function NotesPage() {
           onInsert={handleInsertAI}
           onCopyHistory={handleCopyAIHistory}
           onInsertHistory={handleInsertAIHistory}
+          onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
         />
 
         <NotesLibrary

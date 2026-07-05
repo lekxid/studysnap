@@ -17,6 +17,7 @@ type Props = {
   onInsert?: () => void;
   onCopyHistory?: (content: string) => void;
   onInsertHistory?: (content: string) => void;
+  onSaveHistoryAsNote?: (title: string, content: string) => void;
 };
 
 export default function NotesAIWorkspace({
@@ -29,6 +30,7 @@ export default function NotesAIWorkspace({
   onInsert,
   onCopyHistory,
   onInsertHistory,
+  onSaveHistoryAsNote,
 }: Props) {
   const hasContent = content.trim().length > 0;
 
@@ -105,6 +107,7 @@ export default function NotesAIWorkspace({
                 createdAt={item.createdAt}
                 onCopy={() => onCopyHistory?.(item.content)}
                 onInsert={() => onInsertHistory?.(item.content)}
+                onSaveAsNote={() => onSaveHistoryAsNote?.(item.title, item.content)}
               />
             ))}
           </div>

@@ -4,6 +4,7 @@ type Props = {
   createdAt: string;
   onCopy?: () => void;
   onInsert?: () => void;
+  onSaveAsNote?: () => void;
 };
 
 export default function NotesAIResultCard({
@@ -12,6 +13,7 @@ export default function NotesAIResultCard({
   createdAt,
   onCopy,
   onInsert,
+  onSaveAsNote,
 }: Props) {
   return (
     <article className="rounded-xl border border-white/10 bg-black/30 p-4">
@@ -39,6 +41,13 @@ export default function NotesAIResultCard({
             className="rounded-lg border border-green-400/30 px-3 py-1 text-xs text-green-300 hover:bg-green-500/10"
           >
             ➕ Insert
+          </button>
+
+          <button
+            onClick={onSaveAsNote}
+            className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10"
+          >
+            💾 Save
           </button>
         </div>
       </div>
