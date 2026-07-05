@@ -24,6 +24,7 @@ type Props = {
   onSaveHistoryAsNote?: (title: string, content: string) => void;
   onTogglePinHistory?: (id: string) => void;
   onRegenerateHistory?: (id: string) => void;
+  onReplyHistory?: (id: string, question: string) => void;
 };
 
 export default function NotesAIWorkspace({
@@ -39,6 +40,7 @@ export default function NotesAIWorkspace({
   onSaveHistoryAsNote,
   onTogglePinHistory,
   onRegenerateHistory,
+  onReplyHistory,
 }: Props) {
   const hasContent = content.trim().length > 0;
   const pinnedItems = history.filter((item) => item.pinned);
@@ -120,6 +122,7 @@ export default function NotesAIWorkspace({
                   }
                   onPin={() => onTogglePinHistory?.(item.id)}
                   onRegenerate={() => onRegenerateHistory?.(item.id)}
+                  onReply={(question) => onReplyHistory?.(item.id, question)}
                 />
               ))}
             </div>
@@ -150,6 +153,7 @@ export default function NotesAIWorkspace({
                 }
                 onPin={() => onTogglePinHistory?.(item.id)}
                 onRegenerate={() => onRegenerateHistory?.(item.id)}
+                onReply={(question) => onReplyHistory?.(item.id, question)}
               />
             ))}
           </div>

@@ -351,12 +351,38 @@ export default function NotesPage() {
     );
   }, [notes, query]);
 
+  async function copyTextToClipboard(textToCopy: string) {
+    if (!textToCopy.trim()) return;
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(textToCopy);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = textToCopy;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "-9999px";
+
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    if (!copied) {
+      throw new Error("Copy is not supported in this browser.");
+    }
+  }
+
 
   async function handleCopyAI() {
     if (!aiContent.trim()) return;
 
     try {
-      await navigator.clipboard.writeText(aiContent);
+      await copyTextToClipboard(aiContent);
       setAiStatus("Copied to clipboard.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to copy AI response.");
@@ -379,7 +405,7 @@ export default function NotesPage() {
     if (!itemContent.trim()) return;
 
     try {
-      await navigator.clipboard.writeText(itemContent);
+      await copyTextToClipboard(itemContent);
       setAiStatus("Copied history item.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to copy AI history item.");
@@ -470,23 +496,83 @@ export default function NotesPage() {
           result
       );
 
-      setAiHistory((current) =>
-        current.map((historyItem) =>
-          historyItem.id === itemId
-            ? {
-                ...historyItem,
-                content: output,
-                createdAt: new Date().toLocaleString(),
-              }
-            : historyItem
-        )
-      );
+      const regeneratedItem: AIHistoryItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        title: `${item.title} (Regenerated)`,
+        content: output,
+        createdAt: new Date().toLocaleString(),
+        prompt: item.prompt,
+        context: item.context,
+        tool: item.tool,
+      };
 
-      setAiTitle(`${item.title} regenerated`);
+      setAiHistory((current) => [regeneratedItem, ...current]);
+
+      setAiTitle(regeneratedItem.title);
       setAiContent(output);
-      setAiStatus("AI result regenerated.");
+      setAiStatus("New regenerated AI result created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to regenerate AI result.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  async function handleReplyAIHistory(itemId: string, question: string) {
+    const item = aiHistory.find((historyItem) => historyItem.id === itemId);
+
+    if (!item) {
+      setError("AI history item was not found.");
+      return;
+    }
+
+    if (!question.trim()) {
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+      setError("");
+      setAiStatus("Creating AI reply...");
+
+      const replyTitle = `Reply to ${item.title}`;
+      const replyPrompt = `You are continuing from this AI study result.
+
+Previous result:
+
+${item.content}
+
+Student follow-up:
+${question.trim()}
+
+Answer clearly in a helpful student-friendly way.`;
+
+      const replyContext = item.context || content;
+      const result = await askAi(replyPrompt, replyContext);
+
+      const output = String(
+        result.answer ||
+          result.response ||
+          result.message ||
+          result
+      );
+
+      const replyItem: AIHistoryItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        title: replyTitle,
+        content: output,
+        createdAt: new Date().toLocaleString(),
+        prompt: replyPrompt,
+        context: replyContext,
+        tool: "ask",
+      };
+
+      setAiHistory((current) => [replyItem, ...current]);
+      setAiTitle(replyTitle);
+      setAiContent(output);
+      setAiStatus("AI reply created.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create AI reply.");
     } finally {
       setAiLoading(false);
     }
@@ -546,6 +632,7 @@ export default function NotesPage() {
           onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
           onTogglePinHistory={handleTogglePinAIHistory}
           onRegenerateHistory={handleRegenerateAIHistory}
+          onReplyHistory={handleReplyAIHistory}
         />
 
         <NotesLibrary
