@@ -8,7 +8,7 @@ from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.utils.deps import get_current_user
 
-router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
+router = APIRouter(tags=["Flashcards"])
 
 
 class FlashcardCreate(BaseModel):
