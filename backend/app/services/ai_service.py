@@ -2,7 +2,7 @@ import json
 from openai import OpenAI
 from app.config import settings
 
-client = OpenAI(api_key=settings.openai_api_key)
+client = OpenAI(api_key=settings.openai_api_key, timeout=30.0)
 
 
 def detect_mode(question: str):

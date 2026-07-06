@@ -8,7 +8,28 @@ type Props = {
   deletingId: number | null;
   onQueryChange: (value: string) => void;
   onDeleteNote: (noteId: number) => void;
+  onSelectNote: (note: NoteItem) => void;
 };
+
+function getNotePreview(content: string) {
+  const cleaned = content.replace(/\s+/g, " ").trim();
+
+  if (!cleaned) {
+    return "No content yet.";
+  }
+
+  return cleaned.length > 180 ? cleaned.slice(0, 180) + "..." : cleaned;
+}
+
+function getWordCount(content: string) {
+  const cleaned = content.trim();
+
+  if (!cleaned) {
+    return 0;
+  }
+
+  return cleaned.split(/\s+/).length;
+}
 
 export default function NotesLibrary({
   selectedRoom,
@@ -18,6 +39,7 @@ export default function NotesLibrary({
   deletingId,
   onQueryChange,
   onDeleteNote,
+  onSelectNote,
 }: Props) {
   return (
     <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-2xl">
@@ -49,38 +71,52 @@ export default function NotesLibrary({
           No notes found for this room yet.
         </div>
       ) : (
-        <div className="mt-6 max-h-[650px] space-y-4 overflow-y-auto pr-1">
-          {filteredNotes.map((note) => (
-            <article
-              key={note.id}
-              className="rounded-2xl border border-white/10 bg-black p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h4 className="text-lg font-semibold text-cyan-300">
-                    {note.title}
-                  </h4>
-                  {note.created_at ? (
-                    <p className="mt-1 text-xs text-white/40">
-                      Created {new Date(note.created_at).toLocaleString()}
-                    </p>
-                  ) : null}
+        <div className="mt-6 max-h-[650px] space-y-3 overflow-y-auto pr-1">
+          {filteredNotes.map((note) => {
+            const wordCount = getWordCount(note.content);
+            const preview = getNotePreview(note.content);
+
+            return (
+              <article
+                key={note.id}
+                onClick={() => onSelectNote(note)}
+                className="cursor-pointer rounded-2xl border border-white/10 bg-black/40 p-4 transition hover:border-cyan-300/60 hover:bg-white/5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="truncate text-base font-semibold text-cyan-300">
+                      {note.title}
+                    </h4>
+
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-white/40">
+                      {note.created_at ? (
+                        <span>
+                          Created {new Date(note.created_at).toLocaleString()}
+                        </span>
+                      ) : null}
+
+                      <span>{wordCount} words</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDeleteNote(note.id);
+                    }}
+                    disabled={deletingId === note.id}
+                    className="shrink-0 rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {deletingId === note.id ? "Deleting..." : "Delete"}
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => onDeleteNote(note.id)}
-                  disabled={deletingId === note.id}
-                  className="rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {deletingId === note.id ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-
-              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-white/75">
-                {note.content}
-              </p>
-            </article>
-          ))}
+                <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/70">
+                  {preview}
+                </p>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

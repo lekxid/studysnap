@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   createFlashcard,
+  createLearningEvent,
   deleteFlashcard,
   getFlashcards,
   getStudyRooms,
@@ -40,7 +41,12 @@ export default function FlashcardsPage() {
   const [loadingCards, setLoadingCards] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [sessionCorrect, setSessionCorrect] = useState(0);
+  const [sessionWrong, setSessionWrong] = useState(0);
+  const [sessionReviewed, setSessionReviewed] = useState(0);
   const [error, setError] = useState("");
+  const reviewSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -155,6 +161,47 @@ export default function FlashcardsPage() {
     }
   }
 
+  function goToNextCard() {
+    if (cards.length === 0 || activeId === null) return;
+
+    const currentIndex = cards.findIndex((card) => card.id === activeId);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % cards.length : 0;
+
+    setActiveId(cards[nextIndex].id);
+    setShowAnswer(false);
+  }
+
+  async function recordFlashcardReview(result: "correct" | "partial" | "wrong", confidence: number) {
+    if (!activeCard) return;
+
+    try {
+      setReviewing(true);
+      setError("");
+
+      await createLearningEvent({
+        study_room_id: activeCard.study_room_id,
+        activity_type: "flashcard",
+        reference_id: activeCard.id,
+        result,
+        confidence,
+      });
+
+      setSessionReviewed((current) => current + 1);
+
+      if (result === "correct") {
+        setSessionCorrect((current) => current + 1);
+      } else {
+        setSessionWrong((current) => current + 1);
+      }
+
+      goToNextCard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to record review.");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   function shuffleCards() {
     const next = [...cards].sort(() => Math.random() - 0.5);
     setCards(next);
@@ -198,9 +245,10 @@ export default function FlashcardsPage() {
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
-          <p className="text-sm text-white/50">Status</p>
-          <p className="mt-2 text-xl font-bold text-white">
-            {loadingCards ? "Loading..." : "Ready"}
+          <p className="text-sm text-white/50">Today Reviewed</p>
+          <p className="mt-2 text-3xl font-bold text-white">{sessionReviewed}</p>
+          <p className="mt-1 text-sm text-white/50">
+            ✅ {sessionCorrect} correct · ❌ {sessionWrong} needs review
           </p>
         </div>
       </div>
@@ -267,104 +315,169 @@ export default function FlashcardsPage() {
         </div>
 
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setShowAnswer((value) => !value)}
-                className="rounded-xl bg-cyan-400 px-4 py-2 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!activeCard}
-              >
-                {showAnswer ? "Show Question" : "Flip"}
-              </button>
+  <div
+    ref={reviewSectionRef}
+    className="rounded-2xl border border-white/10 bg-[#0a1022] p-6"
+  >
+    <div className="flex flex-wrap items-center justify-between gap-3"></div>
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h3 className="text-xl font-semibold text-cyan-300">Smart Review</h3>
+      <p className="mt-1 text-sm text-white/50">
+        Answer first, reveal the answer, then tell StudySnap how well you knew it.
+      </p>
+    </div>
 
-              <button
-                type="button"
-                onClick={shuffleCards}
-                className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={cards.length < 2}
-              >
-                Shuffle
-              </button>
+    <button
+      type="button"
+      onClick={shuffleCards}
+      className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={cards.length < 2}
+    >
+      Shuffle
+    </button>
+  </div>
+
+  <div className="mt-6 rounded-2xl border border-white/10 bg-black p-8">
+    {loadingCards ? (
+      <p className="text-white/70">Loading flashcards...</p>
+    ) : !activeCard ? (
+      <p className="text-white/70">
+        No flashcards yet. Create one or generate flashcards from your notes.
+      </p>
+    ) : (
+      <>
+        <p className="text-sm text-white/50">Question</p>
+
+        <p className="mt-4 whitespace-pre-wrap text-2xl font-semibold text-white">
+          {activeCard.question}
+        </p>
+
+        {!showAnswer ? (
+          <button
+            type="button"
+            onClick={() => setShowAnswer(true)}
+            className="mt-6 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-black transition hover:bg-cyan-300"
+          >
+            Show Answer
+          </button>
+        ) : (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+              <p className="text-sm text-white/50">Answer</p>
+              <p className="mt-3 whitespace-pre-wrap text-lg font-semibold text-white">
+                {activeCard.answer}
+              </p>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black p-8">
-              {loadingCards ? (
-                <p className="text-white/70">Loading flashcards...</p>
-              ) : !activeCard ? (
-                <p className="text-white/70">
-                  No flashcards yet. Create one or generate flashcards from your notes.
-                </p>
-              ) : (
-                <>
-                  <p className="text-sm text-white/50">
-                    {showAnswer ? "Answer" : "Question"}
-                  </p>
+            <div>
+              <p className="text-sm font-semibold text-white/70">
+                How well did you know this?
+              </p>
 
-                  <p className="mt-4 whitespace-pre-wrap text-2xl font-semibold text-white">
-                    {showAnswer ? activeCard.answer : activeCard.question}
-                  </p>
-                </>
-              )}
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => recordFlashcardReview("correct", 90)}
+                  disabled={reviewing}
+                  className="rounded-xl border border-green-400/30 bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-300 hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ✅ I knew it
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => recordFlashcardReview("partial", 60)}
+                  disabled={reviewing}
+                  className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  🟡 Almost
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => recordFlashcardReview("wrong", 25)}
+                  disabled={reviewing}
+                  className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  ❌ Didn’t know
+                </button>
+              </div>
+
+              {reviewing ? (
+                <p className="mt-3 text-sm text-cyan-300">
+                  Recording review...
+                </p>
+              ) : null}
             </div>
           </div>
+        )}
+      </>
+    )}
+  </div>
+</div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-            <h3 className="text-xl font-semibold text-cyan-300">
-              Saved Flashcards
-            </h3>
+<div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+  <h3 className="text-xl font-semibold text-cyan-300">Saved Flashcards</h3>
 
-            {loadingCards ? (
-              <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
-                Loading flashcards...
-              </div>
-            ) : cards.length === 0 ? (
-              <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
-                No flashcards saved yet.
-              </div>
-            ) : (
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {cards.map((card) => (
-                  <div
-                    key={card.id}
-                    className="rounded-2xl border border-white/10 bg-black p-5"
-                  >
-                    <h4 className="line-clamp-2 text-base font-semibold text-cyan-300">
-                      {card.question}
-                    </h4>
+  {loadingCards ? (
+    <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
+      Loading flashcards...
+    </div>
+  ) : cards.length === 0 ? (
+    <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
+      No flashcards saved yet.
+    </div>
+  ) : (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {cards.map((card) => (
+        <div
+          key={card.id}
+          className="rounded-2xl border border-white/10 bg-black p-5"
+        >
+          <h4 className="line-clamp-2 text-base font-semibold text-cyan-300">
+            {card.question}
+          </h4>
 
-                    <p className="mt-3 line-clamp-3 text-sm text-white/70">
-                      {card.answer}
-                    </p>
+          <p className="mt-3 line-clamp-3 text-sm text-white/70">
+            {card.answer}
+          </p>
 
-                    <div className="mt-5 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveId(card.id);
-                          setShowAnswer(false);
-                        }}
-                        className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300"
-                      >
-                        Study
-                      </button>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveId(card.id);
+                setShowAnswer(false);
 
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCard(card.id)}
-                        disabled={deletingId === card.id}
-                        className="rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingId === card.id ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                setTimeout(() => {
+                  reviewSectionRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }, 100);
+              }}
+              className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300"
+            >
+              Study
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleDeleteCard(card.id)}
+              disabled={deletingId === card.id}
+              className="rounded-xl border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletingId === card.id ? "Deleting..." : "Delete"}
+            </button>
           </div>
         </div>
-      </div>
-    </AppShell>
-  );
+      ))}
+    </div>
+  )}
+</div>
+</div>
+</div>
+</AppShell>
+);
 }

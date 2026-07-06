@@ -17,6 +17,11 @@ class NoteCreate(BaseModel):
     content: str
 
 
+class NoteUpdate(BaseModel):
+    title: str
+    content: str
+
+
 @router.get("/{study_room_id}")
 def get_notes(
     study_room_id: int,
@@ -53,6 +58,30 @@ def create_note(
     )
 
     db.add(note)
+    db.commit()
+    db.refresh(note)
+
+    return note
+
+
+@router.patch("/{note_id}")
+def update_note(
+    note_id: int,
+    data: NoteUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    note = db.query(Note).filter(
+        Note.id == note_id,
+        Note.owner_id == current_user.id
+    ).first()
+
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    note.title = data.title
+    note.content = data.content
+
     db.commit()
     db.refresh(note)
 

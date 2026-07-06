@@ -342,6 +342,20 @@ export async function createNote(
   });
 }
 
+export async function updateNote(
+  noteId: number,
+  title: string,
+  content: string
+) {
+  return apiFetch(`/api/notes/${noteId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title,
+      content,
+    }),
+  });
+}
+
 export async function deleteNote(noteId: number) {
   return apiFetch(`/api/notes/${noteId}`, {
     method: "DELETE",
@@ -418,5 +432,17 @@ export async function chatWithPDF(pdfId: number, question: string) {
   return apiFetch(`/api/pdfs/${pdfId}/chat`, {
     method: "POST",
     body: JSON.stringify({ question }),
+  });
+}
+export async function createLearningEvent(data: {
+  study_room_id?: number | null;
+  activity_type: string;
+  reference_id?: number | null;
+  result?: string | null;
+  confidence?: number | null;
+}) {
+  return apiFetch("/api/learning-events", {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
