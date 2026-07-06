@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
@@ -48,6 +48,15 @@ export default function NotesPage() {
   const [aiHistory, setAiHistory] = useState<AIHistoryItem[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+
+  const lastSavedNoteRef = useRef<{
+    id: number;
+    title: string;
+    content: string;
+  } | null>(null);
+
+  const autoSaveInProgressRef = useRef(false);
+  const AUTO_SAVE_DELAY_MS = 10000;
 
   useEffect(() => {
     if (!ready) return;
@@ -97,6 +106,65 @@ export default function NotesPage() {
     loadNotes();
   }, [ready, selectedRoomId]);
 
+  useEffect(() => {
+    if (!ready || editingNoteId === null) return;
+    if (!title.trim() || !content.trim()) return;
+
+    const lastSaved = lastSavedNoteRef.current;
+    const nextTitle = title.trim();
+    const nextContent = content.trim();
+
+    if (
+      lastSaved &&
+      lastSaved.id === editingNoteId &&
+      lastSaved.title === nextTitle &&
+      lastSaved.content === nextContent
+    ) {
+      return;
+    }
+
+    setSaveStatus("idle");
+
+    const timer = window.setTimeout(async () => {
+      if (autoSaveInProgressRef.current) return;
+
+      try {
+        autoSaveInProgressRef.current = true;
+        setSaving(true);
+        setSaveStatus("saving");
+        setError("");
+
+        const updatedNote = await updateNote(
+          editingNoteId,
+          nextTitle,
+          nextContent
+        );
+
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === editingNoteId ? updatedNote : note
+          )
+        );
+
+        lastSavedNoteRef.current = {
+          id: editingNoteId,
+          title: nextTitle,
+          content: nextContent,
+        };
+
+        setSaveStatus("saved");
+      } catch (err) {
+        setSaveStatus("idle");
+        setError(err instanceof Error ? err.message : "Failed to auto-save note.");
+      } finally {
+        autoSaveInProgressRef.current = false;
+        setSaving(false);
+      }
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [ready, editingNoteId, title, content]);
+
   async function handleSaveNote() {
     if (selectedRoomId === null) {
       setError("Create or select a study room first.");
@@ -115,14 +183,42 @@ export default function NotesPage() {
 
     try {
       setSaving(true);
+      setSaveStatus("saving");
       setError("");
+
+      if (editingNoteId !== null) {
+        const updatedNote = await updateNote(
+          editingNoteId,
+          title.trim(),
+          content.trim()
+        );
+
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === editingNoteId ? updatedNote : note
+          )
+        );
+
+        lastSavedNoteRef.current = {
+          id: editingNoteId,
+          title: title.trim(),
+          content: content.trim(),
+        };
+
+        setSaveStatus("saved");
+        return;
+      }
 
       const newNote = await createNote(selectedRoomId, title.trim(), content.trim());
 
       setNotes((current) => [newNote, ...current]);
       setTitle("");
       setContent("");
+      setEditingNoteId(null);
+      lastSavedNoteRef.current = null;
+      setSaveStatus("saved");
     } catch (err) {
+      setSaveStatus("idle");
       setError(err instanceof Error ? err.message : "Failed to save note.");
     } finally {
       setSaving(false);
@@ -463,6 +559,28 @@ export default function NotesPage() {
     setAiStatus("AI result pin updated.");
   }
 
+  function handleDeleteAIHistory(itemId: string) {
+    const confirmed = window.confirm("Delete this AI history item? This cannot be undone.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAiHistory((current) => current.filter((item) => item.id !== itemId));
+    setAiStatus("AI history item deleted.");
+  }
+
+  function handleClearAIHistory() {
+    const confirmed = window.confirm("Clear all AI history? This cannot be undone.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setAiHistory([]);
+    setAiStatus("AI history cleared.");
+  }
+
   async function handleRegenerateAIHistory(itemId: string) {
     const item = aiHistory.find((historyItem) => historyItem.id === itemId);
 
@@ -606,6 +724,7 @@ Answer clearly in a helpful student-friendly way.`;
           characterCount={characterCount}
           loadingRooms={loadingRooms}
           saving={saving}
+          saveStatus={saveStatus}
           error={error}
           onRoomChange={setSelectedRoomId}
           onTitleChange={setTitle}
@@ -633,6 +752,8 @@ Answer clearly in a helpful student-friendly way.`;
           onTogglePinHistory={handleTogglePinAIHistory}
           onRegenerateHistory={handleRegenerateAIHistory}
           onReplyHistory={handleReplyAIHistory}
+          onDeleteHistory={handleDeleteAIHistory}
+          onClearHistory={handleClearAIHistory}
         />
 
         <NotesLibrary
@@ -647,7 +768,12 @@ Answer clearly in a helpful student-friendly way.`;
             setEditingNoteId(note.id);
             setTitle(note.title);
             setContent(note.content);
-            setSaveStatus("idle");
+            lastSavedNoteRef.current = {
+              id: note.id,
+              title: note.title.trim(),
+              content: note.content.trim(),
+            };
+            setSaveStatus("saved");
           }}
         />
       </div>

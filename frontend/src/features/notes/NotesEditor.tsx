@@ -11,6 +11,7 @@ type Props = {
   characterCount: number;
   loadingRooms: boolean;
   saving: boolean;
+  saveStatus: "idle" | "saving" | "saved";
   error: string;
   onRoomChange: (roomId: number) => void;
   onTitleChange: (value: string) => void;
@@ -34,6 +35,7 @@ export default function NotesEditor({
   characterCount,
   loadingRooms,
   saving,
+  saveStatus,
   error,
   onRoomChange,
   onTitleChange,
@@ -62,7 +64,11 @@ export default function NotesEditor({
         </div>
 
         <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-sm text-white/70">
-          {saving ? "Saving..." : "Database ready"}
+          {saveStatus === "saving"
+            ? "Saving..."
+            : saveStatus === "saved"
+              ? "✓ Saved"
+              : "Database ready"}
         </div>
       </div>
 

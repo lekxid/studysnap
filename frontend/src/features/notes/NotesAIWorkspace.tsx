@@ -25,6 +25,8 @@ type Props = {
   onTogglePinHistory?: (id: string) => void;
   onRegenerateHistory?: (id: string) => void;
   onReplyHistory?: (id: string, question: string) => void;
+  onDeleteHistory?: (id: string) => void;
+  onClearHistory?: () => void;
 };
 
 export default function NotesAIWorkspace({
@@ -41,6 +43,8 @@ export default function NotesAIWorkspace({
   onTogglePinHistory,
   onRegenerateHistory,
   onReplyHistory,
+  onDeleteHistory,
+  onClearHistory,
 }: Props) {
   const hasContent = content.trim().length > 0;
   const pinnedItems = history.filter((item) => item.pinned);
@@ -123,15 +127,28 @@ export default function NotesAIWorkspace({
                   onPin={() => onTogglePinHistory?.(item.id)}
                   onRegenerate={() => onRegenerateHistory?.(item.id)}
                   onReply={(question) => onReplyHistory?.(item.id, question)}
+                  onDelete={() => onDeleteHistory?.(item.id)}
                 />
               ))}
             </div>
           </div>
         ) : null}
 
-        <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
-          AI History
-        </h4>
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
+            AI History
+          </h4>
+
+          {history.length > 0 ? (
+            <button
+              type="button"
+              onClick={onClearHistory}
+              className="rounded-lg border border-red-400/30 px-3 py-1 text-xs font-medium text-red-300 hover:bg-red-500/10"
+            >
+              🧹 Clear All
+            </button>
+          ) : null}
+        </div>
 
         {history.length === 0 ? (
           <p className="mt-3 text-sm text-white/40">

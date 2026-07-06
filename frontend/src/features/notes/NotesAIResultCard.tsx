@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Props = {
   title: string;
@@ -14,6 +16,7 @@ type Props = {
   onPin?: () => void;
   onRegenerate?: () => void;
   onReply?: (question: string) => void;
+  onDelete?: () => void;
 };
 
 export default function NotesAIResultCard({
@@ -28,6 +31,7 @@ export default function NotesAIResultCard({
   onPin,
   onRegenerate,
   onReply,
+  onDelete,
 }: Props) {
   const [replying, setReplying] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -53,58 +57,42 @@ export default function NotesAIResultCard({
         </div>
 
         <div className="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCopy}
-            className="rounded-lg border border-cyan-400/30 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10"
-          >
+          <button type="button" onClick={onCopy} className="rounded-lg border border-cyan-400/30 px-3 py-1 text-xs text-cyan-300 hover:bg-cyan-500/10">
             📋 Copy
           </button>
 
-          <button
-            type="button"
-            onClick={onInsert}
-            className="rounded-lg border border-green-400/30 px-3 py-1 text-xs text-green-300 hover:bg-green-500/10"
-          >
+          <button type="button" onClick={onInsert} className="rounded-lg border border-green-400/30 px-3 py-1 text-xs text-green-300 hover:bg-green-500/10">
             ➕ Insert
           </button>
 
-          <button
-            type="button"
-            onClick={onSaveAsNote}
-            className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10"
-          >
+          <button type="button" onClick={onSaveAsNote} className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10">
             💾 Save
           </button>
 
-          <button
-            type="button"
-            onClick={() => setReplying((current) => !current)}
-            className="rounded-lg border border-pink-400/30 px-3 py-1 text-xs text-pink-300 hover:bg-pink-500/10"
-          >
+          <button type="button" onClick={() => setReplying((current) => !current)} className="rounded-lg border border-pink-400/30 px-3 py-1 text-xs text-pink-300 hover:bg-pink-500/10">
             💬 Reply
           </button>
 
-          <button
-            type="button"
-            onClick={onRegenerate}
-            className="rounded-lg border border-blue-400/30 px-3 py-1 text-xs text-blue-300 hover:bg-blue-500/10"
-          >
+          <button type="button" onClick={onRegenerate} className="rounded-lg border border-blue-400/30 px-3 py-1 text-xs text-blue-300 hover:bg-blue-500/10">
             🔄 Regenerate
           </button>
 
-          <button
-            type="button"
-            onClick={onPin}
-            className="rounded-lg border border-yellow-400/30 px-3 py-1 text-xs text-yellow-300 hover:bg-yellow-500/10"
-          >
+          <button type="button" onClick={onPin} className="rounded-lg border border-yellow-400/30 px-3 py-1 text-xs text-yellow-300 hover:bg-yellow-500/10">
             {isPinned ? "Unpin" : "⭐ Pin"}
+          </button>
+
+          <button type="button" onClick={onDelete} className="rounded-lg border border-red-400/30 px-3 py-1 text-xs text-red-300 hover:bg-red-500/10">
+            🗑 Delete
           </button>
         </div>
       </div>
 
-      <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-black/30 p-3 text-white/90">
-        {content}
+      <div className="max-h-72 overflow-y-auto rounded-lg bg-black/30 p-3 text-white/90">
+        <div className="prose prose-invert max-w-none prose-headings:text-white prose-p:text-white/90 prose-strong:text-white prose-li:text-white/90 prose-code:text-cyan-200 prose-pre:bg-black/50">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {content}
+          </ReactMarkdown>
+        </div>
       </div>
 
       {replying ? (
@@ -116,6 +104,12 @@ export default function NotesAIResultCard({
           <textarea
             value={replyText}
             onChange={(event) => setReplyText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                handleSendReply();
+              }
+            }}
             placeholder="Ask a follow-up question..."
             rows={3}
             className="w-full resize-none rounded-lg border border-white/10 bg-black/40 p-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-pink-400/50"
