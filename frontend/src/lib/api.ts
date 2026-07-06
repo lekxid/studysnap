@@ -112,6 +112,10 @@ export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
 
+export async function getLearningInsights() {
+  return apiFetch("/api/learning-insights");
+}
+
 export async function askAi(question: string, context?: string) {
   return apiFetch("/api/ai/ask", {
     method: "POST",
