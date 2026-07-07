@@ -31,3 +31,16 @@ frontend@*
 backend/next
 frontend/next
 filename
+
+# ==========================
+# StudySnap Runtime Files
+# ==========================
+
+# User uploaded files
+backend/uploads/
+backend/uploads/**
+
+# Temporary backups
+*.backup
+*.backup-*
+*.orig

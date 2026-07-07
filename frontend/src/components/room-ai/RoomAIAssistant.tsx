@@ -119,25 +119,15 @@ export default function RoomAIAssistant({
     }
   }
 
-  async function handleNewChat() {
-    if (!studyRoomId || Number.isNaN(studyRoomId)) return;
+  async function handleResetChat() {
+    if (!activeConversationId) return;
 
     try {
-      setLoadingHistory(true);
-      const conversation = await createAIConversation(
-        studyRoomId,
-        "New Conversation",
-        conversationMode
-      );
-
-      setConversations((prev) => [conversation, ...prev]);
-      setActiveConversationId(conversation.id);
-      setMessages([]);
       setQuestion("");
+      await loadMessages(activeConversationId);
+      scrollToBottom();
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoadingHistory(false);
     }
   }
 
@@ -452,7 +442,7 @@ useEffect(() => {
 
           <button
             type="button"
-            onClick={handleNewChat}
+            onClick={handleResetChat}
             disabled={loading || loadingHistory}
             className="rounded-2xl bg-cyan-400 px-5 py-4 text-sm font-black text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
           >

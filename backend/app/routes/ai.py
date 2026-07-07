@@ -20,6 +20,7 @@ from app.services.ai_service import (
     generate_basic_flashcards,
     generate_basic_quiz,
 )
+from app.services.context_builder import build_conversation_context
 from app.utils.deps import get_current_user
 from app.services.lesson_service import generate_lesson
 from app.schemas.lesson import LessonResponse
@@ -121,6 +122,27 @@ def create_conversation(
     verify_study_room(db, data.study_room_id, current_user.id)
 
     conversation_mode = normalize_conversation_mode(data.mode)
+
+    existing = (
+        db.query(AIConversation)
+        .filter(
+            AIConversation.study_room_id == data.study_room_id,
+            AIConversation.owner_id == current_user.id,
+            AIConversation.mode == conversation_mode,
+        )
+        .order_by(AIConversation.id.asc())
+        .first()
+    )
+
+    if existing:
+        return {
+            "id": existing.id,
+            "title": existing.title,
+            "mode": existing.mode,
+            "study_room_id": existing.study_room_id,
+            "owner_id": existing.owner_id,
+            "created_at": existing.created_at,
+        }
 
     conversation = AIConversation(
         title=data.title or "New Conversation",
@@ -226,14 +248,7 @@ def create_message(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
-    previous_messages = db.query(AIMessage).filter(
-        AIMessage.conversation_id == conversation.id,
-    ).order_by(AIMessage.id.asc()).all()
-
-    history_text = "\n\n".join(
-        f"{message.role.upper()}: {message.content}"
-        for message in previous_messages[-8:]
-    )
+    history_text = build_conversation_context(db, conversation.id)
 
     if conversation.mode == "pdf":
         prompt = f"""
@@ -323,14 +338,7 @@ def create_message_stream(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
-    previous_messages = db.query(AIMessage).filter(
-        AIMessage.conversation_id == conversation.id,
-    ).order_by(AIMessage.id.asc()).all()
-
-    history_text = "\n\n".join(
-        f"{message.role.upper()}: {message.content}"
-        for message in previous_messages[-8:]
-    )
+    history_text = build_conversation_context(db, conversation.id)
 
     if conversation.mode == "pdf":
         prompt = f"""
