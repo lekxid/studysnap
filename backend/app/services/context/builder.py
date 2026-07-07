@@ -11,9 +11,12 @@ def build_study_room_context(
     conversation_id: int,
     study_room_id: int,
     owner_id: int,
+    question: str = "",
 ) -> str:
     """
     Build the StudySnap Brain context for a study room.
+
+    The question argument enables relevance ranking inside providers.
 
     Current providers:
     - Conversation

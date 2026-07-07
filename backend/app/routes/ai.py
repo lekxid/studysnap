@@ -253,6 +253,7 @@ def create_message(
         conversation_id=conversation.id,
         study_room_id=conversation.study_room_id,
         owner_id=current_user.id,
+        question=data.content,
     )
 
     if conversation.mode == "pdf":
@@ -348,6 +349,7 @@ def create_message_stream(
         conversation_id=conversation.id,
         study_room_id=conversation.study_room_id,
         owner_id=current_user.id,
+        question=data.content,
     )
 
     if conversation.mode == "pdf":
