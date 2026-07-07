@@ -11,6 +11,13 @@ export type AIHistoryItem = {
   tool?: "ask" | "lesson" | "flashcards" | "quiz";
 };
 
+export type AIChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+};
+
 type Props = {
   title: string;
   content: string;
@@ -27,6 +34,11 @@ type Props = {
   onReplyHistory?: (id: string, question: string) => void;
   onDeleteHistory?: (id: string) => void;
   onClearHistory?: () => void;
+  chatMessages?: AIChatMessage[];
+  chatInput?: string;
+  chatLoading?: boolean;
+  onChatInputChange?: (value: string) => void;
+  onSendChat?: () => void;
 };
 
 export default function NotesAIWorkspace({
@@ -45,6 +57,11 @@ export default function NotesAIWorkspace({
   onReplyHistory,
   onDeleteHistory,
   onClearHistory,
+  chatMessages = [],
+  chatInput = "",
+  chatLoading = false,
+  onChatInputChange,
+  onSendChat,
 }: Props) {
   const hasContent = content.trim().length > 0;
   const pinnedItems = history.filter((item) => item.pinned);
@@ -103,6 +120,72 @@ export default function NotesAIWorkspace({
           ➕ Insert current
         </button>
       </div>
+
+      <section className="mt-6 rounded-2xl border border-cyan-400/20 bg-black/25 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+              AI Chat
+            </p>
+            <h4 className="mt-1 text-lg font-bold text-white">
+              Continue with StudySnap AI
+            </h4>
+          </div>
+
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50">
+            {chatMessages.length} message{chatMessages.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="max-h-[360px] space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-black/30 p-3">
+          {chatMessages.length === 0 ? (
+            <p className="text-sm text-white/40">
+              Use Ask AI or type a follow-up. StudySnap will use your note as context.
+            </p>
+          ) : (
+            chatMessages.map((message) => (
+              <div
+                key={message.id}
+                className={`rounded-2xl p-3 text-sm leading-6 ${
+                  message.role === "user"
+                    ? "ml-auto max-w-[85%] bg-cyan-400 text-black"
+                    : "mr-auto max-w-[90%] bg-white/10 text-white"
+                }`}
+              >
+                <p className="mb-1 text-[11px] font-black uppercase tracking-[0.2em] opacity-60">
+                  {message.role === "user" ? "You" : "StudySnap AI"}
+                </p>
+                <div className="whitespace-pre-wrap">{message.content}</div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 flex gap-3">
+          <textarea
+            value={chatInput}
+            onChange={(event) => onChatInputChange?.(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                onSendChat?.();
+              }
+            }}
+            rows={2}
+            placeholder="Ask a follow-up question about this note..."
+            className="min-h-[56px] flex-1 resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-400/50"
+          />
+
+          <button
+            type="button"
+            onClick={onSendChat}
+            disabled={!chatInput.trim() || chatLoading}
+            className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-black text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {chatLoading ? "Sending..." : "Send"}
+          </button>
+        </div>
+      </section>
 
       <div className="mt-6 border-t border-white/10 pt-5">
         {pinnedItems.length > 0 ? (

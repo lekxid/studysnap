@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -8,6 +10,31 @@ from app.models.user import User
 from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Study Rooms"])
+
+
+def clean_room_text(value: str, max_length: int = 100) -> str:
+    cleaned = value or ""
+    cleaned = re.sub(r"[*_`>#]+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:max_length].strip()
+
+
+def validate_room_name(name: str) -> str:
+    cleaned = clean_room_text(name)
+
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Study room name is required")
+
+    return cleaned
+
+
+def validate_room_subject(subject: str) -> str:
+    cleaned = clean_room_text(subject, max_length=80)
+
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="Subject is required")
+
+    return cleaned
 
 
 class StudyRoomCreate(BaseModel):
@@ -52,9 +79,12 @@ def create_study_room(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    room_name = validate_room_name(data.name)
+    room_subject = validate_room_subject(data.subject)
+
     room = StudyRoom(
-        name=data.name,
-        subject=data.subject,
+        name=room_name,
+        subject=room_subject,
         description=data.description,
         owner_id=current_user.id,
     )
@@ -90,8 +120,8 @@ def update_study_room(
     if not room:
         raise HTTPException(status_code=404, detail="Study room not found")
 
-    room.name = data.name
-    room.subject = data.subject
+    room.name = validate_room_name(data.name)
+    room.subject = validate_room_subject(data.subject)
     room.description = data.description
 
     db.commit()

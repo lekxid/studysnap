@@ -6,7 +6,7 @@ import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
-import NotesAIWorkspace, { AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
+import NotesAIWorkspace, { AIChatMessage, AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
 import NotesLibrary from "@/features/notes/NotesLibrary";
 
 type StudyRoom = {
@@ -46,6 +46,8 @@ export default function NotesPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
   const [aiHistory, setAiHistory] = useState<AIHistoryItem[]>([]);
+  const [aiChatMessages, setAiChatMessages] = useState<AIChatMessage[]>([]);
+  const [aiChatInput, setAiChatInput] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
@@ -54,6 +56,55 @@ export default function NotesPage() {
     title: string;
     content: string;
   } | null>(null);
+
+  const aiWorkspaceRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollToAIWorkspace() {
+    window.setTimeout(() => {
+      aiWorkspaceRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  }
+
+  function getAIText(result: unknown): string {
+    if (typeof result === "string") return result;
+
+    if (result && typeof result === "object") {
+      const data = result as Record<string, unknown>;
+      const possibleText =
+        data.answer ||
+        data.response ||
+        data.message ||
+        data.content ||
+        data.text ||
+        data.summary;
+
+      if (typeof possibleText === "string") return possibleText;
+
+      const lesson = data.lesson;
+
+      if (typeof lesson === "string") return lesson;
+
+      if (lesson && typeof lesson === "object") {
+        const lessonData = lesson as Record<string, unknown>;
+        const lessonText =
+          lessonData.content ||
+          lessonData.text ||
+          lessonData.lesson ||
+          lessonData.answer;
+
+        if (typeof lessonText === "string") return lessonText;
+
+        return JSON.stringify(lessonData, null, 2);
+      }
+
+      return JSON.stringify(data, null, 2);
+    }
+
+    return String(result || "");
+  }
 
   const autoSaveInProgressRef = useRef(false);
   const AUTO_SAVE_DELAY_MS = 10000;
@@ -260,6 +311,7 @@ export default function NotesPage() {
     };
 
     setAiHistory((current) => [newItem, ...current]);
+    scrollToAIWorkspace();
   }
 
   async function handleSummarizeNote() {
@@ -278,7 +330,7 @@ export default function NotesPage() {
 
       const result = await askAi(prompt, content);
 
-      const output = String(result.answer || result.response || result.message || result);
+      const output = getAIText(result);
       setAiContent(output);
       addAIHistoryItem(itemTitle, output, {
         prompt,
@@ -308,7 +360,7 @@ export default function NotesPage() {
 
       const result = await askAi(prompt, content);
 
-      const output = String(result.answer || result.response || result.message || result);
+      const output = getAIText(result);
       setAiContent(output);
       addAIHistoryItem(itemTitle, output, {
         prompt,
@@ -338,7 +390,7 @@ export default function NotesPage() {
 
       const result = await generateLesson(prompt, content);
 
-      const output = String(result.lesson || result.answer || result.response || result.message || result);
+      const output = getAIText(result);
       setAiContent(output);
       addAIHistoryItem(itemTitle, output, {
         prompt,
@@ -400,34 +452,84 @@ export default function NotesPage() {
     }
   }
 
-  async function handleAskAINote() {
+  async function sendAIChatMessage(message: string, titleForHistory = "AI Chat") {
+    const userMessage = message.trim();
+
+    if (!userMessage) return;
+
     if (!content.trim()) {
       setError("Write or select a note first.");
       return;
     }
 
+    const createdAt = new Date().toLocaleString();
+
+    setAiChatMessages((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-user-${Math.random()}`,
+        role: "user",
+        content: userMessage,
+        createdAt,
+      },
+    ]);
+
+    setAiChatInput("");
+
     try {
       setAiLoading(true);
       setError("");
+      setAiStatus("StudySnap AI is replying...");
+      scrollToAIWorkspace();
 
-      const prompt = "Based on these notes, ask me 3 helpful study questions and give short answers.";
-      const itemTitle = "Study Questions";
-      setAiTitle(itemTitle);
+      const chatContext = `Current note content:
 
-      const result = await askAi(prompt, content);
+${content}
 
-      const output = String(result.answer || result.response || result.message || result);
+Recent conversation:
+
+${aiChatMessages
+  .slice(-6)
+  .map((message) => `${message.role === "user" ? "Student" : "StudySnap AI"}: ${message.content}`)
+  .join("\n\n")}`;
+
+      const result = await askAi(userMessage, chatContext);
+      const output = getAIText(result);
+
+      setAiChatMessages((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-assistant-${Math.random()}`,
+          role: "assistant",
+          content: output,
+          createdAt: new Date().toLocaleString(),
+        },
+      ]);
+
+      setAiTitle(titleForHistory);
       setAiContent(output);
-      addAIHistoryItem(itemTitle, output, {
-        prompt,
+      addAIHistoryItem(titleForHistory, output, {
+        prompt: userMessage,
         context: content,
         tool: "ask",
       });
+      setAiStatus("AI reply created.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to ask AI.");
+      setError(err instanceof Error ? err.message : "Failed to send AI chat message.");
     } finally {
       setAiLoading(false);
     }
+  }
+
+  async function handleAskAINote() {
+    await sendAIChatMessage(
+      "Based on these notes, ask me 3 helpful study questions and give short answers.",
+      "Study Questions"
+    );
+  }
+
+  async function handleSendAIChat() {
+    await sendAIChatMessage(aiChatInput, "AI Chat");
   }
 
   const wordCount = useMemo(() => {
@@ -606,13 +708,7 @@ export default function NotesPage() {
           ? await generateLesson(item.prompt, itemContext)
           : await askAi(item.prompt, itemContext);
 
-      const output = String(
-        result.lesson ||
-          result.answer ||
-          result.response ||
-          result.message ||
-          result
-      );
+      const output = getAIText(result);
 
       const regeneratedItem: AIHistoryItem = {
         id: `${Date.now()}-${Math.random()}`,
@@ -668,12 +764,7 @@ Answer clearly in a helpful student-friendly way.`;
       const replyContext = item.context || content;
       const result = await askAi(replyPrompt, replyContext);
 
-      const output = String(
-        result.answer ||
-          result.response ||
-          result.message ||
-          result
-      );
+      const output = getAIText(result);
 
       const replyItem: AIHistoryItem = {
         id: `${Date.now()}-${Math.random()}`,
@@ -738,8 +829,9 @@ Answer clearly in a helpful student-friendly way.`;
           onAskAI={handleAskAINote}
         />
 
-        <NotesAIWorkspace
-          title={aiTitle}
+        <div ref={aiWorkspaceRef}>
+          <NotesAIWorkspace
+            title={aiTitle}
           content={aiContent}
           loading={aiLoading}
           status={aiStatus}
@@ -754,7 +846,13 @@ Answer clearly in a helpful student-friendly way.`;
           onReplyHistory={handleReplyAIHistory}
           onDeleteHistory={handleDeleteAIHistory}
           onClearHistory={handleClearAIHistory}
-        />
+            chatMessages={aiChatMessages}
+            chatInput={aiChatInput}
+            chatLoading={aiLoading}
+            onChatInputChange={setAiChatInput}
+            onSendChat={handleSendAIChat}
+          />
+        </div>
 
         <NotesLibrary
           selectedRoom={selectedRoom}

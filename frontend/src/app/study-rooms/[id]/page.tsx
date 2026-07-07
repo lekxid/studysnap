@@ -58,6 +58,18 @@ export default function StudyRoomDetailPage() {
   const [summaryTitle, setSummaryTitle] = useState("");
   const [error, setError] = useState("");
 
+  const cleanDisplayText = (value: string | null | undefined, maxLength = 100) => {
+    const cleaned = (value || "")
+      .replace(/[*_`>#-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength).trim()}...` : cleaned;
+  };
+
+  const roomTitle = cleanDisplayText(room?.name, 90) || "Study Room";
+  const roomSubject = cleanDisplayText(room?.subject, 60) || "Subject";
+
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
       setError("Invalid study room.");
@@ -148,8 +160,8 @@ export default function StudyRoomDetailPage() {
 
   return (
     <AppShell
-      title={room?.name || "Study Room"}
-      subtitle={room ? `Subject: ${room.subject} • AI workspace` : "AI workspace"}
+      title={roomTitle}
+      subtitle={room ? `Subject: ${roomSubject} • AI workspace` : "AI workspace"}
     >
       <div className="content-grid">
         <div>
@@ -177,11 +189,14 @@ export default function StudyRoomDetailPage() {
         {room ? (
           <>
             <section className="gold-card rounded-[2rem] p-6 sm:p-8">
-              <div className="gold-chip mb-4">{room.subject}</div>
-              <h2 className="panel-title text-white">{room.name}</h2>
-              <p className="panel-muted mt-4 max-w-3xl">
-                {room.description ||
-                  "This is your AI-powered study workspace. Use General AI for normal help, or PDF Assistant to work with uploaded documents."}
+              <div className="gold-chip mb-4">{roomSubject}</div>
+              <h2 className="panel-title line-clamp-2 break-words text-white">
+                {roomTitle}
+              </h2>
+              <p className="panel-muted mt-4 line-clamp-3 max-w-3xl break-words">
+                {room.description
+                  ? cleanDisplayText(room.description, 220)
+                  : "This is your AI-powered study workspace. Use General AI for normal help, or PDF Assistant to work with uploaded documents."}
               </p>
 
               <div className="mt-6 grid gap-4 sm:grid-cols-3">
