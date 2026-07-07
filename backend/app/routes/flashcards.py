@@ -15,6 +15,10 @@ class FlashcardCreate(BaseModel):
     study_room_id: int
     question: str
     answer: str
+    tags: str = ""
+    difficulty: str = "medium"
+    source_type: str = "manual"
+    source_id: str | None = None
 
 
 @router.get("/{study_room_id}")
@@ -48,6 +52,10 @@ def create_flashcard(
     card = Flashcard(
         question=data.question,
         answer=data.answer,
+        tags=data.tags,
+        difficulty=data.difficulty,
+        source_type=data.source_type,
+        source_id=data.source_id,
         study_room_id=data.study_room_id,
         owner_id=current_user.id,
     )

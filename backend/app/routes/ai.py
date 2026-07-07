@@ -482,6 +482,10 @@ def generate_flashcards(
         flashcard = Flashcard(
             question=card["question"],
             answer=card["answer"],
+            tags="",
+            difficulty="medium",
+            source_type="ai",
+            source_id=None,
             study_room_id=data.study_room_id,
             owner_id=current_user.id,
         )
