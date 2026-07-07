@@ -39,6 +39,7 @@ def build_study_room_context(
         db=db,
         study_room_id=study_room_id,
         owner_id=owner_id,
+        question=question,
     )
 
     pdf_context = build_pdf_context(
