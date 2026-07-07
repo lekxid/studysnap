@@ -20,7 +20,7 @@ from app.services.ai_service import (
     generate_basic_flashcards,
     generate_basic_quiz,
 )
-from app.services.context_builder import build_conversation_context
+from app.services.context_builder import build_study_room_context
 from app.utils.deps import get_current_user
 from app.services.lesson_service import generate_lesson
 from app.schemas.lesson import LessonResponse
@@ -248,7 +248,12 @@ def create_message(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
-    history_text = build_conversation_context(db, conversation.id)
+    history_text = build_study_room_context(
+        db=db,
+        conversation_id=conversation.id,
+        study_room_id=conversation.study_room_id,
+        owner_id=current_user.id,
+    )
 
     if conversation.mode == "pdf":
         prompt = f"""
@@ -338,7 +343,12 @@ def create_message_stream(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
-    history_text = build_conversation_context(db, conversation.id)
+    history_text = build_study_room_context(
+        db=db,
+        conversation_id=conversation.id,
+        study_room_id=conversation.study_room_id,
+        owner_id=current_user.id,
+    )
 
     if conversation.mode == "pdf":
         prompt = f"""
