@@ -1,19 +1,23 @@
 from sqlalchemy.orm import Session
 
 from app.models.pdf_document import PDFDocument
+from app.services.context.ranking import rank_items
 
 
 def build_pdf_context(
     db: Session,
     study_room_id: int,
     owner_id: int,
+    question: str = "",
     limit: int = 3,
+    candidate_limit: int = 20,
     content_limit: int = 2000,
 ) -> str:
     """
     Build PDF context for StudySnap AI.
 
-    Uses recent PDFs from the current study room only.
+    Uses shared relevance ranking first.
+    Falls back to recent PDFs if no relevant PDFs exist.
     """
 
     pdfs = (
@@ -23,16 +27,28 @@ def build_pdf_context(
             PDFDocument.owner_id == owner_id,
         )
         .order_by(PDFDocument.id.desc())
-        .limit(limit)
+        .limit(candidate_limit)
         .all()
     )
 
     if not pdfs:
         return ""
 
+    selected_pdfs = rank_items(
+        query=question,
+        items=pdfs,
+        text_getter=lambda pdf: " ".join(
+            [
+                pdf.original_filename or "",
+                pdf.extracted_text or "",
+            ]
+        ),
+        limit=limit,
+    )
+
     formatted_pdfs = []
 
-    for pdf in pdfs:
+    for pdf in selected_pdfs:
         filename = (pdf.original_filename or "Untitled PDF").strip()
         extracted_text = (pdf.extracted_text or "").strip()
 
