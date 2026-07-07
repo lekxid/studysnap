@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.note import Note
-from app.services.context.ranking import relevance_score
+from app.services.context.ranking import rank_items
 
 
 def build_notes_context(
@@ -16,7 +16,7 @@ def build_notes_context(
     """
     Build study note context for StudySnap AI.
 
-    Uses relevance ranking first.
+    Uses shared relevance ranking first.
     Falls back to recent notes if no relevant notes exist.
     """
 
@@ -34,30 +34,17 @@ def build_notes_context(
     if not notes:
         return ""
 
-    ranked_notes = []
-
-    for note in notes:
-        searchable_text = " ".join(
+    selected_notes = rank_items(
+        query=question,
+        items=notes,
+        text_getter=lambda note: " ".join(
             [
                 note.title or "",
                 note.content or "",
             ]
-        )
-
-        score = relevance_score(question, searchable_text)
-        ranked_notes.append((score, note))
-
-    matching_notes = [
-        (score, note)
-        for score, note in ranked_notes
-        if score > 0
-    ]
-
-    if matching_notes:
-        matching_notes.sort(key=lambda item: item[0], reverse=True)
-        selected_notes = [note for score, note in matching_notes[:limit]]
-    else:
-        selected_notes = notes[:limit]
+        ),
+        limit=limit,
+    )
 
     formatted_notes = []
 

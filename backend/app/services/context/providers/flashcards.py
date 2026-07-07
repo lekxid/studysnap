@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.flashcard import Flashcard
-from app.services.context.ranking import relevance_score
+from app.services.context.ranking import rank_items
 
 
 def build_flashcards_context(
@@ -16,7 +16,7 @@ def build_flashcards_context(
     """
     Build flashcard context for StudySnap AI.
 
-    Uses relevance ranking first.
+    Uses shared relevance ranking first.
     Falls back to recent flashcards if no relevant cards exist.
     """
 
@@ -34,10 +34,10 @@ def build_flashcards_context(
     if not flashcards:
         return ""
 
-    ranked_cards = []
-
-    for card in flashcards:
-        searchable_text = " ".join(
+    selected_cards = rank_items(
+        query=question,
+        items=flashcards,
+        text_getter=lambda card: " ".join(
             [
                 card.question or "",
                 card.answer or "",
@@ -45,22 +45,9 @@ def build_flashcards_context(
                 card.difficulty or "",
                 card.source_type or "",
             ]
-        )
-
-        score = relevance_score(question, searchable_text)
-        ranked_cards.append((score, card))
-
-    matching_cards = [
-        (score, card)
-        for score, card in ranked_cards
-        if score > 0
-    ]
-
-    if matching_cards:
-        matching_cards.sort(key=lambda item: item[0], reverse=True)
-        selected_cards = [card for score, card in matching_cards[:limit]]
-    else:
-        selected_cards = flashcards[:limit]
+        ),
+        limit=limit,
+    )
 
     formatted_cards = []
 
