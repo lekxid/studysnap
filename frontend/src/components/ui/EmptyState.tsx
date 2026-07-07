@@ -1,21 +1,14 @@
-type Props = {
-  title: string;
-  description: string;
-};
-
 export default function EmptyState({
   title,
-  description,
-}: Props) {
+  message,
+}: {
+  title: string;
+  message: string;
+}) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center">
-      <h2 className="text-xl font-semibold text-white">
-        {title}
-      </h2>
-
-      <p className="mt-3 text-slate-400">
-        {description}
-      </p>
+    <div className="rounded-3xl border border-dashed border-yellow-400/30 bg-yellow-400/10 p-6 text-yellow-100">
+      <p className="font-black">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-yellow-100/80">{message}</p>
     </div>
   );
 }
