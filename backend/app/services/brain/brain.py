@@ -4,6 +4,11 @@ from app.models.learning_event import LearningEvent
 from app.models.user import User
 from app.services.brain.search import brain_search
 from app.services.brain.pipeline import run_brain_pipeline
+from app.services.brain.repository import BrainMemoryRepository
+from app.services.brain.intelligence import (
+    build_brain_insights,
+    brain_insights_to_dict,
+)
 
 
 class BrainService:
@@ -33,6 +38,19 @@ class BrainService:
             query=query,
             limit=limit,
         )
+
+    def get_insights(self, study_room_id: int | None = None):
+        """
+        Build personalized learning insights from persistent Brain Memory.
+        """
+        repository = BrainMemoryRepository(self.db)
+        insights = build_brain_insights(
+            repository=repository,
+            user_id=self.current_user.id,
+            study_room_id=study_room_id,
+        )
+
+        return brain_insights_to_dict(insights)
 
     def learn(self, event_type: str, payload: dict):
         """

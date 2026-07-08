@@ -18,6 +18,16 @@ def get_brain_summary(
     return brain.summarize()
 
 
+@router.get("/insights")
+def get_brain_insights(
+    study_room_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    brain = get_brain(db=db, current_user=current_user)
+    return brain.get_insights(study_room_id=study_room_id)
+
+
 @router.get("/recommendations")
 def get_brain_recommendations(
     study_room_id: int | None = Query(default=None),

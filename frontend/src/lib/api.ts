@@ -473,3 +473,46 @@ export async function universalSearch(q: string, limit = 12) {
 
   return apiFetch(`/api/search?${params.toString()}`) as Promise<UniversalSearchResponse>;
 }
+
+export type BrainConceptInsight = {
+  concept_id: string;
+  concept_name: string;
+  concept_type: string;
+  mastery_score: number;
+  confidence: number;
+  strength: string;
+  seen_count: number;
+  review_count: number;
+  needs_review: boolean;
+  last_seen: string | null;
+  last_reviewed: string | null;
+};
+
+export type BrainInsights = {
+  user_id: number;
+  study_room_id: number | null;
+  concept_count: number;
+  average_mastery: number;
+  mastered_count: number;
+  developing_count: number;
+  weak_count: number;
+  needs_review_count: number;
+  mastered_concepts: BrainConceptInsight[];
+  developing_concepts: BrainConceptInsight[];
+  weak_concepts: BrainConceptInsight[];
+  review_queue: BrainConceptInsight[];
+};
+
+export async function getBrainInsights(studyRoomId?: number) {
+  const params = new URLSearchParams();
+
+  if (typeof studyRoomId === "number") {
+    params.set("study_room_id", String(studyRoomId));
+  }
+
+  const query = params.toString();
+
+  return apiFetch(
+    query ? `/api/brain/insights?${query}` : "/api/brain/insights"
+  ) as Promise<BrainInsights>;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getLearningInsights } from "@/lib/api";
+import { getBrainInsights, getLearningInsights, type BrainInsights } from "@/lib/api";
 
 type TokenPayload = {
   sub?: string;
@@ -331,11 +331,141 @@ function TodayGoalCard({
 }
 
 
+
+function getBrainCoachMessage(brainInsights: BrainInsights | null) {
+  if (!brainInsights || brainInsights.concept_count === 0) {
+    return "StudySnap Brain is ready. Add notes, PDFs, flashcards, or AI Tutor activity so it can learn your strongest and weakest concepts.";
+  }
+
+  const firstReview =
+    brainInsights.review_queue[0] ||
+    brainInsights.weak_concepts[0] ||
+    brainInsights.developing_concepts[0];
+
+  if (firstReview) {
+    return `Your next best action is to review ${firstReview.concept_name}. StudySnap Brain selected it from your current learning memory.`;
+  }
+
+  if (brainInsights.mastered_count > 0) {
+    return "You have mastered concepts building up. Keep reviewing new material so StudySnap can keep your learning momentum strong.";
+  }
+
+  return "Your learning memory is growing. Keep studying so StudySnap Brain can detect stronger patterns and smarter review actions.";
+}
+
+function getBrainActionHref(brainInsights: BrainInsights | null) {
+  if (!brainInsights || brainInsights.concept_count === 0) return "/study-rooms";
+  if (brainInsights.review_queue.length > 0) return "/flashcards";
+  if (brainInsights.weak_concepts.length > 0) return "/ai-tutor";
+  return "/flashcards";
+}
+
+function getBrainActionLabel(brainInsights: BrainInsights | null) {
+  if (!brainInsights || brainInsights.concept_count === 0) return "Add Learning Material";
+  if (brainInsights.review_queue.length > 0) return "Start Smart Review";
+  if (brainInsights.weak_concepts.length > 0) return "Ask AI Tutor";
+  return "Review Flashcards";
+}
+
+function BrainSummaryCard({
+  brainInsights,
+}: {
+  brainInsights: BrainInsights | null;
+}) {
+  const averageMastery = brainInsights
+    ? Math.round(brainInsights.average_mastery * 100)
+    : 0;
+
+  const topConcepts =
+    brainInsights?.review_queue.length
+      ? brainInsights.review_queue
+      : brainInsights?.weak_concepts.length
+        ? brainInsights.weak_concepts
+        : brainInsights?.developing_concepts || [];
+
+  return (
+    <div className="mt-8 rounded-[1.5rem] border border-violet-400/20 bg-violet-500/10 p-5">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-sm font-bold uppercase tracking-[0.25em] text-violet-200">
+            🧠 StudySnap Brain
+          </p>
+
+          <h2 className="mt-3 text-2xl font-black text-white">
+            Your AI learning memory is active
+          </h2>
+
+          <p className="mt-3 text-sm leading-7 text-slate-200">
+            {getBrainCoachMessage(brainInsights)}
+          </p>
+
+          <button
+            onClick={() => {
+              window.location.href = getBrainActionHref(brainInsights);
+            }}
+            className="mt-4 rounded-[1rem] bg-violet-300 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5"
+          >
+            {getBrainActionLabel(brainInsights)}
+          </button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:w-96">
+          <StatCard
+            title="Concepts Learned"
+            value={brainInsights ? brainInsights.concept_count : "—"}
+            subtitle="Concepts saved in Brain memory"
+          />
+          <StatCard
+            title="Brain Mastery"
+            value={brainInsights ? `${averageMastery}%` : "—"}
+            subtitle="Average concept understanding"
+          />
+          <StatCard
+            title="Developing"
+            value={brainInsights ? brainInsights.developing_count : "—"}
+            subtitle="Concepts still growing"
+          />
+          <StatCard
+            title="Needs Review"
+            value={brainInsights ? brainInsights.needs_review_count : "—"}
+            subtitle="Concepts Brain recommends reviewing"
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+          Top concepts to focus on
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {topConcepts.slice(0, 6).length === 0 ? (
+            <span className="text-sm text-slate-400">
+              No concept memory yet.
+            </span>
+          ) : (
+            topConcepts.slice(0, 6).map((concept) => (
+              <span
+                key={concept.concept_id}
+                className="rounded-full border border-white/10 bg-slate-900/80 px-3 py-2 text-sm font-bold text-slate-100"
+              >
+                {concept.concept_name}
+              </span>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function DashboardPage() {
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [insights, setInsights] = useState<LearningInsights | null>(null);
+  const [brainInsights, setBrainInsights] = useState<BrainInsights | null>(null);
   const [insightsError, setInsightsError] = useState("");
 
   useEffect(() => {
@@ -364,13 +494,14 @@ export default function DashboardPage() {
     setEmail(payload.sub || "");
     setChecked(true);
 
-    getLearningInsights()
-      .then((data) => {
-        setInsights(data as LearningInsights);
+    Promise.all([getLearningInsights(), getBrainInsights()])
+      .then(([learningData, brainData]) => {
+        setInsights(learningData as LearningInsights);
+        setBrainInsights(brainData);
       })
       .catch((err) => {
         setInsightsError(
-          err instanceof Error ? err.message : "Failed to load learning insights"
+          err instanceof Error ? err.message : "Failed to load dashboard insights"
         );
       });
   }, []);
@@ -466,6 +597,8 @@ export default function DashboardPage() {
               : "Loading your learning recommendation..."}
           </p>
         </div>
+
+        <BrainSummaryCard brainInsights={brainInsights} />
 
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           <TopicInsightCard
