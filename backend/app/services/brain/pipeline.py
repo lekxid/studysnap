@@ -1,5 +1,8 @@
 from app.services.brain.analyzer import analyze_text
 from app.services.brain.memory import build_learning_memory_snapshot
+from app.services.brain.repository import BrainMemoryRepository
+from sqlalchemy.orm import Session
+
 from app.services.brain.objects import (
     brain_analysis_to_dict,
     brain_event_to_dict,
@@ -57,7 +60,11 @@ def build_brain_event(event_type: str, payload: dict | None = None) -> dict:
     }
 
 
-def run_brain_pipeline(event_type: str, payload: dict | None = None) -> dict:
+def run_brain_pipeline(
+    event_type: str,
+    payload: dict | None = None,
+    db: Session | None = None,
+) -> dict:
     """
     Brain Pipeline v2.
 
@@ -99,6 +106,20 @@ def run_brain_pipeline(event_type: str, payload: dict | None = None) -> dict:
         brain_objects=brain_objects,
     )
 
+    persistent_memory = {
+        "enabled": False,
+        "saved_concepts": 0,
+    }
+
+    if db is not None and memory_snapshot["has_memory"]:
+        repository = BrainMemoryRepository(db)
+        saved_memories = repository.upsert_memory_snapshot(memory_snapshot)
+
+        persistent_memory = {
+            "enabled": True,
+            "saved_concepts": len(saved_memories),
+        }
+
     return {
         "event": event,
 
@@ -108,12 +129,16 @@ def run_brain_pipeline(event_type: str, payload: dict | None = None) -> dict:
         # Brain Core 2.0 structured objects
         "brain_objects": brain_objects,
 
-        # Brain Memory v2 temporary snapshot
+        # Brain Memory snapshot
         "memory": memory_snapshot,
+
+        # Brain Memory v3 persistent database write
+        "persistent_memory": persistent_memory,
 
         "actions": {
             "analyzed_text": bool(text.strip()),
             "updated_memory": memory_snapshot["has_memory"],
+            "persisted_memory": persistent_memory["enabled"],
             "updated_knowledge_graph": False,
             "updated_recommendations": False,
         },

@@ -82,9 +82,11 @@ class BrainService:
         pipeline_result = run_brain_pipeline(
             event_type="created_project",
             payload={
+                "user_id": self.current_user.id,
                 "study_room_id": study_room_id,
                 "text": text,
             },
+            db=self.db,
         )
 
         return {

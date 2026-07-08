@@ -11,3 +11,4 @@ from app.models.pdf_document import PDFDocument
 from app.models.ai_conversation import AIConversation
 from app.models.ai_message import AIMessage
 from app.models.learning_event import LearningEvent
+from app.models.brain_memory import BrainMemory
