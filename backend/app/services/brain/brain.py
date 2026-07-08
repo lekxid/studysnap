@@ -19,6 +19,7 @@ from app.services.brain.learning_profile import (
     learning_profile_to_dict,
 )
 from app.services.brain.priority import build_brain_priority_result
+from app.services.brain.retrieval import retrieve_learning_context
 
 
 class BrainService:
@@ -29,6 +30,20 @@ class BrainService:
     def __init__(self, db: Session, current_user: User):
         self.db = db
         self.current_user = current_user
+
+    def retrieve(
+        self,
+        query: str,
+        study_room_id: int | None = None,
+        limit: int = 8,
+    ):
+        return retrieve_learning_context(
+            db=self.db,
+            current_user=self.current_user,
+            query=query,
+            study_room_id=study_room_id,
+            limit=limit,
+        )
 
     def search(self, query: str, limit: int = 12):
         return brain_search(

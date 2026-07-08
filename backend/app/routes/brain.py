@@ -57,3 +57,19 @@ def brain_search(
 ):
     brain = get_brain(db=db, current_user=current_user)
     return brain.search(query=q, limit=limit)
+
+
+@router.get("/retrieve")
+def brain_retrieve(
+    q: str = Query(default="", max_length=160),
+    study_room_id: int | None = Query(default=None),
+    limit: int = Query(default=8, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    brain = get_brain(db=db, current_user=current_user)
+    return brain.retrieve(
+        query=q,
+        study_room_id=study_room_id,
+        limit=limit,
+    )
