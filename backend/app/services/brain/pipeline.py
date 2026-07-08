@@ -1,4 +1,11 @@
 from app.services.brain.analyzer import analyze_text
+from app.services.brain.memory import build_learning_memory_snapshot
+from app.services.brain.objects import (
+    brain_analysis_to_dict,
+    brain_event_to_dict,
+    build_brain_analysis,
+    build_brain_event_object,
+)
 
 
 BRAIN_EVENT_TYPES = {
@@ -25,50 +32,88 @@ def is_supported_event(event_type: str) -> bool:
 
 def build_brain_event(event_type: str, payload: dict | None = None) -> dict:
     """
-    Brain Event v1.
+    Brain Event v2.
 
-    Standard shape for anything that changes a student's learning journey.
+    Builds a typed BrainEvent internally, then returns a JSON-safe dict
+    for backward compatibility with existing routes.
     """
 
     normalized_type = normalize_event_type(event_type)
-    safe_payload = payload or {}
+    brain_event = build_brain_event_object(
+        event_type=normalized_type,
+        payload=payload,
+        supported=is_supported_event(normalized_type),
+    )
+
+    event_dict = brain_event_to_dict(brain_event)
 
     return {
-        "type": normalized_type,
-        "payload": safe_payload,
-        "supported": is_supported_event(normalized_type),
+        "type": event_dict["event_type"],
+        "payload": event_dict["payload"],
+        "supported": event_dict["supported"],
+        "user_id": event_dict["user_id"],
+        "study_room_id": event_dict["study_room_id"],
+        "timestamp": event_dict["timestamp"],
     }
 
 
 def run_brain_pipeline(event_type: str, payload: dict | None = None) -> dict:
     """
-    Brain Pipeline v1.
+    Brain Pipeline v2.
 
-    One central entry point for future learning events.
+    Central orchestration layer for StudySnap Brain.
 
-    For now it:
-    - standardizes the event
-    - analyzes provided text
-    - returns concepts and knowledge graph
+    Flow:
 
-    Later it will:
-    - save Brain Objects
-    - update Knowledge Graph database
-    - update Learning Memory
-    - update recommendations
-    - update search/context indexes
+    Raw Feature Event
+        ↓
+    BrainEvent
+        ↓
+    Analyzer
+        ↓
+    BrainAnalysis
+        ↓
+    Memory Snapshot
+        ↓
+    Future:
+        Persistent Memory
+        Knowledge Graph DB
+        Recommendations
+        Search Index
     """
 
     event = build_brain_event(event_type, payload)
-    text = event["payload"].get("text") or event["payload"].get("content") or ""
-    analysis = analyze_text(text)
+
+    text = (
+        event["payload"].get("text")
+        or event["payload"].get("content")
+        or ""
+    )
+
+    raw_analysis = analyze_text(text)
+    brain_analysis = build_brain_analysis(raw_analysis)
+    brain_objects = brain_analysis_to_dict(brain_analysis)
+
+    memory_snapshot = build_learning_memory_snapshot(
+        event=event,
+        brain_objects=brain_objects,
+    )
 
     return {
         "event": event,
-        "analysis": analysis,
+
+        # Existing API (kept for backward compatibility)
+        "analysis": raw_analysis,
+
+        # Brain Core 2.0 structured objects
+        "brain_objects": brain_objects,
+
+        # Brain Memory v2 temporary snapshot
+        "memory": memory_snapshot,
+
         "actions": {
             "analyzed_text": bool(text.strip()),
-            "updated_memory": False,
+            "updated_memory": memory_snapshot["has_memory"],
             "updated_knowledge_graph": False,
             "updated_recommendations": False,
         },
