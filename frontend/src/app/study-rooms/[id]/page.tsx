@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
@@ -9,6 +8,7 @@ import PDFUploader from "@/components/pdf/PDFUploader";
 import PDFList from "@/components/pdf/PDFList";
 import PDFChat from "@/components/pdf/PDFChat";
 import RoomAIAssistant from "@/components/room-ai/RoomAIAssistant";
+import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { deletePDF, getPDFs, getStudyRooms, summarizePDF } from "@/lib/api";
 
@@ -27,15 +27,6 @@ type PDFDocument = {
 };
 
 type AiMode = "general" | "pdf";
-
-const tools = [
-  { title: "Notes", desc: "Write and review study notes.", href: "/notes", icon: "📝" },
-  { title: "Flashcards", desc: "Review generated flashcards.", href: "/flashcards", icon: "🧠" },
-  { title: "Quizzes", desc: "Test your knowledge.", href: "/quizzes", icon: "❓" },
-  { title: "Planner", desc: "Plan your study sessions.", href: "/planner", icon: "📅" },
-  { title: "Progress", desc: "Track your learning progress.", href: "/progress", icon: "📈" },
-  { title: "AI Tutor", desc: "Open the full AI Tutor workspace.", href: "/ai-tutor", icon: "🤖" },
-];
 
 export default function StudyRoomDetailPage() {
   const ready = useRequireAuth();
@@ -58,6 +49,32 @@ export default function StudyRoomDetailPage() {
   const [summaryTitle, setSummaryTitle] = useState("");
   const [error, setError] = useState("");
 
+  const aiSectionRef = useRef<HTMLDivElement | null>(null);
+  const pdfSectionRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollToAi() {
+    aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function scrollToPdf() {
+    pdfSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function openProjectAi() {
+    setActiveAiMode("general");
+    setTimeout(scrollToAi, 100);
+  }
+
+  function openPdfAssistant() {
+    setActiveAiMode("pdf");
+    setTimeout(scrollToPdf, 100);
+  }
+
+  function handleProjectSearch(query: string) {
+    openProjectAi();
+    console.log("Project search query:", query);
+  }
+
   const cleanDisplayText = (value: string | null | undefined, maxLength = 100) => {
     const cleaned = (value || "")
       .replace(/[*_`>#-]+/g, " ")
@@ -67,12 +84,64 @@ export default function StudyRoomDetailPage() {
     return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength).trim()}...` : cleaned;
   };
 
-  const roomTitle = cleanDisplayText(room?.name, 90) || "Study Room";
+  const roomTitle = cleanDisplayText(room?.name, 90) || "Project";
   const roomSubject = cleanDisplayText(room?.subject, 60) || "Subject";
+  const progressPercent = Math.min(100, Math.round((pdfs.length / 5) * 100));
+
+  const continueItems = pdfs.slice(0, 3).map((pdf) => ({
+    id: pdf.id,
+    title: pdf.original_filename,
+    subtitle: "Uploaded study material",
+    icon: "📕",
+    onOpen: () => {
+      setSelectedPdfId(pdf.id);
+      setSummaryTitle(pdf.original_filename);
+      openPdfAssistant();
+    },
+  }));
+
+  const quickActions = [
+    {
+      title: "Upload PDF",
+      description: "Add study material",
+      icon: "📄",
+      onClick: openPdfAssistant,
+    },
+    {
+      title: "Create Note",
+      description: "Write and organize ideas",
+      icon: "📝",
+      href: "/notes",
+    },
+    {
+      title: "Flashcards",
+      description: "Review smart cards",
+      icon: "🧠",
+      href: "/flashcards",
+    },
+    {
+      title: "Take Quiz",
+      description: "Test your knowledge",
+      icon: "🧾",
+      href: "/quizzes",
+    },
+    {
+      title: "Planner",
+      description: "Plan study sessions",
+      icon: "📅",
+      href: "/planner",
+    },
+    {
+      title: "Ask Project AI",
+      description: "Get instant help",
+      icon: "🤖",
+      onClick: openProjectAi,
+    },
+  ];
 
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
-      setError("Invalid study room.");
+      setError("Invalid project.");
       setLoadingRoom(false);
       return;
     }
@@ -87,13 +156,13 @@ export default function StudyRoomDetailPage() {
 
       if (!foundRoom) {
         setRoom(null);
-        setError("Study room not found.");
+        setError("Project not found.");
         return;
       }
 
       setRoom(foundRoom);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load study room.");
+      setError(err instanceof Error ? err.message : "Failed to load project.");
     } finally {
       setLoadingRoom(false);
     }
@@ -142,7 +211,7 @@ export default function StudyRoomDetailPage() {
 
       setSummaryTitle(data.filename || "PDF Summary");
       setSummary(data.summary || "No summary returned.");
-      setActiveAiMode("pdf");
+      openPdfAssistant();
     } finally {
       setSummarizingId(null);
     }
@@ -161,156 +230,86 @@ export default function StudyRoomDetailPage() {
   return (
     <AppShell
       title={roomTitle}
-      subtitle={room ? `Subject: ${roomSubject} • AI workspace` : "AI workspace"}
+      subtitle={room ? `Subject: ${roomSubject} • Project workspace` : "Project workspace"}
     >
-      <div className="content-grid">
-        <div>
-          <button
-            type="button"
-            onClick={() => router.push("/study-rooms")}
-            className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            ← Back to Study Rooms
-          </button>
-        </div>
+      {loadingRoom ? (
+        <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-6 text-white/70">
+          Loading project...
+        </section>
+      ) : null}
 
-        {loadingRoom ? (
-          <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 text-white/70">
-            Loading study room...
-          </section>
-        ) : null}
+      {error ? (
+        <section className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6 text-red-300">
+          {error}
+        </section>
+      ) : null}
 
-        {error ? (
-          <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-300">
-            {error}
-          </section>
-        ) : null}
-
-        {room ? (
-          <>
-            <section className="gold-card rounded-[2rem] p-6 sm:p-8">
-              <div className="gold-chip mb-4">{roomSubject}</div>
-              <h2 className="panel-title line-clamp-2 break-words text-white">
-                {roomTitle}
-              </h2>
-              <p className="panel-muted mt-4 line-clamp-3 max-w-3xl break-words">
-                {room.description
-                  ? cleanDisplayText(room.description, 220)
-                  : "This is your AI-powered study workspace. Use General AI for normal help, or PDF Assistant to work with uploaded documents."}
-              </p>
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/50">
-                    PDFs
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-cyan-200">{pdfs.length}</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/50">
-                    AI Modes
-                  </p>
-                  <p className="mt-2 text-3xl font-black text-cyan-200">2</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-white/50">
-                    Status
-                  </p>
-                  <p className="mt-2 text-lg font-black text-green-300">Active</p>
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {tools.map((tool) => (
-                <Link key={tool.title} href={tool.href} className="stat-card p-5">
-                  <div className="text-3xl">{tool.icon}</div>
-                  <h3 className="mt-4 text-xl font-black text-white">{tool.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{tool.desc}</p>
-                </Link>
-              ))}
-            </section>
-
-            <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveAiMode("general")}
-                  className={`rounded-2xl px-5 py-4 text-sm font-black transition ${
-                    activeAiMode === "general"
-                      ? "bg-cyan-400 text-slate-950"
-                      : "bg-black/40 text-white hover:bg-white/10"
-                  }`}
-                >
-                  🤖 General AI
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveAiMode("pdf")}
-                  className={`rounded-2xl px-5 py-4 text-sm font-black transition ${
-                    activeAiMode === "pdf"
-                      ? "bg-cyan-400 text-slate-950"
-                      : "bg-black/40 text-white hover:bg-white/10"
-                  }`}
-                >
-                  📄 PDF Assistant
-                </button>
-              </div>
-            </section>
-
-            {activeAiMode === "general" ? (
+      {room ? (
+        <ProjectWorkspace
+          title={roomTitle}
+          subject={roomSubject}
+          description={room.description}
+          pdfCount={pdfs.length}
+          progress={progressPercent}
+          continueItems={continueItems}
+          quickActions={quickActions}
+          onBack={() => router.push("/study-rooms")}
+          onAskAI={openProjectAi}
+          onUploadPDF={openPdfAssistant}
+          onSearch={handleProjectSearch}
+          onViewAll={openPdfAssistant}
+        >
+          {activeAiMode === "general" ? (
+            <div ref={aiSectionRef} className="scroll-mt-8">
               <RoomAIAssistant
                 studyRoomId={studyRoomId}
                 conversationMode="general"
-                title="Ask anything for this study room"
-                subtitle="General AI help for this room. This mode does not use uploaded PDFs."
-                emptyPrompt="Type a topic like “subnetting”, “Linux commands”, or “math fractions”."
-                inputPlaceholder="Ask the General AI..."
+                title="Ask Project AI"
+                subtitle="StudySnap uses this project's context to help you learn faster."
+                emptyPrompt="Try: “What is tachycardia?” or “Explain this in simple words.”"
+                inputPlaceholder="Ask Project AI..."
               />
-            ) : (
-              <>
-                <RoomAIAssistant
-                  studyRoomId={studyRoomId}
-                  conversationMode="pdf"
-                  title="Ask questions about your uploaded PDFs"
-                  subtitle="PDF Assistant has its own separate chat history. Real PDF RAG will be connected next."
-                  emptyPrompt="Upload a PDF, then ask a question about the document."
-                  inputPlaceholder="Ask the PDF Assistant..."
+            </div>
+          ) : (
+            <>
+              <section ref={pdfSectionRef} className="grid gap-6 scroll-mt-8 xl:grid-cols-2">
+                <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
+                <PDFList
+                  pdfs={pdfs}
+                  loading={loadingPdfs}
+                  deletingId={deletingId}
+                  summarizingId={summarizingId}
+                  onDelete={handleDelete}
+                  onSummarize={handleSummarize}
                 />
+              </section>
 
-                <section className="grid gap-6 xl:grid-cols-2">
-                  <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
-                  <PDFList
-                    pdfs={pdfs}
-                    loading={loadingPdfs}
-                    deletingId={deletingId}
-                    summarizingId={summarizingId}
-                    onDelete={handleDelete}
-                    onSummarize={handleSummarize}
-                  />
+              <RoomAIAssistant
+                studyRoomId={studyRoomId}
+                conversationMode="pdf"
+                title="Ask questions about your uploaded PDFs"
+                subtitle="Use this mode when you want help with study documents."
+                emptyPrompt="Upload a PDF, summarize it, then ask a question about it."
+                inputPlaceholder="Ask the PDF Assistant..."
+              />
+
+              {summary ? (
+                <section className="rounded-3xl border border-yellow-400/20 bg-[#0a1022] p-6">
+                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-yellow-300/80">
+                    AI Summary
+                  </p>
+                  <h3 className="mt-2 text-2xl font-bold text-white">{summaryTitle}</h3>
+                  <pre className="mt-6 whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
+                    {summary}
+                  </pre>
                 </section>
+              ) : null}
 
-                {summary ? (
-                  <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300/80">
-                      AI Summary 
-                    </p>
-                    <h3 className="mt-2 text-2xl font-bold text-white">{summaryTitle}</h3>
-                    <pre className="mt-6 whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
-                      {summary}
-                    </pre>
-                  </section>
-                ) : null}
-
-                <PDFChat pdfId={selectedPdfId} filename={summaryTitle} />
-              </>
-            )}
-          </>
-        ) : null}
-      </div>
+              <PDFChat pdfId={selectedPdfId} filename={summaryTitle} />
+            </>
+          )}
+        </ProjectWorkspace>
+      ) : null}
     </AppShell>
   );
 }

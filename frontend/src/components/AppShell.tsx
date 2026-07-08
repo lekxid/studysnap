@@ -9,7 +9,7 @@ import NotificationBell from "@/components/NotificationBell";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "◈" },
   { href: "/onboarding", label: "Onboarding", icon: "◎" },
-  { href: "/study-rooms", label: "Study Rooms", icon: "⬢" },
+  { href: "/study-rooms", label: "Projects", icon: "📁" },
   { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
   { href: "/notes", label: "Notes", icon: "▣" },
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
