@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useState } from "react";
 import { removeToken } from "@/lib/api";
 import NotificationBell from "@/components/NotificationBell";
+import CommandBar from "@/components/CommandBar";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -139,6 +140,8 @@ export default function AppShell({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                  <CommandBar />
+
                   <div className="gold-border rounded-[1rem] bg-black/35 px-2.5 py-2 sm:px-3">
                     <NotificationBell />
                   </div>

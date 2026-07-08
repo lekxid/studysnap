@@ -319,3 +319,71 @@ Never skip verification.
 StudySnap should never make students think about where to save, where to search, or which tool to use.
 
 The AI should understand their intent, organize their knowledge automatically, and let them focus entirely on learning.
+
+---
+
+## Smart Upload Flow
+
+Smart Upload Flow turns PDF upload into an intelligent onboarding experience for each project.
+
+### Goal
+
+When a student uploads one or more PDF files, StudySnap should not only store them. It should understand them.
+
+StudySnap should automatically:
+
+- detect the topic of the uploaded PDFs
+- suggest a Project name
+- ask if the student wants to create a new Project
+- ask if the student wants to generate flashcards
+- later ask if they want notes, quizzes, and a study plan
+- connect the PDFs to the Project Brain
+
+### Example
+
+Student uploads:
+
+- Cardiac Anatomy.pdf
+- Heart Failure Lecture.pdf
+- Blood Pressure Notes.pdf
+
+StudySnap detects:
+
+- Topic: Cardiovascular System
+- Suggested Project: Cardiovascular System
+
+StudySnap asks:
+
+> These PDFs look like they are about Cardiovascular System.
+> Do you want me to create a Project for this topic?
+> I can also generate flashcards, notes, a quiz, and a study plan.
+
+### Why this matters
+
+This makes StudySnap feel intelligent immediately after upload.
+
+Instead of uploading PDFs and manually organizing everything, the student gets an AI-powered learning setup automatically.
+
+### Roadmap
+
+Phase 1:
+- detect topic from extracted PDF text
+- show suggested topic after upload
+- ask if user wants to generate flashcards
+
+Phase 2:
+- suggest creating a Project from uploaded PDFs
+- move/group PDFs into that Project
+- generate Project Brain summary
+
+Phase 3:
+- generate notes from PDFs
+- generate quizzes from PDFs
+- generate study plan from PDFs
+- identify weak topics from generated practice
+
+Phase 4:
+- auto-group multiple PDFs by topic
+- suggest multiple Projects if the PDFs are about different subjects
+- connect Smart Upload Flow to Smart AI and Universal Search
+

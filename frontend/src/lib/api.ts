@@ -450,3 +450,26 @@ export async function createLearningEvent(data: {
     body: JSON.stringify(data),
   });
 }
+
+export type UniversalSearchResult = {
+  type: "project" | "note" | "pdf" | "flashcard";
+  id: number;
+  title: string;
+  subtitle: string;
+  href: string;
+  score: number;
+};
+
+export type UniversalSearchResponse = {
+  query: string;
+  results: UniversalSearchResult[];
+};
+
+export async function universalSearch(q: string, limit = 12) {
+  const params = new URLSearchParams({
+    q,
+    limit: String(limit),
+  });
+
+  return apiFetch(`/api/search?${params.toString()}`) as Promise<UniversalSearchResponse>;
+}
