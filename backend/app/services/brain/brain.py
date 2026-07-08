@@ -20,6 +20,7 @@ from app.services.brain.learning_profile import (
 )
 from app.services.brain.priority import build_brain_priority_result
 from app.services.brain.retrieval import retrieve_learning_context
+from app.services.brain.prompt_builder import build_brain_prompt, brain_prompt_to_dict
 
 
 class BrainService:
@@ -44,6 +45,30 @@ class BrainService:
             study_room_id=study_room_id,
             limit=limit,
         )
+
+    def build_prompt(
+        self,
+        question: str,
+        study_room_id: int | None = None,
+        limit: int = 8,
+    ):
+        retrieval = self.retrieve(
+            query=question,
+            study_room_id=study_room_id,
+            limit=limit,
+        )
+
+        learning_profile = self.get_learning_profile(study_room_id=study_room_id)
+        coach = self.get_coach(study_room_id=study_room_id)
+
+        prompt = build_brain_prompt(
+            question=question,
+            retrieval=retrieval.get("items", []),
+            learning_profile=learning_profile,
+            coach=coach,
+        )
+
+        return brain_prompt_to_dict(prompt)
 
     def search(self, query: str, limit: int = 12):
         return brain_search(

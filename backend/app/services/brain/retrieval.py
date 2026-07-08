@@ -12,6 +12,7 @@ from app.models.flashcard import Flashcard
 from app.models.note import Note
 from app.models.pdf_document import PDFDocument
 from app.models.user import User
+from app.services.brain.chunker import chunk_text
 
 
 @dataclass
@@ -149,34 +150,41 @@ def retrieve_pdfs(
     items: list[RetrievalItem] = []
 
     for pdf in pdf_query.order_by(PDFDocument.created_at.desc()).limit(40).all():
-        text = normalize_text(pdf.extracted_text)
-        if not text:
+        full_text = normalize_text(pdf.extracted_text)
+        if not full_text:
             continue
 
-        score, reason = score_text(
-            query=query,
-            title=pdf.original_filename,
-            text=text,
-        )
+        chunks = chunk_text(full_text, chunk_size=1200, overlap=200)
 
-        if score >= 0.10:
-            items.append(
-                RetrievalItem(
-                    source_type="pdf",
-                    source_id=str(pdf.id),
-                    title=pdf.original_filename,
-                    text=shorten(text, limit=900),
-                    score=score,
-                    reason=reason,
-                    metadata={
-                        "study_room_id": pdf.study_room_id,
-                        "file_size": pdf.file_size,
-                        "created_at": pdf.created_at.isoformat()
-                        if pdf.created_at
-                        else None,
-                    },
-                )
+        for chunk in chunks[:120]:
+            score, reason = score_text(
+                query=query,
+                title=pdf.original_filename,
+                text=chunk.text,
             )
+
+            if score >= 0.10:
+                items.append(
+                    RetrievalItem(
+                        source_type="pdf_chunk",
+                        source_id=f"{pdf.id}:{chunk.index}",
+                        title=f"{pdf.original_filename} — chunk {chunk.index + 1}",
+                        text=shorten(chunk.text, limit=900),
+                        score=score,
+                        reason=reason,
+                        metadata={
+                            "pdf_id": pdf.id,
+                            "chunk_index": chunk.index,
+                            "chunk_start": chunk.start,
+                            "chunk_end": chunk.end,
+                            "study_room_id": pdf.study_room_id,
+                            "file_size": pdf.file_size,
+                            "created_at": pdf.created_at.isoformat()
+                            if pdf.created_at
+                            else None,
+                        },
+                    )
+                )
 
     return items
 
