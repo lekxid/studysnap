@@ -9,19 +9,21 @@ from app.services.brain.intelligence import (
     build_brain_insights,
     brain_insights_to_dict,
 )
+from app.services.brain.coach import (
+    build_brain_coach_decision,
+    brain_coach_decision_to_dict,
+)
+from app.services.brain.context import build_brain_context
+from app.services.brain.learning_profile import (
+    build_learning_profile,
+    learning_profile_to_dict,
+)
+from app.services.brain.priority import build_brain_priority_result
 
 
 class BrainService:
     """
     Central intelligence layer for StudySnap.
-
-    Routes should stay thin and ask BrainService for:
-    - search
-    - learning memory
-    - recommendations
-    - project analysis
-    - course import
-    - Smart AI context
     """
 
     def __init__(self, db: Session, current_user: User):
@@ -29,9 +31,6 @@ class BrainService:
         self.current_user = current_user
 
     def search(self, query: str, limit: int = 12):
-        """
-        Universal Brain search.
-        """
         return brain_search(
             db=self.db,
             current_user=self.current_user,
@@ -40,9 +39,6 @@ class BrainService:
         )
 
     def get_insights(self, study_room_id: int | None = None):
-        """
-        Build personalized learning insights from persistent Brain Memory.
-        """
         repository = BrainMemoryRepository(self.db)
         insights = build_brain_insights(
             repository=repository,
@@ -52,13 +48,42 @@ class BrainService:
 
         return brain_insights_to_dict(insights)
 
+    def get_learning_profile(self, study_room_id: int | None = None):
+        repository = BrainMemoryRepository(self.db)
+        insights = build_brain_insights(
+            repository=repository,
+            user_id=self.current_user.id,
+            study_room_id=study_room_id,
+        )
+        profile = build_learning_profile(insights=insights)
+
+        return learning_profile_to_dict(profile)
+
+    def get_coach(self, study_room_id: int | None = None):
+        repository = BrainMemoryRepository(self.db)
+        insights = build_brain_insights(
+            repository=repository,
+            user_id=self.current_user.id,
+            study_room_id=study_room_id,
+        )
+        profile = build_learning_profile(insights=insights)
+        context = build_brain_context(profile=profile)
+
+        priority_result = build_brain_priority_result(
+            insights=insights,
+            context=context,
+        )
+        decision = build_brain_coach_decision(
+            insights=insights,
+            priority_result=priority_result,
+        )
+
+        result = brain_coach_decision_to_dict(decision)
+        result["learning_profile"] = learning_profile_to_dict(profile)
+
+        return result
+
     def learn(self, event_type: str, payload: dict):
-        """
-        Store learning memory from user activity.
-
-        This reuses LearningEvent as Brain Memory v1.
-        """
-
         event = LearningEvent(
             user_id=self.current_user.id,
             study_room_id=payload.get("study_room_id"),
@@ -87,16 +112,6 @@ class BrainService:
         }
 
     def analyze_project(self, study_room_id: int, text: str = ""):
-        """
-        Analyze learning content for a project.
-
-        Later this will combine:
-        - PDFs
-        - Notes
-        - Flashcards
-        - Quizzes
-        """
-
         pipeline_result = run_brain_pipeline(
             event_type="created_project",
             payload={
@@ -117,9 +132,6 @@ class BrainService:
         }
 
     def recommend(self, study_room_id: int | None = None):
-        """
-        Generate study recommendations.
-        """
         return {
             "study_room_id": study_room_id,
             "recommendations": [
@@ -130,9 +142,6 @@ class BrainService:
         }
 
     def summarize(self):
-        """
-        User-level Brain summary.
-        """
         total_events = (
             self.db.query(LearningEvent)
             .filter(LearningEvent.user_id == self.current_user.id)
