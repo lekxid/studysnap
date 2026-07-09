@@ -400,6 +400,7 @@ export default function GeneralAIChat() {
               </article>
             ) : null}
 
+            {hasMessages ? <div className="h-44" aria-hidden="true" /> : null}
             <div ref={bottomRef} />
           </div>
         )}
