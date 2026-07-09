@@ -1,10 +1,8 @@
 import { ReactNode } from "react";
 
-import ContinueLearning from "./ContinueLearning";
 import ProjectBrain from "./ProjectBrain";
+import ProjectDashboardOverview from "./ProjectDashboardOverview";
 import ProjectHero from "./ProjectHero";
-import ProjectProgress from "./ProjectProgress";
-import ProjectQuickActions from "./ProjectQuickActions";
 import ProjectSearch from "./ProjectSearch";
 import ProjectToolTabs from "./ProjectToolTabs";
 import type { BrainSource } from "@/lib/api";
@@ -154,95 +152,6 @@ function ProjectSearchResults({
   );
 }
 
-function WorkspaceSnapshot({
-  pdfCount,
-  progress,
-  onAskAI,
-  onUploadPDF,
-}: {
-  pdfCount: number;
-  progress: number;
-  onAskAI: () => void;
-  onUploadPDF: () => void;
-}) {
-  const cards = [
-    {
-      title: "Connected Materials",
-      value: String(pdfCount),
-      label: "PDFs inside this project",
-      icon: "📚",
-    },
-    {
-      title: "Learning Progress",
-      value: `${progress}%`,
-      label: "Current project readiness",
-      icon: "📈",
-    },
-    {
-      title: "Weak Concepts",
-      value: "Soon",
-      label: "Brain will detect review topics",
-      icon: "🎯",
-    },
-    {
-      title: "AI Tutor",
-      value: "Ready",
-      label: "Project-aware help is available",
-      icon: "🤖",
-    },
-  ];
-
-  return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <div
-          key={card.title}
-          className="rounded-[1.4rem] border border-white/10 bg-slate-950/70 p-5"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-bold text-slate-400">{card.title}</p>
-            <span className="text-2xl">{card.icon}</span>
-          </div>
-
-          <p className="mt-4 text-3xl font-black text-white">{card.value}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{card.label}</p>
-        </div>
-      ))}
-
-      <div className="rounded-[1.4rem] border border-yellow-400/20 bg-yellow-400/10 p-5 sm:col-span-2 xl:col-span-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-100">
-              Recommended Flow
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-200">
-              Search your project first, open the matching PDF/note/flashcard, then ask Project AI to explain or quiz you.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={onAskAI}
-              className="rounded-2xl border border-yellow-400/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-400/25"
-            >
-              Ask AI
-            </button>
-
-            <button
-              type="button"
-              onClick={onUploadPDF}
-              className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
-            >
-              Open PDFs
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function ProjectWorkspace({
   studyRoomId,
   title,
@@ -281,11 +190,14 @@ export default function ProjectWorkspace({
         onUploadPDF={onUploadPDF}
       />
 
-      <WorkspaceSnapshot
+      <ProjectDashboardOverview
         pdfCount={pdfCount}
         progress={progress}
+        continueItems={continueItems}
+        quickActions={quickActions}
         onAskAI={onAskAI}
         onUploadPDF={onUploadPDF}
+        onViewAll={onViewAll}
       />
 
       <ProjectToolTabs
@@ -307,14 +219,6 @@ export default function ProjectWorkspace({
         error={searchError}
         onOpenResult={onOpenSearchResult}
       />
-
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
-        <ContinueLearning items={continueItems} onViewAll={onViewAll} />
-
-        <ProjectProgress percent={progress} pdfCount={pdfCount} />
-      </div>
-
-      <ProjectQuickActions actions={quickActions} />
 
       <ProjectBrain studyRoomId={studyRoomId} projectTitle={title} />
 
