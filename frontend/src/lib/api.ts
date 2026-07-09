@@ -543,9 +543,22 @@ export type BrainAnswerMetadata = {
 };
 
 export type BrainAnswerResponse = {
+  id?: number;
   answer: string;
   sources: BrainSource[];
   metadata: BrainAnswerMetadata;
+  created_at?: string;
+};
+
+export type BrainHistoryItem = {
+  id: number;
+  question: string;
+  answer: string;
+  sources: BrainSource[];
+  metadata: BrainAnswerMetadata;
+  study_room_id: number | null;
+  owner_id: number;
+  created_at: string;
 };
 
 export async function askBrain(
@@ -561,4 +574,35 @@ export async function askBrain(
       limit,
     }),
   }) as Promise<BrainAnswerResponse>;
+}
+
+
+export async function getBrainHistory(
+  limit = 10,
+  studyRoomId: number | null = null
+): Promise<BrainHistoryItem[]> {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+
+  if (studyRoomId !== null) {
+    params.set("study_room_id", String(studyRoomId));
+  }
+
+  return apiFetch(`/api/brain/history?${params.toString()}`) as Promise<
+    BrainHistoryItem[]
+  >;
+}
+
+export async function saveBrainHistoryAsNote(
+  historyId: number,
+  studyRoomId: number | null = null,
+  title?: string
+) {
+  return apiFetch(`/api/brain/history/${historyId}/save-note`, {
+    method: "POST",
+    body: JSON.stringify({
+      study_room_id: studyRoomId,
+      title: title || null,
+    }),
+  });
 }

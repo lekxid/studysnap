@@ -1,11 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
   askBrain,
+  getBrainHistory,
+  saveBrainHistoryAsNote,
   type BrainAnswerResponse,
+  type BrainHistoryItem,
   type BrainSource,
 } from "@/lib/api";
 
@@ -37,11 +40,35 @@ function getStudyRoomId(source: BrainSource) {
   return null;
 }
 
+function historyItemToAnswer(item: BrainHistoryItem): BrainAnswerResponse {
+  return {
+    id: item.id,
+    answer: item.answer,
+    sources: item.sources || [],
+    metadata: item.metadata || {},
+    created_at: item.created_at,
+  };
+}
+
+function formatDate(value?: string) {
+  if (!value) return "Just now";
+
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+}
+
 export default function BrainPage() {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<BrainAnswerResponse | null>(null);
+  const [history, setHistory] = useState<BrainHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const detectedRoomId = useMemo(() => {
     if (!result) return null;
@@ -58,6 +85,29 @@ export default function BrainPage() {
     return null;
   }, [result]);
 
+  async function loadHistory() {
+    setHistoryLoading(true);
+
+    try {
+      const items = await getBrainHistory(8);
+      setHistory(items);
+
+      if (!result && items.length > 0) {
+        setResult(historyItemToAnswer(items[0]));
+        setQuestion(items[0].question);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load Brain history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -70,10 +120,12 @@ export default function BrainPage() {
 
     setLoading(true);
     setError("");
+    setSuccessMessage("");
 
     try {
       const response = await askBrain(cleanQuestion, null, 6);
       setResult(response);
+      await loadHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "StudySnap Brain failed.");
     } finally {
@@ -84,6 +136,39 @@ export default function BrainPage() {
   function useSuggestedQuestion(value: string) {
     setQuestion(value);
     setError("");
+    setSuccessMessage("");
+  }
+
+  function openHistoryItem(item: BrainHistoryItem) {
+    setResult(historyItemToAnswer(item));
+    setQuestion(item.question);
+    setError("");
+    setSuccessMessage("");
+  }
+
+  async function handleSaveAsNote() {
+    if (!result?.id) {
+      setError("Ask Brain first before saving this answer as a note.");
+      return;
+    }
+
+    setSavingNote(true);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      await saveBrainHistoryAsNote(
+        result.id,
+        detectedRoomId,
+        `Brain Answer: ${question.trim().slice(0, 70) || "StudySnap"}`
+      );
+
+      setSuccessMessage("Saved as a note successfully.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save as note.");
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   return (
@@ -127,6 +212,12 @@ export default function BrainPage() {
               </div>
             ) : null}
 
+            {successMessage ? (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                {successMessage}
+              </div>
+            ) : null}
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs leading-6 text-slate-400">
                 Uses Retrieval Engine V1.1 + OpenAI Brain Answer endpoint.
@@ -163,11 +254,99 @@ export default function BrainPage() {
         </section>
 
         <aside className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
-          <div className="gold-chip mb-3 inline-flex">Brain Status</div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="gold-chip mb-3 inline-flex">Brain History</div>
+              <h3 className="text-xl font-black text-white">Recent answers</h3>
+            </div>
 
-          <h3 className="text-xl font-black text-white">Answer metadata</h3>
+            <button
+              type="button"
+              onClick={loadHistory}
+              className="premium-button-secondary rounded-[1rem] px-3 py-2 text-xs font-bold"
+            >
+              {historyLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
 
-          {result ? (
+          <div className="mt-5 space-y-3">
+            {history.length ? (
+              history.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => openHistoryItem(item)}
+                  className={`block w-full rounded-[1.3rem] border p-4 text-left transition ${
+                    result?.id === item.id
+                      ? "border-amber-300/40 bg-amber-300/10"
+                      : "border-white/10 bg-white/[0.04] hover:border-cyan-300/30 hover:bg-cyan-300/10"
+                  }`}
+                >
+                  <p className="line-clamp-2 text-sm font-black leading-6 text-white">
+                    {item.question}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                    {formatDate(item.created_at)}
+                  </p>
+                  <p className="mt-2 text-xs text-cyan-100">
+                    Room #{item.study_room_id || "—"} ·{" "}
+                    {item.sources?.length || 0} sources
+                  </p>
+                </button>
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-slate-400">
+                No Brain history yet. Ask your first question to create one.
+              </p>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {result ? (
+        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+          <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="gold-chip mb-3 inline-flex">Brain Answer</div>
+                <h3 className="text-2xl font-black text-white">
+                  Personalized response
+                </h3>
+                <p className="mt-2 text-xs text-slate-400">
+                  {result.created_at ? formatDate(result.created_at) : "Current answer"}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(result.answer)}
+                  className="premium-button-secondary rounded-[1rem] px-4 py-2.5 text-sm font-semibold"
+                >
+                  Copy answer
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAsNote}
+                  disabled={savingNote}
+                  className="premium-button rounded-[1rem] px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingNote ? "Saving..." : "Save as note"}
+                </button>
+              </div>
+            </div>
+
+            <SimpleMarkdown
+              content={result.answer}
+              className="rounded-[1.5rem] border border-white/10 bg-black/30 p-5"
+            />
+          </div>
+
+          <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
+            <div className="gold-chip mb-3 inline-flex">Sources</div>
+            <h3 className="text-2xl font-black text-white">What Brain used</h3>
+
             <div className="mt-5 grid gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-xs text-slate-400">Sources used</p>
@@ -186,57 +365,12 @@ export default function BrainPage() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs text-slate-400">Coach priority</p>
-                <p className="mt-1 text-2xl font-black capitalize text-white">
-                  {result.metadata.coach_priority || "None"}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-xs text-slate-400">Model</p>
                 <p className="mt-1 break-words text-sm font-bold text-white">
                   {result.metadata.model || "Unknown"}
                 </p>
               </div>
             </div>
-          ) : (
-            <p className="mt-4 text-sm leading-7 text-slate-400">
-              Ask a question to see retrieved sources, detected room, and model
-              details.
-            </p>
-          )}
-        </aside>
-      </div>
-
-      {result ? (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-          <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="gold-chip mb-3 inline-flex">Brain Answer</div>
-                <h3 className="text-2xl font-black text-white">
-                  Personalized response
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(result.answer)}
-                className="premium-button-secondary rounded-[1rem] px-4 py-2.5 text-sm font-semibold"
-              >
-                Copy answer
-              </button>
-            </div>
-
-            <SimpleMarkdown
-              content={result.answer}
-              className="rounded-[1.5rem] border border-white/10 bg-black/30 p-5"
-            />
-          </div>
-
-          <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
-            <div className="gold-chip mb-3 inline-flex">Sources</div>
-            <h3 className="text-2xl font-black text-white">What Brain used</h3>
 
             <div className="mt-5 space-y-3">
               {result.sources.length ? (
