@@ -26,10 +26,10 @@ from app.services.brain.retrieval import retrieve_learning_context
 from app.services.brain.prompt_builder import build_brain_prompt, brain_prompt_to_dict
 from app.services.brain.answer import generate_brain_answer
 from app.services.brain.history import (
-    brain_history_to_dict,
     list_brain_answer_history,
     save_brain_answer_history,
     save_brain_history_as_note,
+    delete_brain_answer_history_item,
 )
 
 
@@ -200,7 +200,7 @@ class BrainService:
         study_room_id: int | None = None,
         title: str | None = None,
     ):
-        note = save_brain_history_as_note(
+        return save_brain_history_as_note(
             db=self.db,
             current_user=self.current_user,
             history_id=history_id,
@@ -208,17 +208,12 @@ class BrainService:
             title=title,
         )
 
-        return {
-            "saved": True,
-            "note": {
-                "id": note.id,
-                "title": note.title,
-                "content": note.content,
-                "study_room_id": note.study_room_id,
-                "owner_id": note.owner_id,
-                "created_at": note.created_at,
-            },
-        }
+    def delete_history(self, history_id: int):
+        return delete_brain_answer_history_item(
+            db=self.db,
+            current_user=self.current_user,
+            history_id=history_id,
+        )
 
     def search(self, query: str, limit: int = 12):
         return brain_search(

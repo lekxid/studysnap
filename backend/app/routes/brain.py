@@ -154,3 +154,15 @@ def brain_history_save_note(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+@router.delete("/history/{history_id}")
+def brain_history_delete(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    brain = get_brain(db=db, current_user=current_user)
+
+    try:
+        return brain.delete_history(history_id=history_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

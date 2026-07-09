@@ -108,6 +108,50 @@ def get_brain_answer_history_item(
     )
 
 
+def delete_brain_answer_history_item(
+    *,
+    db: Session,
+    current_user: User,
+    history_id: int,
+) -> dict[str, Any]:
+    history = get_brain_answer_history_item(
+        db=db,
+        current_user=current_user,
+        history_id=history_id,
+    )
+
+    if not history:
+        raise LookupError("Brain history item not found")
+
+    db.delete(history)
+    db.commit()
+
+    return {
+        "deleted": True,
+        "id": history_id,
+    }
+
+
+def _build_note_content(history: BrainAnswerHistory, sources: list[dict[str, Any]]) -> str:
+    source_lines: list[str] = []
+
+    for index, source in enumerate(sources, start=1):
+        source_title = source.get("title", "Untitled source")
+        source_type = source.get("source_type", "source")
+        score = source.get("score", "")
+        source_lines.append(f"{index}. {source_title} ({source_type}, score: {score})")
+
+    return "\n\n".join(
+        [
+            "# StudySnap Brain Answer",
+            f"Brain History ID: {history.id}",
+            f"Question:\n{history.question}",
+            f"Answer:\n{history.answer}",
+            "Sources used:\n" + ("\n".join(source_lines) if source_lines else "No sources saved."),
+        ]
+    )
+
+
 def save_brain_history_as_note(
     *,
     db: Session,
@@ -115,7 +159,7 @@ def save_brain_history_as_note(
     history_id: int,
     study_room_id: int | None = None,
     title: str | None = None,
-) -> Note:
+) -> dict[str, Any]:
     history = get_brain_answer_history_item(
         db=db,
         current_user=current_user,
@@ -147,22 +191,45 @@ def save_brain_history_as_note(
         clean_title = "Brain Answer"
 
     sources = _safe_json_loads(history.sources_json, [])
-    source_lines: list[str] = []
+    content = _build_note_content(history=history, sources=sources)
 
-    for index, source in enumerate(sources, start=1):
-        source_title = source.get("title", "Untitled source")
-        source_type = source.get("source_type", "source")
-        score = source.get("score", "")
-        source_lines.append(f"{index}. {source_title} ({source_type}, score: {score})")
+    marker = f"Brain History ID: {history.id}"
 
-    content = "\n\n".join(
-        [
-            "# StudySnap Brain Answer",
-            f"Question:\n{history.question}",
-            f"Answer:\n{history.answer}",
-            "Sources used:\n" + ("\n".join(source_lines) if source_lines else "No sources saved."),
-        ]
+    existing_note = (
+        db.query(Note)
+        .filter(
+            Note.owner_id == current_user.id,
+            Note.study_room_id == target_room_id,
+            Note.content.like(f"%{marker}%"),
+        )
+        .first()
     )
+
+    if not existing_note:
+        existing_note = (
+            db.query(Note)
+            .filter(
+                Note.owner_id == current_user.id,
+                Note.study_room_id == target_room_id,
+                Note.title == clean_title[:200],
+                Note.content == content,
+            )
+            .first()
+        )
+
+    if existing_note:
+        return {
+            "saved": True,
+            "already_saved": True,
+            "note": {
+                "id": existing_note.id,
+                "title": existing_note.title,
+                "content": existing_note.content,
+                "study_room_id": existing_note.study_room_id,
+                "owner_id": existing_note.owner_id,
+                "created_at": existing_note.created_at,
+            },
+        }
 
     note = Note(
         title=clean_title[:200],
@@ -175,4 +242,15 @@ def save_brain_history_as_note(
     db.commit()
     db.refresh(note)
 
-    return note
+    return {
+        "saved": True,
+        "already_saved": False,
+        "note": {
+            "id": note.id,
+            "title": note.title,
+            "content": note.content,
+            "study_room_id": note.study_room_id,
+            "owner_id": note.owner_id,
+            "created_at": note.created_at,
+        },
+    }
