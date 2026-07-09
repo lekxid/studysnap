@@ -15,6 +15,18 @@ from app.models.user import User
 from app.services.brain.chunker import chunk_text
 
 
+STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "could",
+    "did", "do", "does", "for", "from", "give", "go", "had", "has", "have",
+    "he", "her", "here", "hers", "him", "his", "how", "i", "if", "in",
+    "into", "is", "it", "its", "me", "my", "need", "needs", "of", "on",
+    "or", "our", "please", "she", "should", "show", "so", "that", "the",
+    "their", "them", "then", "there", "they", "this", "to", "was", "we",
+    "were", "what", "when", "where", "which", "who", "why", "will",
+    "with", "would", "you", "your",
+}
+
+
 @dataclass
 class RetrievalItem:
     source_type: str
@@ -32,10 +44,30 @@ def normalize_text(value: str | None) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def tokenize(value: str) -> set[str]:
+def _raw_tokens(value: str) -> list[str]:
     value = value.lower()
     value = re.sub(r"[^a-z0-9\s]", " ", value)
-    return {token for token in value.split() if len(token) >= 3}
+
+    tokens: list[str] = []
+
+    for token in value.split():
+        token = token.strip()
+        if not token:
+            continue
+
+        if len(token) >= 3 or (len(token) >= 2 and any(char.isdigit() for char in token)):
+            tokens.append(token)
+
+    return tokens
+
+
+def tokenize(value: str, *, remove_stop_words: bool = True) -> set[str]:
+    tokens = set(_raw_tokens(value))
+
+    if remove_stop_words:
+        tokens = {token for token in tokens if token not in STOP_WORDS}
+
+    return tokens
 
 
 def shorten(value: str, limit: int = 700) -> str:
@@ -49,39 +81,58 @@ def score_text(query: str, title: str, text: str) -> tuple[float, str]:
     query_clean = normalize_text(query).lower()
     title_clean = normalize_text(title).lower()
     text_clean = normalize_text(text).lower()
+    target_clean = f"{title_clean} {text_clean}"
 
-    query_tokens = tokenize(query_clean)
-    target_tokens = tokenize(f"{title_clean} {text_clean}")
+    query_tokens = tokenize(query_clean, remove_stop_words=True)
+    title_tokens = tokenize(title_clean, remove_stop_words=True)
+    text_tokens = tokenize(text_clean, remove_stop_words=True)
+    target_tokens = title_tokens.union(text_tokens)
 
-    if not query_tokens or not target_tokens:
+    if not query_tokens:
         return 0.0, "No meaningful searchable terms."
 
-    overlap = query_tokens.intersection(target_tokens)
-    overlap_ratio = len(overlap) / max(len(query_tokens), 1)
+    if not target_tokens:
+        return 0.0, "No searchable source text."
 
-    exact_title_bonus = 0.25 if query_clean and query_clean in title_clean else 0.0
-    exact_text_bonus = 0.15 if query_clean and query_clean in text_clean else 0.0
+    overlap = query_tokens.intersection(target_tokens)
+
+    if not overlap:
+        return 0.0, "No meaningful term match."
+
+    title_overlap = query_tokens.intersection(title_tokens)
+
+    overlap_ratio = len(overlap) / max(len(query_tokens), 1)
+    title_overlap_ratio = len(title_overlap) / max(len(query_tokens), 1)
 
     similarity = SequenceMatcher(
         None,
         query_clean,
-        f"{title_clean} {text_clean}"[:900],
+        target_clean[:900],
     ).ratio()
+
+    exact_title_bonus = 0.16 if query_clean and query_clean in title_clean else 0.0
+    exact_text_bonus = 0.10 if query_clean and query_clean in text_clean else 0.0
+
+    query_phrase_bonus = 0.0
+    if len(query_tokens) >= 2:
+        phrase_hits = sum(1 for token in query_tokens if token in target_tokens)
+        if phrase_hits >= 2:
+            query_phrase_bonus = 0.08
+
+    all_terms_bonus = 0.08 if overlap == query_tokens else 0.0
 
     score = min(
         1.0,
-        (overlap_ratio * 0.65)
-        + (similarity * 0.20)
+        (overlap_ratio * 0.62)
+        + (title_overlap_ratio * 0.16)
+        + (similarity * 0.04)
         + exact_title_bonus
-        + exact_text_bonus,
+        + exact_text_bonus
+        + query_phrase_bonus
+        + all_terms_bonus,
     )
 
-    if overlap:
-        reason = "Matched: " + ", ".join(sorted(overlap)[:8])
-    elif similarity >= 0.18:
-        reason = "Similar wording match."
-    else:
-        reason = "Weak match."
+    reason = "Matched important terms: " + ", ".join(sorted(overlap)[:8])
 
     return round(score, 4), reason
 
@@ -112,26 +163,40 @@ def retrieve_notes(
     items: list[RetrievalItem] = []
 
     for note in notes_query.order_by(Note.created_at.desc()).limit(60).all():
-        text = normalize_text(note.content)
-        score, reason = score_text(query=query, title=note.title, text=text)
+        full_text = normalize_text(note.content)
+        if not full_text:
+            continue
 
-        if score >= 0.12:
-            items.append(
-                RetrievalItem(
-                    source_type="note",
-                    source_id=str(note.id),
-                    title=note.title,
-                    text=shorten(text),
-                    score=score,
-                    reason=reason,
-                    metadata={
-                        "study_room_id": note.study_room_id,
-                        "created_at": note.created_at.isoformat()
-                        if note.created_at
-                        else None,
-                    },
-                )
+        chunks = chunk_text(full_text, chunk_size=900, overlap=150)
+
+        for chunk in chunks[:80]:
+            score, reason = score_text(
+                query=query,
+                title=note.title,
+                text=chunk.text,
             )
+
+            if score >= 0.16:
+                items.append(
+                    RetrievalItem(
+                        source_type="note_chunk",
+                        source_id=f"{note.id}:{chunk.index}",
+                        title=f"{note.title} — chunk {chunk.index + 1}",
+                        text=shorten(chunk.text, limit=700),
+                        score=score,
+                        reason=reason,
+                        metadata={
+                            "note_id": note.id,
+                            "chunk_index": chunk.index,
+                            "chunk_start": chunk.start,
+                            "chunk_end": chunk.end,
+                            "study_room_id": note.study_room_id,
+                            "created_at": note.created_at.isoformat()
+                            if note.created_at
+                            else None,
+                        },
+                    )
+                )
 
     return items
 
@@ -163,7 +228,7 @@ def retrieve_pdfs(
                 text=chunk.text,
             )
 
-            if score >= 0.10:
+            if score >= 0.14:
                 items.append(
                     RetrievalItem(
                         source_type="pdf_chunk",
@@ -209,7 +274,7 @@ def retrieve_flashcards(
         text = f"Question: {card.question}\nAnswer: {card.answer}\nTags: {card.tags}"
         score, reason = score_text(query=query, title=title, text=text)
 
-        if score >= 0.12:
+        if score >= 0.20:
             items.append(
                 RetrievalItem(
                     source_type="flashcard",
@@ -259,11 +324,13 @@ def retrieve_memories(
 
         score, reason = score_text(query=query, title=title, text=text)
 
-        review_boost = 0.08 if memory.needs_review else 0.0
-        weakness_boost = 0.06 if memory.strength in {"new", "weak", "developing"} else 0.0
+        review_boost = 0.08 if memory.needs_review and score > 0 else 0.0
+        weakness_boost = (
+            0.06 if memory.strength in {"new", "weak", "developing"} and score > 0 else 0.0
+        )
         final_score = min(1.0, round(score + review_boost + weakness_boost, 4))
 
-        if final_score >= 0.12:
+        if final_score >= 0.16:
             items.append(
                 RetrievalItem(
                     source_type="brain_memory",
@@ -297,7 +364,14 @@ def dedupe_key(item: RetrievalItem) -> str:
 
 
 def rank_results(items: list[RetrievalItem]) -> list[RetrievalItem]:
-    return sorted(items, key=lambda item: item.score, reverse=True)
+    return sorted(
+        items,
+        key=lambda item: (
+            item.score,
+            1 if item.source_type in {"pdf_chunk", "note_chunk"} else 0,
+        ),
+        reverse=True,
+    )
 
 
 def remove_duplicates(items: list[RetrievalItem]) -> list[RetrievalItem]:
@@ -338,10 +412,10 @@ def retrieve_learning_context(
     limit: int = 8,
 ) -> dict[str, Any]:
     """
-    Brain Retrieval Engine v1.
+    Brain Retrieval Engine v1.1.
 
     Finds the most relevant learning content instead of dumping everything
-    into the future AI prompt.
+    into the AI prompt.
     """
 
     query = normalize_text(query)
