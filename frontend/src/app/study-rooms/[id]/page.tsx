@@ -332,6 +332,11 @@ export default function StudyRoomDetailPage() {
           onSearch={handleProjectSearch}
           onOpenSearchResult={handleOpenSearchResult}
           onViewAll={openPdfAssistant}
+          activeTool={activeAiMode === "general" ? "ai" : "pdf"}
+          onOpenNotes={() => router.push(`/notes?roomId=${studyRoomId}`)}
+          onOpenFlashcards={() => router.push(`/flashcards?roomId=${studyRoomId}`)}
+          onOpenQuizzes={() => router.push(`/quizzes?roomId=${studyRoomId}`)}
+          onOpenPlanner={() => router.push(`/planner?roomId=${studyRoomId}`)}
         >
           {activeAiMode === "general" ? (
             <div ref={aiSectionRef} className="scroll-mt-8">

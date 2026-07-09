@@ -6,6 +6,7 @@ import ProjectHero from "./ProjectHero";
 import ProjectProgress from "./ProjectProgress";
 import ProjectQuickActions from "./ProjectQuickActions";
 import ProjectSearch from "./ProjectSearch";
+import ProjectToolTabs from "./ProjectToolTabs";
 import type { BrainSource } from "@/lib/api";
 
 type ContinueItem = {
@@ -47,6 +48,12 @@ type Props = {
   onSearch: (query: string) => void;
   onOpenSearchResult: (result: BrainSource) => void;
   onViewAll: () => void;
+
+  activeTool: "ai" | "pdf";
+  onOpenNotes: () => void;
+  onOpenFlashcards: () => void;
+  onOpenQuizzes: () => void;
+  onOpenPlanner: () => void;
 
   children?: ReactNode;
 };
@@ -255,6 +262,11 @@ export default function ProjectWorkspace({
   onSearch,
   onOpenSearchResult,
   onViewAll,
+  activeTool,
+  onOpenNotes,
+  onOpenFlashcards,
+  onOpenQuizzes,
+  onOpenPlanner,
   children,
 }: Props) {
   return (
@@ -274,6 +286,16 @@ export default function ProjectWorkspace({
         progress={progress}
         onAskAI={onAskAI}
         onUploadPDF={onUploadPDF}
+      />
+
+      <ProjectToolTabs
+        activeTool={activeTool}
+        onOpenAI={onAskAI}
+        onOpenPDF={onUploadPDF}
+        onOpenNotes={onOpenNotes}
+        onOpenFlashcards={onOpenFlashcards}
+        onOpenQuizzes={onOpenQuizzes}
+        onOpenPlanner={onOpenPlanner}
       />
 
       <ProjectSearch onSearch={onSearch} />
