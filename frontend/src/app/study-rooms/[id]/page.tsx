@@ -246,6 +246,7 @@ export default function StudyRoomDetailPage() {
 
       {room ? (
         <ProjectWorkspace
+          studyRoomId={studyRoomId}
           title={roomTitle}
           subject={roomSubject}
           description={room.description}

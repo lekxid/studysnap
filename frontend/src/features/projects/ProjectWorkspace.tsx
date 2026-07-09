@@ -24,6 +24,7 @@ type Action = {
 };
 
 type Props = {
+  studyRoomId: number;
   title: string;
   subject: string;
   description?: string | null;
@@ -44,6 +45,7 @@ type Props = {
 };
 
 export default function ProjectWorkspace({
+  studyRoomId,
   title,
   subject,
   description,
@@ -93,7 +95,7 @@ export default function ProjectWorkspace({
         actions={quickActions}
       />
 
-      <ProjectBrain />
+      <ProjectBrain studyRoomId={studyRoomId} projectTitle={title} />
 
       {children}
 
