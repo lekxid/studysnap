@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import AuthShell from "@/components/auth/AuthShell";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,8 +26,7 @@ export default function LoginPage() {
         throw new Error("API base URL is not set.");
       }
 
-      const response = await fetch(`${apiBase}/api/auth/login`
-, {
+      const response = await fetch(`${apiBase}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -49,7 +50,6 @@ export default function LoginPage() {
         throw new Error(data?.detail || data?.message || "Login failed.");
       }
 
-      // Save token if backend returns it
       if (data?.access_token) {
         localStorage.setItem("token", data.access_token);
       }
@@ -63,71 +63,74 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="premium-bg flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-      <div className="w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
-            Sign in
-          </h1>
-          <p className="mt-4 text-base leading-8 text-slate-300">
-            Continue your study streak and jump back into your workspace.
-          </p>
+    <AuthShell
+      badge="Welcome back"
+      title="Sign in"
+      subtitle="Continue your study streak and jump back into your connected StudySnap workspace."
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Email
+          </label>
+          <input
+            type="email"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-200">
-              Email
-            </label>
-            <input
-              type="email"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-200">
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <label className="block text-sm font-bold text-slate-200">
               Password
             </label>
-            <input
-              type="password"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your password"
-              required
-            />
-          </div>
 
-          {error ? (
-            <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-bold disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Logging in..." : "Log in"}
-          </button>
-
-          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-sm text-slate-300">
-            New here?{" "}
             <Link
-              href="/signup"
-              className="font-semibold text-amber-200 hover:text-amber-100"
+              href="/forgot-password"
+              className="text-xs font-bold text-amber-200 transition hover:text-amber-100"
             >
-              Create an account
+              Forgot password?
             </Link>
           </div>
-        </form>
-      </div>
-    </main>
+
+          <input
+            type="password"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            required
+          />
+        </div>
+
+        {error ? (
+          <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+            {error}
+          </div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "Logging in..." : "Log in"}
+        </button>
+
+        <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-center text-sm text-slate-300">
+          New to StudySnap?{" "}
+          <Link
+            href="/signup"
+            className="font-bold text-amber-200 transition hover:text-amber-100"
+          >
+            Create an account
+          </Link>
+        </div>
+      </form>
+    </AuthShell>
   );
 }

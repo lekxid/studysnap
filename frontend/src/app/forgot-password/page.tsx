@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+
+import AuthShell from "@/components/auth/AuthShell";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -36,133 +38,70 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="premium-bg flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-      <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 shadow-[0_24px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl lg:grid-cols-[1.02fr_0.98fr]">
-        <section className="hidden border-r border-white/10 p-10 lg:flex lg:flex-col lg:justify-between">
-          <div>
-            <div className="mb-5 flex items-center gap-3">
-              <div className="brand-mark" />
-              <div className="gold-chip">Account recovery</div>
-            </div>
-
-            <h1 className="max-w-xl text-5xl font-black leading-tight tracking-tight text-white">
-              Reset access to
-              <span className="glow-title mt-2 block bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-transparent">
-                StudySnap AI
-              </span>
-            </h1>
-
-            <p className="mt-5 max-w-xl text-base leading-8 text-slate-300">
-              Enter your email to continue the password reset flow and get back
-              into your rooms, notes, quizzes, and AI workspace.
+    <AuthShell
+      badge="Account recovery"
+      title="Reset password"
+      subtitle="Enter your email and StudySnap will start the password reset flow."
+      sideTitle="Recover access without losing your study flow."
+      sideSubtitle="Get back into your connected rooms, notes, PDFs, quizzes, flashcards, progress, and AI Tutor workspace."
+    >
+      {sent ? (
+        <div className="space-y-5">
+          <div className="gold-card rounded-[1.5rem] p-5">
+            <p className="text-sm font-black text-amber-100">
+              Reset request accepted
             </p>
+            <p className="mt-2 text-sm leading-7 text-slate-200">{message}</p>
           </div>
 
-          <div className="content-grid mt-10">
-            <div className="premium-card gold-border rounded-[1.75rem] p-6">
-              <p className="text-sm font-semibold text-amber-200">
-                Quick recovery flow
-              </p>
-
-              <div className="mt-5 grid gap-3">
-                <div className="rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
-                  Enter the email tied to your account
-                </div>
-                <div className="rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
-                  Receive a password reset link
-                </div>
-                <div className="rounded-[1.15rem] border border-white/8 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
-                  Return to your study flow securely
-                </div>
-              </div>
-            </div>
-
-            <div className="gold-card rounded-[1.75rem] p-6">
-              <p className="text-sm font-semibold text-amber-100">
-                Backend connected
-              </p>
-              <p className="mt-3 text-sm leading-7 text-slate-200">
-                This page now uses your shared frontend API helper and your real
-                backend auth router.
-              </p>
-            </div>
+          <Link
+            href="/login"
+            className="premium-button inline-flex w-full justify-center rounded-[1.2rem] px-4 py-4 text-sm font-black"
+          >
+            Back to login
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="mb-2 block text-sm font-bold text-slate-200">
+              Email
+            </label>
+            <input
+              type="email"
+              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
           </div>
-        </section>
 
-        <section className="flex items-center justify-center p-5 sm:p-8 lg:p-10">
-          <div className="w-full max-w-md">
-            <div className="mb-8">
-              <div className="gold-chip mb-4">Forgot password</div>
-              <h2 className="text-3xl font-black tracking-tight text-white">
-                Reset password
-              </h2>
-              <p className="mt-2 text-sm leading-7 text-slate-400">
-                Enter your email and we’ll send a reset link.
-              </p>
+          {error ? (
+            <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+              {error}
             </div>
+          ) : null}
 
-            {sent ? (
-              <div className="content-grid">
-                <div className="gold-card rounded-[1.5rem] p-5">
-                  <p className="text-sm font-semibold text-amber-100">
-                    Reset request accepted
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-slate-200">
-                    {message}
-                  </p>
-                </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Sending..." : "Send reset link"}
+          </button>
 
-                <Link
-                  href="/login"
-                  className="premium-button inline-flex justify-center rounded-[1.2rem] px-4 py-3.5 text-sm font-bold"
-                >
-                  Back to login
-                </Link>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-200">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    className="rounded-[1.2rem] px-4 py-3.5"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-
-                {error ? (
-                  <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                    {error}
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="premium-button w-full rounded-[1.2rem] px-4 py-3.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? "Sending..." : "Send reset link"}
-                </button>
-
-                <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-sm text-slate-300">
-                  Remember your password?{" "}
-                  <Link
-                    href="/login"
-                    className="font-semibold text-amber-200 hover:text-amber-100"
-                  >
-                    Back to login
-                  </Link>
-                </div>
-              </form>
-            )}
+          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-center text-sm text-slate-300">
+            Remember your password?{" "}
+            <Link
+              href="/login"
+              className="font-bold text-amber-200 transition hover:text-amber-100"
+            >
+              Back to login
+            </Link>
           </div>
-        </section>
-      </div>
-    </main>
+        </form>
+      )}
+    </AuthShell>
   );
 }

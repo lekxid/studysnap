@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import AuthShell from "@/components/auth/AuthShell";
+
 export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,86 +62,80 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="premium-bg flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-      <div className="w-full max-w-xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/40 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-8">
-        <div className="mb-8">
-          <div className="gold-chip mb-4">Create account</div>
-          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
-            Sign up
-          </h1>
-          <p className="mt-4 text-base leading-8 text-slate-300">
-            Build your workspace and start studying smarter from day one.
-          </p>
+    <AuthShell
+      badge="Create account"
+      title="Start learning smarter"
+      subtitle="Create your StudySnap account and begin building your personal AI learning system."
+      sideTitle="Build your connected AI study system."
+      sideSubtitle="StudySnap is designed to help students move from scattered studying to one clear workspace with rooms, notes, PDFs, flashcards, quizzes, Brain, and AI Tutor working together."
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Name
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            required
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-200">
-              Name
-            </label>
-            <input
-              type="text"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              required
-            />
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Email
+          </label>
+          <input
+            type="email"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Password
+          </label>
+          <input
+            type="password"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Create a password"
+            required
+          />
+        </div>
+
+        {error ? (
+          <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+            {error}
           </div>
+        ) : null}
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-200">
-              Email
-            </label>
-            <input
-              type="email"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
-          </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "Creating account..." : "Create account"}
+        </button>
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-200">
-              Password
-            </label>
-            <input
-              type="password"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/70 px-4 py-4 text-white outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
-              required
-            />
-          </div>
-
-          {error ? (
-            <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-bold disabled:cursor-not-allowed disabled:opacity-60"
+        <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-center text-sm text-slate-300">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-bold text-amber-200 transition hover:text-amber-100"
           >
-            {loading ? "Signing up..." : "Sign up"}
-          </button>
-
-          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-sm text-slate-300">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-amber-200 hover:text-amber-100"
-            >
-              Log in
-            </Link>
-          </div>
-        </form>
-      </div>
-    </main>
+            Log in
+          </Link>
+        </div>
+      </form>
+    </AuthShell>
   );
 }
