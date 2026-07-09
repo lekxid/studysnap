@@ -3,26 +3,26 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
-import { removeToken } from "@/lib/api";
-import NotificationBell from "@/components/NotificationBell";
+
 import CommandBar from "@/components/CommandBar";
+import NotificationBell from "@/components/NotificationBell";
 import {
   getSavedProjectRoomId,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
+import { removeToken } from "@/lib/api";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: "◈" },
-  { href: "/onboarding", label: "Onboarding", icon: "◎" },
-  { href: "/study-rooms", label: "Projects", icon: "📁" },
-  { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
-  { href: "/brain", label: "Brain", icon: "🧠" },
+  { href: "/dashboard", label: "Home", icon: "⌂" },
+  { href: "/study-rooms", label: "Study Rooms", icon: "📁" },
   { href: "/notes", label: "Notes", icon: "▣" },
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
-  { href: "/quizzes", label: "Quizzes", icon: "✎" },
+  { href: "/quizzes", label: "Quizzes", icon: "▤" },
   { href: "/planner", label: "Planner", icon: "◷" },
-  { href: "/groups", label: "Groups", icon: "◌" },
-  { href: "/progress", label: "Progress", icon: "▲" },
+  { href: "/progress", label: "Progress", icon: "?" },
+  { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
+  { href: "/brain", label: "Brain", icon: "🧠" },
+  { href: "/groups", label: "Groups", icon: "👥" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
@@ -40,6 +40,20 @@ function getRoomIdFromStudyRoomPath(pathname: string) {
   return Number.isFinite(roomId) && roomId > 0 ? roomId : null;
 }
 
+function getPageKicker(pathname: string) {
+  if (pathname.startsWith("/study-rooms")) return "StudySnap Projects";
+  if (pathname.startsWith("/notes")) return "Connected Notes";
+  if (pathname.startsWith("/flashcards")) return "Smart Review";
+  if (pathname.startsWith("/quizzes")) return "Exam Practice";
+  if (pathname.startsWith("/planner")) return "Study Planning";
+  if (pathname.startsWith("/progress")) return "Learning Analytics";
+  if (pathname.startsWith("/brain")) return "Brain Memory";
+  if (pathname.startsWith("/groups")) return "Collaboration";
+  if (pathname.startsWith("/settings")) return "Workspace Settings";
+  if (pathname.startsWith("/ai-tutor")) return "AI Tutor";
+  return "Focus Mode";
+}
+
 export default function AppShell({
   title,
   subtitle,
@@ -51,6 +65,7 @@ export default function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeProjectRoomId, setActiveProjectRoomId] = useState<number | null>(
     null
@@ -82,172 +97,150 @@ export default function AppShell({
   }
 
   return (
-    <div className="premium-bg min-h-screen text-white">
-      <div className="flex min-h-screen">
-        <aside className="premium-card-strong soft-scroll sticky top-0 hidden h-screen w-80 flex-col overflow-y-auto border-r border-white/10 md:flex">
-          <div className="border-b border-white/10 px-7 py-7">
-            <Link href="/dashboard" className="block">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="brand-mark" />
-                <div className="gold-chip">Premium Study</div>
-              </div>
+    <div className="min-h-screen overflow-x-hidden bg-[#05080d] text-white">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-y-auto border-r border-white/10 bg-[#061018] px-4 py-5 lg:block">
+        <Link href="/dashboard" className="flex items-center gap-3">
+          <span className="text-4xl text-yellow-300">★</span>
+          <span className="text-2xl font-black tracking-tight text-white">
+            StudySnap <span className="text-yellow-300">AI</span>
+          </span>
+        </Link>
 
-              <h1 className="glow-title bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-[2.45rem] font-black tracking-[-0.04em] text-transparent">
-                StudySnap AI
-              </h1>
+        <nav className="mt-7 space-y-1.5">
+          {navItems.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-              <p className="mt-3 max-w-xs text-sm leading-7 text-slate-300">
-                Learn faster. Study smarter.
-              </p>
-            </Link>
-          </div>
+            const connectedHref = getConnectedHref(item.href);
 
-          <nav className="flex-1 space-y-3 px-5 py-6">
-            {navItems.map((item) => {
-              const active =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-              const connectedHref = getConnectedHref(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={connectedHref}
-                  className={`group flex items-center gap-4 rounded-[1.4rem] px-5 py-4 text-sm font-semibold transition ${
+            return (
+              <Link
+                key={item.href}
+                href={connectedHref}
+                className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+                  active
+                    ? "border border-yellow-300/50 bg-yellow-300/20 text-yellow-100 shadow-[0_0_32px_rgba(250,204,21,0.18)]"
+                    : "text-slate-200 hover:bg-white/[0.06] hover:text-white"
+                }`}
+              >
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg ${
                     active
-                      ? "bg-gradient-to-r from-amber-400/90 via-yellow-300/80 to-orange-400/80 text-black shadow-[0_12px_30px_rgba(244,185,66,0.3)]"
-                      : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                      ? "bg-yellow-300 text-black"
+                      : "bg-white/[0.06] text-slate-200"
                   }`}
                 >
-                  <span
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${
-                      active
-                        ? "bg-black/20 text-black"
-                        : "bg-white/5 text-cyan-300 group-hover:bg-amber-400/10"
-                    }`}
-                  >
-                    {item.icon}
-                  </span>
+                  {item.icon}
+                </span>
 
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-          <div className="border-t border-white/10 p-5">
-            <div className="gold-card rounded-[1.6rem] p-5">
-              <p className="text-sm font-bold gold-accent">Today’s Mission</p>
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            Starred Rooms
+          </p>
 
-              <ul className="mt-4 space-y-3 text-sm text-slate-300">
-                <li>• Review flashcards</li>
-                <li>• Ask AI one hard question</li>
-                <li>• Study for 20 minutes</li>
-              </ul>
+          <div className="mt-4 rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-4">
+            <p className="font-black text-yellow-100">Upgrade to Premium</p>
 
-              <div className="mt-5 text-xs leading-6 text-amber-100">
-                Stay consistent. That’s how you win.
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Unlock advanced AI features, visual study tools, and smarter progress.
+            </p>
+
+            <button
+              type="button"
+              className="mt-4 w-full rounded-xl border border-yellow-300/35 bg-black/30 px-4 py-3 text-sm font-black text-yellow-200"
+            >
+              Upgrade Now →
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div className="min-w-0 lg:ml-[280px]">
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05080d]/86 backdrop-blur-xl">
+          <div className="mx-auto max-w-[1380px] px-5 py-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="min-w-0">
+                <button
+                  onClick={() => setMobileMenuOpen((current) => !current)}
+                  className="mb-3 inline-flex rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white lg:hidden"
+                  type="button"
+                >
+                  ☰ Menu
+                </button>
+
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
+                  {getPageKicker(pathname)}
+                </p>
+
+                <h1 className="mt-2 text-[2.35rem] font-black leading-none tracking-tight text-white">
+                  {title}
+                </h1>
+
+                {subtitle ? (
+                  <p className="mt-2 max-w-4xl text-base leading-7 text-slate-400">
+                    {subtitle}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                <CommandBar />
+
+                <div className="grid h-12 min-w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.04] px-3">
+                  <NotificationBell />
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                  type="button"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </div>
-        </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="topbar-glass sticky top-0 z-40 border-b border-white/10">
-            <div className="page-wrap py-4 sm:py-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                  <button
-                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="premium-button-secondary mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl md:hidden"
-                    type="button"
-                    aria-label="Toggle menu"
-                  >
-                    ☰
-                  </button>
+          {mobileMenuOpen ? (
+            <div className="border-t border-white/10 bg-[#061018] px-4 py-4 lg:hidden">
+              <nav className="grid gap-2 sm:grid-cols-2">
+                {navItems.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`);
 
-                  <div className="min-w-0">
-                    <div className="gold-chip mb-2 hidden md:inline-flex">
-                      Focus Mode
-                    </div>
+                  const connectedHref = getConnectedHref(item.href);
 
-                    <h2 className="section-heading break-words text-balance">
-                      {title}
-                    </h2>
-
-                    {subtitle ? (
-                      <p className="section-subtitle mt-2 max-w-3xl">
-                        {subtitle}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-                  <CommandBar />
-
-                  <div className="gold-border rounded-[1rem] bg-black/35 px-2.5 py-2 sm:px-3">
-                    <NotificationBell />
-                  </div>
-
-                  <button
-                    onClick={handleLogout}
-                    className="premium-button-secondary rounded-[1rem] px-4 py-2.5 text-sm font-semibold"
-                    type="button"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
+                  return (
+                    <Link
+                      key={item.href}
+                      href={connectedHref}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-black ${
+                        active
+                          ? "bg-yellow-300 text-black"
+                          : "bg-white/[0.05] text-white"
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
             </div>
+          ) : null}
+        </header>
 
-            {mobileMenuOpen ? (
-              <div className="border-t border-white/10 bg-black/90 px-4 py-4 md:hidden">
-                <div className="mb-4 flex items-center gap-3 rounded-[1.2rem] border border-white/10 bg-white/[0.03] px-4 py-4">
-                  <div className="brand-mark h-10 w-10 shrink-0 rounded-[0.9rem]" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">StudySnap AI</p>
-                    <p className="text-xs leading-6 text-slate-400">
-                      Premium study flow
-                    </p>
-                  </div>
-                </div>
-
-                <nav className="space-y-2">
-                  {navItems.map((item) => {
-                    const active =
-                      pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`);
-
-                    const connectedHref = getConnectedHref(item.href);
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={connectedHref}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 rounded-[1rem] px-4 py-3 text-sm font-semibold ${
-                          active
-                            ? "bg-amber-400 text-black"
-                            : "bg-white/5 text-white"
-                        }`}
-                      >
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/10">
-                          {item.icon}
-                        </span>
-                        <span>{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-            ) : null}
-          </header>
-
-          <main className="page-wrap flex-1 py-6 sm:py-8 lg:py-10">
-            <div className="app-content">{children}</div>
-          </main>
-        </div>
+        <main className="mx-auto max-w-[1380px] px-5 py-5">
+          {children}
+        </main>
       </div>
     </div>
   );
