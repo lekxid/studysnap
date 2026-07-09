@@ -21,6 +21,7 @@ from app.services.brain.learning_profile import (
 from app.services.brain.priority import build_brain_priority_result
 from app.services.brain.retrieval import retrieve_learning_context
 from app.services.brain.prompt_builder import build_brain_prompt, brain_prompt_to_dict
+from app.services.brain.answer import generate_brain_answer
 
 
 class BrainService:
@@ -69,6 +70,48 @@ class BrainService:
         )
 
         return brain_prompt_to_dict(prompt)
+
+    def answer(
+        self,
+        question: str,
+        study_room_id: int | None = None,
+        limit: int = 6,
+    ):
+        retrieval = self.retrieve(
+            query=question,
+            study_room_id=study_room_id,
+            limit=limit,
+        )
+        sources = retrieval.get("results", [])
+
+        learning_profile = self.get_learning_profile(study_room_id=study_room_id)
+        coach = self.get_coach(study_room_id=study_room_id)
+
+        prompt = build_brain_prompt(
+            question=question,
+            retrieval=sources,
+            learning_profile=learning_profile,
+            coach=coach,
+        )
+
+        generated = generate_brain_answer(prompt)
+
+        return {
+            "answer": generated["answer"],
+            "sources": sources,
+            "metadata": {
+                "query": question,
+                "study_room_id": study_room_id,
+                "source_count": len(sources),
+                "retrieval_count": prompt.metadata.get("retrieval_count"),
+                "used_retrieval_count": prompt.metadata.get("used_retrieval_count"),
+                "has_learning_profile": prompt.metadata.get("has_learning_profile"),
+                "has_coach": prompt.metadata.get("has_coach"),
+                "coach_priority": prompt.metadata.get("coach_priority"),
+                "model": generated.get("model"),
+                "usage": generated.get("usage"),
+            },
+        }
 
     def search(self, query: str, limit: int = 12):
         return brain_search(

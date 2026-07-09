@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -7,6 +8,12 @@ from app.services.brain.brain import get_brain
 from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Brain"])
+
+
+class BrainAnswerRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    study_room_id: int | None = None
+    limit: int = Field(default=6, ge=1, le=12)
 
 
 @router.get("/summary")
@@ -74,6 +81,7 @@ def brain_retrieve(
         limit=limit,
     )
 
+
 @router.get("/prompt")
 def brain_prompt(
     q: str = Query(default="", max_length=220),
@@ -89,3 +97,20 @@ def brain_prompt(
         limit=limit,
     )
 
+
+@router.post("/answer")
+def brain_answer(
+    data: BrainAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    brain = get_brain(db=db, current_user=current_user)
+
+    try:
+        return brain.answer(
+            question=data.question.strip(),
+            study_room_id=data.study_room_id,
+            limit=data.limit,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
