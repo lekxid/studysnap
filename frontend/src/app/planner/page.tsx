@@ -19,6 +19,7 @@ const NOTICE_KEY = "studysnap_notifications";
 export default function PlannerPage() {
   const ready = useRequireAuth();
 
+  const [connectedRoomId, setConnectedRoomId] = useState<number | null>(null);
   const [items, setItems] = useState<PlannerItem[]>([]);
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -29,10 +30,27 @@ export default function PlannerPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const notifiedRef = useRef(false);
 
+  const storageKey = connectedRoomId
+    ? `${STORAGE_KEY}_room_${connectedRoomId}`
+    : STORAGE_KEY;
+
   useEffect(() => {
     if (!ready) return;
-    setItems(loadJSON<PlannerItem[]>(STORAGE_KEY, []));
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedRoomId = Number(params.get("roomId"));
+
+    if (Number.isFinite(requestedRoomId) && requestedRoomId > 0) {
+      setConnectedRoomId(requestedRoomId);
+    } else {
+      setConnectedRoomId(null);
+    }
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    setItems(loadJSON<PlannerItem[]>(storageKey, []));
+  }, [ready, storageKey]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -75,7 +93,7 @@ export default function PlannerPage() {
 
   function persist(next: PlannerItem[]) {
     setItems(next);
-    saveJSON(STORAGE_KEY, next);
+    saveJSON(storageKey, next);
   }
 
   function addItem() {

@@ -18,6 +18,7 @@ const STORAGE_KEY = "studysnap_quiz_questions";
 export default function QuizzesPage() {
   const ready = useRequireAuth();
 
+  const [connectedRoomId, setConnectedRoomId] = useState<number | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [q, setQ] = useState("");
   const [o1, setO1] = useState("");
@@ -29,14 +30,35 @@ export default function QuizzesPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  const storageKey = useMemo(() => {
+    return connectedRoomId
+      ? `${STORAGE_KEY}_room_${connectedRoomId}`
+      : STORAGE_KEY;
+  }, [connectedRoomId]);
+
   useEffect(() => {
     if (!ready) return;
-    setQuestions(loadJSON<QuizQuestion[]>(STORAGE_KEY, []));
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedRoomId = Number(params.get("roomId"));
+
+    if (Number.isFinite(requestedRoomId) && requestedRoomId > 0) {
+      setConnectedRoomId(requestedRoomId);
+    } else {
+      setConnectedRoomId(null);
+    }
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    setQuestions(loadJSON<QuizQuestion[]>(storageKey, []));
+    setAnswers({});
+    setSubmitted(false);
+  }, [ready, storageKey]);
 
   function persist(next: QuizQuestion[]) {
     setQuestions(next);
-    saveJSON(STORAGE_KEY, next);
+    saveJSON(storageKey, next);
   }
 
   function addQuestion() {
