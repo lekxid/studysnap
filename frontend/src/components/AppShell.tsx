@@ -14,6 +14,7 @@ import { removeToken } from "@/lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: "⌂" },
+  { href: "/onboarding", label: "Onboarding", icon: "◎" },
   { href: "/study-rooms", label: "Study Rooms", icon: "📁" },
   { href: "/notes", label: "Notes", icon: "▣" },
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
