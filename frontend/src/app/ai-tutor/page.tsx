@@ -5,7 +5,10 @@ import AIWorkspace from "@/features/ai/AIWorkspace";
 
 export default function AITutorPage() {
   return (
-    <AppShell title="AI Tutor" subtitle="Ask questions, generate lessons, and study smarter">
+    <AppShell
+      title="AI Tutor"
+      subtitle="Your personal AI tutor for study tasks, lessons, and guided learning."
+    >
       <AIWorkspace />
     </AppShell>
   );
