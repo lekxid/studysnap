@@ -20,7 +20,7 @@ const navItems = [
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
   { href: "/quizzes", label: "Quizzes", icon: "▤" },
   { href: "/planner", label: "Planner", icon: "◷" },
-  { href: "/progress", label: "Progress", icon: "?" },
+  { href: "/progress", label: "Progress", icon: "▲" },
   { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
   { href: "/brain", label: "Brain", icon: "🧠" },
   { href: "/groups", label: "Groups", icon: "👥" },
