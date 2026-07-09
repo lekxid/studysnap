@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
+import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
@@ -83,6 +84,12 @@ export default function QuizzesPage() {
 
   return (
     <AppShell title="Quizzes" subtitle="Build quick quizzes, answer them, and score yourself">
+
+      <ConnectedProjectBanner
+        toolName="Quizzes"
+        toolIcon="🧾"
+        description="Your quizzes are being opened from this project, so the next upgrade can generate project-based tests from your notes, PDFs, and flashcards."
+      />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
           <h3 className="text-xl font-semibold text-cyan-300">Create Quiz Question</h3>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
@@ -142,6 +143,12 @@ export default function PlannerPage() {
 
   return (
     <AppShell title="Planner" subtitle="Timetable, deadlines, reminders, and exam countdowns">
+
+      <ConnectedProjectBanner
+        toolName="Planner"
+        toolIcon="📅"
+        description="Your planner is connected to this project so study sessions, deadlines, and focus time feel part of the same learning workspace."
+      />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
           <h3 className="text-xl font-semibold text-cyan-300">Add Study Session</h3>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   createFlashcard,
@@ -61,7 +62,13 @@ export default function FlashcardsPage() {
 
         setRooms(roomList);
 
-        if (roomList.length > 0) {
+        const params = new URLSearchParams(window.location.search);
+        const requestedRoomId = Number(params.get("roomId"));
+        const matchingRoom = roomList.find((room) => room.id === requestedRoomId);
+
+        if (matchingRoom) {
+          setSelectedRoomId(matchingRoom.id);
+        } else if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
         }
       } catch (err) {
@@ -231,6 +238,12 @@ export default function FlashcardsPage() {
       title="Flashcards"
       subtitle="Review smarter with database-backed flashcards linked to your study rooms"
     >
+
+      <ConnectedProjectBanner
+        toolName="Flashcards"
+        toolIcon="🧠"
+        description="Your flashcards are opened inside this project context, so review progress and weak concepts can connect back to the correct study room."
+      />
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
           <p className="text-sm text-white/50">Flashcards</p>

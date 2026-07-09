@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
@@ -831,6 +832,12 @@ Answer clearly in a helpful student-friendly way.`;
       title="Notes"
       subtitle="Create database-backed study notes connected to your study rooms"
     >
+
+      <ConnectedProjectBanner
+        toolName="Notes"
+        toolIcon="📝"
+        description="Your notes stay linked to this project so StudySnap can use them for search, AI help, flashcards, quizzes, and learning memory."
+      />
       <NotesStats notes={notes} selectedRoom={selectedRoom} />
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
