@@ -11,7 +11,7 @@ router = APIRouter(tags=["Brain"])
 
 
 class BrainAnswerRequest(BaseModel):
-    question: str = Field(..., min_length=1, max_length=2000)
+    question: str = Field(..., min_length=1, max_length=8000)
     study_room_id: int | None = None
     limit: int = Field(default=6, ge=1, le=12)
 
