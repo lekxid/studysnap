@@ -1,3 +1,4 @@
+from app.routes import quizzes
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -57,3 +58,5 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+app.include_router(quizzes.router, prefix="/api")

@@ -8,10 +8,14 @@ from typing import Any
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
+from app.models.flashcard import Flashcard
 from app.models.note import Note
+from app.models.quiz import Quiz
+from app.models.quiz_question import QuizQuestion
 from app.models.pdf_document import PDFDocument
 from app.models.study_material import StudyMaterial
 from app.models.study_room import StudyRoom
+from app.services.ai_service import generate_basic_flashcards, generate_basic_quiz
 
 
 TOPIC_KEYWORDS: dict[str, list[str]] = {
@@ -442,6 +446,193 @@ def save_generic_material(
     return material
 
 
+
+def build_fallback_flashcards(text: str, filename: str) -> list[dict[str, str]]:
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    title = Path(filename).stem or "this material"
+
+    if not cleaned:
+        return []
+
+    chunks = [
+        chunk.strip()
+        for chunk in re.split(r"(?<=[.!?])\s+", cleaned)
+        if len(chunk.strip()) > 40
+    ]
+
+    cards: list[dict[str, str]] = []
+
+    for index, chunk in enumerate(chunks[:5], start=1):
+        cards.append(
+            {
+                "question": f"What is an important study point from {title} #{index}?",
+                "answer": chunk[:500],
+            }
+        )
+
+    if not cards:
+        cards.append(
+            {
+                "question": f"What is the main idea of {title}?",
+                "answer": cleaned[:500],
+            }
+        )
+
+    return cards[:5]
+
+
+def build_fallback_quiz(text: str) -> list[dict[str, str]]:
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+
+    if not cleaned:
+        return []
+
+    chunks = [
+        chunk.strip()
+        for chunk in re.split(r"(?<=[.!?])\s+", cleaned)
+        if len(chunk.strip()) > 40
+    ]
+
+    questions: list[dict[str, str]] = []
+
+    for chunk in chunks[:3]:
+        questions.append(
+            {
+                "question": "Which option best explains this study point?",
+                "option_a": chunk[:180],
+                "option_b": "This is unrelated to the study material.",
+                "option_c": "This means the topic is not important.",
+                "option_d": "This is only used outside school.",
+                "correct_answer": "A",
+                "explanation": chunk[:300],
+            }
+        )
+
+    return questions[:3]
+
+
+def generate_starter_assets_for_candidate(
+    db: Session,
+    owner_id: int,
+    room_id: int,
+    candidate: UploadedFileCandidate,
+    saved_as: str,
+    saved_id: int,
+) -> dict[str, int]:
+    text = (candidate.text or "").strip()
+
+    if len(text) < 80:
+        return {
+            "flashcards": 0,
+            "quizzes": 0,
+            "quiz_questions": 0,
+        }
+
+    source_type = f"smart_organizer_{saved_as}"
+    source_id = str(saved_id)
+    limited_text = text[:12000]
+
+    try:
+        generated_cards = generate_basic_flashcards(limited_text)[:5]
+    except Exception:
+        generated_cards = build_fallback_flashcards(limited_text, candidate.filename)
+
+    flashcard_count = 0
+
+    for card in generated_cards:
+        question = str(card.get("question", "")).strip()
+        answer = str(card.get("answer", "")).strip()
+
+        if not question or not answer:
+            continue
+
+        db.add(
+            Flashcard(
+                question=question[:2000],
+                answer=answer[:4000],
+                tags=f"smart-organizer,{candidate.material_type}",
+                difficulty="medium",
+                source_type=source_type,
+                source_id=source_id,
+                study_room_id=room_id,
+                owner_id=owner_id,
+            )
+        )
+        flashcard_count += 1
+
+    quiz_count = 0
+    quiz_question_count = 0
+
+    try:
+        generated_questions = generate_basic_quiz(limited_text)[:3]
+    except Exception:
+        generated_questions = build_fallback_quiz(limited_text)
+
+    valid_questions = []
+
+    for item in generated_questions:
+        question = str(item.get("question", "")).strip()
+        option_a = str(item.get("option_a", "")).strip()
+        option_b = str(item.get("option_b", "")).strip()
+        option_c = str(item.get("option_c", "")).strip()
+        option_d = str(item.get("option_d", "")).strip()
+        correct_answer = str(item.get("correct_answer", "A")).strip().upper()[:1]
+        explanation = str(item.get("explanation", "")).strip()
+
+        if not question or not option_a or not option_b or not option_c or not option_d:
+            continue
+
+        if correct_answer not in {"A", "B", "C", "D"}:
+            correct_answer = "A"
+
+        valid_questions.append(
+            {
+                "question": question,
+                "option_a": option_a,
+                "option_b": option_b,
+                "option_c": option_c,
+                "option_d": option_d,
+                "correct_answer": correct_answer,
+                "explanation": explanation,
+            }
+        )
+
+    if valid_questions:
+        quiz = Quiz(
+            title=f"Starter Quiz: {Path(candidate.filename).stem[:70] or 'Study Material'}",
+            study_room_id=room_id,
+            owner_id=owner_id,
+        )
+
+        db.add(quiz)
+        db.commit()
+        db.refresh(quiz)
+        quiz_count = 1
+
+        for item in valid_questions[:3]:
+            db.add(
+                QuizQuestion(
+                    quiz_id=quiz.id,
+                    question=item["question"][:2000],
+                    option_a=item["option_a"][:1000],
+                    option_b=item["option_b"][:1000],
+                    option_c=item["option_c"][:1000],
+                    option_d=item["option_d"][:1000],
+                    correct_answer=item["correct_answer"],
+                    explanation=item["explanation"][:2000] if item["explanation"] else None,
+                )
+            )
+            quiz_question_count += 1
+
+    db.commit()
+
+    return {
+        "flashcards": flashcard_count,
+        "quizzes": quiz_count,
+        "quiz_questions": quiz_question_count,
+    }
+
+
 def organize_candidates(
     db: Session,
     owner_id: int,
@@ -452,6 +643,9 @@ def organize_candidates(
 
     results: list[dict[str, Any]] = []
     rooms_by_topic: dict[str, StudyRoom] = {}
+    generated_flashcards = 0
+    generated_quizzes = 0
+    generated_quiz_questions = 0
 
     for candidate in candidates:
         assigned_topic = assignments.get(str(candidate.file_index))
@@ -477,6 +671,19 @@ def organize_candidates(
             saved_as = "material"
             saved_id = saved.id
 
+        starter_assets = generate_starter_assets_for_candidate(
+            db=db,
+            owner_id=owner_id,
+            room_id=room.id,
+            candidate=candidate,
+            saved_as=saved_as,
+            saved_id=saved_id,
+        )
+
+        generated_flashcards += starter_assets["flashcards"]
+        generated_quizzes += starter_assets["quizzes"]
+        generated_quiz_questions += starter_assets["quiz_questions"]
+
         results.append(
             {
                 "filename": candidate.filename,
@@ -485,11 +692,17 @@ def organize_candidates(
                 "room": room_to_dict(room),
                 "saved_as": saved_as,
                 "saved_id": saved_id,
+                "generated_flashcards": starter_assets["flashcards"],
+                "generated_quizzes": starter_assets["quizzes"],
+                "generated_quiz_questions": starter_assets["quiz_questions"],
             }
         )
 
     return {
         "organized_count": len(results),
         "rooms": [room_to_dict(room) for room in rooms_by_topic.values()],
+        "generated_flashcards": generated_flashcards,
+        "generated_quizzes": generated_quizzes,
+        "generated_quiz_questions": generated_quiz_questions,
         "items": results,
     }

@@ -46,6 +46,9 @@ type PreviewResponse = {
 
 type OrganizeResponse = {
   organized_count: number;
+  generated_flashcards: number;
+  generated_quizzes: number;
+  generated_quiz_questions: number;
   rooms: {
     id: number;
     name: string;
@@ -57,6 +60,9 @@ type OrganizeResponse = {
     topic: string;
     saved_as: string;
     saved_id: number;
+    generated_flashcards: number;
+    generated_quizzes: number;
+    generated_quiz_questions: number;
     room: {
       id: number;
       name: string;
@@ -254,7 +260,7 @@ export default function SmartOrganizerPage() {
       const organized = data as OrganizeResponse;
       setResult(organized);
       setMessage(
-        `Done. StudySnap organized ${organized.organized_count} material${organized.organized_count === 1 ? "" : "s"} into ${organized.rooms.length} room${organized.rooms.length === 1 ? "" : "s"}.`
+        `Done. StudySnap organized ${organized.organized_count} material${organized.organized_count === 1 ? "" : "s"} into ${organized.rooms.length} room${organized.rooms.length === 1 ? "" : "s"}, then created ${organized.generated_flashcards} flashcard${organized.generated_flashcards === 1 ? "" : "s"} and ${organized.generated_quiz_questions} quiz question${organized.generated_quiz_questions === 1 ? "" : "s"}.`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Organization failed.");
@@ -527,10 +533,33 @@ export default function SmartOrganizerPage() {
             {result ? (
               <div className="mt-6 rounded-[1.5rem] border border-emerald-300/20 bg-emerald-400/10 p-5">
                 <p className="text-sm font-black text-emerald-100">
-                  Organized materials
+                  Organized materials + starter study tools
                 </p>
 
-                <div className="mt-3 grid gap-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1rem] border border-emerald-300/20 bg-black/20 p-4">
+                    <p className="kpi-label">Flashcards</p>
+                    <p className="mt-2 text-2xl font-black text-emerald-100">
+                      {result.generated_flashcards}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-emerald-300/20 bg-black/20 p-4">
+                    <p className="kpi-label">Quizzes</p>
+                    <p className="mt-2 text-2xl font-black text-emerald-100">
+                      {result.generated_quizzes}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-emerald-300/20 bg-black/20 p-4">
+                    <p className="kpi-label">Quiz Questions</p>
+                    <p className="mt-2 text-2xl font-black text-emerald-100">
+                      {result.generated_quiz_questions}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
                   {result.items.map((item, index) => (
                     <div
                       key={`${item.filename}-${index}`}
@@ -540,6 +569,9 @@ export default function SmartOrganizerPage() {
                         {item.filename}
                       </span>{" "}
                       → {item.room.name} as {item.saved_as}
+                      <span className="mt-1 block text-xs text-emerald-100/80">
+                        + {item.generated_flashcards} flashcards · {item.generated_quiz_questions} quiz questions
+                      </span>
                     </div>
                   ))}
                 </div>

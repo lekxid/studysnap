@@ -508,23 +508,48 @@ export async function deleteFlashcard(flashcardId: number) {
   });
 }
 
+export type QuizQuestionInput = {
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  explanation?: string | null;
+};
+
+export type QuizQuestionResult = QuizQuestionInput & {
+  id: number;
+  quiz_id: number;
+  created_at?: string;
+};
+
+export type QuizWithQuestions = {
+  id: number;
+  title: string;
+  study_room_id: number;
+  owner_id: number;
+  created_at?: string;
+  questions: QuizQuestionResult[];
+};
+
 export async function getQuizzes(studyRoomId: number) {
-  return apiFetch(`/api/quizzes/${studyRoomId}`);
+  return apiFetch(`/api/quizzes/${studyRoomId}`) as Promise<QuizWithQuestions[]>;
 }
 
 export async function createQuiz(
   studyRoomId: number,
-  question: string,
-  answer: string
+  title: string,
+  questions: QuizQuestionInput[] = []
 ) {
   return apiFetch("/api/quizzes", {
     method: "POST",
     body: JSON.stringify({
       study_room_id: studyRoomId,
-      question,
-      answer,
+      title,
+      questions,
     }),
-  });
+  }) as Promise<QuizWithQuestions>;
 }
 
 export async function deleteQuiz(quizId: number) {
