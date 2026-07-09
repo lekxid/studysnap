@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
+from app.services.brain.actions import execute_brain_action
 from app.services.brain.brain import get_brain
 from app.utils.deps import get_current_user
 
@@ -19,6 +20,12 @@ class BrainAnswerRequest(BaseModel):
 class SaveBrainHistoryAsNoteRequest(BaseModel):
     study_room_id: int | None = None
     title: str | None = Field(default=None, max_length=200)
+
+
+class BrainActionRequest(BaseModel):
+    command: str = Field(..., min_length=1, max_length=4000)
+    study_room_id: int | None = None
+    conversation_id: int | None = None
 
 
 @router.get("/summary")
@@ -119,6 +126,26 @@ def brain_answer(
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/actions/execute")
+def brain_action_execute(
+    data: BrainActionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return execute_brain_action(
+            db=db,
+            current_user=current_user,
+            command=data.command,
+            study_room_id=data.study_room_id,
+            conversation_id=data.conversation_id,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/history")
