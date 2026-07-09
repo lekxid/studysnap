@@ -152,37 +152,169 @@ def generate_basic_flashcards(content: str) -> list[dict]:
 # QUIZ GENERATION
 # ============================================================
 
-def generate_basic_quiz(content: str) -> list[dict]:
-    lines = [
-        line.strip()
-        for line in content.splitlines()
-        if line.strip()
-    ]
+def normalize_quiz_question_item(item: dict) -> dict | None:
+    question = str(item.get("question", "")).strip()
+    option_a = str(item.get("option_a", "")).strip()
+    option_b = str(item.get("option_b", "")).strip()
+    option_c = str(item.get("option_c", "")).strip()
+    option_d = str(item.get("option_d", "")).strip()
+    correct_answer = str(item.get("correct_answer", "A")).strip().upper()[:1]
+    explanation = str(item.get("explanation", "")).strip()
 
-    text = " ".join(lines).strip()
+    if correct_answer not in {"A", "B", "C", "D"}:
+        correct_answer = "A"
+
+    if not question or not option_a or not option_b or not option_c or not option_d:
+        return None
+
+    options = [option_a.lower(), option_b.lower(), option_c.lower(), option_d.lower()]
+
+    if len(set(options)) < 4:
+        return None
+
+    return {
+        "question": question[:2000],
+        "option_a": option_a[:1000],
+        "option_b": option_b[:1000],
+        "option_c": option_c[:1000],
+        "option_d": option_d[:1000],
+        "correct_answer": correct_answer,
+        "explanation": explanation[:2000],
+    }
+
+
+def parse_quiz_json_response(text: str) -> list[dict]:
+    raw = (text or "").strip()
+
+    if not raw:
+        return []
+
+    try:
+        data = json.loads(raw)
+    except Exception:
+        start = raw.find("{")
+        end = raw.rfind("}")
+
+        if start == -1 or end == -1 or end <= start:
+            return []
+
+        try:
+            data = json.loads(raw[start:end + 1])
+        except Exception:
+            return []
+
+    if isinstance(data, dict):
+        questions = data.get("questions", [])
+    elif isinstance(data, list):
+        questions = data
+    else:
+        questions = []
+
+    cleaned_questions = []
+
+    for item in questions:
+        if not isinstance(item, dict):
+            continue
+
+        normalized = normalize_quiz_question_item(item)
+
+        if normalized:
+            cleaned_questions.append(normalized)
+
+    return cleaned_questions[:5]
+
+
+def build_fallback_quiz_questions(content: str) -> list[dict]:
+    text = " ".join(
+        line.strip()
+        for line in (content or "").splitlines()
+        if line.strip()
+    ).strip()
 
     if not text:
         return []
 
     sentences = [
-        s.strip()
-        for s in text.replace("\n", " ").split(".")
-        if s.strip()
+        sentence.strip()
+        for sentence in text.replace("?", ".").replace("!", ".").split(".")
+        if len(sentence.strip()) > 45
     ]
 
     questions = []
 
-    for sentence in sentences[:5]:
+    for index, sentence in enumerate(sentences[:5], start=1):
+        main_point = sentence[:220].strip()
+
         questions.append(
             {
-                "question": "Which option best explains this study point?",
-                "option_a": sentence[:180],
-                "option_b": "This is unrelated to the topic.",
-                "option_c": "This means the topic is not important.",
-                "option_d": "This is only used outside school.",
+                "question": f"What is the best summary of key point {index} from this study material?",
+                "option_a": main_point,
+                "option_b": "The material says this idea is not connected to the lesson.",
+                "option_c": "The material says this idea should always be ignored.",
+                "option_d": "The material says this idea only applies outside school.",
                 "correct_answer": "A",
-                "explanation": sentence[:300],
+                "explanation": f"The correct answer matches the study material: {main_point[:260]}",
             }
         )
 
     return questions
+
+
+def generate_basic_quiz(content: str) -> list[dict]:
+    text = " ".join(
+        line.strip()
+        for line in (content or "").splitlines()
+        if line.strip()
+    ).strip()
+
+    if not text:
+        return []
+
+    limited_text = text[:12000]
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You create high-quality student quiz questions from study notes. "
+                        "Return ONLY valid JSON in this exact shape: "
+                        "{\"questions\":[{\"question\":\"...\","
+                        "\"option_a\":\"...\",\"option_b\":\"...\","
+                        "\"option_c\":\"...\",\"option_d\":\"...\","
+                        "\"correct_answer\":\"A\",\"explanation\":\"...\"}]}. "
+                        "Create 5 exam-style multiple-choice questions. "
+                        "Each question must test understanding, not just copy a sentence. "
+                        "All four options must be realistic. "
+                        "Only one option should be correct. "
+                        "Wrong options must be believable but clearly incorrect. "
+                        "Use simple student-friendly language. "
+                        "Do not make up facts that are not supported by the notes."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Create quiz questions from these study notes:\n\n"
+                        f"{limited_text}"
+                    ),
+                },
+            ],
+            temperature=0.25,
+            max_tokens=1800,
+        )
+
+        generated_text = response.choices[0].message.content or ""
+        questions = parse_quiz_json_response(generated_text)
+
+        if questions:
+            return questions
+
+    except Exception:
+        pass
+
+    return build_fallback_quiz_questions(limited_text)
+
