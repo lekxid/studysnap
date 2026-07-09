@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { removeToken } from "@/lib/api";
 import NotificationBell from "@/components/NotificationBell";
 import CommandBar from "@/components/CommandBar";
+import {
+  getSavedProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "◈" },
@@ -22,6 +26,20 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
+const projectAwareNavHrefs = new Set([
+  "/notes",
+  "/flashcards",
+  "/quizzes",
+  "/planner",
+]);
+
+function getRoomIdFromStudyRoomPath(pathname: string) {
+  const match = pathname.match(/^\/study-rooms\/(\d+)/);
+  const roomId = Number(match?.[1]);
+
+  return Number.isFinite(roomId) && roomId > 0 ? roomId : null;
+}
+
 export default function AppShell({
   title,
   subtitle,
@@ -34,6 +52,29 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeProjectRoomId, setActiveProjectRoomId] = useState<number | null>(
+    null
+  );
+
+  useEffect(() => {
+    const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
+
+    if (roomIdFromPath !== null) {
+      const savedRoomId = saveProjectRoomId(roomIdFromPath);
+      setActiveProjectRoomId(savedRoomId);
+      return;
+    }
+
+    setActiveProjectRoomId(getSavedProjectRoomId());
+  }, [pathname]);
+
+  function getConnectedHref(href: string) {
+    if (!projectAwareNavHrefs.has(href) || activeProjectRoomId === null) {
+      return href;
+    }
+
+    return `${href}?roomId=${activeProjectRoomId}`;
+  }
 
   function handleLogout() {
     removeToken();
@@ -66,10 +107,12 @@ export default function AppShell({
               const active =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
 
+              const connectedHref = getConnectedHref(item.href);
+
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={connectedHref}
                   className={`group flex items-center gap-4 rounded-[1.4rem] px-5 py-4 text-sm font-semibold transition ${
                     active
                       ? "bg-gradient-to-r from-amber-400/90 via-yellow-300/80 to-orange-400/80 text-black shadow-[0_12px_30px_rgba(244,185,66,0.3)]"
@@ -176,10 +219,12 @@ export default function AppShell({
                       pathname === item.href ||
                       pathname.startsWith(`${item.href}/`);
 
+                    const connectedHref = getConnectedHref(item.href);
+
                     return (
                       <Link
                         key={item.href}
-                        href={item.href}
+                        href={connectedHref}
                         onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-3 rounded-[1rem] px-4 py-3 text-sm font-semibold ${
                           active
