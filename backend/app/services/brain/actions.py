@@ -13,6 +13,9 @@ from app.models.study_room import StudyRoom
 from app.models.user import User
 
 
+MAX_ROOMS_PER_ACTION = 10
+
+
 SAVE_LAST_ANSWER_COMMANDS = {
     "save it",
     "save this",
@@ -56,6 +59,75 @@ def _short_title(value: str, fallback: str = "AI Note", max_length: int = 80) ->
     return cleaned[:max_length].strip() + ("..." if len(cleaned) > max_length else "")
 
 
+def _clean_room_field(value: str, fallback: str = "", max_length: int = 120) -> str:
+    cleaned = _clean_text(
+        (value or "")
+        .replace("*", " ")
+        .replace("_", " ")
+        .replace("`", " ")
+        .replace("#", " ")
+        .replace(">", " ")
+    )
+
+    if not cleaned:
+        return fallback
+
+    return cleaned[:max_length].strip()
+
+
+def _parse_room_specs(raw_body: str) -> list[dict]:
+    body = (raw_body or "").strip()
+
+    if not body:
+        return []
+
+    if "\n" in body:
+        raw_items = [line.strip() for line in body.splitlines() if line.strip()]
+    elif "," in body:
+        raw_items = [item.strip() for item in body.split(",") if item.strip()]
+    else:
+        raw_items = [body]
+
+    if len(raw_items) > MAX_ROOMS_PER_ACTION:
+        raise ValueError(f"You can create up to {MAX_ROOMS_PER_ACTION} rooms at a time.")
+
+    rooms: list[dict] = []
+
+    for raw_item in raw_items:
+        parts = [part.strip() for part in raw_item.split("|")]
+
+        name = _clean_room_field(parts[0] if len(parts) >= 1 else "", max_length=100)
+
+        if not name:
+            continue
+
+        subject = _clean_room_field(
+            parts[1] if len(parts) >= 2 else "",
+            fallback="General",
+            max_length=80,
+        )
+
+        description = None
+
+        if len(parts) >= 3:
+            description_text = _clean_room_field(
+                " | ".join(parts[2:]),
+                fallback="",
+                max_length=250,
+            )
+            description = description_text or None
+
+        rooms.append(
+            {
+                "name": name,
+                "subject": subject or "General",
+                "description": description,
+            }
+        )
+
+    return rooms
+
+
 def detect_action_intent(command: str) -> ParsedAction | None:
     """
     Detect simple StudySnap action commands.
@@ -72,6 +144,18 @@ def detect_action_intent(command: str) -> ParsedAction | None:
 
     if lower_command in SAVE_LAST_ANSWER_COMMANDS:
         return ParsedAction(action="save_last_ai_answer_to_note")
+
+    room_match = re.match(
+        r"^(create|new|add)\s+((a\s+)?(room|project)|rooms|projects)\s*[:\-]?\s*(.*)$",
+        clean_command,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if room_match:
+        return ParsedAction(
+            action="create_rooms",
+            content=(room_match.group(5) or "").strip(),
+        )
 
     match = re.match(
         r"^(create\s+(a\s+)?note|new\s+note|note|save\s+note|add\s+note)\s*[:\-]?\s*(.*)$",
@@ -123,6 +207,76 @@ def _verify_conversation(db: Session, conversation_id: int, owner_id: int) -> AI
         raise LookupError("Conversation not found.")
 
     return conversation
+
+
+def _serialize_room(room: StudyRoom) -> dict:
+    return {
+        "id": room.id,
+        "name": room.name,
+        "subject": room.subject,
+        "description": room.description,
+        "owner_id": room.owner_id,
+        "created_at": room.created_at,
+    }
+
+
+def _find_existing_room(
+    db: Session,
+    owner_id: int,
+    name: str,
+) -> StudyRoom | None:
+    return (
+        db.query(StudyRoom)
+        .filter(
+            StudyRoom.owner_id == owner_id,
+            StudyRoom.name == name,
+        )
+        .first()
+    )
+
+
+def _create_study_rooms(
+    db: Session,
+    current_user: User,
+    room_specs: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    created_rooms: list[dict] = []
+    existing_rooms: list[dict] = []
+
+    for spec in room_specs:
+        existing = _find_existing_room(
+            db=db,
+            owner_id=current_user.id,
+            name=spec["name"],
+        )
+
+        if existing:
+            existing_rooms.append(_serialize_room(existing))
+            continue
+
+        room = StudyRoom(
+            name=spec["name"],
+            subject=spec.get("subject") or "General",
+            description=spec.get("description"),
+            owner_id=current_user.id,
+        )
+
+        db.add(room)
+        db.flush()
+
+        _log_ai_action_event(
+            db=db,
+            user_id=current_user.id,
+            study_room_id=room.id,
+            reference_id=room.id,
+            result="created_room",
+        )
+
+        created_rooms.append(_serialize_room(room))
+
+    db.commit()
+
+    return created_rooms, existing_rooms
 
 
 def _serialize_note(note: Note) -> dict:
@@ -270,6 +424,78 @@ def execute_brain_action(
             "handled": False,
             "action": None,
             "message": "",
+        }
+
+    if parsed.action == "create_rooms":
+        room_specs = _parse_room_specs(parsed.content)
+
+        if not room_specs:
+            return {
+                "handled": True,
+                "action": "create_rooms",
+                "status": "needs_content",
+                "message": (
+                    "To create rooms, write it like this:\n\n"
+                    "**create room: Anatomy**\n\n"
+                    "Or create many:\n\n"
+                    "**create rooms: Anatomy, Biology, Chemistry**\n\n"
+                    "For more detail, use:\n\n"
+                    "**new room: PSW Lab Skills | PSW | Skills test prep**"
+                ),
+            }
+
+        created_rooms, existing_rooms = _create_study_rooms(
+            db=db,
+            current_user=current_user,
+            room_specs=room_specs,
+        )
+
+        total_requested = len(room_specs)
+        created_count = len(created_rooms)
+        existing_count = len(existing_rooms)
+
+        created_lines = [
+            f"{index}. {room['name']} — {room['subject']}"
+            for index, room in enumerate(created_rooms, start=1)
+        ]
+
+        existing_lines = [
+            f"- {room['name']} already exists"
+            for room in existing_rooms
+        ]
+
+        message_parts = [
+            f"✅ Created {created_count} Project{'s' if created_count != 1 else ''}"
+        ]
+
+        if created_lines:
+            message_parts.append("\n".join(created_lines))
+
+        if existing_count:
+            message_parts.append(
+                f"Skipped {existing_count} existing project{'s' if existing_count != 1 else ''}:\n"
+                + "\n".join(existing_lines)
+            )
+
+        message_parts.append(f"Requested: {total_requested}")
+
+        message = "\n\n".join(message_parts)
+
+        _append_action_messages(
+            db=db,
+            conversation_id=conversation_id,
+            owner_id=current_user.id,
+            command=command,
+            response_message=message,
+        )
+
+        return {
+            "handled": True,
+            "action": "create_rooms",
+            "status": "completed",
+            "message": message,
+            "rooms": created_rooms,
+            "existing_rooms": existing_rooms,
         }
 
     if parsed.action == "create_note":

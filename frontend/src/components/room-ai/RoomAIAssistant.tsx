@@ -429,7 +429,15 @@ async function handleDeleteConversation(conversation: AIConversation) {
 
     if (saveCommands.includes(clean)) return true;
 
-    return /^(create\s+(a\s+)?note|new\s+note|note|save\s+note|add\s+note)\s*[:\-]/i.test(
+    if (
+      /^(create\s+(a\s+)?note|new\s+note|note|save\s+note|add\s+note)\s*[:\-]/i.test(
+        value.trim()
+      )
+    ) {
+      return true;
+    }
+
+    return /^(create|new|add)\s+((a\s+)?(room|project)|rooms|projects)\s*[:\-]/i.test(
       value.trim()
     );
   }
