@@ -13,6 +13,7 @@ type Props = {
   onCopy?: () => void;
   onInsert?: () => void;
   onSaveAsNote?: () => void;
+  onDownloadPdf?: () => void;
   onPin?: () => void;
   onRegenerate?: () => void;
   onReply?: (question: string) => void;
@@ -28,6 +29,7 @@ export default function NotesAIResultCard({
   onCopy,
   onInsert,
   onSaveAsNote,
+  onDownloadPdf,
   onPin,
   onRegenerate,
   onReply,
@@ -67,6 +69,10 @@ export default function NotesAIResultCard({
 
           <button type="button" onClick={onSaveAsNote} className="rounded-lg border border-purple-400/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-500/10">
             💾 Save
+          </button>
+
+          <button type="button" onClick={onDownloadPdf} className="rounded-lg border border-amber-400/30 px-3 py-1 text-xs text-amber-300 hover:bg-amber-500/10">
+            📄 PDF
           </button>
 
           <button type="button" onClick={() => setReplying((current) => !current)} className="rounded-lg border border-pink-400/30 px-3 py-1 text-xs text-pink-300 hover:bg-pink-500/10">

@@ -29,6 +29,8 @@ type Props = {
   onCopyHistory?: (content: string) => void;
   onInsertHistory?: (content: string) => void;
   onSaveHistoryAsNote?: (title: string, content: string) => void;
+  onDownloadCurrent?: (title: string, content: string) => void;
+  onDownloadHistory?: (title: string, content: string) => void;
   onTogglePinHistory?: (id: string) => void;
   onRegenerateHistory?: (id: string) => void;
   onReplyHistory?: (id: string, question: string) => void;
@@ -52,6 +54,8 @@ export default function NotesAIWorkspace({
   onCopyHistory,
   onInsertHistory,
   onSaveHistoryAsNote,
+  onDownloadCurrent,
+  onDownloadHistory,
   onTogglePinHistory,
   onRegenerateHistory,
   onReplyHistory,
@@ -118,6 +122,15 @@ export default function NotesAIWorkspace({
           className="rounded-xl border border-green-400/40 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-300 transition hover:bg-green-500/20 disabled:cursor-not-allowed disabled:opacity-40"
         >
           ➕ Insert current
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDownloadCurrent?.(title || "StudySnap AI Export", content)}
+          disabled={!hasContent}
+          className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          📄 Download current PDF
         </button>
       </div>
 
@@ -207,6 +220,9 @@ export default function NotesAIWorkspace({
                   onSaveAsNote={() =>
                     onSaveHistoryAsNote?.(item.title, item.content)
                   }
+                  onDownloadPdf={() =>
+                    onDownloadHistory?.(item.title, item.content)
+                  }
                   onPin={() => onTogglePinHistory?.(item.id)}
                   onRegenerate={() => onRegenerateHistory?.(item.id)}
                   onReply={(question) => onReplyHistory?.(item.id, question)}
@@ -251,9 +267,13 @@ export default function NotesAIWorkspace({
                 onSaveAsNote={() =>
                   onSaveHistoryAsNote?.(item.title, item.content)
                 }
+                onDownloadPdf={() =>
+                  onDownloadHistory?.(item.title, item.content)
+                }
                 onPin={() => onTogglePinHistory?.(item.id)}
                 onRegenerate={() => onRegenerateHistory?.(item.id)}
                 onReply={(question) => onReplyHistory?.(item.id, question)}
+                onDelete={() => onDeleteHistory?.(item.id)}
               />
             ))}
           </div>

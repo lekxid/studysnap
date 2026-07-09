@@ -10,7 +10,7 @@ from app.models.note import Note
 from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.utils.deps import get_current_user
-from app.services.export.pdf import build_note_pdf_bytes, safe_pdf_filename
+from app.services.export.pdf import build_note_pdf_bytes, build_studysnap_pdf_bytes, safe_pdf_filename
 
 router = APIRouter(tags=["Notes"])
 
@@ -24,6 +24,40 @@ class NoteCreate(BaseModel):
 class NoteUpdate(BaseModel):
     title: str
     content: str
+
+
+class PdfExportRequest(BaseModel):
+    title: str
+    content: str
+    subtitle: str | None = None
+
+
+@router.post("/export-pdf")
+def export_text_pdf(
+    data: PdfExportRequest,
+    current_user: User = Depends(get_current_user),
+):
+    title = data.title.strip() or "StudySnap AI Export"
+    content = data.content.strip()
+
+    if not content:
+        raise HTTPException(status_code=400, detail="PDF content cannot be empty")
+
+    pdf_bytes = build_studysnap_pdf_bytes(
+        title=title,
+        content=content,
+        subtitle=data.subtitle or "Exported from StudySnap AI Workspace",
+    )
+
+    filename = safe_pdf_filename(title, fallback="studysnap-ai-export")
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
 
 
 

@@ -9,7 +9,7 @@ import {
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
-import { askAi, createNote, deleteNote, downloadNotePdf, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
+import { askAi, createNote, deleteNote, downloadAITextPdf, downloadNotePdf, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
 import NotesAIWorkspace, { AIChatMessage, AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
@@ -629,6 +629,28 @@ ${aiChatMessages
   }
 
 
+  async function handleDownloadAITextPdf(itemTitle: string, itemContent: string) {
+    if (!itemContent.trim()) return;
+
+    try {
+      setAiStatus("Preparing PDF...");
+      setError("");
+
+      await downloadAITextPdf(
+        itemTitle || "StudySnap AI Export",
+        itemContent,
+        selectedRoom
+          ? `AI export from ${selectedRoom.name}`
+          : "Exported from StudySnap AI Workspace"
+      );
+
+      setAiStatus("PDF downloaded.");
+    } catch (err) {
+      setAiStatus("");
+      setError(err instanceof Error ? err.message : "Failed to download AI PDF.");
+    }
+  }
+
   async function handleCopyAI() {
     if (!aiContent.trim()) return;
 
@@ -900,6 +922,8 @@ Answer clearly in a helpful student-friendly way.`;
           onCopyHistory={handleCopyAIHistory}
           onInsertHistory={handleInsertAIHistory}
           onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
+          onDownloadCurrent={handleDownloadAITextPdf}
+          onDownloadHistory={handleDownloadAITextPdf}
           onTogglePinHistory={handleTogglePinAIHistory}
           onRegenerateHistory={handleRegenerateAIHistory}
           onReplyHistory={handleReplyAIHistory}

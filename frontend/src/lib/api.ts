@@ -407,20 +407,7 @@ export async function deleteNote(noteId: number) {
   });
 }
 
-export async function downloadNotePdf(noteId: number) {
-  const token = getToken();
-
-  const headers = new Headers();
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const res = await fetch(`${API_BASE}/api/notes/${noteId}/download-pdf`, {
-    method: "GET",
-    headers,
-  });
-
+async function downloadPdfResponse(res: Response, fallbackFilename: string) {
   if (!res.ok) {
     let message = "Failed to download PDF.";
 
@@ -437,7 +424,7 @@ export async function downloadNotePdf(noteId: number) {
   const blob = await res.blob();
   const contentDisposition = res.headers.get("content-disposition") || "";
   const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
-  const filename = filenameMatch?.[1] || `studysnap-note-${noteId}.pdf`;
+  const filename = filenameMatch?.[1] || fallbackFilename;
 
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -450,6 +437,50 @@ export async function downloadNotePdf(noteId: number) {
   link.remove();
 
   window.URL.revokeObjectURL(url);
+}
+
+export async function downloadNotePdf(noteId: number) {
+  const token = getToken();
+
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE}/api/notes/${noteId}/download-pdf`, {
+    method: "GET",
+    headers,
+  });
+
+  await downloadPdfResponse(res, `studysnap-note-${noteId}.pdf`);
+}
+
+export async function downloadAITextPdf(
+  title: string,
+  content: string,
+  subtitle = "Exported from StudySnap AI Workspace"
+) {
+  const token = getToken();
+
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE}/api/notes/export-pdf`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      title,
+      content,
+      subtitle,
+    }),
+  });
+
+  await downloadPdfResponse(res, "studysnap-ai-export.pdf");
 }
 
 export async function getFlashcards(studyRoomId: number) {
