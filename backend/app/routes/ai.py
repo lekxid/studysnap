@@ -1,9 +1,13 @@
+import base64
 import json
+import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from openai import OpenAI
+from app.config import settings
 
 from app.database import get_db
 from app.models.user import User
@@ -111,6 +115,93 @@ def ask_ai(
     answer = generate_studysnap_answer(data.question, data.context)
 
     return {"answer": answer}
+
+
+@router.post("/ask-image")
+async def ask_ai_with_image(
+    question: str = Form(default="Describe this image clearly."),
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    General AI image understanding endpoint.
+
+    Used by /general-ai for ChatGPT-style image upload:
+    - user uploads an image
+    - user asks a question
+    - AI answers about the image
+    """
+
+    _ = current_user
+
+    content_type = image.content_type or ""
+
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload an image file.")
+
+    image_bytes = await image.read()
+
+    max_size = 8 * 1024 * 1024
+
+    if len(image_bytes) > max_size:
+        raise HTTPException(status_code=400, detail="Image must be 8MB or smaller.")
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+    image_url = f"data:{content_type};base64,{encoded_image}"
+
+    clean_question = question.strip() or "Describe this image clearly."
+
+    prompt = f"""
+You are StudySnap General AI.
+
+The user uploaded an image and asked a question.
+
+Answer clearly and helpfully.
+If the image contains study material, explain it in simple student-friendly words.
+If the image is unclear, say what you can see and ask the user to upload a clearer image.
+Do not claim certainty when the image is hard to read.
+Do not provide medical diagnosis or emergency advice from images.
+
+User question:
+{clean_question}
+"""
+
+    try:
+        client = OpenAI(api_key=settings.openai_api_key, timeout=30.0)
+        model = getattr(settings, "openai_vision_model", None) or os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
+
+        response = client.responses.create(
+            model=model,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": prompt,
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": image_url,
+                            "detail": "auto",
+                        },
+                    ],
+                }
+            ],
+        )
+
+        answer = getattr(response, "output_text", "") or "I could not read the image response."
+
+        return {"answer": answer}
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Image AI failed: {str(exc)}",
+        )
 
 
 @router.post("/conversations")
