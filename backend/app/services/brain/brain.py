@@ -25,6 +25,12 @@ from app.services.brain.priority import build_brain_priority_result
 from app.services.brain.retrieval import retrieve_learning_context
 from app.services.brain.prompt_builder import build_brain_prompt, brain_prompt_to_dict
 from app.services.brain.answer import generate_brain_answer
+from app.services.brain.history import (
+    brain_history_to_dict,
+    list_brain_answer_history,
+    save_brain_answer_history,
+    save_brain_history_as_note,
+)
 
 
 def _infer_study_room_id_from_sources(
@@ -33,9 +39,6 @@ def _infer_study_room_id_from_sources(
 ) -> int | None:
     """
     Infer the most likely study room from retrieved sources.
-
-    This prevents global coach suggestions from leaking into answers
-    when the student asks about a specific PDF, note, flashcard, or memory.
     """
 
     if fallback_study_room_id is not None:
@@ -111,7 +114,7 @@ class BrainService:
 
         result = brain_prompt_to_dict(prompt)
         result["metadata"]["requested_study_room_id"] = study_room_id
-        result["effective_study_room_id"] = effective_study_room_id
+        result["metadata"]["effective_study_room_id"] = effective_study_room_id
 
         return result
 
@@ -147,21 +150,73 @@ class BrainService:
 
         generated = generate_brain_answer(prompt)
 
+        metadata = {
+            "query": question,
+            "requested_study_room_id": study_room_id,
+            "effective_study_room_id": effective_study_room_id,
+            "source_count": len(sources),
+            "retrieval_count": prompt.metadata.get("retrieval_count"),
+            "used_retrieval_count": prompt.metadata.get("used_retrieval_count"),
+            "has_learning_profile": prompt.metadata.get("has_learning_profile"),
+            "has_coach": prompt.metadata.get("has_coach"),
+            "coach_priority": prompt.metadata.get("coach_priority"),
+            "model": generated.get("model"),
+            "usage": generated.get("usage"),
+        }
+
+        history = save_brain_answer_history(
+            db=self.db,
+            current_user=self.current_user,
+            question=question,
+            answer=generated["answer"],
+            sources=sources,
+            metadata=metadata,
+            study_room_id=effective_study_room_id,
+        )
+
         return {
+            "id": history.id,
             "answer": generated["answer"],
             "sources": sources,
-            "metadata": {
-                "query": question,
-                "requested_study_room_id": study_room_id,
-                "effective_study_room_id": effective_study_room_id,
-                "source_count": len(sources),
-                "retrieval_count": prompt.metadata.get("retrieval_count"),
-                "used_retrieval_count": prompt.metadata.get("used_retrieval_count"),
-                "has_learning_profile": prompt.metadata.get("has_learning_profile"),
-                "has_coach": prompt.metadata.get("has_coach"),
-                "coach_priority": prompt.metadata.get("coach_priority"),
-                "model": generated.get("model"),
-                "usage": generated.get("usage"),
+            "metadata": metadata,
+            "created_at": history.created_at,
+        }
+
+    def get_history(
+        self,
+        study_room_id: int | None = None,
+        limit: int = 20,
+    ):
+        return list_brain_answer_history(
+            db=self.db,
+            current_user=self.current_user,
+            study_room_id=study_room_id,
+            limit=limit,
+        )
+
+    def save_history_as_note(
+        self,
+        history_id: int,
+        study_room_id: int | None = None,
+        title: str | None = None,
+    ):
+        note = save_brain_history_as_note(
+            db=self.db,
+            current_user=self.current_user,
+            history_id=history_id,
+            study_room_id=study_room_id,
+            title=title,
+        )
+
+        return {
+            "saved": True,
+            "note": {
+                "id": note.id,
+                "title": note.title,
+                "content": note.content,
+                "study_room_id": note.study_room_id,
+                "owner_id": note.owner_id,
+                "created_at": note.created_at,
             },
         }
 
