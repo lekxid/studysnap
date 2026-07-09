@@ -8,6 +8,7 @@ import {
   getLearningInsights,
   getNotes,
   getPDFs,
+  getQuizzes,
   getStudyRooms,
   removeToken,
   retrieveBrain,
@@ -62,9 +63,44 @@ type QuizQuestion = {
   correctIndex: number;
 };
 
+type LearningTopic = {
+  subject: string;
+  reviewed: number;
+  correct: number;
+  wrong: number;
+  accuracy: number;
+};
+
+type LearningTrend = {
+  date: string;
+  reviews: number;
+  average_confidence: number;
+  correct: number;
+  wrong: number;
+};
+
 type LearningInsights = {
+  learning_score: number;
+  learning_index: number;
+  learning_index_today_change: number;
+  learning_index_message: string;
+  average_confidence: number;
   cards_reviewed_today: number;
+  correct_today: number;
+  wrong_today: number;
   study_streak: number;
+  weak_topics: LearningTopic[];
+  strong_topics: LearningTopic[];
+  ai_recommendation: string;
+  trend: LearningTrend[];
+};
+
+type SystemStats = {
+  pdfs: number;
+  notes: number;
+  flashcards: number;
+  quizzes: number;
+  rooms: number;
 };
 
 type ContinueItem = {
@@ -494,27 +530,80 @@ function AiTutorCard({
 }
 
 
-function StudyBotArt() {
+function StudyBotArt({
+  mood,
+}: {
+  mood: "sleeping" | "worried" | "focused" | "happy" | "celebrating";
+}) {
+  const config = {
+    sleeping: {
+      icon: "💤",
+      title: "Ready to study",
+      message: "Start a quick review to wake up your progress.",
+      tone: "border-slate-300/15 bg-slate-300/10",
+      glow: "bg-slate-300/20",
+    },
+    worried: {
+      icon: "🧠",
+      title: "Review needed",
+      message: "Weak areas found. Try a short quiz next.",
+      tone: "border-red-300/20 bg-red-400/10",
+      glow: "bg-red-300/20",
+    },
+    focused: {
+      icon: "📘",
+      title: "Focused mode",
+      message: "You are building progress. Keep going.",
+      tone: "border-cyan-300/20 bg-cyan-300/10",
+      glow: "bg-cyan-300/20",
+    },
+    happy: {
+      icon: "⭐",
+      title: "Nice progress",
+      message: "Your learning score is improving.",
+      tone: "border-yellow-300/25 bg-yellow-300/10",
+      glow: "bg-yellow-300/25",
+    },
+    celebrating: {
+      icon: "🎉",
+      title: "Strong day",
+      message: "Great work. Protect your streak.",
+      tone: "border-emerald-300/20 bg-emerald-300/10",
+      glow: "bg-emerald-300/20",
+    },
+  }[mood];
+
   return (
-    <div className="relative h-[150px] overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_70%_55%,rgba(250,204,21,0.30),transparent_58%)]">
-      <div className="absolute bottom-3 right-5 h-4 w-40 rounded-full border border-yellow-300/45 bg-yellow-300/15 shadow-[0_0_32px_rgba(250,204,21,0.45)]" />
+    <div className={`relative h-[150px] overflow-hidden rounded-2xl border p-4 ${config.tone}`}>
+      <div className={`absolute -right-10 -top-10 h-32 w-32 rounded-full blur-2xl ${config.glow}`} />
+      <div className={`absolute -bottom-12 left-8 h-28 w-28 rounded-full blur-2xl ${config.glow}`} />
 
-      <div className="absolute bottom-8 right-12 h-[86px] w-[86px] rounded-full bg-yellow-300 shadow-[0_0_58px_rgba(250,204,21,0.45)]" />
-      <div className="absolute bottom-[5.25rem] right-8 h-[70px] w-[112px] rounded-[2rem] border border-yellow-100/40 bg-yellow-300 shadow-[0_0_60px_rgba(250,204,21,0.45)]" />
+      <div className="relative flex h-full flex-col justify-between">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              StudySnap Coach
+            </p>
+            <h3 className="mt-1 text-lg font-black leading-tight text-white">
+              {config.title}
+            </h3>
+          </div>
 
-      <div className="absolute bottom-[6.05rem] right-[2.85rem] h-[48px] w-[88px] rounded-[1.4rem] bg-[#08111d]">
-        <div className="absolute left-5 top-5 h-3 w-4 rounded-b-full border-b-4 border-yellow-300" />
-        <div className="absolute right-5 top-5 h-3 w-4 rounded-b-full border-b-4 border-yellow-300" />
-        <div className="absolute bottom-2 left-1/2 h-3 w-8 -translate-x-1/2 rounded-b-full border-b-4 border-yellow-300" />
+          <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-black/35 text-3xl shadow-[0_0_30px_rgba(0,0,0,0.25)]">
+            {config.icon}
+          </div>
+        </div>
+
+        <p className="max-w-[210px] text-xs leading-5 text-slate-300">
+          {config.message}
+        </p>
+
+        <div className="flex items-center gap-2">
+          <span className="h-2 flex-1 rounded-full bg-yellow-300" />
+          <span className="h-2 flex-1 rounded-full bg-cyan-300/70" />
+          <span className="h-2 flex-1 rounded-full bg-emerald-300/70" />
+        </div>
       </div>
-
-      <div className="absolute bottom-4 left-9 text-5xl">📖</div>
-      <div className="absolute bottom-0 right-0 text-5xl">🔥</div>
-      <div className="absolute bottom-7 right-[4.75rem] text-2xl">⭐</div>
-
-      <span className="absolute right-8 top-7 text-xl text-yellow-300">✦</span>
-      <span className="absolute left-12 top-20 text-lg text-yellow-300">✦</span>
-      <span className="absolute right-32 bottom-12 text-base text-yellow-300">✦</span>
     </div>
   );
 }
@@ -526,24 +615,47 @@ function RightProgressCard({
   flashcardsCount,
   quizCount,
   overall,
+  learningInsights,
 }: {
   pdfCount: number;
   notesCount: number;
   flashcardsCount: number;
   quizCount: number;
   overall: number;
+  learningInsights: LearningInsights | null;
 }) {
+  const liveScore = learningInsights?.learning_score ?? overall;
+  const reviewsToday = learningInsights?.cards_reviewed_today ?? 0;
+  const correctToday = learningInsights?.correct_today ?? 0;
+  const wrongToday = learningInsights?.wrong_today ?? 0;
+  const streak = learningInsights?.study_streak ?? 0;
+  const accuracy =
+    correctToday + wrongToday > 0
+      ? Math.round((correctToday / (correctToday + wrongToday)) * 100)
+      : 0;
+
+  const mood =
+    reviewsToday === 0
+      ? "sleeping"
+      : wrongToday > correctToday
+      ? "worried"
+      : liveScore >= 85
+      ? "celebrating"
+      : liveScore >= 65
+      ? "happy"
+      : "focused";
+
   const rows = [
-    ["📄", "PDFs Uploaded", `${pdfCount} / 5`],
-    ["📝", "Notes Added", `${notesCount} / 15`],
-    ["🧠", "Flashcards Created", `${flashcardsCount} / 60`],
-    ["🧾", "Quizzes Taken", `${quizCount} / 10`],
+    ["📚", "Reviews Today", `${reviewsToday}`],
+    ["✅", "Correct Today", `${correctToday}`],
+    ["🧠", "Needs Review", `${wrongToday}`],
+    ["🔥", "Study Streak", `${streak} day${streak === 1 ? "" : "s"}`],
   ];
 
   return (
     <aside className="rounded-xl border border-white/10 bg-[#08111d]/90 p-4 shadow-[0_0_45px_rgba(250,204,21,0.035)]">
       <h2 className="border-b border-white/10 pb-3 text-xl font-black text-white">
-        Your Progress ✍️
+        Your Live Progress ✍️
       </h2>
 
       <div className="mt-3 space-y-2.5">
@@ -566,22 +678,42 @@ function RightProgressCard({
         <div
           className="grid h-[122px] w-[122px] place-items-center rounded-full"
           style={{
-            background: `conic-gradient(rgb(250 204 21) ${overall}%, rgba(255,255,255,0.1) 0)`,
+            background: `conic-gradient(rgb(250 204 21) ${liveScore}%, rgba(255,255,255,0.1) 0)`,
           }}
         >
           <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-[#08111d] text-center">
             <div>
-              <p className="text-3xl font-black text-white">{overall}%</p>
-              <p className="text-[11px] text-slate-300">Overall Progress</p>
+              <p className="text-3xl font-black text-white">{liveScore}%</p>
+              <p className="text-[11px] text-slate-300">
+                {accuracy ? `${accuracy}% accuracy` : "Learning Score"}
+              </p>
             </div>
           </div>
         </div>
 
-        <StudyBotArt />
+        <StudyBotArt mood={mood} />
+      </div>
+
+      <div className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/10 p-3">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
+          AI Insight
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-200">
+          {learningInsights?.ai_recommendation ||
+            "Start a quiz or flashcard review so StudySnap can update your live progress."}
+        </p>
+      </div>
+
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] text-slate-400">
+        <div>PDFs {pdfCount}</div>
+        <div>Notes {notesCount}</div>
+        <div>Cards {flashcardsCount}</div>
+        <div>Quizzes {quizCount}</div>
       </div>
     </aside>
   );
 }
+
 
 function SummaryBox({
   icon,
@@ -617,6 +749,8 @@ function SummaryBox({
 export default function DashboardPage() {
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [learningInsights, setLearningInsights] = useState<LearningInsights | null>(null);
+  const [learningInsightsError, setLearningInsightsError] = useState("");
 
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
@@ -624,7 +758,29 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [flashcards, setFlashcards] = useState<FlashcardItem[]>([]);
   const [quizCount, setQuizCount] = useState(0);
+  const [allStats, setAllStats] = useState<SystemStats>({
+    pdfs: 0,
+    notes: 0,
+    flashcards: 0,
+    quizzes: 0,
+    rooms: 0,
+  });
   const [insights, setInsights] = useState<LearningInsights | null>(null);
+
+  useEffect(() => {
+    async function loadLearningInsights() {
+      try {
+        setLearningInsightsError("");
+        const data = await getLearningInsights();
+        setLearningInsights(data as LearningInsights);
+      } catch {
+        setLearningInsights(null);
+        setLearningInsightsError("Live progress is not available yet.");
+      }
+    }
+
+    loadLearningInsights();
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -691,16 +847,17 @@ export default function DashboardPage() {
 
     async function loadActiveRoomData() {
       try {
-        const [pdfData, noteData, flashcardData] = await Promise.all([
+        const [pdfData, noteData, flashcardData, quizData] = await Promise.all([
           getPDFs(safeRoomId),
           getNotes(safeRoomId),
           getFlashcards(safeRoomId),
+          getQuizzes(safeRoomId).catch(() => []),
         ]);
 
         setPdfs(Array.isArray(pdfData) ? pdfData : []);
         setNotes(Array.isArray(noteData) ? noteData : []);
         setFlashcards(Array.isArray(flashcardData) ? flashcardData : []);
-        setQuizCount(getProjectQuizCount(safeRoomId));
+        setQuizCount(Array.isArray(quizData) ? quizData.length : getProjectQuizCount(safeRoomId));
       } catch {
         setPdfs([]);
         setNotes([]);
@@ -711,6 +868,57 @@ export default function DashboardPage() {
 
     loadActiveRoomData();
   }, [activeRoomId]);
+
+  useEffect(() => {
+    if (!rooms.length) {
+      setAllStats({
+        pdfs: 0,
+        notes: 0,
+        flashcards: 0,
+        quizzes: 0,
+        rooms: 0,
+      });
+      return;
+    }
+
+    let mounted = true;
+
+    async function loadAllSystemStats() {
+      const roomStats = await Promise.all(
+        rooms.map(async (room) => {
+          const [pdfData, noteData, flashcardData, quizData] = await Promise.all([
+            getPDFs(room.id).catch(() => []),
+            getNotes(room.id).catch(() => []),
+            getFlashcards(room.id).catch(() => []),
+            getQuizzes(room.id).catch(() => []),
+          ]);
+
+          return {
+            pdfs: Array.isArray(pdfData) ? pdfData.length : 0,
+            notes: Array.isArray(noteData) ? noteData.length : 0,
+            flashcards: Array.isArray(flashcardData) ? flashcardData.length : 0,
+            quizzes: Array.isArray(quizData) ? quizData.length : 0,
+          };
+        })
+      );
+
+      if (!mounted) return;
+
+      setAllStats({
+        pdfs: roomStats.reduce((sum, item) => sum + item.pdfs, 0),
+        notes: roomStats.reduce((sum, item) => sum + item.notes, 0),
+        flashcards: roomStats.reduce((sum, item) => sum + item.flashcards, 0),
+        quizzes: roomStats.reduce((sum, item) => sum + item.quizzes, 0),
+        rooms: rooms.length,
+      });
+    }
+
+    loadAllSystemStats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [rooms]);
 
   const displayName = useMemo(() => {
     if (!fullName) return "Student";
@@ -893,11 +1101,12 @@ export default function DashboardPage() {
             </div>
 
             <RightProgressCard
-              pdfCount={pdfs.length}
-              notesCount={notes.length}
-              flashcardsCount={flashcards.length}
-              quizCount={quizCount}
+              pdfCount={allStats.pdfs || pdfs.length}
+              notesCount={allStats.notes || notes.length}
+              flashcardsCount={allStats.flashcards || flashcards.length}
+              quizCount={allStats.quizzes || quizCount}
               overall={overallProgress}
+            learningInsights={learningInsights}
             />
           </section>
 
@@ -905,28 +1114,28 @@ export default function DashboardPage() {
             <SummaryBox
               icon="📄"
               label="PDFs"
-              value={String(pdfs.length)}
+              value={String(allStats.pdfs)}
               subtitle="PDFs"
               accent="border-purple-300/20 bg-purple-300/10"
             />
             <SummaryBox
               icon="📝"
               label="Notes"
-              value={String(notes.length)}
+              value={String(allStats.notes)}
               subtitle="Notes"
               accent="border-green-300/20 bg-green-300/10"
             />
             <SummaryBox
               icon="🧠"
-              label="Flashcards"
-              value={String(flashcards.length)}
-              subtitle="Flashcards"
+              label="Review Cards"
+              value={String(allStats.flashcards)}
+              subtitle="Active recall cards"
               accent="border-pink-300/20 bg-pink-300/10"
             />
             <SummaryBox
               icon="🧾"
               label="Quizzes"
-              value={String(quizCount)}
+              value={String(allStats.quizzes)}
               subtitle="Quizzes"
               accent="border-orange-300/20 bg-orange-300/10"
             />

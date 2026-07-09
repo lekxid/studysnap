@@ -5,98 +5,39 @@ import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
-import { loadJSON } from "@/lib/storage";
+import { getLearningInsights } from "@/lib/api";
 
-type PlannerItem = {
-  id: number;
-  title: string;
+type LearningTopic = {
   subject: string;
+  reviewed: number;
+  correct: number;
+  wrong: number;
+  accuracy: number;
+};
+
+type LearningTrend = {
   date: string;
+  reviews: number;
+  average_confidence: number;
+  correct: number;
+  wrong: number;
 };
 
-type Flashcard = {
-  id: number;
-  question: string;
-  answer: string;
+type LearningInsights = {
+  learning_score: number;
+  learning_index: number;
+  learning_index_today_change: number;
+  learning_index_message: string;
+  average_confidence: number;
+  cards_reviewed_today: number;
+  correct_today: number;
+  wrong_today: number;
+  study_streak: number;
+  weak_topics: LearningTopic[];
+  strong_topics: LearningTopic[];
+  ai_recommendation: string;
+  trend: LearningTrend[];
 };
-
-type QuizQuestion = {
-  id: number;
-  question: string;
-  options: string[];
-  correctIndex: number;
-};
-
-type NoteItem = {
-  id: number;
-  title: string;
-  content: string;
-};
-
-type SettingsState = {
-  learningMode: string;
-  knowledgeLevel: string;
-  progressSharing: string;
-  favoriteSubject: string;
-  selectedSubjects: string[];
-  dailyGoal: string;
-  notifications: string;
-};
-
-const defaultSettings: SettingsState = {
-  learningMode: "Clear Explain",
-  knowledgeLevel: "Medium",
-  progressSharing: "Private",
-  favoriteSubject: "",
-  selectedSubjects: ["Networking / IT", "Linux"],
-  dailyGoal: "Review 10 flashcards",
-  notifications: "Important only",
-};
-
-const weekActivity = [
-  { day: "Mon", value: 72 },
-  { day: "Tue", value: 42 },
-  { day: "Wed", value: 88 },
-  { day: "Thu", value: 54 },
-  { day: "Fri", value: 96 },
-  { day: "Sat", value: 64 },
-  { day: "Sun", value: 78 },
-];
-
-function safeReadArray<T>(key: string): T[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function readRoomCollections<T>(prefix: string): T[] {
-  if (typeof window === "undefined") return [];
-
-  const combined: T[] = [];
-
-  for (let index = 0; index < window.localStorage.length; index += 1) {
-    const key = window.localStorage.key(index);
-    if (!key || !key.startsWith(prefix)) continue;
-
-    combined.push(...safeReadArray<T>(key));
-  }
-
-  return combined;
-}
-
-function getAchievementState(value: boolean) {
-  return value
-    ? "border-amber-300/30 bg-amber-400/12 text-amber-100"
-    : "border-white/8 bg-white/[0.03] text-slate-400";
-}
 
 function MetricCard({
   label,
@@ -138,134 +79,105 @@ function ActionLink({
   );
 }
 
+function TopicCard({
+  topic,
+  tone,
+}: {
+  topic: LearningTopic;
+  tone: "weak" | "strong";
+}) {
+  const color =
+    tone === "weak"
+      ? "border-red-300/20 bg-red-400/10 text-red-100"
+      : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
+
+  return (
+    <div className={`rounded-[1.25rem] border p-4 ${color}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-white">{topic.subject}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-300">
+            {topic.reviewed} reviews · {topic.correct} correct · {topic.wrong} missed
+          </p>
+        </div>
+
+        <p className="text-sm font-black">{topic.accuracy}%</p>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full ${
+            tone === "weak" ? "bg-red-300/80" : "bg-emerald-300/80"
+          }`}
+          style={{ width: `${Math.max(5, topic.accuracy)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TrendBar({
+  item,
+}: {
+  item: LearningTrend;
+}) {
+  const value = Math.min(100, Math.max(4, item.reviews * 12));
+  const label = new Date(item.date).toLocaleDateString(undefined, {
+    weekday: "short",
+  });
+
+  return (
+    <div className="grid gap-2 text-center">
+      <div className="flex h-36 items-end rounded-2xl border border-white/8 bg-white/[0.03] p-2">
+        <div
+          className="w-full rounded-xl bg-gradient-to-t from-amber-300/80 to-cyan-300/80"
+          style={{ height: `${value}%` }}
+        />
+      </div>
+      <p className="text-xs font-black text-slate-400">{label}</p>
+      <p className="text-[11px] text-slate-500">{item.reviews}</p>
+    </div>
+  );
+}
+
 export default function ProgressPage() {
   const ready = useRequireAuth();
 
-  const [plannerItems, setPlannerItems] = useState<PlannerItem[]>([]);
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
-  const [notes, setNotes] = useState<NoteItem[]>([]);
-  const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+  const [insights, setInsights] = useState<LearningInsights | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
 
-    const savedSettings = loadJSON<SettingsState>(
-      "studysnap_settings",
-      defaultSettings
-    );
+    async function loadInsights() {
+      try {
+        setLoading(true);
+        setError("");
 
-    const globalFlashcards = safeReadArray<Flashcard>("studysnap_flashcards");
-    const roomFlashcards = readRoomCollections<Flashcard>(
-      "studysnap_flashcards_room_"
-    );
+        const data = await getLearningInsights();
+        setInsights(data as LearningInsights);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load progress.");
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    const globalQuizQuestions = safeReadArray<QuizQuestion>(
-      "studysnap_quiz_questions"
-    );
-    const roomQuizQuestions = readRoomCollections<QuizQuestion>(
-      "studysnap_quiz_questions_room_"
-    );
-
-    setSettings({
-      ...defaultSettings,
-      ...savedSettings,
-      selectedSubjects:
-        Array.isArray(savedSettings.selectedSubjects) &&
-        savedSettings.selectedSubjects.length > 0
-          ? savedSettings.selectedSubjects
-          : defaultSettings.selectedSubjects,
-    });
-
-    setPlannerItems(safeReadArray<PlannerItem>("studysnap_planner_items"));
-    setFlashcards([...globalFlashcards, ...roomFlashcards]);
-    setQuizQuestions([...globalQuizQuestions, ...roomQuizQuestions]);
-    setNotes(safeReadArray<NoteItem>("studysnap_notes"));
+    loadInsights();
   }, [ready]);
 
-  const totals = useMemo(() => {
-    const xp =
-      plannerItems.length * 12 +
-      flashcards.length * 5 +
-      quizQuestions.length * 8 +
-      notes.length * 6;
+  const accuracy = useMemo(() => {
+    const correct = insights?.correct_today || 0;
+    const wrong = insights?.wrong_today || 0;
+    const total = correct + wrong;
 
-    const studyItems =
-      plannerItems.length + flashcards.length + quizQuestions.length + notes.length;
+    return total > 0 ? Math.round((correct / total) * 100) : 0;
+  }, [insights]);
 
-    const streak = Math.max(1, Math.min(14, plannerItems.length + Math.ceil(flashcards.length / 4)));
-
-    const learningIndex = Math.min(
-      100,
-      Math.max(18, Math.round(xp / 8 + studyItems * 3))
-    );
-
-    return {
-      xp,
-      streak,
-      studyItems,
-      learningIndex,
-    };
-  }, [plannerItems, flashcards, quizQuestions, notes]);
-
-  const weakConcepts = useMemo(() => {
-    const subjectSeeds =
-      settings.selectedSubjects.length > 0
-        ? settings.selectedSubjects
-        : ["Study Basics", "Review Skills"];
-
-    const generated = subjectSeeds.slice(0, 4).map((subject, index) => {
-      const labels = [
-        "needs quick review",
-        "practice with examples",
-        "build confidence",
-        "connect to notes",
-      ];
-
-      return {
-        title: subject,
-        detail: labels[index] || "review again",
-        score: Math.max(35, 76 - index * 9),
-      };
-    });
-
-    return generated;
-  }, [settings.selectedSubjects]);
-
-  const aiRecommendation = useMemo(() => {
-    if (flashcards.length === 0 && notes.length === 0) {
-      return "Create a note or flashcard deck first so StudySnap can start tracking your learning pattern.";
-    }
-
-    if (quizQuestions.length === 0) {
-      return `Your next best action is: ${settings.dailyGoal}. After that, create a mini quiz to test understanding.`;
-    }
-
-    return `Focus on ${settings.favoriteSubject || settings.selectedSubjects[0] || "your weakest subject"} today using ${settings.learningMode}.`;
-  }, [flashcards.length, notes.length, quizQuestions.length, settings]);
-
-  const achievements = [
-    {
-      title: "First Study System",
-      detail: "Created study material inside StudySnap.",
-      unlocked: totals.studyItems > 0,
-    },
-    {
-      title: "Flashcard Builder",
-      detail: "Built at least 10 flashcards.",
-      unlocked: flashcards.length >= 10,
-    },
-    {
-      title: "Quiz Starter",
-      detail: "Created practice quiz questions.",
-      unlocked: quizQuestions.length > 0,
-    },
-    {
-      title: "Planner Ready",
-      detail: "Added study sessions to your planner.",
-      unlocked: plannerItems.length > 0,
-    },
-  ];
+  const trend = insights?.trend || [];
+  const weakTopics = insights?.weak_topics || [];
+  const strongTopics = insights?.strong_topics || [];
 
   if (!ready) {
     return (
@@ -278,49 +190,54 @@ export default function ProgressPage() {
   return (
     <AppShell
       title="Progress"
-      subtitle="Track your learning growth, weak concepts, daily focus, and StudySnap profile."
+      subtitle="Live learning growth from quizzes, flashcards, confidence, weak concepts, and StudySnap Brain."
     >
       <div className="content-grid">
+        {error ? (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+            {error}
+          </div>
+        ) : null}
+
         <section className="hero-grid">
           <div className="gold-card rounded-[2rem] p-6 sm:p-8">
-            <div className="gold-chip mb-4">Learning analytics</div>
+            <div className="gold-chip mb-4">Live learning analytics</div>
 
             <h3 className="panel-title text-white text-balance">
-              Your progress is now connected to your learning profile.
+              Your progress now updates from real study activity.
             </h3>
 
             <p className="panel-muted mt-4 max-w-2xl">
-              StudySnap uses your saved settings, subjects, notes, flashcards,
-              quizzes, and planner items to show a clearer view of your study
-              growth.
+              StudySnap reads your quiz answers, confidence, speed, correct answers,
+              missed questions, flashcards, and study streak to show where you stand.
             </p>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-4">
               <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
                 <p className="kpi-label">Learning Index</p>
                 <p className="mt-3 text-2xl font-black text-cyan-300">
-                  {totals.learningIndex}%
+                  {loading ? "..." : `${insights?.learning_index ?? 0}/1000`}
                 </p>
               </div>
 
               <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">XP</p>
+                <p className="kpi-label">Learning Score</p>
                 <p className="mt-3 text-2xl font-black text-amber-300">
-                  {totals.xp}
+                  {loading ? "..." : `${insights?.learning_score ?? 0}%`}
                 </p>
               </div>
 
               <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
                 <p className="kpi-label">Streak</p>
                 <p className="mt-3 text-2xl font-black text-emerald-300">
-                  🔥 {totals.streak}
+                  🔥 {insights?.study_streak ?? 0}
                 </p>
               </div>
 
               <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Mode</p>
-                <p className="mt-3 text-lg font-black text-violet-300">
-                  {settings.learningMode}
+                <p className="kpi-label">Confidence</p>
+                <p className="mt-3 text-2xl font-black text-violet-300">
+                  {insights?.average_confidence ?? 0}%
                 </p>
               </div>
             </div>
@@ -331,24 +248,25 @@ export default function ProgressPage() {
             <h3 className="panel-title text-white">Today’s smart action</h3>
 
             <p className="mt-4 text-sm leading-7 text-slate-300">
-              {aiRecommendation}
+              {insights?.ai_recommendation ||
+                "Start with a quiz or flashcard review so StudySnap can read your progress."}
             </p>
 
             <div className="mt-5 grid gap-3">
               <ActionLink
+                href="/quizzes"
+                title="Take a smart quiz"
+                subtitle="Updates weak and strong concepts"
+              />
+              <ActionLink
                 href="/flashcards"
                 title="Review flashcards"
-                subtitle={`${flashcards.length} cards available`}
+                subtitle="Build confidence and streak"
               />
               <ActionLink
-                href="/quizzes"
-                title="Practice quiz"
-                subtitle={`${quizQuestions.length} questions available`}
-              />
-              <ActionLink
-                href="/settings"
-                title="Edit learning profile"
-                subtitle="Update style, level, subjects, and daily goal"
+                href="/brain"
+                title="Open StudySnap Brain"
+                subtitle="See learning memory"
               />
             </div>
           </div>
@@ -356,28 +274,28 @@ export default function ProgressPage() {
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Saved Notes"
-            value={String(notes.length)}
-            detail="Notes available for study review."
+            label="Reviews Today"
+            value={String(insights?.cards_reviewed_today ?? 0)}
+            detail="Quiz questions and flashcard reviews completed today."
             tone="text-cyan-300"
           />
           <MetricCard
-            label="Flashcards"
-            value={String(flashcards.length)}
-            detail="Cards ready for active recall."
-            tone="text-amber-300"
-          />
-          <MetricCard
-            label="Quiz Questions"
-            value={String(quizQuestions.length)}
-            detail="Practice questions generated."
-            tone="text-violet-300"
-          />
-          <MetricCard
-            label="Planner Items"
-            value={String(plannerItems.length)}
-            detail="Scheduled study sessions."
+            label="Correct Today"
+            value={String(insights?.correct_today ?? 0)}
+            detail={`${accuracy}% accuracy today.`}
             tone="text-emerald-300"
+          />
+          <MetricCard
+            label="Needs Review"
+            value={String(insights?.wrong_today ?? 0)}
+            detail="Questions or cards missed today."
+            tone="text-red-300"
+          />
+          <MetricCard
+            label="Today Change"
+            value={`${insights?.learning_index_today_change ?? 0}`}
+            detail={insights?.learning_index_message || "Learning index will update as you study."}
+            tone="text-amber-300"
           />
         </section>
 
@@ -386,23 +304,17 @@ export default function ProgressPage() {
             <div className="gold-chip mb-4">Weekly activity</div>
             <h3 className="panel-title text-white">Study rhythm</h3>
             <p className="panel-muted mt-3">
-              A simple snapshot of your study consistency this week.
+              Real 7-day review activity from learning events.
             </p>
 
             <div className="mt-6 grid grid-cols-7 items-end gap-3">
-              {weekActivity.map((item) => (
-                <div key={item.day} className="grid gap-2 text-center">
-                  <div className="flex h-36 items-end rounded-2xl border border-white/8 bg-white/[0.03] p-2">
-                    <div
-                      className="w-full rounded-xl bg-gradient-to-t from-amber-300/80 to-cyan-300/80"
-                      style={{ height: `${item.value}%` }}
-                    />
-                  </div>
-                  <p className="text-xs font-black text-slate-400">
-                    {item.day}
-                  </p>
-                </div>
-              ))}
+              {trend.length ? (
+                trend.map((item) => <TrendBar key={item.date} item={item} />)
+              ) : (
+                <p className="col-span-7 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                  No weekly activity yet.
+                </p>
+              )}
             </div>
           </div>
 
@@ -410,95 +322,73 @@ export default function ProgressPage() {
             <div className="gold-chip mb-4">Weak concepts</div>
             <h3 className="panel-title text-white">Quick review targets</h3>
             <p className="panel-muted mt-3">
-              Based on your selected subjects and current study setup.
+              Based on your quiz and flashcard results.
             </p>
 
             <div className="mt-5 grid gap-3">
-              {weakConcepts.map((concept) => (
-                <div
-                  key={concept.title}
-                  className="rounded-[1.25rem] border border-white/8 bg-white/[0.03] p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-white">
-                        {concept.title}
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-400">
-                        {concept.detail}
-                      </p>
-                    </div>
-
-                    <p className="text-sm font-black text-amber-200">
-                      {concept.score}%
-                    </p>
-                  </div>
-
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-amber-300/80"
-                      style={{ width: `${concept.score}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+              {weakTopics.length ? (
+                weakTopics.map((topic) => (
+                  <TopicCard key={topic.subject} topic={topic} tone="weak" />
+                ))
+              ) : (
+                <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                  No weak topics yet. Take a quiz to activate this.
+                </p>
+              )}
             </div>
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="gold-card rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Profile connection</div>
-            <h3 className="panel-title text-white">Learning setup</h3>
+        <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Strong topics</div>
+            <h3 className="panel-title text-white">What you are building well</h3>
 
             <div className="mt-5 grid gap-3">
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Knowledge level</p>
-                <p className="mt-2 text-base font-black text-white">
-                  {settings.knowledgeLevel}
+              {strongTopics.length ? (
+                strongTopics.map((topic) => (
+                  <TopicCard key={topic.subject} topic={topic} tone="strong" />
+                ))
+              ) : (
+                <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                  Strong topics will appear after correct quiz or flashcard answers.
                 </p>
-              </div>
-
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Daily goal</p>
-                <p className="mt-2 text-base font-black text-white">
-                  {settings.dailyGoal}
-                </p>
-              </div>
-
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Progress sharing</p>
-                <p className="mt-2 text-base font-black text-white">
-                  {settings.progressSharing}
-                </p>
-              </div>
+              )}
             </div>
           </div>
 
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Achievements</div>
-            <h3 className="panel-title text-white">Milestones</h3>
-            <p className="panel-muted mt-3">
-              Unlock more achievements as you create and review study material.
-            </p>
+          <div className="gold-card rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Connected learning loop</div>
+            <h3 className="panel-title text-white">What StudySnap is tracking</h3>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {achievements.map((achievement) => (
-                <div
-                  key={achievement.title}
-                  className={`rounded-[1.25rem] border p-4 ${getAchievementState(
-                    achievement.unlocked
-                  )}`}
-                >
-                  <p className="text-sm font-black">
-                    {achievement.unlocked ? "🏆 " : "🔒 "}
-                    {achievement.title}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 opacity-80">
-                    {achievement.detail}
-                  </p>
-                </div>
-              ))}
+              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-white">Quiz answers</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Correct, wrong, confidence, and speed update learning memory.
+                </p>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-white">Weak concepts</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Missed and low-confidence areas become review targets.
+                </p>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-white">Strong concepts</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  Correct answers increase confidence and mastery.
+                </p>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-black text-white">Daily progress</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">
+                  The dashboard changes as the student studies.
+                </p>
+              </div>
             </div>
           </div>
         </section>
