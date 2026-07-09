@@ -114,8 +114,9 @@ Rules:
 2. If the retrieved context is not enough, use general educational knowledge, but say when the answer is based on general knowledge.
 3. Keep the answer clear, structured, and student-friendly.
 4. Explain difficult ideas step by step.
-5. When possible, connect the answer to the student's weak concepts, review needs, or next best action.
-6. Do not invent sources or pretend the retrieved context says something it does not say.
+5. Use the Brain Coach recommendation only if it clearly matches the student's current question or retrieved context.
+6. If the Brain Coach recommendation is unrelated, ignore it and suggest a next action based on the retrieved context instead.
+7. Do not invent sources or pretend the retrieved context says something it does not say.
 """.strip()
 
     user_prompt = f"""

@@ -1,3 +1,6 @@
+from collections import Counter
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.models.learning_event import LearningEvent
@@ -22,6 +25,35 @@ from app.services.brain.priority import build_brain_priority_result
 from app.services.brain.retrieval import retrieve_learning_context
 from app.services.brain.prompt_builder import build_brain_prompt, brain_prompt_to_dict
 from app.services.brain.answer import generate_brain_answer
+
+
+def _infer_study_room_id_from_sources(
+    sources: list[dict[str, Any]],
+    fallback_study_room_id: int | None = None,
+) -> int | None:
+    """
+    Infer the most likely study room from retrieved sources.
+
+    This prevents global coach suggestions from leaking into answers
+    when the student asks about a specific PDF, note, flashcard, or memory.
+    """
+
+    if fallback_study_room_id is not None:
+        return fallback_study_room_id
+
+    room_ids: list[int] = []
+
+    for source in sources:
+        metadata = source.get("metadata") or {}
+        room_id = metadata.get("study_room_id")
+
+        if isinstance(room_id, int):
+            room_ids.append(room_id)
+
+    if not room_ids:
+        return None
+
+    return Counter(room_ids).most_common(1)[0][0]
 
 
 class BrainService:
@@ -58,18 +90,30 @@ class BrainService:
             study_room_id=study_room_id,
             limit=limit,
         )
+        sources = retrieval.get("results", [])
 
-        learning_profile = self.get_learning_profile(study_room_id=study_room_id)
-        coach = self.get_coach(study_room_id=study_room_id)
+        effective_study_room_id = _infer_study_room_id_from_sources(
+            sources=sources,
+            fallback_study_room_id=study_room_id,
+        )
+
+        learning_profile = self.get_learning_profile(
+            study_room_id=effective_study_room_id
+        )
+        coach = self.get_coach(study_room_id=effective_study_room_id)
 
         prompt = build_brain_prompt(
             question=question,
-            retrieval=retrieval.get("results", []),
+            retrieval=sources,
             learning_profile=learning_profile,
             coach=coach,
         )
 
-        return brain_prompt_to_dict(prompt)
+        result = brain_prompt_to_dict(prompt)
+        result["metadata"]["requested_study_room_id"] = study_room_id
+        result["effective_study_room_id"] = effective_study_room_id
+
+        return result
 
     def answer(
         self,
@@ -84,8 +128,15 @@ class BrainService:
         )
         sources = retrieval.get("results", [])
 
-        learning_profile = self.get_learning_profile(study_room_id=study_room_id)
-        coach = self.get_coach(study_room_id=study_room_id)
+        effective_study_room_id = _infer_study_room_id_from_sources(
+            sources=sources,
+            fallback_study_room_id=study_room_id,
+        )
+
+        learning_profile = self.get_learning_profile(
+            study_room_id=effective_study_room_id
+        )
+        coach = self.get_coach(study_room_id=effective_study_room_id)
 
         prompt = build_brain_prompt(
             question=question,
@@ -101,7 +152,8 @@ class BrainService:
             "sources": sources,
             "metadata": {
                 "query": question,
-                "study_room_id": study_room_id,
+                "requested_study_room_id": study_room_id,
+                "effective_study_room_id": effective_study_room_id,
                 "source_count": len(sources),
                 "retrieval_count": prompt.metadata.get("retrieval_count"),
                 "used_retrieval_count": prompt.metadata.get("used_retrieval_count"),
