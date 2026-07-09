@@ -63,7 +63,7 @@ class BrainService:
 
         prompt = build_brain_prompt(
             question=question,
-            retrieval=retrieval.get("items", []),
+            retrieval=retrieval.get("results", []),
             learning_profile=learning_profile,
             coach=coach,
         )
