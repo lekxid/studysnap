@@ -9,7 +9,7 @@ import {
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
-import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
+import { askAi, createNote, deleteNote, downloadNotePdf, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
 import NotesAIWorkspace, { AIChatMessage, AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
@@ -55,6 +55,7 @@ export default function NotesPage() {
   const [aiChatMessages, setAiChatMessages] = useState<AIChatMessage[]>([]);
   const [aiChatInput, setAiChatInput] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const lastSavedNoteRef = useRef<{
@@ -329,6 +330,19 @@ export default function NotesPage() {
     }
   }
 
+
+  async function handleDownloadNotePdf(noteId: number) {
+    try {
+      setDownloadingId(noteId);
+      setError("");
+
+      await downloadNotePdf(noteId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download PDF.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   function addAIHistoryItem(
     itemTitle: string,
@@ -905,8 +919,10 @@ Answer clearly in a helpful student-friendly way.`;
           filteredNotes={filteredNotes}
           loadingNotes={loadingNotes}
           deletingId={deletingId}
+          downloadingId={downloadingId}
           onQueryChange={setQuery}
           onDeleteNote={handleDeleteNote}
+          onDownloadNote={handleDownloadNotePdf}
           onSelectNote={(note) => {
             setEditingNoteId(note.id);
             setTitle(note.title);

@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from io import BytesIO
+
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -7,6 +10,7 @@ from app.models.note import Note
 from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.utils.deps import get_current_user
+from app.services.export.pdf import build_note_pdf_bytes, safe_pdf_filename
 
 router = APIRouter(tags=["Notes"])
 
@@ -20,6 +24,44 @@ class NoteCreate(BaseModel):
 class NoteUpdate(BaseModel):
     title: str
     content: str
+
+
+
+@router.get("/{note_id}/download-pdf")
+def download_note_pdf(
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    note = db.query(Note).filter(
+        Note.id == note_id,
+        Note.owner_id == current_user.id
+    ).first()
+
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    room = db.query(StudyRoom).filter(
+        StudyRoom.id == note.study_room_id,
+        StudyRoom.owner_id == current_user.id
+    ).first()
+
+    pdf_bytes = build_note_pdf_bytes(
+        title=note.title,
+        content=note.content,
+        room_name=room.name if room else None,
+        subject=room.subject if room else None,
+    )
+
+    filename = safe_pdf_filename(note.title)
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
 
 
 @router.get("/{study_room_id}")

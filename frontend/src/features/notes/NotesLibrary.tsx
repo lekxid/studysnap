@@ -6,8 +6,10 @@ type Props = {
   filteredNotes: NoteItem[];
   loadingNotes: boolean;
   deletingId: number | null;
+  downloadingId: number | null;
   onQueryChange: (value: string) => void;
   onDeleteNote: (noteId: number) => void;
+  onDownloadNote: (noteId: number) => void;
   onSelectNote: (note: NoteItem) => void;
 };
 
@@ -37,8 +39,10 @@ export default function NotesLibrary({
   filteredNotes,
   loadingNotes,
   deletingId,
+  downloadingId,
   onQueryChange,
   onDeleteNote,
+  onDownloadNote,
   onSelectNote,
 }: Props) {
   return (
@@ -99,16 +103,29 @@ export default function NotesLibrary({
                     </div>
                   </div>
 
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDeleteNote(note.id);
-                    }}
-                    disabled={deletingId === note.id}
-                    className="shrink-0 rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {deletingId === note.id ? "Deleting..." : "Delete"}
-                  </button>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDownloadNote(note.id);
+                      }}
+                      disabled={downloadingId === note.id}
+                      className="rounded-xl border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {downloadingId === note.id ? "Downloading..." : "PDF"}
+                    </button>
+
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDeleteNote(note.id);
+                      }}
+                      disabled={deletingId === note.id}
+                      className="rounded-xl border border-red-500/30 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deletingId === note.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
 
                 <p className="mt-3 line-clamp-3 text-sm leading-6 text-white/70">

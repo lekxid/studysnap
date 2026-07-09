@@ -407,6 +407,51 @@ export async function deleteNote(noteId: number) {
   });
 }
 
+export async function downloadNotePdf(noteId: number) {
+  const token = getToken();
+
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(`${API_BASE}/api/notes/${noteId}/download-pdf`, {
+    method: "GET",
+    headers,
+  });
+
+  if (!res.ok) {
+    let message = "Failed to download PDF.";
+
+    try {
+      const data = await res.json();
+      message = getErrorMessage(data);
+    } catch {
+      message = await res.text();
+    }
+
+    throw new Error(message || "Failed to download PDF.");
+  }
+
+  const blob = await res.blob();
+  const contentDisposition = res.headers.get("content-disposition") || "";
+  const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  const filename = filenameMatch?.[1] || `studysnap-note-${noteId}.pdf`;
+
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
+}
+
 export async function getFlashcards(studyRoomId: number) {
   return apiFetch(`/api/flashcards/${studyRoomId}`);
 }
