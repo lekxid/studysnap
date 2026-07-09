@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getStudyRooms } from "@/lib/api";
+import {
+  ensureProjectRoomIdInUrl,
+  getActiveProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 
 type StudyRoom = {
   id: number;
@@ -28,13 +33,14 @@ export default function ConnectedProjectBanner({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const requestedRoomId = Number(params.get("roomId"));
+    const requestedRoomId = getActiveProjectRoomId();
 
-    if (!Number.isFinite(requestedRoomId) || requestedRoomId <= 0) {
+    if (requestedRoomId === null) {
       return;
     }
 
+    saveProjectRoomId(requestedRoomId);
+    ensureProjectRoomIdInUrl(requestedRoomId);
     setRoomId(requestedRoomId);
 
     let mounted = true;

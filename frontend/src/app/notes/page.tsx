@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
+import {
+  ensureProjectRoomIdInUrl,
+  getActiveProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
 import NotesStats from "@/features/notes/NotesStats";
@@ -123,11 +128,15 @@ export default function NotesPage() {
 
         setRooms(roomList);
 
-        const params = new URLSearchParams(window.location.search);
-        const requestedRoomId = Number(params.get("roomId"));
-        const matchingRoom = roomList.find((room) => room.id === requestedRoomId);
+        const requestedRoomId = getActiveProjectRoomId();
+        const matchingRoom =
+          requestedRoomId !== null
+            ? roomList.find((room) => room.id === requestedRoomId)
+            : null;
 
         if (matchingRoom) {
+          saveProjectRoomId(matchingRoom.id);
+          ensureProjectRoomIdInUrl(matchingRoom.id);
           setSelectedRoomId(matchingRoom.id);
         } else if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);

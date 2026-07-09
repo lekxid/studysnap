@@ -9,6 +9,7 @@ import PDFList from "@/components/pdf/PDFList";
 import PDFChat from "@/components/pdf/PDFChat";
 import RoomAIAssistant from "@/components/room-ai/RoomAIAssistant";
 import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
+import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
@@ -287,6 +288,7 @@ export default function StudyRoomDetailPage() {
 
   useEffect(() => {
     if (!ready) return;
+    saveProjectRoomId(studyRoomId);
     loadRoom();
     loadPdfs();
   }, [ready, studyRoomId]);

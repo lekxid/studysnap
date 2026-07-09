@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
+import {
+  ensureProjectRoomIdInUrl,
+  getActiveProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
@@ -39,10 +44,11 @@ export default function QuizzesPage() {
   useEffect(() => {
     if (!ready) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const requestedRoomId = Number(params.get("roomId"));
+    const requestedRoomId = getActiveProjectRoomId();
 
-    if (Number.isFinite(requestedRoomId) && requestedRoomId > 0) {
+    if (requestedRoomId !== null) {
+      saveProjectRoomId(requestedRoomId);
+      ensureProjectRoomIdInUrl(requestedRoomId);
       setConnectedRoomId(requestedRoomId);
     } else {
       setConnectedRoomId(null);
