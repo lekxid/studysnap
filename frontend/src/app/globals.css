@@ -634,3 +634,201 @@ select option:hover {
   background: #1e293b;
   color: #ffffff;
 }
+
+/* StudySnap global hover feedback polish */
+a,
+button,
+[role="button"],
+.interactive-hover {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+a[href],
+button:not(:disabled),
+[role="button"],
+.interactive-hover {
+  cursor: pointer;
+}
+
+a[href]:hover {
+  color: rgb(253 224 71);
+}
+
+button:not(:disabled):hover,
+[role="button"]:hover,
+.interactive-hover:hover {
+  transform: translateY(-1px);
+}
+
+.premium-card:hover,
+.gold-card:hover {
+  border-color: rgba(250, 204, 21, 0.28);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.32);
+}
+
+.tag-chip:hover {
+  border-color: rgba(250, 204, 21, 0.4);
+  background: rgba(250, 204, 21, 0.14);
+  color: rgb(254 249 195);
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(250, 204, 21, 0.22);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.1);
+}
+
+/* StudySnap hover feedback v2 — stronger visible mouse-over states */
+aside nav a {
+  position: relative;
+  border: 1px solid transparent;
+  overflow: hidden;
+}
+
+aside nav a:hover {
+  transform: translateX(5px) scale(1.01) !important;
+  border-color: rgba(250, 204, 21, 0.55) !important;
+  background:
+    linear-gradient(135deg, rgba(250, 204, 21, 0.24), rgba(34, 211, 238, 0.1)) !important;
+  color: rgb(254, 249, 195) !important;
+  box-shadow:
+    0 0 0 1px rgba(250, 204, 21, 0.18),
+    0 14px 34px rgba(250, 204, 21, 0.16),
+    inset 0 0 22px rgba(250, 204, 21, 0.08) !important;
+}
+
+aside nav a:hover span:first-child {
+  background: rgb(250, 204, 21) !important;
+  color: rgb(0, 0, 0) !important;
+  box-shadow: 0 0 26px rgba(250, 204, 21, 0.5) !important;
+}
+
+aside nav a:hover span:last-child {
+  color: rgb(254, 249, 195) !important;
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.55);
+}
+
+main a[href]:hover,
+main button:not(:disabled):hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 0 1px rgba(250, 204, 21, 0.18),
+    0 14px 38px rgba(0, 0, 0, 0.25);
+}
+
+main a[href]:active,
+main button:not(:disabled):active,
+aside nav a:active {
+  transform: scale(0.98) !important;
+}
+
+.premium-button:hover {
+  transform: translateY(-2px) scale(1.01) !important;
+  box-shadow:
+    0 18px 40px rgba(34, 211, 238, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.16) !important;
+}
+
+.gold-chip:hover,
+.tag-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(250, 204, 21, 0.55) !important;
+  background: rgba(250, 204, 21, 0.16) !important;
+  color: rgb(254, 249, 195) !important;
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.16);
+}
+
+/* StudySnap dashboard sharpness polish */
+main a,
+main button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+main a[href],
+main button:not(:disabled) {
+  outline: none;
+}
+
+main a[href]:focus-visible,
+main button:not(:disabled):focus-visible,
+aside nav a:focus-visible {
+  outline: 3px solid rgba(250, 204, 21, 0.75);
+  outline-offset: 3px;
+}
+
+/* Make dashboard/action cards feel sharper and more clickable */
+main a[href][class*="rounded"],
+main button[class*="rounded"] {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+main a[href][class*="rounded"]:hover,
+main button[class*="rounded"]:not(:disabled):hover {
+  transform: translateY(-3px) scale(1.015) !important;
+  border-color: rgba(250, 204, 21, 0.5) !important;
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(250, 204, 21, 0.16),
+    inset 0 0 28px rgba(250, 204, 21, 0.06) !important;
+}
+
+/* Sharper panels */
+main [class*="border-white/10"][class*="rounded"] {
+  border-color: rgba(255, 255, 255, 0.13);
+}
+
+main [class*="bg-[#0a1022]"],
+main [class*="bg-[#07101b]"],
+main [class*="bg-[#08101f]"] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 50px rgba(0, 0, 0, 0.24);
+}
+
+/* Make right dashboard/progress cards cleaner */
+main [class*="rounded-2xl"]:hover {
+  border-color: rgba(250, 204, 21, 0.24);
+}
+
+/* Better search/input sharpness */
+input,
+textarea,
+select {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(250, 204, 21, 0.32) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(34, 211, 238, 0.65) !important;
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.11),
+    0 12px 32px rgba(0, 0, 0, 0.24) !important;
+}
+
+/* Make text links obviously active on hover */
+main a[href]:hover span,
+main a[href]:hover p,
+main a[href]:hover h3,
+main a[href]:hover h4 {
+  color: rgb(254, 249, 195);
+}

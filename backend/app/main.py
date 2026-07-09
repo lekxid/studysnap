@@ -18,6 +18,7 @@ from app.routes.planner import router as planner_router
 from app.routes.pdf_documents import router as pdf_documents_router
 from app.routes.search import router as search_router
 from app.routes.brain import router as brain_router
+from app.routes.smart_organizer import router as smart_organizer_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -45,6 +46,7 @@ app.include_router(planner_router, prefix="/api/planner")
 app.include_router(pdf_documents_router, prefix="/api/pdfs")
 app.include_router(search_router, prefix="/api/search")
 app.include_router(brain_router, prefix="/api/brain")
+app.include_router(smart_organizer_router, prefix="/api/smart-organizer")
 
 
 @app.get("/")

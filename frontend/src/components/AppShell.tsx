@@ -16,6 +16,7 @@ const navItems = [
   { href: "/dashboard", label: "Home", icon: "⌂" },
   { href: "/onboarding", label: "Onboarding", icon: "◎" },
   { href: "/study-rooms", label: "Study Rooms", icon: "📁" },
+  { href: "/study-rooms/organize", label: "Smart Organizer", icon: "🗂️" },
   { href: "/notes", label: "Notes", icon: "▣" },
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
   { href: "/quizzes", label: "Quizzes", icon: "▤" },
@@ -26,6 +27,14 @@ const navItems = [
   { href: "/groups", label: "Groups", icon: "👥" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ];
+
+function isNavItemActive(pathname: string, href: string) {
+  if (href === "/study-rooms") {
+    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 const projectAwareNavHrefs = new Set([
   "/notes",
@@ -109,8 +118,7 @@ export default function AppShell({
 
         <nav className="mt-7 space-y-1.5">
           {navItems.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active = isNavItemActive(pathname, item.href);
 
             const connectedHref = getConnectedHref(item.href);
 
@@ -212,9 +220,7 @@ export default function AppShell({
             <div className="border-t border-white/10 bg-[#061018] px-4 py-4 lg:hidden">
               <nav className="grid gap-2 sm:grid-cols-2">
                 {navItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
+                  const active = isNavItemActive(pathname, item.href);
 
                   const connectedHref = getConnectedHref(item.href);
 

@@ -13,3 +13,4 @@ from app.models.ai_message import AIMessage
 from app.models.learning_event import LearningEvent
 from app.models.brain_memory import BrainMemory
 from app.models.brain_answer_history import BrainAnswerHistory
+from app.models.study_material import StudyMaterial

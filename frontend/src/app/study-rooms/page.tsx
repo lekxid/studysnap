@@ -1,43 +1,57 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
-import { createStudyRoom, getStudyRooms } from "@/lib/api";
+import {
+  createStudyRoom,
+  deleteStudyRoom,
+  getStudyRooms,
+  updateStudyRoom,
+} from "@/lib/api";
+import useRequireAuth from "@/hooks/useRequireAuth";
+import {
+  getSavedProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 
 type StudyRoom = {
   id: number;
   name: string;
   subject: string;
-  description?: string;
+  description?: string | null;
+  owner_id?: number;
 };
 
+function getRoomDescription(room: StudyRoom | null) {
+  if (!room) return "No room selected yet.";
+  return room.description?.trim() || "Open this topic workspace and start learning.";
+}
+
 export default function StudyRoomsPage() {
+  const ready = useRequireAuth();
   const router = useRouter();
+
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+
+  const [newName, setNewName] = useState("");
+  const [newSubject, setNewSubject] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+
+  const [editName, setEditName] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [savingNew, setSavingNew] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const filteredRooms = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) return rooms;
-
-    return rooms.filter((room) =>
-      [room.name, room.subject, room.description || ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [rooms, search]);
 
   async function loadRooms() {
     try {
@@ -45,272 +59,526 @@ export default function StudyRoomsPage() {
       setError("");
 
       const data = await getStudyRooms();
-      setRooms(Array.isArray(data) ? data : []);
+      const roomList: StudyRoom[] = Array.isArray(data) ? data : [];
+
+      setRooms(roomList);
+
+      const savedRoomId = getSavedProjectRoomId();
+      const savedRoomExists =
+        savedRoomId !== null && roomList.some((room) => room.id === savedRoomId);
+
+      const nextSelectedId =
+        savedRoomExists && savedRoomId !== null
+          ? savedRoomId
+          : roomList[0]?.id || null;
+
+      setSelectedRoomId(nextSelectedId);
+
+      if (nextSelectedId !== null) {
+        saveProjectRoomId(nextSelectedId);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load projects.");
+      setError(err instanceof Error ? err.message : "Failed to load rooms.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCreateRoom() {
-    if (!name.trim()) {
-      setError("Enter a project name.");
+  useEffect(() => {
+    if (!ready) return;
+    loadRooms();
+  }, [ready]);
+
+  const selectedRoom = useMemo(() => {
+    return rooms.find((room) => room.id === selectedRoomId) || null;
+  }, [rooms, selectedRoomId]);
+
+  useEffect(() => {
+    if (!selectedRoom) {
+      setEditName("");
+      setEditSubject("");
+      setEditDescription("");
       return;
     }
 
-    if (!subject.trim()) {
+    setEditName(selectedRoom.name || "");
+    setEditSubject(selectedRoom.subject || "");
+    setEditDescription(selectedRoom.description || "");
+  }, [selectedRoom]);
+
+  const filteredRooms = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    if (!q) return rooms;
+
+    return rooms.filter((room) => {
+      return [room.name, room.subject, room.description || ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [rooms, query]);
+
+  function selectRoom(roomId: number) {
+    setSelectedRoomId(roomId);
+    saveProjectRoomId(roomId);
+    setMessage("Room selected.");
+    window.setTimeout(() => setMessage(""), 1200);
+  }
+
+  function openRoom(roomId: number) {
+    saveProjectRoomId(roomId);
+    router.push(`/study-rooms/${roomId}`);
+  }
+
+  async function handleCreateRoom() {
+    if (!newName.trim()) {
+      setError("Enter a room name.");
+      return;
+    }
+
+    if (!newSubject.trim()) {
       setError("Enter a subject.");
       return;
     }
 
     try {
-      setCreating(true);
+      setSavingNew(true);
       setError("");
+      setMessage("");
 
-      const room = await createStudyRoom(name.trim(), subject.trim(), description.trim());
+      const created = (await createStudyRoom(
+        newName.trim(),
+        newSubject.trim(),
+        newDescription.trim() || undefined
+      )) as StudyRoom;
 
-      setName("");
-      setSubject("");
-      setDescription("");
-      setShowCreate(false);
+      setRooms((current) => [created, ...current]);
+      setSelectedRoomId(created.id);
+      saveProjectRoomId(created.id);
 
-      await loadRooms();
-
-      if (room?.id) {
-        router.push(`/study-rooms/${room.id}`);
-      }
+      setNewName("");
+      setNewSubject("");
+      setNewDescription("");
+      setMessage("Room created and selected.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create project.");
+      setError(err instanceof Error ? err.message : "Failed to create room.");
     } finally {
-      setCreating(false);
+      setSavingNew(false);
     }
   }
 
-  useEffect(() => {
-    loadRooms();
-  }, []);
+  async function handleUpdateRoom() {
+    if (!selectedRoom) return;
+
+    if (!editName.trim()) {
+      setError("Room name cannot be empty.");
+      return;
+    }
+
+    if (!editSubject.trim()) {
+      setError("Subject cannot be empty.");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setError("");
+      setMessage("");
+
+      const updated = (await updateStudyRoom(
+        selectedRoom.id,
+        editName.trim(),
+        editSubject.trim(),
+        editDescription.trim() || undefined
+      )) as StudyRoom;
+
+      setRooms((current) =>
+        current.map((room) => (room.id === updated.id ? updated : room))
+      );
+
+      setSelectedRoomId(updated.id);
+      saveProjectRoomId(updated.id);
+      setMessage("Room updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update room.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleDeleteRoom() {
+    if (!selectedRoom) return;
+
+    const confirmed = window.confirm(
+      `Delete "${selectedRoom.name}"? This cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      setError("");
+      setMessage("");
+
+      await deleteStudyRoom(selectedRoom.id);
+
+      const nextRooms = rooms.filter((room) => room.id !== selectedRoom.id);
+      const nextSelectedId = nextRooms[0]?.id || null;
+
+      setRooms(nextRooms);
+      setSelectedRoomId(nextSelectedId);
+
+      if (nextSelectedId !== null) {
+        saveProjectRoomId(nextSelectedId);
+      }
+
+      setMessage("Room deleted.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete room.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-black p-6 text-white">
+        Checking authentication...
+      </div>
+    );
+  }
 
   return (
     <AppShell
-      title="Projects"
-      subtitle="Your personal AI study workspaces"
+      title="Study Rooms"
+      subtitle="Choose a topic, search your rooms, change subjects, and open the workspace you want to study."
     >
-      <div className="space-y-6">
-        <section className="overflow-hidden rounded-[2rem] border border-yellow-400/25 bg-gradient-to-br from-yellow-400/10 via-slate-950 to-slate-950 p-6 shadow-2xl shadow-yellow-500/10 sm:p-8">
-          <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-            <div>
-              <div className="mb-4 inline-flex rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-xs font-black text-yellow-200">
-                📁 StudySnap Projects
+      <div className="content-grid">
+        <section className="hero-grid">
+          <div className="gold-card rounded-[2rem] p-6 sm:p-8">
+            <div className="gold-chip mb-4">Room hub</div>
+
+            <h3 className="panel-title text-white text-balance">
+              Pick a topic and start learning from everything inside it.
+            </h3>
+
+            <p className="panel-muted mt-4 max-w-2xl">
+              Rooms act like study folders. Each topic can hold PDFs, notes,
+              flashcards, quizzes, planner sessions, and AI learning history.
+            </p>
+
+            <div className="mt-7 grid gap-4 sm:grid-cols-4">
+              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                <p className="kpi-label">Rooms</p>
+                <p className="mt-3 text-2xl font-black text-cyan-300">
+                  {rooms.length}
+                </p>
               </div>
 
-              <h2 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
-                Everything you study lives in a project.
-              </h2>
-
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-                Create a project for each course, exam, or topic. Each project keeps its own AI chats, PDFs, notes, flashcards, quizzes, planner, and learning memory.
-              </p>
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(true)}
-                  className="rounded-2xl bg-yellow-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-yellow-300"
-                >
-                  + New Project
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => document.getElementById("project-search")?.focus()}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:border-yellow-400/40"
-                >
-                  🔎 Search Projects
-                </button>
+              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                <p className="kpi-label">Selected</p>
+                <p className="mt-3 line-clamp-1 text-lg font-black text-amber-300">
+                  {selectedRoom?.name || "None"}
+                </p>
               </div>
-            </div>
 
-            <div className="rounded-[2rem] border border-yellow-400/20 bg-black/25 p-6">
-              <p className="text-sm font-bold text-yellow-200">Project Brain</p>
-              <div className="mt-5 space-y-4 text-sm text-slate-300">
-                <p>✅ AI chats stay inside each project</p>
-                <p>✅ PDFs, notes, and flashcards stay organized</p>
-                <p>✅ Future memory will learn per project</p>
-                <p>✅ Students always know where to continue</p>
+              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                <p className="kpi-label">Subject</p>
+                <p className="mt-3 line-clamp-1 text-lg font-black text-violet-300">
+                  {selectedRoom?.subject || "Not set"}
+                </p>
+              </div>
+
+              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                <p className="kpi-label">Organizer</p>
+                <p className="mt-3 text-lg font-black text-emerald-300">
+                  Ready
+                </p>
               </div>
             </div>
           </div>
+
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Smart upload</div>
+            <h3 className="panel-title text-white">Auto-organize materials</h3>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              Upload many files, screenshots, PDFs, or long notes and let
+              StudySnap create rooms by topic.
+            </p>
+
+            <Link
+              href="/study-rooms/organize"
+              className="premium-button mt-5 inline-flex w-full justify-center rounded-[1.2rem] px-5 py-3 text-sm font-black"
+            >
+              Open Smart Organizer
+            </Link>
+          </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 items-center gap-3 rounded-2xl border border-yellow-400/20 bg-black/30 px-4 py-3">
-              <span className="text-yellow-300">🔎</span>
+        <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Choose room</div>
+            <h3 className="panel-title text-white">Search or select topic</h3>
+
+            <div className="mt-5 grid gap-4">
               <input
-                id="project-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search any project, subject, or description..."
-                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                className="rounded-[1.2rem] px-4 py-3.5"
+                placeholder="Search rooms like Linux, Cardiology, Physics..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
               />
-            </div>
 
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={loadRooms}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-white hover:border-yellow-400/40"
+              <select
+                className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
+                value={selectedRoomId ?? ""}
+                onChange={(event) => selectRoom(Number(event.target.value))}
+                disabled={rooms.length === 0}
               >
-                Refresh
-              </button>
+                {rooms.length === 0 ? (
+                  <option value="">No rooms yet</option>
+                ) : (
+                  rooms.map((room) => (
+                    <option
+                      key={room.id}
+                      value={room.id}
+                      className="bg-slate-950 text-white"
+                    >
+                      {room.name} — {room.subject}
+                    </option>
+                  ))
+                )}
+              </select>
 
-              <button
-                type="button"
-                onClick={() => setShowCreate((value) => !value)}
-                className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-black text-slate-950 hover:bg-yellow-300"
-              >
-                {showCreate ? "Close" : "+ Create"}
-              </button>
-            </div>
-          </div>
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                  Selected room
+                </p>
 
-          {showCreate ? (
-            <div className="mt-5 rounded-[1.5rem] border border-yellow-400/20 bg-black/25 p-5">
-              <h3 className="text-xl font-black text-white">Create a new project</h3>
-              <p className="mt-1 text-sm text-slate-400">
-                Example: Nursing Fundamentals, Anatomy, Pharmacology, Math Exam Prep.
-              </p>
+                <h4 className="mt-3 text-2xl font-black text-white">
+                  {selectedRoom?.name || "No room selected"}
+                </h4>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Project name"
-                  className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
-                />
+                <p className="mt-2 text-sm font-bold text-amber-200">
+                  {selectedRoom?.subject || "Choose or create a subject"}
+                </p>
 
-                <input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Subject"
-                  className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
-                />
+                <p className="mt-3 text-sm leading-7 text-slate-400">
+                  {getRoomDescription(selectedRoom)}
+                </p>
 
-                <input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Project instructions or description"
-                  className="rounded-xl border border-white/10 bg-black px-4 py-3 text-white outline-none placeholder:text-slate-500"
-                />
-              </div>
-
-              <button
-                onClick={handleCreateRoom}
-                disabled={creating}
-                className="mt-5 rounded-xl bg-yellow-400 px-5 py-3 font-black text-slate-950 transition hover:bg-yellow-300 disabled:opacity-60"
-              >
-                {creating ? "Creating..." : "Create Project"}
-              </button>
-            </div>
-          ) : null}
-
-          {error ? (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-              {error}
-            </div>
-          ) : null}
-        </section>
-
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
-            <p className="text-sm font-bold text-yellow-200">Total Projects</p>
-            <p className="mt-2 text-4xl font-black text-white">{rooms.length}</p>
-          </div>
-
-          <div className="rounded-3xl border border-blue-400/20 bg-blue-400/10 p-5">
-            <p className="text-sm font-bold text-blue-200">Project AI</p>
-            <p className="mt-2 text-4xl font-black text-white">On</p>
-          </div>
-
-          <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-5">
-            <p className="text-sm font-bold text-emerald-200">Knowledge</p>
-            <p className="mt-2 text-4xl font-black text-white">Ready</p>
-          </div>
-
-          <div className="rounded-3xl border border-pink-400/20 bg-pink-400/10 p-5">
-            <p className="text-sm font-bold text-pink-200">Memory</p>
-            <p className="mt-2 text-4xl font-black text-white">Soon</p>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-2xl font-black text-white">Your Projects</h3>
-              <p className="mt-1 text-sm text-slate-400">
-                Open a project to continue learning.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {loading ? (
-              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-slate-300">
-                Loading projects...
-              </div>
-            ) : filteredRooms.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-yellow-400/30 bg-yellow-400/10 p-6 text-yellow-100">
-                No projects found. Create one to begin.
-              </div>
-            ) : (
-              filteredRooms.map((room) => (
-                <Link
-                  key={room.id}
-                  href={`/study-rooms/${room.id}`}
-                  className="group rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 transition hover:-translate-y-1 hover:border-yellow-400/40 hover:bg-yellow-400/10"
+                <button
+                  type="button"
+                  onClick={() => selectedRoom && openRoom(selectedRoom.id)}
+                  disabled={!selectedRoom}
+                  className="premium-button mt-5 w-full rounded-[1.2rem] px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-3 text-2xl">
-                      📁
-                    </div>
-
-                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-bold text-yellow-200">
-                      Project
-                    </span>
-                  </div>
-
-                  <div className="mt-5 rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-xs font-black text-yellow-200">
-                    {room.subject}
-                  </div>
-
-                  <h3 className="mt-4 line-clamp-2 break-words text-2xl font-black leading-tight text-white">
-                    {room.name}
-                  </h3>
-
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300">
-                    {room.description || "Open this project workspace."}
-                  </p>
-
-                  <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="rounded-2xl bg-black/25 p-3 text-slate-300">
-                      PDFs
-                    </div>
-                    <div className="rounded-2xl bg-black/25 p-3 text-slate-300">
-                      Notes
-                    </div>
-                    <div className="rounded-2xl bg-black/25 p-3 text-slate-300">
-                      AI
-                    </div>
-                  </div>
-
-                  <p className="mt-5 text-sm font-black text-yellow-300">
-                    Open project →
-                  </p>
-                </Link>
-              ))
-            )}
+                  Open workspace
+                </button>
+              </div>
+            </div>
           </div>
+
+          <div className="content-grid">
+            <div className="premium-card gold-border rounded-[2rem] p-6">
+              <div className="gold-chip mb-4">Edit selected room</div>
+              <h3 className="panel-title text-white">Change name or subject</h3>
+              <p className="panel-muted mt-3">
+                This fixes the issue where you could not change the dashboard
+                subject. Update the selected room here.
+              </p>
+
+              {!selectedRoom ? (
+                <div className="empty-state mt-5">
+                  Select a room first.
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-4">
+                  <input
+                    className="rounded-[1.2rem] px-4 py-3.5"
+                    placeholder="Room name"
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                  />
+
+                  <input
+                    className="rounded-[1.2rem] px-4 py-3.5"
+                    placeholder="Subject, example: Linux"
+                    value={editSubject}
+                    onChange={(event) => setEditSubject(event.target.value)}
+                  />
+
+                  <textarea
+                    className="min-h-[110px] rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
+                    placeholder="Description"
+                    value={editDescription}
+                    onChange={(event) => setEditDescription(event.target.value)}
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleUpdateRoom}
+                      disabled={savingEdit}
+                      className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingEdit ? "Saving..." : "Save changes"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDeleteRoom}
+                      disabled={deleting}
+                      className="rounded-[1.2rem] border border-red-300/20 bg-red-500/10 px-4 py-3.5 text-sm font-black text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deleting ? "Deleting..." : "Delete room"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="gold-card rounded-[2rem] p-6">
+              <div className="gold-chip mb-4">Create room</div>
+              <h3 className="panel-title text-white">New topic workspace</h3>
+
+              <div className="mt-5 grid gap-4">
+                <input
+                  className="rounded-[1.2rem] px-4 py-3.5"
+                  placeholder="Room name, example: Cardiology"
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                />
+
+                <input
+                  className="rounded-[1.2rem] px-4 py-3.5"
+                  placeholder="Subject, example: Heart Health"
+                  value={newSubject}
+                  onChange={(event) => setNewSubject(event.target.value)}
+                />
+
+                <textarea
+                  className="min-h-[100px] rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
+                  placeholder="Short description"
+                  value={newDescription}
+                  onChange={(event) => setNewDescription(event.target.value)}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleCreateRoom}
+                  disabled={savingNew}
+                  className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingNew ? "Creating..." : "Create room"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {(error || message) ? (
+          <section
+            className={`rounded-[1.5rem] border p-4 text-sm font-bold ${
+              error
+                ? "border-red-400/20 bg-red-500/10 text-red-200"
+                : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+            }`}
+          >
+            {error || message}
+          </section>
+        ) : null}
+
+        <section className="premium-card gold-border rounded-[2rem] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="gold-chip mb-4">All rooms</div>
+              <h3 className="panel-title text-white">Compact room list</h3>
+              <p className="panel-muted mt-3">
+                No more giant grid. Search, choose, and open what you need.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadRooms}
+              disabled={loading}
+              className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          {filteredRooms.length === 0 ? (
+            <div className="empty-state mt-6">
+              {rooms.length === 0
+                ? "No rooms yet. Create your first topic workspace."
+                : "No rooms match your search."}
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-3">
+              {filteredRooms.map((room) => {
+                const active = room.id === selectedRoomId;
+
+                return (
+                  <div
+                    key={room.id}
+                    className={`rounded-[1.35rem] border p-4 transition ${
+                      active
+                        ? "border-yellow-300/35 bg-yellow-300/10"
+                        : "border-white/10 bg-white/[0.03] hover:border-yellow-300/25 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                      <button
+                        type="button"
+                        onClick={() => selectRoom(room.id)}
+                        className="min-w-0 text-left"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1 text-xs font-black text-yellow-100">
+                            {room.subject || "No subject"}
+                          </span>
+
+                          {active ? (
+                            <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <h4 className="mt-3 text-lg font-black text-white">
+                          {room.name}
+                        </h4>
+
+                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
+                          {room.description || "Open project workspace."}
+                        </p>
+                      </button>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectRoom(room.id)}
+                          className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white"
+                        >
+                          Select
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openRoom(room.id)}
+                          className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-2 text-sm font-black text-yellow-100"
+                        >
+                          Open →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </AppShell>
