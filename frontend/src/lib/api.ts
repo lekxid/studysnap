@@ -561,6 +561,24 @@ export type BrainHistoryItem = {
   created_at: string;
 };
 
+export type SaveBrainHistoryAsNoteResponse = {
+  saved: boolean;
+  already_saved?: boolean;
+  note: {
+    id: number;
+    title: string;
+    content: string;
+    study_room_id: number;
+    owner_id: number;
+    created_at: string;
+  };
+};
+
+export type DeleteBrainHistoryResponse = {
+  deleted: boolean;
+  id: number;
+};
+
 export async function askBrain(
   question: string,
   studyRoomId: number | null = null,
@@ -597,12 +615,20 @@ export async function saveBrainHistoryAsNote(
   historyId: number,
   studyRoomId: number | null = null,
   title?: string
-) {
+): Promise<SaveBrainHistoryAsNoteResponse> {
   return apiFetch(`/api/brain/history/${historyId}/save-note`, {
     method: "POST",
     body: JSON.stringify({
       study_room_id: studyRoomId,
       title: title || null,
     }),
-  });
+  }) as Promise<SaveBrainHistoryAsNoteResponse>;
+}
+
+export async function deleteBrainHistory(
+  historyId: number
+): Promise<DeleteBrainHistoryResponse> {
+  return apiFetch(`/api/brain/history/${historyId}`, {
+    method: "DELETE",
+  }) as Promise<DeleteBrainHistoryResponse>;
 }

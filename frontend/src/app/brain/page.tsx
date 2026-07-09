@@ -5,6 +5,7 @@ import AppShell from "@/components/AppShell";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
   askBrain,
+  deleteBrainHistory,
   getBrainHistory,
   saveBrainHistoryAsNote,
   type BrainAnswerResponse,
@@ -67,6 +68,9 @@ export default function BrainPage() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<number | null>(
+    null
+  );
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -157,17 +161,63 @@ export default function BrainPage() {
     setSuccessMessage("");
 
     try {
-      await saveBrainHistoryAsNote(
+      const response = await saveBrainHistoryAsNote(
         result.id,
         detectedRoomId,
         `Brain Answer: ${question.trim().slice(0, 70) || "StudySnap"}`
       );
 
-      setSuccessMessage("Saved as a note successfully.");
+      if (response.already_saved) {
+        setSuccessMessage(
+          `Already saved as note: ${response.note.title}`
+        );
+      } else {
+        setSuccessMessage(`Saved as note: ${response.note.title}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save as note.");
     } finally {
       setSavingNote(false);
+    }
+  }
+
+  async function handleDeleteHistory(item: BrainHistoryItem) {
+    const confirmed = window.confirm(
+      "Delete this Brain history item? This will not delete any notes already saved."
+    );
+
+    if (!confirmed) return;
+
+    setDeletingHistoryId(item.id);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      await deleteBrainHistory(item.id);
+
+      setHistory((current) =>
+        current.filter((historyItem) => historyItem.id !== item.id)
+      );
+
+      if (result?.id === item.id) {
+        const remaining = history.filter(
+          (historyItem) => historyItem.id !== item.id
+        );
+
+        if (remaining.length > 0) {
+          setResult(historyItemToAnswer(remaining[0]));
+          setQuestion(remaining[0].question);
+        } else {
+          setResult(null);
+          setQuestion("");
+        }
+      }
+
+      setSuccessMessage("Brain history item deleted.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete history.");
+    } finally {
+      setDeletingHistoryId(null);
     }
   }
 
@@ -272,27 +322,42 @@ export default function BrainPage() {
           <div className="mt-5 space-y-3">
             {history.length ? (
               history.map((item) => (
-                <button
+                <article
                   key={item.id}
-                  type="button"
-                  onClick={() => openHistoryItem(item)}
-                  className={`block w-full rounded-[1.3rem] border p-4 text-left transition ${
+                  className={`rounded-[1.3rem] border p-4 transition ${
                     result?.id === item.id
                       ? "border-amber-300/40 bg-amber-300/10"
-                      : "border-white/10 bg-white/[0.04] hover:border-cyan-300/30 hover:bg-cyan-300/10"
+                      : "border-white/10 bg-white/[0.04]"
                   }`}
                 >
-                  <p className="line-clamp-2 text-sm font-black leading-6 text-white">
-                    {item.question}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    {formatDate(item.created_at)}
-                  </p>
-                  <p className="mt-2 text-xs text-cyan-100">
-                    Room #{item.study_room_id || "—"} ·{" "}
-                    {item.sources?.length || 0} sources
-                  </p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => openHistoryItem(item)}
+                    className="block w-full text-left"
+                  >
+                    <p className="line-clamp-2 text-sm font-black leading-6 text-white">
+                      {item.question}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">
+                      {formatDate(item.created_at)}
+                    </p>
+                    <p className="mt-2 text-xs text-cyan-100">
+                      Room #{item.study_room_id || "—"} ·{" "}
+                      {item.sources?.length || 0} sources
+                    </p>
+                  </button>
+
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteHistory(item)}
+                      disabled={deletingHistoryId === item.id}
+                      className="rounded-full border border-red-300/20 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-100 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deletingHistoryId === item.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </article>
               ))
             ) : (
               <p className="text-sm leading-7 text-slate-400">
