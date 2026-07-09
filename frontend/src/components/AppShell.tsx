@@ -12,6 +12,7 @@ const navItems = [
   { href: "/onboarding", label: "Onboarding", icon: "◎" },
   { href: "/study-rooms", label: "Projects", icon: "📁" },
   { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
+  { href: "/brain", label: "Brain", icon: "🧠" },
   { href: "/notes", label: "Notes", icon: "▣" },
   { href: "/flashcards", label: "Flashcards", icon: "◫" },
   { href: "/quizzes", label: "Quizzes", icon: "✎" },

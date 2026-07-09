@@ -516,3 +516,49 @@ export async function getBrainInsights(studyRoomId?: number) {
     query ? `/api/brain/insights?${query}` : "/api/brain/insights"
   ) as Promise<BrainInsights>;
 }
+
+
+export type BrainSource = {
+  source_type: string;
+  source_id: string;
+  title: string;
+  text: string;
+  score: number;
+  reason: string;
+  metadata: Record<string, unknown>;
+};
+
+export type BrainAnswerMetadata = {
+  query?: string;
+  requested_study_room_id?: number | null;
+  effective_study_room_id?: number | null;
+  source_count?: number;
+  retrieval_count?: number;
+  used_retrieval_count?: number;
+  has_learning_profile?: boolean;
+  has_coach?: boolean;
+  coach_priority?: string | null;
+  model?: string;
+  usage?: Record<string, unknown> | null;
+};
+
+export type BrainAnswerResponse = {
+  answer: string;
+  sources: BrainSource[];
+  metadata: BrainAnswerMetadata;
+};
+
+export async function askBrain(
+  question: string,
+  studyRoomId: number | null = null,
+  limit = 6
+): Promise<BrainAnswerResponse> {
+  return apiFetch("/api/brain/answer", {
+    method: "POST",
+    body: JSON.stringify({
+      question,
+      study_room_id: studyRoomId,
+      limit,
+    }),
+  }) as Promise<BrainAnswerResponse>;
+}
