@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { askAi } from "@/lib/api";
+import { askAi, askAiWithImage } from "@/lib/api";
 
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  imagePreview?: string;
+  imageName?: string;
 };
 
 const suggestions = [
@@ -52,15 +54,18 @@ export default function GeneralAIChat() {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState("");
   const [error, setError] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState("");
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const hasMessages = messages.length > 0;
 
   const canSend = useMemo(() => {
-    return input.trim().length > 0 && !loading;
-  }, [input, loading]);
+    return (input.trim().length > 0 || selectedImage !== null) && !loading;
+  }, [input, selectedImage, loading]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -70,24 +75,79 @@ export default function GeneralAIChat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, error]);
 
+  function handleImageChange(file: File | undefined) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload an image file.");
+      return;
+    }
+
+    const maxSize = 8 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setError("Image must be 8MB or smaller.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setSelectedImage(file);
+      setSelectedImagePreview(String(reader.result || ""));
+      setError("");
+      inputRef.current?.focus();
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function removeSelectedImage() {
+    setSelectedImage(null);
+    setSelectedImagePreview("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    inputRef.current?.focus();
+  }
+
   async function sendMessage(messageText?: string) {
     const question = (messageText ?? input).trim();
+    const imageToSend = selectedImage;
+    const imagePreviewToSend = selectedImagePreview;
+    const imageNameToSend = selectedImage?.name;
 
-    if (!question || loading) return;
+    if ((!question && !imageToSend) || loading) return;
+
+    const finalQuestion = question || "Describe this image clearly.";
 
     const userMessage: ChatMessage = {
       id: makeId(),
       role: "user",
-      content: question,
+      content: finalQuestion,
+      imagePreview: imagePreviewToSend || undefined,
+      imageName: imageNameToSend,
     };
 
     setMessages((current) => [...current, userMessage]);
     setInput("");
+    setSelectedImage(null);
+    setSelectedImagePreview("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const data = await askAi(question, "");
+      const data = imageToSend
+        ? await askAiWithImage(finalQuestion, imageToSend)
+        : await askAi(finalQuestion, "");
+
       const answer = extractAIText(data);
 
       const assistantMessage: ChatMessage = {
@@ -115,13 +175,122 @@ export default function GeneralAIChat() {
     setInput("");
     setError("");
     setCopiedId("");
-    setTimeout(() => inputRef.current?.focus(), 50);
+    removeSelectedImage();
   }
 
   async function copyMessage(message: ChatMessage) {
     await navigator.clipboard.writeText(message.content);
     setCopiedId(message.id);
     setTimeout(() => setCopiedId(""), 1200);
+  }
+
+  function Composer({ large = false }: { large?: boolean }) {
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className={
+          large
+            ? "mt-10 w-full max-w-4xl rounded-[2rem] border border-white/10 bg-[#111827]/90 p-4 shadow-[0_28px_100px_rgba(0,0,0,0.55)] backdrop-blur"
+            : "mx-auto max-w-4xl"
+        }
+      >
+        <div
+          className={
+            large
+              ? ""
+              : "flex items-end gap-3 rounded-[1.7rem] border border-white/10 bg-white/[0.06] p-3 shadow-[0_20px_80px_rgba(0,0,0,0.45)]"
+          }
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={(event) => handleImageChange(event.target.files?.[0])}
+          />
+
+          <div className="flex-1">
+            {selectedImagePreview ? (
+              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+                <img
+                  src={selectedImagePreview}
+                  alt="Selected upload preview"
+                  className="h-16 w-16 rounded-xl object-cover"
+                />
+
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-black text-white">
+                    {selectedImage?.name || "Selected image"}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-400">
+                    Ask StudySnap AI about this image.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeSelectedImage}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08]"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void sendMessage();
+                }
+              }}
+              placeholder={selectedImage ? "Ask about this image..." : "Message StudySnap AI"}
+              rows={large ? 3 : 1}
+              className={
+                large
+                  ? "min-h-24 w-full resize-none bg-transparent px-3 py-3 text-xl font-semibold text-white outline-none placeholder:text-slate-500"
+                  : "max-h-40 min-h-12 w-full resize-none bg-transparent px-3 py-3 text-base font-semibold text-white outline-none placeholder:text-slate-500"
+              }
+            />
+          </div>
+
+          <div className={large ? "flex items-center justify-between gap-3" : "flex shrink-0 items-center gap-2"}>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.05] text-xl font-black text-slate-300 transition hover:bg-white/[0.1]"
+              title="Upload image"
+            >
+              ＋
+            </button>
+
+            {large ? (
+              <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-black text-slate-300">
+                Image + text ready
+              </span>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={!canSend}
+              className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300 text-xl font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Send"
+            >
+              ↑
+            </button>
+          </div>
+        </div>
+
+        {!large ? (
+          <p className="mt-2 text-center text-xs font-semibold text-slate-500">
+            General AI can make mistakes. Check important answers.
+          </p>
+        ) : null}
+      </form>
+    );
   }
 
   return (
@@ -161,44 +330,7 @@ export default function GeneralAIChat() {
               What can I help you with?
             </h2>
 
-            <form
-              onSubmit={handleSubmit}
-              className="mt-10 w-full max-w-4xl rounded-[2rem] border border-white/10 bg-[#111827]/90 p-4 shadow-[0_28px_100px_rgba(0,0,0,0.55)] backdrop-blur"
-            >
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void sendMessage();
-                  }
-                }}
-                placeholder="Message StudySnap AI"
-                rows={3}
-                className="min-h-24 w-full resize-none bg-transparent px-3 py-3 text-xl font-semibold text-white outline-none placeholder:text-slate-500"
-              />
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300">
-                    ＋
-                  </span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-black text-slate-300">
-                    Smart
-                  </span>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={!canSend}
-                  className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300 text-xl font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  ↑
-                </button>
-              </div>
-            </form>
+            <Composer large />
 
             <div className="mt-7 flex max-w-4xl flex-wrap justify-center gap-3">
               {suggestions.map((suggestion) => (
@@ -224,6 +356,14 @@ export default function GeneralAIChat() {
                     : "mr-auto max-w-[90%] rounded-[1.7rem] border border-white/10 bg-white/[0.06] px-5 py-4 text-slate-100"
                 }
               >
+                {message.imagePreview ? (
+                  <img
+                    src={message.imagePreview}
+                    alt={message.imageName || "Uploaded image"}
+                    className="mb-3 max-h-72 rounded-2xl object-contain"
+                  />
+                ) : null}
+
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-xs font-black uppercase tracking-[0.18em] opacity-70">
                     {message.role === "user" ? "You" : "StudySnap AI"}
@@ -267,36 +407,7 @@ export default function GeneralAIChat() {
 
       {hasMessages ? (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#080d18]/90 px-4 py-4 backdrop-blur-2xl">
-          <form onSubmit={handleSubmit} className="mx-auto max-w-4xl">
-            <div className="flex items-end gap-3 rounded-[1.7rem] border border-white/10 bg-white/[0.06] p-3 shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void sendMessage();
-                  }
-                }}
-                placeholder="Message StudySnap AI..."
-                rows={1}
-                className="max-h-40 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-base font-semibold text-white outline-none placeholder:text-slate-500"
-              />
-
-              <button
-                type="submit"
-                disabled={!canSend}
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-300 text-xl font-black text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                ↑
-              </button>
-            </div>
-
-            <p className="mt-2 text-center text-xs font-semibold text-slate-500">
-              General AI can make mistakes. Check important answers.
-            </p>
-          </form>
+          <Composer />
         </div>
       ) : null}
     </main>

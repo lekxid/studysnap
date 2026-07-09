@@ -126,6 +126,18 @@ export async function askAi(question: string, context?: string) {
   });
 }
 
+
+export async function askAiWithImage(question: string, image: File) {
+  const formData = new FormData();
+  formData.append("question", question || "Describe this image clearly.");
+  formData.append("image", image);
+
+  return apiFetch("/api/ai/ask-image", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export async function generateLesson(question: string, context?: string) {
   return apiFetch("/api/ai/lesson", {
     method: "POST",
