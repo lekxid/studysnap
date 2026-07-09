@@ -586,6 +586,10 @@ export async function createLearningEvent(data: {
   reference_id?: number | null;
   result?: string | null;
   confidence?: number | null;
+  concept_id?: string | null;
+  concept_name?: string | null;
+  concept_type?: string | null;
+  source?: string | null;
 }) {
   return apiFetch("/api/learning-events", {
     method: "POST",

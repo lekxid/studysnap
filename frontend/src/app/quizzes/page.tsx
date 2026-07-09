@@ -50,6 +50,27 @@ function normalizeCorrectAnswer(value: string): AnswerLetter {
   return "A";
 }
 
+function buildQuizConceptId(questionId: number, questionText: string) {
+  const slug = questionText
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 70);
+
+  return `quiz-question-${questionId}-${slug || "concept"}`;
+}
+
+function buildQuizConceptName(questionText: string) {
+  const clean = questionText.replace(/\s+/g, " ").trim();
+
+  if (clean.length <= 120) {
+    return clean;
+  }
+
+  return `${clean.slice(0, 117)}...`;
+}
+
 export default function QuizzesPage() {
   const ready = useRequireAuth();
 
@@ -257,21 +278,51 @@ export default function QuizzesPage() {
   async function handleSubmitQuiz() {
     if (!activeQuiz || activeQuiz.questions.length === 0) return;
 
+    const questionResults = activeQuiz.questions.map((item) => {
+      const selectedAnswer = answers[item.id];
+      const correctAnswerForItem = normalizeCorrectAnswer(item.correct_answer);
+      const isCorrect = selectedAnswer === correctAnswerForItem;
+      const result = isCorrect ? "correct" : "wrong";
+      const confidence = isCorrect ? 95 : selectedAnswer ? 25 : 10;
+
+      return {
+        item,
+        result,
+        confidence,
+      };
+    });
+
+    const correctCount = questionResults.filter((item) => item.result === "correct").length;
+    const percent = Math.round((correctCount / activeQuiz.questions.length) * 100);
+    const quizResult = percent >= 80 ? "correct" : percent >= 50 ? "partial" : "wrong";
+
     try {
       setSubmitting(true);
       setError("");
       setSubmitted(true);
 
-      const percent = Math.round((score / activeQuiz.questions.length) * 100);
-      const result = percent >= 80 ? "correct" : percent >= 50 ? "partial" : "wrong";
-
-      await createLearningEvent({
-        study_room_id: activeQuiz.study_room_id,
-        activity_type: "quiz",
-        reference_id: activeQuiz.id,
-        result,
-        confidence: percent,
-      });
+      await Promise.all([
+        createLearningEvent({
+          study_room_id: activeQuiz.study_room_id,
+          activity_type: "quiz",
+          reference_id: activeQuiz.id,
+          result: quizResult,
+          confidence: percent,
+        }),
+        ...questionResults.map(({ item, result, confidence }) =>
+          createLearningEvent({
+            study_room_id: activeQuiz.study_room_id,
+            activity_type: "quiz_question",
+            reference_id: item.id,
+            result,
+            confidence,
+            concept_id: buildQuizConceptId(item.id, item.question),
+            concept_name: buildQuizConceptName(item.question),
+            concept_type: "quiz_question",
+            source: `quiz:${activeQuiz.id}`,
+          })
+        ),
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to record quiz result.");
     } finally {

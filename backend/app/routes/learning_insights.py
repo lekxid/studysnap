@@ -75,7 +75,7 @@ def get_learning_index_message(learning_index: int, today_change: int) -> str:
 
 def get_ai_recommendation(learning_score: int, average_confidence: int, wrong_today: int, cards_reviewed_today: int) -> str:
     if cards_reviewed_today == 0:
-        return "Start with a short flashcard review today so StudySnap can learn your current strengths and weak areas."
+        return "Start with a short flashcard review or quiz today so StudySnap can learn your current strengths and weak areas."
 
     if wrong_today >= 5:
         return "You missed several cards today. Review the weak topics first, then try a short quiz to confirm your understanding."
@@ -119,10 +119,12 @@ def get_learning_insights(
     correct_today = len([event for event in today_events if event.result == "correct"])
     wrong_today = len([event for event in today_events if event.result == "wrong"])
 
+    review_activity_types = {"flashcard", "quiz_question"}
+
     cards_reviewed_today = len([
         event
         for event in today_events
-        if event.activity_type == "flashcard"
+        if event.activity_type in review_activity_types
     ])
 
     correct_all = len([event for event in events if event.result == "correct"])
@@ -209,7 +211,14 @@ def get_learning_insights(
         if event.activity_type == "flashcard" and event.reference_id is not None
     ]
 
+    room_ids = [
+        event.study_room_id
+        for event in events
+        if event.study_room_id is not None
+    ]
+
     flashcard_subject_map = {}
+    room_subject_map = {}
 
     if flashcard_event_ids:
         rows = (
@@ -225,11 +234,30 @@ def get_learning_insights(
             for flashcard_id, subject in rows
         }
 
+    if room_ids:
+        room_rows = (
+            db.query(StudyRoom.id, StudyRoom.subject, StudyRoom.name)
+            .filter(StudyRoom.owner_id == current_user.id)
+            .filter(StudyRoom.id.in_(room_ids))
+            .all()
+        )
+
+        room_subject_map = {
+            room_id: subject or name or "General"
+            for room_id, subject, name in room_rows
+        }
+
     for event in events:
-        if event.activity_type != "flashcard" or event.reference_id is None:
+        if event.activity_type not in review_activity_types:
             continue
 
-        subject = flashcard_subject_map.get(event.reference_id, "General")
+        subject = "General"
+
+        if event.study_room_id is not None:
+            subject = room_subject_map.get(event.study_room_id, "General")
+        elif event.activity_type == "flashcard" and event.reference_id is not None:
+            subject = flashcard_subject_map.get(event.reference_id, "General")
+
         subject_stats[subject]["reviewed"] += 1
 
         if event.result == "correct":
@@ -291,7 +319,7 @@ def get_learning_insights(
 
         trend.append({
             "date": day.date().isoformat(),
-            "reviews": len([event for event in day_events if event.activity_type == "flashcard"]),
+            "reviews": len([event for event in day_events if event.activity_type in review_activity_types]),
             "average_confidence": day_average_confidence,
             "correct": len([event for event in day_events if event.result == "correct"]),
             "wrong": len([event for event in day_events if event.result == "wrong"]),
