@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
+import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
   askBrain,
   type BrainAnswerResponse,
@@ -227,9 +228,10 @@ export default function BrainPage() {
               </button>
             </div>
 
-            <div className="whitespace-pre-wrap rounded-[1.5rem] border border-white/10 bg-black/30 p-5 text-sm leading-8 text-slate-100">
-              {result.answer}
-            </div>
+            <SimpleMarkdown
+              content={result.answer}
+              className="rounded-[1.5rem] border border-white/10 bg-black/30 p-5"
+            />
           </div>
 
           <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
