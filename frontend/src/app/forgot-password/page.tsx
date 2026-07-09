@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
 
           <Link
             href="/login"
-            className="premium-button inline-flex w-full justify-center rounded-[1.2rem] px-4 py-4 text-sm font-black"
+            className="premium-button inline-flex w-full justify-center rounded-[1.2rem] px-4 py-3.5 text-sm font-black"
           >
             Back to login
           </Link>
@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
             </label>
             <input
               type="email"
-              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+              className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -86,12 +86,12 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="premium-button w-full rounded-[1.2rem] px-4 py-4 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+            className="premium-button w-full rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Sending..." : "Send reset link"}
           </button>
 
-          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-4 text-center text-sm text-slate-300">
+          <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
             Remember your password?{" "}
             <Link
               href="/login"
