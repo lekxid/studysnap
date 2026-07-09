@@ -6,7 +6,7 @@ type ProjectSearchProps = {
 };
 
 export default function ProjectSearch({
-  placeholder = "Search or ask anything in this project...",
+  placeholder = "Search this project’s PDFs, notes, flashcards, and memory...",
   onSearch,
 }: ProjectSearchProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

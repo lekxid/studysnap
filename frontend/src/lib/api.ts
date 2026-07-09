@@ -632,3 +632,30 @@ export async function deleteBrainHistory(
     method: "DELETE",
   }) as Promise<DeleteBrainHistoryResponse>;
 }
+
+
+export type BrainRetrieveResponse = {
+  query: string;
+  study_room_id?: number | null;
+  limit?: number;
+  count?: number;
+  results: BrainSource[];
+};
+
+export async function retrieveBrain(
+  query: string,
+  studyRoomId: number | null = null,
+  limit = 8
+): Promise<BrainRetrieveResponse> {
+  const params = new URLSearchParams();
+  params.set("q", query);
+  params.set("limit", String(limit));
+
+  if (studyRoomId !== null) {
+    params.set("study_room_id", String(studyRoomId));
+  }
+
+  return apiFetch(`/api/brain/retrieve?${params.toString()}`) as Promise<
+    BrainRetrieveResponse
+  >;
+}

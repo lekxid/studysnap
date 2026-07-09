@@ -10,7 +10,14 @@ import PDFChat from "@/components/pdf/PDFChat";
 import RoomAIAssistant from "@/components/room-ai/RoomAIAssistant";
 import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
 import useRequireAuth from "@/hooks/useRequireAuth";
-import { deletePDF, getPDFs, getStudyRooms, summarizePDF } from "@/lib/api";
+import {
+  deletePDF,
+  getPDFs,
+  getStudyRooms,
+  retrieveBrain,
+  summarizePDF,
+  type BrainSource,
+} from "@/lib/api";
 
 type StudyRoom = {
   id: number;
@@ -47,6 +54,10 @@ export default function StudyRoomDetailPage() {
   const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryTitle, setSummaryTitle] = useState("");
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [projectSearchResults, setProjectSearchResults] = useState<BrainSource[]>([]);
+  const [projectSearchLoading, setProjectSearchLoading] = useState(false);
+  const [projectSearchError, setProjectSearchError] = useState("");
   const [error, setError] = useState("");
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
@@ -70,9 +81,66 @@ export default function StudyRoomDetailPage() {
     setTimeout(scrollToPdf, 100);
   }
 
-  function handleProjectSearch(query: string) {
+  async function handleProjectSearch(query: string) {
+    if (!query.trim()) return;
+
+    try {
+      setProjectSearchQuery(query.trim());
+      setProjectSearchLoading(true);
+      setProjectSearchError("");
+      setProjectSearchResults([]);
+
+      const data = await retrieveBrain(query.trim(), studyRoomId, 10);
+      setProjectSearchResults(Array.isArray(data.results) ? data.results : []);
+    } catch (err) {
+      setProjectSearchError(
+        err instanceof Error ? err.message : "Project search failed."
+      );
+    } finally {
+      setProjectSearchLoading(false);
+    }
+  }
+
+  function getNumberValue(value: unknown) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  function handleOpenSearchResult(result: BrainSource) {
+    const metadata = (result.metadata || {}) as Record<string, unknown>;
+
+    if (result.source_type === "pdf_chunk") {
+      const pdfId =
+        getNumberValue(metadata.pdf_id) ||
+        getNumberValue(metadata.document_id) ||
+        getNumberValue(metadata.pdf_document_id) ||
+        getNumberValue(result.source_id);
+
+      if (pdfId !== null) {
+        setSelectedPdfId(pdfId);
+      }
+
+      setSummaryTitle(result.title || "PDF result");
+      openPdfAssistant();
+      return;
+    }
+
+    if (result.source_type === "note_chunk") {
+      const noteId =
+        getNumberValue(metadata.note_id) ||
+        getNumberValue(result.source_id);
+
+      const noteParam = noteId !== null ? `&noteId=${noteId}` : "";
+      router.push(`/notes?roomId=${studyRoomId}${noteParam}`);
+      return;
+    }
+
+    if (result.source_type === "flashcard") {
+      router.push(`/flashcards?roomId=${studyRoomId}`);
+      return;
+    }
+
     openProjectAi();
-    console.log("Project search query:", query);
   }
 
   const cleanDisplayText = (value: string | null | undefined, maxLength = 100) => {
@@ -111,25 +179,25 @@ export default function StudyRoomDetailPage() {
       title: "Create Note",
       description: "Write and organize ideas",
       icon: "📝",
-      href: "/notes",
+      href: `/notes?roomId=${studyRoomId}`,
     },
     {
       title: "Flashcards",
       description: "Review smart cards",
       icon: "🧠",
-      href: "/flashcards",
+      href: `/flashcards?roomId=${studyRoomId}`,
     },
     {
       title: "Take Quiz",
       description: "Test your knowledge",
       icon: "🧾",
-      href: "/quizzes",
+      href: `/quizzes?roomId=${studyRoomId}`,
     },
     {
       title: "Planner",
       description: "Plan study sessions",
       icon: "📅",
-      href: "/planner",
+      href: `/planner?roomId=${studyRoomId}`,
     },
     {
       title: "Ask Project AI",
@@ -254,10 +322,15 @@ export default function StudyRoomDetailPage() {
           progress={progressPercent}
           continueItems={continueItems}
           quickActions={quickActions}
+          searchQuery={projectSearchQuery}
+          searchResults={projectSearchResults}
+          searchLoading={projectSearchLoading}
+          searchError={projectSearchError}
           onBack={() => router.push("/study-rooms")}
           onAskAI={openProjectAi}
           onUploadPDF={openPdfAssistant}
           onSearch={handleProjectSearch}
+          onOpenSearchResult={handleOpenSearchResult}
           onViewAll={openPdfAssistant}
         >
           {activeAiMode === "general" ? (
