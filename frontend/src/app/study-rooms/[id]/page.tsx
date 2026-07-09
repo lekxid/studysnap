@@ -8,6 +8,7 @@ import PDFUploader from "@/components/pdf/PDFUploader";
 import PDFList from "@/components/pdf/PDFList";
 import PDFChat from "@/components/pdf/PDFChat";
 import RoomAIAssistant from "@/components/room-ai/RoomAIAssistant";
+import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
@@ -342,13 +343,9 @@ export default function StudyRoomDetailPage() {
         >
           {activeAiMode === "general" ? (
             <div ref={aiSectionRef} className="scroll-mt-8">
-              <RoomAIAssistant
+              <CompactProjectAI
                 studyRoomId={studyRoomId}
-                conversationMode="general"
-                title="Ask Project AI"
-                subtitle="StudySnap uses this project's context to help you learn faster."
-                emptyPrompt="Try: “What is tachycardia?” or “Explain this in simple words.”"
-                inputPlaceholder="Ask Project AI..."
+                projectTitle={roomTitle}
               />
             </div>
           ) : (

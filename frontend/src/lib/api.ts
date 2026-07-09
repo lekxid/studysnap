@@ -558,6 +558,22 @@ export async function deleteQuiz(quizId: number) {
   });
 }
 
+
+export async function generateQuizFromContent(
+  studyRoomId: number,
+  title: string,
+  content: string
+) {
+  return apiFetch("/api/ai/generate-quiz", {
+    method: "POST",
+    body: JSON.stringify({
+      study_room_id: studyRoomId,
+      title,
+      content,
+    }),
+  });
+}
+
 export async function getPDFs(studyRoomId: number) {
   return apiFetch(`/api/pdfs/${studyRoomId}`);
 }

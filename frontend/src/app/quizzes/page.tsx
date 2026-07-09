@@ -13,6 +13,7 @@ import {
   createLearningEvent,
   createQuiz,
   deleteQuiz,
+  generateQuizFromContent,
   getQuizzes,
   getStudyRooms,
   type QuizQuestionInput,
@@ -28,8 +29,14 @@ type StudyRoom = {
 };
 
 type AnswerLetter = "A" | "B" | "C" | "D";
+type ConfidenceLevel = "guessed" | "unsure" | "confident";
+type RetryMode = "incorrect" | "low-confidence" | "slow";
 
-const ANSWER_LETTERS: AnswerLetter[] = ["A", "B", "C", "D"];
+const confidenceLabels: Record<ConfidenceLevel, string> = {
+  guessed: "I guessed",
+  unsure: "I was unsure",
+  confident: "I was confident",
+};
 
 function getQuestionOptions(question: QuizQuestionResult) {
   return [
@@ -64,11 +71,67 @@ function buildQuizConceptId(questionId: number, questionText: string) {
 function buildQuizConceptName(questionText: string) {
   const clean = questionText.replace(/\s+/g, " ").trim();
 
-  if (clean.length <= 120) {
-    return clean;
+  return clean.length <= 120 ? clean : `${clean.slice(0, 117)}...`;
+}
+
+function shuffleIds(ids: number[]) {
+  const shuffled = [...ids];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const current = shuffled[index];
+    shuffled[index] = shuffled[randomIndex];
+    shuffled[randomIndex] = current;
   }
 
-  return `${clean.slice(0, 117)}...`;
+  return shuffled;
+}
+
+function getAdjustedConfidence(
+  isCorrect: boolean,
+  confidence: ConfidenceLevel,
+  seconds: number
+) {
+  let score = 50;
+
+  if (isCorrect) {
+    if (confidence === "confident") score = 95;
+    if (confidence === "unsure") score = 75;
+    if (confidence === "guessed") score = 60;
+  } else {
+    if (confidence === "confident") score = 30;
+    if (confidence === "unsure") score = 20;
+    if (confidence === "guessed") score = 10;
+  }
+
+  if (seconds >= 30) score -= 10;
+  if (seconds >= 60) score -= 10;
+
+  return Math.max(5, Math.min(100, score));
+}
+
+function getHeatmapClass(
+  isCorrect: boolean,
+  confidence: ConfidenceLevel,
+  seconds: number
+) {
+  if (!isCorrect) return "border-red-500/40 bg-red-500/15 text-red-100";
+
+  if (confidence !== "confident" || seconds >= 30) {
+    return "border-yellow-400/40 bg-yellow-400/15 text-yellow-100";
+  }
+
+  return "border-green-500/40 bg-green-500/15 text-green-100";
+}
+
+function getHeatmapLabel(
+  isCorrect: boolean,
+  confidence: ConfidenceLevel,
+  seconds: number
+) {
+  if (!isCorrect) return "Weak";
+  if (confidence !== "confident" || seconds >= 30) return "Developing";
+  return "Strong";
 }
 
 export default function QuizzesPage() {
@@ -78,6 +141,7 @@ export default function QuizzesPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [quizzes, setQuizzes] = useState<QuizWithQuestions[]>([]);
   const [activeQuizId, setActiveQuizId] = useState<number | null>(null);
+  const [questionOrder, setQuestionOrder] = useState<number[]>([]);
 
   const [title, setTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -89,14 +153,29 @@ export default function QuizzesPage() {
   const [explanation, setExplanation] = useState("");
 
   const [answers, setAnswers] = useState<Record<number, AnswerLetter>>({});
+  const [confidenceByQuestion, setConfidenceByQuestion] = useState<Record<number, ConfidenceLevel>>({});
+  const [timeByQuestion, setTimeByQuestion] = useState<Record<number, number>>({});
+  const [lastAnswerAt, setLastAnswerAt] = useState(Date.now());
+
   const [submitted, setSubmitted] = useState(false);
+  const [attemptSavedMessage, setAttemptSavedMessage] = useState("");
 
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingQuizzes, setLoadingQuizzes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingMore, setGeneratingMore] = useState(false);
   const [error, setError] = useState("");
+
+  function resetAttemptState() {
+    setAnswers({});
+    setConfidenceByQuestion({});
+    setTimeByQuestion({});
+    setSubmitted(false);
+    setAttemptSavedMessage("");
+    setLastAnswerAt(Date.now());
+  }
 
   useEffect(() => {
     if (!ready) return;
@@ -151,8 +230,7 @@ export default function QuizzesPage() {
 
         setQuizzes(quizList);
         setActiveQuizId(quizList.length > 0 ? quizList[0].id : null);
-        setAnswers({});
-        setSubmitted(false);
+        resetAttemptState();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load quizzes.");
       } finally {
@@ -171,25 +249,154 @@ export default function QuizzesPage() {
     return quizzes.find((quiz) => quiz.id === activeQuizId) || null;
   }, [quizzes, activeQuizId]);
 
-  const totalQuestions = activeQuiz?.questions.length ?? 0;
+  useEffect(() => {
+    if (!activeQuiz) {
+      setQuestionOrder([]);
+      return;
+    }
+
+    setQuestionOrder(activeQuiz.questions.map((item) => item.id));
+    resetAttemptState();
+  }, [activeQuiz?.id]);
+
+  const orderedQuestions = useMemo(() => {
+    if (!activeQuiz) return [];
+
+    const byId = new Map(activeQuiz.questions.map((item) => [item.id, item]));
+
+    return questionOrder
+      .map((id) => byId.get(id))
+      .filter((item): item is QuizQuestionResult => Boolean(item));
+  }, [activeQuiz, questionOrder]);
+
+  const totalQuestions = orderedQuestions.length;
 
   const score = useMemo(() => {
-    if (!activeQuiz) return 0;
-
-    return activeQuiz.questions.reduce((sum, item) => {
+    return orderedQuestions.reduce((sum, item) => {
       return sum + (answers[item.id] === normalizeCorrectAnswer(item.correct_answer) ? 1 : 0);
     }, 0);
-  }, [activeQuiz, answers]);
+  }, [orderedQuestions, answers]);
 
+  const answeredCount = orderedQuestions.filter((item) => answers[item.id]).length;
   const scorePercent = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
 
+  const weakQuestions = orderedQuestions.filter((item) => {
+    const selected = answers[item.id];
+    const confidence = confidenceByQuestion[item.id] || "unsure";
+    const seconds = timeByQuestion[item.id] || 0;
+
+    return (
+      selected !== normalizeCorrectAnswer(item.correct_answer) ||
+      confidence !== "confident" ||
+      seconds >= 30
+    );
+  });
+
+  const strongCount = orderedQuestions.filter((item) => {
+    const selected = answers[item.id];
+    const confidence = confidenceByQuestion[item.id] || "unsure";
+    const seconds = timeByQuestion[item.id] || 0;
+
+    return (
+      selected === normalizeCorrectAnswer(item.correct_answer) &&
+      confidence === "confident" &&
+      seconds < 30
+    );
+  }).length;
+
+  const developingCount = orderedQuestions.filter((item) => {
+    const selected = answers[item.id];
+    const confidence = confidenceByQuestion[item.id] || "unsure";
+    const seconds = timeByQuestion[item.id] || 0;
+    const isCorrect = selected === normalizeCorrectAnswer(item.correct_answer);
+
+    return isCorrect && (confidence !== "confident" || seconds >= 30);
+  }).length;
+
   function resetQuizRunner(nextQuizId?: number) {
+    const nextQuiz =
+      typeof nextQuizId === "number"
+        ? quizzes.find((quiz) => quiz.id === nextQuizId)
+        : activeQuiz;
+
     if (typeof nextQuizId === "number") {
       setActiveQuizId(nextQuizId);
     }
 
-    setAnswers({});
-    setSubmitted(false);
+    if (nextQuiz) {
+      setQuestionOrder(nextQuiz.questions.map((item) => item.id));
+    }
+
+    resetAttemptState();
+    setError("");
+  }
+
+  function handleAnswer(questionId: number, answer: AnswerLetter) {
+    if (submitted) return;
+
+    setAnswers((current) => ({
+      ...current,
+      [questionId]: answer,
+    }));
+
+    setTimeByQuestion((current) => {
+      if (current[questionId]) return current;
+
+      const now = Date.now();
+      const seconds = Math.max(1, Math.round((now - lastAnswerAt) / 1000));
+      setLastAnswerAt(now);
+
+      return {
+        ...current,
+        [questionId]: seconds,
+      };
+    });
+
+    setConfidenceByQuestion((current) => ({
+      ...current,
+      [questionId]: current[questionId] || "unsure",
+    }));
+  }
+
+  function handleConfidence(questionId: number, confidence: ConfidenceLevel) {
+    if (submitted) return;
+
+    setConfidenceByQuestion((current) => ({
+      ...current,
+      [questionId]: confidence,
+    }));
+  }
+
+  function shuffleQuestions() {
+    if (!activeQuiz || questionOrder.length < 2) return;
+
+    setQuestionOrder(shuffleIds(questionOrder));
+    resetAttemptState();
+    setAttemptSavedMessage("Questions shuffled. Score reset for a fresh attempt.");
+  }
+
+  function startSmartRetry(mode: RetryMode) {
+    const ids = orderedQuestions
+      .filter((item) => {
+        const selected = answers[item.id];
+        const confidence = confidenceByQuestion[item.id] || "unsure";
+        const seconds = timeByQuestion[item.id] || 0;
+        const isCorrect = selected === normalizeCorrectAnswer(item.correct_answer);
+
+        if (mode === "incorrect") return !isCorrect;
+        if (mode === "low-confidence") return confidence !== "confident";
+        return seconds >= 30;
+      })
+      .map((item) => item.id);
+
+    if (ids.length === 0) {
+      setAttemptSavedMessage("No questions found for that retry mode.");
+      return;
+    }
+
+    setQuestionOrder(ids);
+    resetAttemptState();
+    setAttemptSavedMessage(`Smart retry started with ${ids.length} question${ids.length === 1 ? "" : "s"}.`);
   }
 
   async function handleCreateQuiz() {
@@ -226,10 +433,13 @@ export default function QuizzesPage() {
 
       const newQuiz = await createQuiz(selectedRoomId, title.trim(), [payload]);
 
-      setQuizzes((current) => [newQuiz, ...current]);
+      setQuizzes((current) => [
+        newQuiz,
+        ...current.filter((quiz) => quiz.id !== newQuiz.id),
+      ]);
       setActiveQuizId(newQuiz.id);
-      setAnswers({});
-      setSubmitted(false);
+      setQuestionOrder(newQuiz.questions.map((item) => item.id));
+      resetAttemptState();
 
       setTitle("");
       setQuestion("");
@@ -247,9 +457,7 @@ export default function QuizzesPage() {
   }
 
   async function handleDeleteQuiz(quizId: number) {
-    const confirmed = window.confirm("Delete this quiz and its questions? This cannot be undone.");
-
-    if (!confirmed) return;
+    if (!window.confirm("Delete this quiz and its questions?")) return;
 
     try {
       setDeletingId(quizId);
@@ -262,8 +470,8 @@ export default function QuizzesPage() {
 
         if (activeQuizId === quizId) {
           setActiveQuizId(next.length > 0 ? next[0].id : null);
-          setAnswers({});
-          setSubmitted(false);
+          setQuestionOrder(next.length > 0 ? next[0].questions.map((item) => item.id) : []);
+          resetAttemptState();
         }
 
         return next;
@@ -275,15 +483,41 @@ export default function QuizzesPage() {
     }
   }
 
-  async function handleSubmitQuiz() {
-    if (!activeQuiz || activeQuiz.questions.length === 0) return;
+  function getActiveStudyRoomId() {
+    const roomId = activeQuiz?.study_room_id ?? selectedRoomId;
 
-    const questionResults = activeQuiz.questions.map((item) => {
+    if (typeof roomId !== "number" || Number.isNaN(roomId)) {
+      return null;
+    }
+
+    return roomId;
+  }
+
+  function cleanPracticeTitle(value: string) {
+    return value
+      .replace(/^(AI Retry Practice:\s*)+/i, "")
+      .replace(/^(More Practice:\s*)+/i, "")
+      .trim() || "Quiz";
+  }
+
+  async function handleSubmitQuiz() {
+    if (!activeQuiz || orderedQuestions.length === 0 || submitted) return;
+
+    const activeStudyRoomId = getActiveStudyRoomId();
+
+    if (activeStudyRoomId === null) {
+      setError("Select a study room first.");
+      return;
+    }
+
+    const questionResults = orderedQuestions.map((item) => {
       const selectedAnswer = answers[item.id];
       const correctAnswerForItem = normalizeCorrectAnswer(item.correct_answer);
       const isCorrect = selectedAnswer === correctAnswerForItem;
+      const confidenceLevel = confidenceByQuestion[item.id] || "unsure";
+      const seconds = timeByQuestion[item.id] || 0;
       const result = isCorrect ? "correct" : "wrong";
-      const confidence = isCorrect ? 95 : selectedAnswer ? 25 : 10;
+      const confidence = getAdjustedConfidence(isCorrect, confidenceLevel, seconds);
 
       return {
         item,
@@ -293,17 +527,17 @@ export default function QuizzesPage() {
     });
 
     const correctCount = questionResults.filter((item) => item.result === "correct").length;
-    const percent = Math.round((correctCount / activeQuiz.questions.length) * 100);
+    const percent = Math.round((correctCount / orderedQuestions.length) * 100);
     const quizResult = percent >= 80 ? "correct" : percent >= 50 ? "partial" : "wrong";
 
     try {
       setSubmitting(true);
       setError("");
-      setSubmitted(true);
+      setAttemptSavedMessage("");
 
       await Promise.all([
         createLearningEvent({
-          study_room_id: activeQuiz.study_room_id,
+          study_room_id: activeStudyRoomId,
           activity_type: "quiz",
           reference_id: activeQuiz.id,
           result: quizResult,
@@ -311,7 +545,7 @@ export default function QuizzesPage() {
         }),
         ...questionResults.map(({ item, result, confidence }) =>
           createLearningEvent({
-            study_room_id: activeQuiz.study_room_id,
+            study_room_id: activeStudyRoomId,
             activity_type: "quiz_question",
             reference_id: item.id,
             result,
@@ -323,10 +557,101 @@ export default function QuizzesPage() {
           })
         ),
       ]);
+
+      setSubmitted(true);
+      setAttemptSavedMessage(
+        `Saved automatically: ${orderedQuestions.length} question results updated Brain memory.`
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record quiz result.");
+      setSubmitted(false);
+      setAttemptSavedMessage("");
+      setError(
+        err instanceof Error
+          ? `${err.message}. Please log in again if this continues.`
+          : "Failed to record quiz result."
+      );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleMorePractice() {
+    if (!activeQuiz || orderedQuestions.length === 0) return;
+
+    const activeStudyRoomId = getActiveStudyRoomId();
+
+    if (activeStudyRoomId === null) {
+      setError("Select a study room first.");
+      return;
+    }
+
+    const sourceQuestions = weakQuestions.length > 0 ? weakQuestions : orderedQuestions;
+    const baseTitle = cleanPracticeTitle(activeQuiz.title);
+
+    const practiceContent = sourceQuestions
+      .slice(0, 5)
+      .map((item, index) => {
+        const selected = answers[item.id] || "Not answered";
+        const correct = normalizeCorrectAnswer(item.correct_answer);
+        const correctOption = getQuestionOptions(item).find(
+          (option) => option.letter === correct
+        );
+        const confidence = confidenceByQuestion[item.id] || "unsure";
+        const seconds = timeByQuestion[item.id] || 0;
+
+        return [
+          `Weak study point ${index + 1}:`,
+          `Original question: ${item.question}`,
+          `Correct answer: ${correct}. ${correctOption?.text || ""}`,
+          `Student selected: ${selected}`,
+          `Student confidence: ${confidenceLabels[confidence]}`,
+          `Time spent: ${seconds}s`,
+          `Explanation: ${item.explanation || "No explanation was provided."}`,
+          "",
+          "Create a NEW related exam-style multiple-choice question that tests the same concept.",
+          "Do not copy the original question wording.",
+          "Do not use generic options like unrelated, not important, or outside school.",
+          "Use realistic answer choices.",
+          "Make the question useful for studying.",
+        ].join("\n");
+      })
+      .join("\n\n");
+
+    try {
+      setGeneratingMore(true);
+      setError("");
+      setAttemptSavedMessage("AI is creating better related practice questions...");
+
+      const newQuiz = (await generateQuizFromContent(
+        activeStudyRoomId,
+        `AI Retry Practice: ${baseTitle}`,
+        practiceContent
+      )) as QuizWithQuestions;
+
+      const normalizedQuiz: QuizWithQuestions = {
+        ...newQuiz,
+        study_room_id: newQuiz.study_room_id ?? activeStudyRoomId,
+      };
+
+      setQuizzes((current) => [
+        normalizedQuiz,
+        ...current.filter((quiz) => quiz.id !== normalizedQuiz.id),
+      ]);
+      setActiveQuizId(normalizedQuiz.id);
+      setQuestionOrder(
+        normalizedQuiz.questions.map((item: QuizQuestionResult) => item.id)
+      );
+      resetAttemptState();
+      setAttemptSavedMessage("AI created a new related practice quiz from your weak areas.");
+    } catch (err) {
+      setAttemptSavedMessage("");
+      setError(
+        err instanceof Error
+          ? `${err.message}. Please log in again if this continues.`
+          : "Failed to create AI practice quiz."
+      );
+    } finally {
+      setGeneratingMore(false);
     }
   }
 
@@ -341,15 +666,15 @@ export default function QuizzesPage() {
   return (
     <AppShell
       title="Quizzes"
-      subtitle="Take project-based quizzes generated from your notes, PDFs, and Smart Organizer uploads"
+      subtitle="Adaptive quiz practice with confidence, timing, smart retry, and Brain memory"
     >
       <ConnectedProjectBanner
         toolName="Quizzes"
         toolIcon="🧾"
-        description="Your quizzes are connected to this project, so StudySnap can use quiz results to improve your learning insights and weak concept tracking."
+        description="Your quiz answers, confidence, speed, weak areas, and strong areas now update StudySnap Brain automatically."
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
           <p className="text-sm text-white/50">Quizzes</p>
           <p className="mt-2 text-3xl font-bold text-white">{quizzes.length}</p>
@@ -368,7 +693,22 @@ export default function QuizzesPage() {
             {submitted ? `${scorePercent}%` : "—"}
           </p>
           <p className="mt-1 text-sm text-white/50">
-            {submitted ? `${score} / ${totalQuestions} correct` : "Submit a quiz to record progress"}
+            {submitted
+              ? `${score} / ${totalQuestions} correct`
+              : `${answeredCount} / ${totalQuestions} answered`}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+          <p className="text-sm text-white/50">Heatmap</p>
+          <p className="mt-2 text-sm font-bold text-green-300">
+            {submitted ? `${strongCount} strong` : "Submit to view"}
+          </p>
+          <p className="mt-1 text-sm font-bold text-yellow-200">
+            {submitted ? `${developingCount} developing` : ""}
+          </p>
+          <p className="mt-1 text-sm font-bold text-red-300">
+            {submitted ? `${weakQuestions.length} review` : ""}
           </p>
         </div>
       </div>
@@ -376,6 +716,12 @@ export default function QuizzesPage() {
       {error ? (
         <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
           {error}
+        </div>
+      ) : null}
+
+      {attemptSavedMessage ? (
+        <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-200">
+          {attemptSavedMessage}
         </div>
       ) : null}
 
@@ -494,10 +840,10 @@ export default function QuizzesPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-xl font-semibold text-cyan-300">
-                  Quiz Runner
+                  Smart Quiz Runner
                 </h3>
                 <p className="mt-1 text-sm text-white/50">
-                  Choose a saved quiz, answer the questions, then submit to update StudySnap progress.
+                  Submit once. StudySnap saves answer, confidence, timing, and mastery signals.
                 </p>
               </div>
 
@@ -507,16 +853,34 @@ export default function QuizzesPage() {
                   onClick={() => resetQuizRunner()}
                   className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white transition hover:bg-white/5"
                 >
-                  Reset
+                  Reset Score
+                </button>
+
+                <button
+                  type="button"
+                  onClick={shuffleQuestions}
+                  disabled={!activeQuiz || totalQuestions < 2}
+                  className="rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 font-semibold text-yellow-100 transition hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Shuffle
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleMorePractice}
+                  disabled={!activeQuiz || generatingMore}
+                  className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {generatingMore ? "Creating..." : "More Practice"}
                 </button>
 
                 <button
                   type="button"
                   onClick={handleSubmitQuiz}
-                  disabled={!activeQuiz || totalQuestions === 0 || submitting}
+                  disabled={!activeQuiz || totalQuestions === 0 || submitting || submitted}
                   className="rounded-xl bg-cyan-400 px-4 py-2 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? "Recording..." : "Submit Quiz"}
+                  {submitted ? "Saved" : submitting ? "Saving..." : "Submit Quiz"}
                 </button>
               </div>
             </div>
@@ -536,8 +900,8 @@ export default function QuizzesPage() {
                   {quizzes.length === 0 ? (
                     <option value="">No quizzes found</option>
                   ) : (
-                    quizzes.map((quiz) => (
-                      <option key={quiz.id} value={quiz.id}>
+                    quizzes.map((quiz, index) => (
+                      <option key={`${quiz.id}-${index}`} value={quiz.id}>
                         {quiz.title} · {quiz.questions.length} question{quiz.questions.length === 1 ? "" : "s"}
                       </option>
                     ))
@@ -552,8 +916,34 @@ export default function QuizzesPage() {
                   Score: {score} / {totalQuestions} · {scorePercent}%
                 </p>
                 <p className="mt-1 text-sm text-white/60">
-                  StudySnap recorded this quiz attempt for your learning insights.
+                  Strong: {strongCount} · Developing: {developingCount} · Needs review: {weakQuestions.length}
                 </p>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => startSmartRetry("incorrect")}
+                    className="rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-2 text-sm font-bold text-red-100"
+                  >
+                    Retry incorrect
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => startSmartRetry("low-confidence")}
+                    className="rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-100"
+                  >
+                    Retry low confidence
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => startSmartRetry("slow")}
+                    className="rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100"
+                  >
+                    Retry slow
+                  </button>
+                </div>
               </div>
             ) : null}
 
@@ -577,18 +967,62 @@ export default function QuizzesPage() {
                     </h4>
                   </div>
 
-                  {activeQuiz.questions.map((item, index) => {
+                  {submitted ? (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                      {orderedQuestions.map((item, index) => {
+                        const selected = answers[item.id];
+                        const confidence = confidenceByQuestion[item.id] || "unsure";
+                        const seconds = timeByQuestion[item.id] || 0;
+                        const isCorrect = selected === normalizeCorrectAnswer(item.correct_answer);
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`rounded-xl border px-3 py-2 text-xs font-bold ${getHeatmapClass(
+                              isCorrect,
+                              confidence,
+                              seconds
+                            )}`}
+                          >
+                            Q{index + 1}: {getHeatmapLabel(isCorrect, confidence, seconds)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {orderedQuestions.map((item, index) => {
                     const selected = answers[item.id];
+                    const confidence = confidenceByQuestion[item.id] || "unsure";
+                    const seconds = timeByQuestion[item.id] || 0;
                     const correctAnswerForItem = normalizeCorrectAnswer(item.correct_answer);
+                    const isQuestionCorrect = selected === correctAnswerForItem;
+                    const correctOption = getQuestionOptions(item).find(
+                      (option) => option.letter === correctAnswerForItem
+                    );
 
                     return (
                       <div
                         key={item.id}
                         className="rounded-2xl border border-white/10 bg-white/5 p-5"
                       >
-                        <h5 className="text-lg font-semibold text-cyan-300">
-                          {index + 1}. {item.question}
-                        </h5>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <h5 className="text-lg font-semibold text-cyan-300">
+                            {index + 1}. {item.question}
+                          </h5>
+
+                          {submitted ? (
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-bold ${getHeatmapClass(
+                                isQuestionCorrect,
+                                confidence,
+                                seconds
+                              )}`}
+                            >
+                              {getHeatmapLabel(isQuestionCorrect, confidence, seconds)}
+                            </span>
+                          ) : null}
+                        </div>
 
                         <div className="mt-4 grid gap-3">
                           {getQuestionOptions(item).map((option) => {
@@ -601,12 +1035,7 @@ export default function QuizzesPage() {
                               <button
                                 key={option.letter}
                                 type="button"
-                                onClick={() =>
-                                  setAnswers((current) => ({
-                                    ...current,
-                                    [item.id]: option.letter,
-                                  }))
-                                }
+                                onClick={() => handleAnswer(item.id, option.letter)}
                                 className={`rounded-xl border px-4 py-3 text-left text-white transition ${
                                   isCorrect
                                     ? "border-green-500 bg-green-500/10"
@@ -615,7 +1044,7 @@ export default function QuizzesPage() {
                                     : isSelected
                                     ? "border-cyan-400 bg-cyan-400/10"
                                     : "border-white/20 bg-black hover:bg-white/5"
-                                }`}
+                                } ${submitted ? "cursor-default" : ""}`}
                               >
                                 <span className="font-bold text-cyan-300">
                                   {option.letter}.
@@ -626,14 +1055,65 @@ export default function QuizzesPage() {
                           })}
                         </div>
 
-                        {submitted && item.explanation ? (
-                          <div className="mt-4 rounded-xl border border-white/10 bg-black p-4">
-                            <p className="text-sm font-semibold text-white/70">
-                              Explanation
+                        {!submitted ? (
+                          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                            {(["guessed", "unsure", "confident"] as ConfidenceLevel[]).map((level) => (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => handleConfidence(item.id, level)}
+                                className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                                  confidence === level
+                                    ? "border-yellow-300 bg-yellow-300/15 text-yellow-100"
+                                    : "border-white/10 bg-black/30 text-slate-300 hover:bg-white/5"
+                                }`}
+                              >
+                                {confidenceLabels[level]}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {submitted ? (
+                          <div
+                            className={`mt-4 rounded-xl border p-4 ${
+                              isQuestionCorrect
+                                ? "border-green-500/25 bg-green-500/10"
+                                : "border-red-500/25 bg-red-500/10"
+                            }`}
+                          >
+                            <p className="text-sm font-bold text-white">
+                              {isQuestionCorrect ? "Correct" : "Needs review"}
                             </p>
+
                             <p className="mt-2 text-sm text-white/70">
-                              {item.explanation}
+                              Your answer:{" "}
+                              <span className="font-bold text-white">
+                                {selected || "Not answered"}
+                              </span>
+                              {" · "}
+                              Correct answer:{" "}
+                              <span className="font-bold text-green-300">
+                                {correctAnswerForItem}
+                                {correctOption ? ` — ${correctOption.text}` : ""}
+                              </span>
                             </p>
+
+                            <p className="mt-2 text-sm text-white/60">
+                              Confidence: {confidenceLabels[confidence]} · Time: {seconds || 0}s
+                            </p>
+
+                            {!isQuestionCorrect ? (
+                              <p className="mt-3 text-sm leading-6 text-red-100">
+                                Why you missed this: your selected answer did not match the correct concept. Review the explanation, then use Smart Retry or More Practice.
+                              </p>
+                            ) : null}
+
+                            {item.explanation ? (
+                              <p className="mt-3 text-sm leading-6 text-white/70">
+                                {item.explanation}
+                              </p>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
@@ -659,9 +1139,9 @@ export default function QuizzesPage() {
               </div>
             ) : (
               <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {quizzes.map((quiz) => (
+                {quizzes.map((quiz, index) => (
                   <div
-                    key={quiz.id}
+                    key={`${quiz.id}-${index}`}
                     className="rounded-2xl border border-white/10 bg-black p-5"
                   >
                     <h4 className="line-clamp-2 text-base font-semibold text-cyan-300">
