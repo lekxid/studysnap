@@ -221,6 +221,41 @@ def _get_last_user_message(
     )
 
 
+def _append_action_messages(
+    db: Session,
+    conversation_id: int | None,
+    owner_id: int,
+    command: str,
+    response_message: str,
+) -> None:
+    if conversation_id is None:
+        return
+
+    conversation = _verify_conversation(db, conversation_id, owner_id)
+
+    if conversation.title == "New Conversation":
+        short_title = _short_title(command, fallback="AI action", max_length=50)
+        conversation.title = short_title or "AI action"
+
+    db.add(
+        AIMessage(
+            conversation_id=conversation.id,
+            role="user",
+            content=command,
+        )
+    )
+
+    db.add(
+        AIMessage(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=response_message,
+        )
+    )
+
+    db.commit()
+
+
 def execute_brain_action(
     db: Session,
     current_user: User,
@@ -263,15 +298,25 @@ def execute_brain_action(
             result="created_note",
         )
 
+        message = (
+            "✅ Created Note\n\n"
+            f"**Title:** {note['title']}\n\n"
+            "You can open it from the Notes page for this project."
+        )
+
+        _append_action_messages(
+            db=db,
+            conversation_id=conversation_id,
+            owner_id=current_user.id,
+            command=command,
+            response_message=message,
+        )
+
         return {
             "handled": True,
             "action": "create_note",
             "status": "completed",
-            "message": (
-                "✅ Created Note\n\n"
-                f"**Title:** {note['title']}\n\n"
-                "You can open it from the Notes page for this project."
-            ),
+            "message": message,
             "note": note,
         }
 
@@ -312,15 +357,25 @@ def execute_brain_action(
             result="saved_ai_answer_to_note",
         )
 
+        message = (
+            "✅ Saved to Notes\n\n"
+            f"**Title:** {note['title']}\n\n"
+            "You can open it from the Notes page for this project."
+        )
+
+        _append_action_messages(
+            db=db,
+            conversation_id=conversation_id,
+            owner_id=current_user.id,
+            command=command,
+            response_message=message,
+        )
+
         return {
             "handled": True,
             "action": "save_last_ai_answer_to_note",
             "status": "completed",
-            "message": (
-                "✅ Saved to Notes\n\n"
-                f"**Title:** {note['title']}\n\n"
-                "You can open it from the Notes page for this project."
-            ),
+            "message": message,
             "note": note,
         }
 

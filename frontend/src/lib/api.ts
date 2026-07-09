@@ -150,6 +150,23 @@ export async function askAiWithImage(
   });
 }
 
+
+export async function executeBrainAction(
+  command: string,
+  options: { studyRoomId?: number; conversationId?: number | null } = {}
+) {
+  return apiFetch("/api/brain/actions/execute", {
+    method: "POST",
+    body: JSON.stringify({
+      command,
+      study_room_id:
+        typeof options.studyRoomId === "number" ? options.studyRoomId : null,
+      conversation_id:
+        typeof options.conversationId === "number" ? options.conversationId : null,
+    }),
+  });
+}
+
 export async function generateLesson(question: string, context?: string) {
   return apiFetch("/api/ai/lesson", {
     method: "POST",

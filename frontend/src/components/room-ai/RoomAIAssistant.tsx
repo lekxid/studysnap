@@ -6,6 +6,7 @@ import {
   askAiWithImage,
   createAIConversation,
   deleteAIConversation,
+  executeBrainAction,
   getAIConversations,
   getAIMessages,
   renameAIConversation,
@@ -409,12 +410,124 @@ async function handleDeleteConversation(conversation: AIConversation) {
     }
   }
 
-  function handleAsk() {
+  function shouldTryBrainActionCommand(value: string) {
+    const clean = value.trim().toLowerCase();
+
+    if (!clean) return false;
+
+    const saveCommands = [
+      "save it",
+      "save this",
+      "save it to note",
+      "save this to note",
+      "save to note",
+      "save as note",
+      "make this a note",
+      "turn this into a note",
+      "add this to notes",
+    ];
+
+    if (saveCommands.includes(clean)) return true;
+
+    return /^(create\s+(a\s+)?note|new\s+note|note|save\s+note|add\s+note)\s*[:\-]/i.test(
+      value.trim()
+    );
+  }
+
+  async function ensureConversationForAction() {
+    if (activeConversationId) {
+      return activeConversationId;
+    }
+
+    const conversation = await createAIConversation(
+      studyRoomId,
+      "New Conversation",
+      conversationMode
+    );
+
+    setActiveConversationId(conversation.id);
+    setConversations((prev) => [conversation, ...prev]);
+
+    return conversation.id;
+  }
+
+  async function tryHandleBrainAction(command: string) {
+    if (!shouldTryBrainActionCommand(command) || selectedImage) {
+      return false;
+    }
+
+    try {
+      setLoading(true);
+
+      const conversationId = await ensureConversationForAction();
+
+      const data = await executeBrainAction(command, {
+        studyRoomId,
+        conversationId,
+      });
+
+      if (!data?.handled) {
+        return false;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "user",
+          content: command,
+        },
+        {
+          role: "assistant",
+          content: data.message || "✅ Done.",
+        },
+      ]);
+
+      setQuestion("");
+      removeSelectedImage();
+      scrollToBottom();
+
+      return true;
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "user",
+          content: command,
+        },
+        {
+          role: "assistant",
+          content:
+            err instanceof Error
+              ? `I tried to do that action, but it failed: ${err.message}`
+              : "I tried to do that action, but it failed.",
+        },
+      ]);
+
+      setQuestion("");
+      scrollToBottom();
+
+      return true;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAsk() {
+    const cleanQuestion = question.trim();
+
+    if (cleanQuestion) {
+      const handledAction = await tryHandleBrainAction(cleanQuestion);
+
+      if (handledAction) {
+        return;
+      }
+    }
+
     const imageToSend = selectedImage;
     const imagePreviewToSend = selectedImagePreview;
     const imageNameToSend = selectedImage?.name;
     const finalQuestion =
-      question.trim() || (imageToSend ? "Describe this image clearly." : "");
+      cleanQuestion || (imageToSend ? "Describe this image clearly." : "");
 
     sendMessageToAI(
       finalQuestion,
@@ -428,7 +541,7 @@ async function handleDeleteConversation(conversation: AIConversation) {
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleAsk();
+      void handleAsk();
     }
   }
 
