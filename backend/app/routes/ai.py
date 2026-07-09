@@ -120,7 +120,10 @@ def ask_ai(
 @router.post("/ask-image")
 async def ask_ai_with_image(
     question: str = Form(default="Describe this image clearly."),
+    study_room_id: int | None = Form(default=None),
+    conversation_id: int | None = Form(default=None),
     image: UploadFile = File(...),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -154,8 +157,27 @@ async def ask_ai_with_image(
 
     clean_question = question.strip() or "Describe this image clearly."
 
+    study_room_context = ""
+    conversation = None
+    context_study_room_id = study_room_id
+
+    if conversation_id is not None:
+        conversation = verify_conversation(db, conversation_id, current_user.id)
+        context_study_room_id = conversation.study_room_id
+    elif study_room_id is not None:
+        verify_study_room(db, study_room_id, current_user.id)
+
+    if context_study_room_id is not None:
+        study_room_context = build_study_room_context(
+            db=db,
+            conversation_id=conversation.id if conversation else 0,
+            study_room_id=context_study_room_id,
+            owner_id=current_user.id,
+            question=clean_question,
+        )
+
     prompt = f"""
-You are StudySnap General AI.
+You are StudySnap AI.
 
 The user uploaded an image and asked a question.
 
@@ -164,6 +186,12 @@ If the image contains study material, explain it in simple student-friendly word
 If the image is unclear, say what you can see and ask the user to upload a clearer image.
 Do not claim certainty when the image is hard to read.
 Do not provide medical diagnosis or emergency advice from images.
+
+When project context is provided, use it to connect the image to the student's study room.
+Do not invent project facts that are not in the context.
+
+Project context:
+{study_room_context or "No project context provided."}
 
 User question:
 {clean_question}
@@ -195,7 +223,57 @@ User question:
 
         answer = getattr(response, "output_text", "") or "I could not read the image response."
 
-        return {"answer": answer}
+        saved_user_message = None
+        saved_ai_message = None
+
+        if conversation is not None:
+            saved_user_message = AIMessage(
+                conversation_id=conversation.id,
+                role="user",
+                content=f"[Image uploaded] {clean_question}",
+            )
+
+            db.add(saved_user_message)
+            db.commit()
+            db.refresh(saved_user_message)
+
+            saved_ai_message = AIMessage(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=answer,
+            )
+
+            db.add(saved_ai_message)
+
+            if conversation.title == "New Conversation":
+                short_title = clean_question[:50]
+                conversation.title = short_title if short_title else "Image question"
+
+            db.commit()
+            db.refresh(saved_ai_message)
+            db.refresh(conversation)
+
+        return {
+            "answer": answer,
+            "user_message": {
+                "id": saved_user_message.id,
+                "conversation_id": saved_user_message.conversation_id,
+                "role": saved_user_message.role,
+                "content": saved_user_message.content,
+                "created_at": saved_user_message.created_at,
+            }
+            if saved_user_message
+            else None,
+            "assistant_message": {
+                "id": saved_ai_message.id,
+                "conversation_id": saved_ai_message.conversation_id,
+                "role": saved_ai_message.role,
+                "content": saved_ai_message.content,
+                "created_at": saved_ai_message.created_at,
+            }
+            if saved_ai_message
+            else None,
+        }
 
     except Exception as exc:
         raise HTTPException(

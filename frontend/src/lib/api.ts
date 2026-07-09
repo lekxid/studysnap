@@ -127,10 +127,22 @@ export async function askAi(question: string, context?: string) {
 }
 
 
-export async function askAiWithImage(question: string, image: File) {
+export async function askAiWithImage(
+  question: string,
+  image: File,
+  options: { studyRoomId?: number; conversationId?: number | null } = {}
+) {
   const formData = new FormData();
   formData.append("question", question || "Describe this image clearly.");
   formData.append("image", image);
+
+  if (typeof options.studyRoomId === "number") {
+    formData.append("study_room_id", String(options.studyRoomId));
+  }
+
+  if (typeof options.conversationId === "number") {
+    formData.append("conversation_id", String(options.conversationId));
+  }
 
   return apiFetch("/api/ai/ask-image", {
     method: "POST",

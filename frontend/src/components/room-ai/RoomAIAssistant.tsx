@@ -3,6 +3,7 @@
 import MessageBubble from "@/components/room-ai/MessageBubble";
 import { useEffect, useRef, useState } from "react";
 import {
+  askAiWithImage,
   createAIConversation,
   deleteAIConversation,
   getAIConversations,
@@ -18,6 +19,8 @@ type RoomAiMessage = {
   role: "user" | "assistant";
   content: string;
   created_at?: string;
+  imagePreview?: string;
+  imageName?: string;
 };
 
 type AIConversation = {
@@ -55,6 +58,7 @@ export default function RoomAIAssistant({
   inputPlaceholder = "Ask the Room AI Assistant...",
 }: RoomAIAssistantProps) {
   const chatBoxRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const conversationMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,6 +69,8 @@ export default function RoomAIAssistant({
   const [conversations, setConversations] = useState<AIConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomAiMessage[]>([]);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState("");
 
   const [renamingConversationId, setRenamingConversationId] = useState<number | null>(null);
 
@@ -212,17 +218,61 @@ async function handleDeleteConversation(conversation: AIConversation) {
   }
 }
 
+  function removeSelectedImage() {
+    setSelectedImage(null);
+    setSelectedImagePreview("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function handleImageChange(file: File | undefined) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file.");
+      return;
+    }
+
+    const maxSize = 8 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      alert("Image must be 8MB or smaller.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setSelectedImage(file);
+      setSelectedImagePreview(String(reader.result || ""));
+    };
+
+    reader.readAsDataURL(file);
+  }
+
   function handleClearChat() {
     setMessages([]);
     setQuestion("");
+    removeSelectedImage();
   }
 
-  async function sendMessageToAI(messageText: string, selectedMode: string) {
+  async function sendMessageToAI(
+    messageText: string,
+    selectedMode: string,
+    imageFile?: File | null,
+    imagePreview?: string,
+    imageName?: string
+  ) {
     const cleanQuestion = messageText.trim();
-    if (!cleanQuestion || loading) return;
+    if ((!cleanQuestion && !imageFile) || loading) return;
+
+    const finalQuestion = cleanQuestion || "Describe this image clearly.";
 
     setLoading(true);
     setQuestion("");
+    removeSelectedImage();
 
     try {
       let conversationId = activeConversationId;
@@ -247,63 +297,96 @@ async function handleDeleteConversation(conversation: AIConversation) {
 
       setMessages((prev) => [
         ...prev,
-        { role: "user", content: cleanQuestion },
+        {
+          role: "user",
+          content: imageFile ? `[Image uploaded] ${finalQuestion}` : finalQuestion,
+          imagePreview: imagePreview || undefined,
+          imageName,
+        },
         {
           role: "assistant",
           content:
-            conversationMode === "pdf"
-              ? "StudySnap PDF Assistant is reading..."
-              : "StudySnap AI is thinking...",
+            imageFile
+              ? "StudySnap AI is reading the image..."
+              : conversationMode === "pdf"
+                ? "StudySnap PDF Assistant is reading..."
+                : "StudySnap AI is thinking...",
         },
       ]);
 
       scrollToBottom();
 
-      await streamAIMessage(
-        conversationId,
-        cleanQuestion,
-        selectedMode,
-        (token) => {
-          streamedAnswer += token;
+      if (imageFile) {
+        const data = await askAiWithImage(finalQuestion, imageFile, {
+          studyRoomId,
+          conversationId,
+        });
 
-          setMessages((prev) => {
-            const updated = [...prev];
-            const lastIndex = updated.length - 1;
+        const answer =
+          data && typeof data.answer === "string"
+            ? data.answer
+            : "No answer returned.";
 
-            if (lastIndex >= 0 && updated[lastIndex].role === "assistant") {
-              updated[lastIndex] = {
-                ...updated[lastIndex],
-                content: streamedAnswer,
-              };
-            }
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
 
-            return updated;
-          });
+          if (lastIndex >= 0 && updated[lastIndex].role === "assistant") {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content: answer,
+            };
+          }
 
-          scrollToBottom();
-        }
-      );
+          return updated;
+        });
+      } else {
+        await streamAIMessage(
+          conversationId,
+          finalQuestion,
+          selectedMode,
+          (token) => {
+            streamedAnswer += token;
 
-      setMessages((prev) => {
-        const updated = [...prev];
-        const lastIndex = updated.length - 1;
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIndex = updated.length - 1;
 
-        if (lastIndex >= 0 && updated[lastIndex].role === "assistant") {
-          updated[lastIndex] = {
-            ...updated[lastIndex],
-            content: streamedAnswer || "No answer returned.",
-          };
-        }
+              if (lastIndex >= 0 && updated[lastIndex].role === "assistant") {
+                updated[lastIndex] = {
+                  ...updated[lastIndex],
+                  content: streamedAnswer,
+                };
+              }
 
-        return updated;
-      });
+              return updated;
+            });
+
+            scrollToBottom();
+          }
+        );
+
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIndex = updated.length - 1;
+
+          if (lastIndex >= 0 && updated[lastIndex].role === "assistant") {
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              content: streamedAnswer || "No answer returned.",
+            };
+          }
+
+          return updated;
+        });
+      }
 
       setConversations((prev) =>
         prev.map((conversation) =>
           conversation.id === conversationId && conversation.title === "New Conversation"
             ? {
                 ...conversation,
-                title: cleanQuestion.slice(0, 50) || "New Conversation",
+                title: finalQuestion.slice(0, 50) || "New Conversation",
               }
             : conversation
         )
@@ -327,7 +410,19 @@ async function handleDeleteConversation(conversation: AIConversation) {
   }
 
   function handleAsk() {
-    sendMessageToAI(question, mode);
+    const imageToSend = selectedImage;
+    const imagePreviewToSend = selectedImagePreview;
+    const imageNameToSend = selectedImage?.name;
+    const finalQuestion =
+      question.trim() || (imageToSend ? "Describe this image clearly." : "");
+
+    sendMessageToAI(
+      finalQuestion,
+      mode,
+      imageToSend,
+      imagePreviewToSend,
+      imageNameToSend
+    );
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -578,33 +673,84 @@ useEffect(() => {
           ? "PDF Assistant"
           : "StudySnap AI"
     }
+    imagePreview={message.imagePreview}
+    imageName={message.imageName}
     onCopy={() => copyText(message.content)}
   />
 ))
             )}
           </div>
 
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={inputPlaceholder}
-              className="min-h-[100px] flex-1 rounded-2xl border border-white/10 bg-black p-4 text-sm text-white outline-none placeholder:text-slate-500"
+          <div className="mt-5 rounded-2xl border border-white/10 bg-black p-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => handleImageChange(event.target.files?.[0])}
             />
 
-            <button
-              type="button"
-              onClick={handleAsk}
-              disabled={loading || !question.trim()}
-              className="rounded-2xl bg-cyan-400 px-7 py-5 text-sm font-black text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? "Thinking..." : "Ask AI"}
-            </button>
+            {selectedImagePreview ? (
+              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3">
+                <img
+                  src={selectedImagePreview}
+                  alt="Selected upload preview"
+                  className="h-16 w-16 rounded-xl object-cover"
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black text-white">
+                    {selectedImage?.name || "Selected image"}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-400">
+                    Ask Project AI about this image.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeSelectedImage}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08]"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={selectedImage ? "Ask about this image..." : inputPlaceholder}
+                className="min-h-[100px] flex-1 resize-none bg-transparent p-3 text-sm text-white outline-none placeholder:text-slate-500"
+              />
+
+              <div className="flex gap-3 sm:flex-col">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  className="rounded-2xl border border-white/10 px-5 py-4 text-xl font-black text-white transition hover:bg-white/10 disabled:opacity-50"
+                  title="Upload image"
+                >
+                  ＋
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAsk}
+                  disabled={loading || (!question.trim() && !selectedImage)}
+                  className="rounded-2xl bg-cyan-400 px-7 py-5 text-sm font-black text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Thinking..." : "Ask AI"}
+                </button>
+              </div>
+            </div>
           </div>
 
           <p className="mt-3 text-xs text-slate-500">
-            Press Enter to send. Press Shift + Enter for a new line.
+            Press Enter to send. Press Shift + Enter for a new line. Use ＋ to ask about an image.
           </p>
         </div>
       </div>

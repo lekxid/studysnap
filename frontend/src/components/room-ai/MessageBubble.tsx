@@ -9,6 +9,8 @@ type MessageBubbleProps = {
   role: "user" | "assistant";
   content: string;
   label: string;
+  imagePreview?: string;
+  imageName?: string;
   onCopy: () => void;
 };
 
@@ -16,6 +18,8 @@ export default function MessageBubble({
   role,
   content,
   label,
+  imagePreview,
+  imageName,
   onCopy,
 }: MessageBubbleProps) {
   const isUser = role === "user";
@@ -38,6 +42,14 @@ export default function MessageBubble({
   <MessageToolbar onCopy={() => onCopy()} />
 ) : null}
       </div>
+
+      {imagePreview ? (
+        <img
+          src={imagePreview}
+          alt={imageName || "Uploaded image"}
+          className="mb-4 max-h-72 rounded-2xl object-contain"
+        />
+      ) : null}
 
       <div className="prose prose-invert max-w-none prose-p:leading-7 prose-li:leading-7 prose-headings:text-white prose-strong:text-white prose-code:text-cyan-200">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
