@@ -618,3 +618,19 @@ button:active {
     width: 100%;
   }
 }
+
+/* StudySnap: make native dropdown options readable in dark UI */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+select option:checked,
+select option:hover {
+  background: #1e293b;
+  color: #ffffff;
+}

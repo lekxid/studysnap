@@ -122,7 +122,13 @@ export default function NotesPage() {
 
         setRooms(roomList);
 
-        if (roomList.length > 0) {
+        const params = new URLSearchParams(window.location.search);
+        const requestedRoomId = Number(params.get("roomId"));
+        const matchingRoom = roomList.find((room) => room.id === requestedRoomId);
+
+        if (matchingRoom) {
+          setSelectedRoomId(matchingRoom.id);
+        } else if (roomList.length > 0) {
           setSelectedRoomId(roomList[0].id);
         }
       } catch (err) {
@@ -146,7 +152,30 @@ export default function NotesPage() {
         setError("");
 
         const data = await getNotes(roomId);
-        setNotes(Array.isArray(data) ? data : []);
+        const noteList: NoteItem[] = Array.isArray(data) ? data : [];
+        setNotes(noteList);
+
+        const params = new URLSearchParams(window.location.search);
+        const requestedNoteId = Number(params.get("noteId"));
+        const matchingNote = noteList.find((note) => note.id === requestedNoteId);
+
+        if (matchingNote) {
+          setEditingNoteId(matchingNote.id);
+          setTitle(matchingNote.title);
+          setContent(matchingNote.content);
+          lastSavedNoteRef.current = {
+            id: matchingNote.id,
+            title: matchingNote.title,
+            content: matchingNote.content,
+          };
+
+          window.setTimeout(() => {
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth",
+            });
+          }, 150);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load notes.");
       } finally {

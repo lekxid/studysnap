@@ -1,17 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
   askBrain,
   deleteBrainHistory,
   getBrainHistory,
+  getStudyRooms,
   saveBrainHistoryAsNote,
   type BrainAnswerResponse,
   type BrainHistoryItem,
   type BrainSource,
 } from "@/lib/api";
+
+type StudyRoom = {
+  id: number;
+  name: string;
+  subject?: string;
+  description?: string;
+};
 
 const suggestedQuestions = [
   "What do I need to complete for professional readiness?",
@@ -61,18 +70,59 @@ function formatDate(value?: string) {
   }
 }
 
+async function copyTextWithFallback(text: string) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall back below.
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
 export default function BrainPage() {
+  const router = useRouter();
+
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<BrainAnswerResponse | null>(null);
   const [history, setHistory] = useState<BrainHistoryItem[]>([]);
+  const [rooms, setRooms] = useState<StudyRoom[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [roomsLoading, setRoomsLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [deletingHistoryId, setDeletingHistoryId] = useState<number | null>(
     null
   );
+
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [answerActionMessage, setAnswerActionMessage] = useState("");
+
+  const answerSectionRef = useRef<HTMLElement | null>(null);
 
   const detectedRoomId = useMemo(() => {
     if (!result) return null;
@@ -89,6 +139,26 @@ export default function BrainPage() {
     return null;
   }, [result]);
 
+  const targetSaveRoomId = detectedRoomId ?? selectedRoomId;
+
+  async function loadRooms() {
+    setRoomsLoading(true);
+
+    try {
+      const data = await getStudyRooms();
+      const roomList: StudyRoom[] = Array.isArray(data) ? data : [];
+      setRooms(roomList);
+
+      if (selectedRoomId === null && roomList.length > 0) {
+        setSelectedRoomId(roomList[0].id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load study rooms.");
+    } finally {
+      setRoomsLoading(false);
+    }
+  }
+
   async function loadHistory() {
     setHistoryLoading(true);
 
@@ -99,6 +169,10 @@ export default function BrainPage() {
       if (!result && items.length > 0) {
         setResult(historyItemToAnswer(items[0]));
         setQuestion(items[0].question);
+
+        if (items[0].study_room_id) {
+          setSelectedRoomId(items[0].study_room_id);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load Brain history.");
@@ -108,9 +182,24 @@ export default function BrainPage() {
   }
 
   useEffect(() => {
+    loadRooms();
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (detectedRoomId !== null) {
+      setSelectedRoomId(detectedRoomId);
+    }
+  }, [detectedRoomId]);
+
+  function handleQuestionKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter") return;
+    if (event.shiftKey) return;
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -125,11 +214,25 @@ export default function BrainPage() {
     setLoading(true);
     setError("");
     setSuccessMessage("");
+    setAnswerActionMessage("");
 
     try {
-      const response = await askBrain(cleanQuestion, null, 6);
+      const response = await askBrain(cleanQuestion, selectedRoomId, 6);
       setResult(response);
+
+      const effectiveRoom = response.metadata.effective_study_room_id;
+      if (typeof effectiveRoom === "number") {
+        setSelectedRoomId(effectiveRoom);
+      }
+
       await loadHistory();
+
+      setTimeout(() => {
+        answerSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 150);
     } catch (err) {
       setError(err instanceof Error ? err.message : "StudySnap Brain failed.");
     } finally {
@@ -141,6 +244,7 @@ export default function BrainPage() {
     setQuestion(value);
     setError("");
     setSuccessMessage("");
+    setAnswerActionMessage("");
   }
 
   function openHistoryItem(item: BrainHistoryItem) {
@@ -148,6 +252,33 @@ export default function BrainPage() {
     setQuestion(item.question);
     setError("");
     setSuccessMessage("");
+    setAnswerActionMessage("");
+
+    if (item.study_room_id) {
+      setSelectedRoomId(item.study_room_id);
+    }
+
+    setTimeout(() => {
+      answerSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  }
+
+  async function handleCopyAnswer() {
+    if (!result?.answer) {
+      setAnswerActionMessage("No answer to copy yet.");
+      return;
+    }
+
+    const copied = await copyTextWithFallback(result.answer);
+
+    if (copied) {
+      setAnswerActionMessage("Answer copied.");
+    } else {
+      setAnswerActionMessage("Copy failed. Select the answer text and copy manually.");
+    }
   }
 
   async function handleSaveAsNote() {
@@ -156,26 +287,37 @@ export default function BrainPage() {
       return;
     }
 
+    if (targetSaveRoomId === null) {
+      setError("Choose a study room before saving this Brain answer as a note.");
+      return;
+    }
+
     setSavingNote(true);
     setError("");
     setSuccessMessage("");
+    setAnswerActionMessage("Saving as note...");
 
     try {
       const response = await saveBrainHistoryAsNote(
         result.id,
-        detectedRoomId,
+        targetSaveRoomId,
         `Brain Answer: ${question.trim().slice(0, 70) || "StudySnap"}`
       );
 
       if (response.already_saved) {
-        setSuccessMessage(
-          `Already saved as note: ${response.note.title}`
-        );
+        setAnswerActionMessage(`Already saved as note: ${response.note.title}`);
       } else {
-        setSuccessMessage(`Saved as note: ${response.note.title}`);
+        setAnswerActionMessage(`Saved as note: ${response.note.title}`);
       }
+
+      setTimeout(() => {
+        router.push(
+          `/notes?roomId=${response.note.study_room_id}&noteId=${response.note.id}`
+        );
+      }, 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save as note.");
+      setAnswerActionMessage("");
     } finally {
       setSavingNote(false);
     }
@@ -191,22 +333,25 @@ export default function BrainPage() {
     setDeletingHistoryId(item.id);
     setError("");
     setSuccessMessage("");
+    setAnswerActionMessage("");
 
     try {
       await deleteBrainHistory(item.id);
 
-      setHistory((current) =>
-        current.filter((historyItem) => historyItem.id !== item.id)
+      const remaining = history.filter(
+        (historyItem) => historyItem.id !== item.id
       );
 
-      if (result?.id === item.id) {
-        const remaining = history.filter(
-          (historyItem) => historyItem.id !== item.id
-        );
+      setHistory(remaining);
 
+      if (result?.id === item.id) {
         if (remaining.length > 0) {
           setResult(historyItemToAnswer(remaining[0]));
           setQuestion(remaining[0].question);
+
+          if (remaining[0].study_room_id) {
+            setSelectedRoomId(remaining[0].study_room_id);
+          }
         } else {
           setResult(null);
           setQuestion("");
@@ -249,12 +394,48 @@ export default function BrainPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-slate-200">
+                Study room
+              </span>
+
+              <select
+                value={selectedRoomId ?? ""}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedRoomId(value ? Number(value) : null);
+                }}
+                className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950 px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
+              >
+                <option value="">All rooms / auto-detect</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                    {room.subject ? ` — ${room.subject}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <span className="mt-2 block text-xs text-slate-500">
+                {roomsLoading
+                  ? "Loading rooms..."
+                  : "Choose a room when you want Brain to focus or save there."}
+              </span>
+            </label>
+
             <textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={handleQuestionKeyDown}
+              maxLength={8000}
               placeholder="Example: What do I need to complete for professional readiness?"
               className="min-h-36 w-full resize-none rounded-[1.5rem] border border-white/10 bg-black/35 px-5 py-4 text-sm leading-7 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
             />
+
+            <div className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <span>Press Enter to ask. Press Shift + Enter for a new line.</span>
+              <span>{question.length}/8000</span>
+            </div>
 
             {error ? (
               <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -369,7 +550,10 @@ export default function BrainPage() {
       </div>
 
       {result ? (
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+        <section
+          ref={answerSectionRef}
+          className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]"
+        >
           <div className="premium-card rounded-[2rem] border border-white/10 p-5 sm:p-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -382,23 +566,37 @@ export default function BrainPage() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(result.answer)}
-                  className="premium-button-secondary rounded-[1rem] px-4 py-2.5 text-sm font-semibold"
-                >
-                  Copy answer
-                </button>
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyAnswer}
+                    className="premium-button-secondary rounded-[1rem] px-4 py-2.5 text-sm font-semibold"
+                  >
+                    Copy answer
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleSaveAsNote}
-                  disabled={savingNote}
-                  className="premium-button rounded-[1rem] px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {savingNote ? "Saving..." : "Save as note"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAsNote}
+                    disabled={savingNote}
+                    className="premium-button rounded-[1rem] px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {savingNote ? "Saving..." : "Save as note"}
+                  </button>
+                </div>
+
+                {answerActionMessage ? (
+                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-100">
+                    {answerActionMessage}
+                  </div>
+                ) : null}
+
+                {targetSaveRoomId !== null ? (
+                  <p className="text-xs text-slate-500">
+                    Saving into room #{targetSaveRoomId}
+                  </p>
+                ) : null}
               </div>
             </div>
 
