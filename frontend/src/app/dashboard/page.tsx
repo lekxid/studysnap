@@ -244,8 +244,13 @@ function DashboardSidebar({
 }: {
   activeRoomId: number | null;
 }) {
+  function dashboardLogout() {
+    removeToken();
+    window.location.href = "/login";
+  }
+
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-y-auto border-r border-white/10 bg-[#061018] px-4 py-5 lg:block">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-y-auto border-r border-white/10 bg-[#061018] px-4 py-5 lg:flex lg:flex-col">
       <Link href="/dashboard" className="flex items-center gap-3">
         <span className="text-4xl text-yellow-300">★</span>
         <span className="text-2xl font-black tracking-tight text-white">
@@ -253,41 +258,85 @@ function DashboardSidebar({
         </span>
       </Link>
 
-      <nav className="mt-7 space-y-1.5">
+      <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+          Active workspace
+        </p>
+
+        <p className="mt-2 text-sm font-black text-white">
+          {activeRoomId ? `Room #${activeRoomId}` : "All StudySnap"}
+        </p>
+
+        <p className="mt-1 text-xs leading-5 text-slate-400">
+          Dashboard, notes, flashcards, quizzes, planner, and AI stay connected.
+        </p>
+      </div>
+
+      <nav className="mt-5 space-y-1.5">
         <SidebarLink href="/dashboard" icon="⌂" label="Home" active />
         <SidebarLink href="/study-rooms" icon="📁" label="Study Rooms" />
         <SidebarLink href={getRoomAwareHref("/notes", activeRoomId)} icon="▣" label="Notes" />
         <SidebarLink href={getRoomAwareHref("/flashcards", activeRoomId)} icon="◫" label="Flashcards" />
         <SidebarLink href={getRoomAwareHref("/quizzes", activeRoomId)} icon="▤" label="Quizzes" />
         <SidebarLink href={getRoomAwareHref("/planner", activeRoomId)} icon="◷" label="Planner" />
-        <SidebarLink href="/progress" icon="?" label="Progress" />
+        <SidebarLink href="/progress" icon="▲" label="Progress" />
         <SidebarLink href="/ai-tutor" icon="✦" label="AI Tutor" />
-        <SidebarLink href="/brain" icon="🧠" label="Brain" />
-        <SidebarLink href="/groups" icon="👥" label="Groups" />
       </nav>
 
-      <div className="mt-8 border-t border-white/10 pt-6">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-          Starred Rooms
-        </p>
+      <div className="mt-auto border-t border-white/10 pt-5">
+        <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-4">
+          <p className="font-black text-yellow-100">StudySnap Premium</p>
 
-        <div className="mt-4 rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-4">
-          <p className="font-black text-yellow-100">Upgrade to Premium</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Unlock advanced AI features, visual study tools, and smarter progress.
+            Unlock visual study tools, stronger AI coaching, and smarter progress.
           </p>
 
           <button
             type="button"
-            className="mt-4 w-full rounded-xl border border-yellow-300/35 bg-black/30 px-4 py-3 text-sm font-black text-yellow-200"
+            className="mt-4 w-full rounded-xl border border-yellow-300/35 bg-black/30 px-4 py-3 text-sm font-black text-yellow-200 transition hover:bg-black/45"
           >
             Upgrade Now →
           </button>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-yellow-300 text-sm font-black text-black">
+              S
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-white">
+                StudySnap Learner
+              </p>
+              <p className="text-xs font-bold text-slate-500">
+                Learning profile
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Link
+              href="/settings"
+              className="rounded-xl bg-white/[0.06] px-3 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.09]"
+            >
+              Settings
+            </Link>
+
+            <button
+              type="button"
+              onClick={dashboardLogout}
+              className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-slate-200 transition hover:bg-red-500/15 hover:text-red-100"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </aside>
   );
 }
+
 
 function TopSearch({
   activeRoomId,
@@ -483,18 +532,111 @@ function ContinueLearningCard({
   );
 }
 
+function cleanPromptTitle(value: string, fallback = "your study material") {
+  const cleaned = value
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const safeValue = cleaned || fallback;
+
+  return safeValue.length > 42 ? `${safeValue.slice(0, 39).trim()}...` : safeValue;
+}
+
+function shufflePrompts(items: string[]) {
+  const uniqueItems = Array.from(new Set(items.filter(Boolean)));
+
+  for (let index = uniqueItems.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [uniqueItems[index], uniqueItems[randomIndex]] = [
+      uniqueItems[randomIndex],
+      uniqueItems[index],
+    ];
+  }
+
+  return uniqueItems;
+}
+
+function buildAiTutorPromptCandidates({
+  activeRoom,
+  pdfs,
+  notes,
+  flashcards,
+}: {
+  activeRoom: StudyRoom | null;
+  pdfs: PDFDocument[];
+  notes: NoteItem[];
+  flashcards: FlashcardItem[];
+}) {
+  const prompts: string[] = [];
+
+  if (activeRoom?.subject) {
+    const subject = cleanPromptTitle(activeRoom.subject, "this subject");
+    prompts.push(`Explain ${subject} in simple words`);
+    prompts.push(`Quiz me on ${subject}`);
+    prompts.push(`What are my weak areas in ${subject}?`);
+  }
+
+  if (activeRoom?.name) {
+    prompts.push(`Give me a quick review from ${cleanPromptTitle(activeRoom.name)}`);
+  }
+
+  pdfs.slice(0, 6).forEach((pdf) => {
+    const title = cleanPromptTitle(pdf.original_filename, "this PDF");
+    prompts.push(`Summarize ${title}`);
+    prompts.push(`Quiz me from ${title}`);
+    prompts.push(`What should I remember from ${title}?`);
+  });
+
+  notes.slice(0, 6).forEach((note) => {
+    const title = cleanPromptTitle(note.title, "this note");
+    prompts.push(`Explain my note: ${title}`);
+    prompts.push(`Make practice questions from ${title}`);
+    prompts.push(`What are the main points in ${title}?`);
+  });
+
+  flashcards.slice(0, 8).forEach((card) => {
+    const question = cleanPromptTitle(card.question, "this flashcard");
+    prompts.push(question.endsWith("?") ? question : `Test me on ${question}`);
+  });
+
+  if (prompts.length === 0) {
+    prompts.push(
+      "What should I study first?",
+      "Help me create a study plan",
+      "Explain my weakest topic simply"
+    );
+  }
+
+  return prompts;
+}
+
 function AiTutorCard({
   activeRoomId,
+  activeRoom,
+  pdfs,
+  notes,
+  flashcards,
 }: {
   activeRoomId: number | null;
+  activeRoom: StudyRoom | null;
+  pdfs: PDFDocument[];
+  notes: NoteItem[];
+  flashcards: FlashcardItem[];
 }) {
   const aiHref = activeRoomId ? `/study-rooms/${activeRoomId}` : "/study-rooms";
 
-  const prompts = [
-    "What is sudo?",
-    "Explain file permissions",
-    "What is a kernel?",
-  ];
+  const prompts = useMemo(() => {
+    return shufflePrompts(
+      buildAiTutorPromptCandidates({
+        activeRoom,
+        pdfs,
+        notes,
+        flashcards,
+      })
+    ).slice(0, 3);
+  }, [activeRoom, flashcards, notes, pdfs]);
 
   return (
     <section className="rounded-xl border border-yellow-300/25 bg-[#08111d]/90 p-3 shadow-[0_0_40px_rgba(250,204,21,0.06)]">
@@ -504,7 +646,7 @@ function AiTutorCard({
       </div>
 
       <p className="text-base font-black text-yellow-300">
-        Try asking me something like:
+        Try asking from your saved study material:
       </p>
 
       <div className="mt-2 flex flex-wrap gap-2">
@@ -983,10 +1125,6 @@ export default function DashboardPage() {
     return [...pdfItems, ...noteItems, ...flashcardItems].slice(0, 3);
   }, [activeRoom, activeRoomId, flashcards, notes, pdfs]);
 
-  function handleLogout() {
-    removeToken();
-    window.location.href = "/login";
-  }
 
   if (!checked) {
     return (
@@ -1044,14 +1182,13 @@ export default function DashboardPage() {
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="grid h-12 w-12 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-lg font-black text-white"
-                title="Logout"
-              >
-                {displayName.charAt(0).toUpperCase()}
-              </button>
+              <Link
+              href="/settings"
+              className="grid h-12 w-12 place-items-center rounded-full border border-yellow-300/35 bg-yellow-300/10 text-lg font-black text-yellow-200 transition hover:bg-yellow-300/20"
+              title="Open settings"
+            >
+              {displayName.charAt(0).toUpperCase()}
+            </Link>
             </div>
           </header>
 
@@ -1097,7 +1234,13 @@ export default function DashboardPage() {
 
               <ContinueLearningCard items={continueItems} />
 
-              <AiTutorCard activeRoomId={activeRoomId} />
+              <AiTutorCard
+                    activeRoomId={activeRoomId}
+                    activeRoom={activeRoom}
+                    pdfs={pdfs}
+                    notes={notes}
+                    flashcards={flashcards}
+                  />
             </div>
 
             <RightProgressCard
