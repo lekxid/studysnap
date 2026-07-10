@@ -17,3 +17,8 @@ from app.models.study_material import StudyMaterial
 from app.models.user_settings import UserSettings
 from app.models.user_session import UserSession
 from app.models.connected_account import ConnectedAccount
+
+from app.models.room_member import RoomMember
+from app.models.room_event import RoomEvent
+from app.models.room_memory_bucket import RoomMemoryBucket
+from app.models.room_ai_output import RoomAIOutput
