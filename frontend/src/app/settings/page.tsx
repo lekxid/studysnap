@@ -334,11 +334,11 @@ export default function SettingsPage() {
         setSettings(syncedSettings);
         saveJSON(SETTINGS_STORAGE_KEY, syncedSettings);
         saveOnboardingFromSettings(syncedSettings);
-        setSyncStatus("Cloud settings synced.");
+        setSyncStatus("Account settings synced.");
       } catch (error) {
         console.error(error);
         if (cancelled) return;
-        setSyncStatus("Using local settings. Cloud sync unavailable.");
+        setSyncStatus("Using local settings. Account sync unavailable.");
       }
     }
 
@@ -398,12 +398,12 @@ export default function SettingsPage() {
       saveJSON(SETTINGS_STORAGE_KEY, syncedSettings);
       saveOnboardingFromSettings(syncedSettings);
 
-      setSyncStatus("Cloud settings synced.");
+      setSyncStatus("Account settings synced.");
       setSavedMessage(message);
     } catch (error) {
       console.error(error);
-      setSyncStatus("Saved locally. Cloud sync failed.");
-      setSavedMessage("Saved locally. Cloud sync failed.");
+      setSyncStatus("Saved locally. Account sync failed.");
+      setSavedMessage("Saved locally. Account sync failed.");
     } finally {
       setIsSaving(false);
 
@@ -623,12 +623,12 @@ export default function SettingsPage() {
   return (
     <AppShell
       title="Settings"
-      subtitle="Manage your synced learning profile, AI memory, connected apps, privacy, and StudySnap setup."
+      subtitle="Manage your synced learning profile, AI memory, future app connections, privacy, and StudySnap setup."
     >
       <div className="content-grid">
         <section className="hero-grid">
           <div className="gold-card rounded-[2rem] p-6 sm:p-8">
-            <div className="gold-chip mb-4">Cloud profile</div>
+            <div className="gold-chip mb-4">StudySnap profile</div>
 
             <h3 className="panel-title text-white text-balance">
               Your StudySnap settings now sync with your account.
@@ -636,11 +636,11 @@ export default function SettingsPage() {
 
             <p className="panel-muted mt-4 max-w-2xl">
               Changes here update your backend profile, onboarding setup, AI
-              Tutor style, memory preferences, and future connected-app sync.
+              Tutor style, memory preferences, and future app integrations.
             </p>
 
             <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
-              {isSaving ? "Saving to cloud..." : syncStatus}
+              {isSaving ? "Saving to account..." : syncStatus}
             </div>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-4">
@@ -1066,7 +1066,7 @@ export default function SettingsPage() {
                   >
                     <span className="text-sm font-black">{label}</span>
                     <span className="text-xs font-black">
-                      {enabled ? "On" : "Off"}
+                      {enabled ? "Saved" : "Off"}
                     </span>
                   </button>
                 );
@@ -1075,17 +1075,15 @@ export default function SettingsPage() {
           </div>
 
           <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Connected Apps</div>
-            <h3 className="panel-title text-white">Cloud connections</h3>
+            <div className="gold-chip mb-4">Future apps</div>
+            <h3 className="panel-title text-white">Future app connections</h3>
             <p className="panel-muted mt-3">
-              This is the dashboard foundation for Google Drive, Google Docs,
-              iCloud, OneDrive, and Dropbox.
+              These providers are planned for the next connection phase. They
+              are shown here as future integration placeholders only.
             </p>
 
             <div className="mt-5 grid gap-3">
               {Object.entries(settings.connectedApps).map(([key, app]) => {
-                const connected = Boolean(app.connected);
-
                 return (
                   <div
                     key={key}
@@ -1097,39 +1095,36 @@ export default function SettingsPage() {
                           {connectedAppLabels[key] || key}
                         </p>
                         <p className="mt-1 text-xs font-bold text-slate-500">
-                          {formatSyncStatus(app.last_synced_at)}
+                          Integration coming soon
                         </p>
                       </div>
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ${
-                          connected
-                            ? "bg-emerald-400/15 text-emerald-100"
-                            : "bg-white/[0.06] text-slate-300"
-                        }`}
-                      >
-                        {connected ? "Connected" : "Not connected"}
+                      <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-black text-slate-300">
+                        Coming soon
                       </span>
                     </div>
 
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       <button
                         type="button"
-                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                        disabled
+                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
                       >
-                        Connect
+                        Connect later
                       </button>
                       <button
                         type="button"
-                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                        disabled
+                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
                       >
-                        Sync now
+                        Sync later
                       </button>
                       <button
                         type="button"
-                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                        disabled
+                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
                       >
-                        View files
+                        Files later
                       </button>
                     </div>
                   </div>
@@ -1256,10 +1251,10 @@ export default function SettingsPage() {
 
         <section className="premium-card gold-border rounded-[2rem] p-6">
           <div className="gold-chip mb-4">Automation</div>
-          <h3 className="panel-title text-white">Cloud auto-import rules</h3>
+          <h3 className="panel-title text-white">Future auto-import rules</h3>
           <p className="panel-muted mt-3">
-            These switches prepare StudySnap for Drive, Docs, iCloud, and
-            folder-based auto-import. The real provider connections come next.
+            These are saved preferences only. Real Drive, Docs, iCloud,
+            and folder connections will come in the next provider phase.
           </p>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1278,7 +1273,7 @@ export default function SettingsPage() {
                   {autoImportLabels[key] || key}
                 </span>
                 <span className="text-xs font-black">
-                  {enabled ? "On" : "Off"}
+                  {enabled ? "Saved" : "Off"}
                 </span>
               </button>
             ))}
