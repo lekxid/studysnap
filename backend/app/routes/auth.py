@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.utils.auth import hash_password, verify_password, create_access_token
 from app.utils.deps import get_current_user
+from app.utils.session_helpers import create_user_session
 
 router = APIRouter(tags=["Authentication"])
 
@@ -43,18 +44,31 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
+def login(
+    user_data: UserLogin,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.email == user_data.email).first()
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    session = create_user_session(db=db, request=request, user_id=user.id)
+
     access_token = create_access_token(
-        {"sub": user.email, "user_id": user.id, "full_name": user.full_name}
+        {
+            "sub": user.email,
+            "user_id": user.id,
+            "full_name": user.full_name,
+            "session_id": session.id,
+            "session_token": session.session_token,
+        }
     )
 
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "session_id": session.id,
     }
 
 

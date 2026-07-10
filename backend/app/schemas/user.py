@@ -26,3 +26,4 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    session_id: int | None = None

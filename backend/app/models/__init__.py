@@ -15,3 +15,4 @@ from app.models.brain_memory import BrainMemory
 from app.models.brain_answer_history import BrainAnswerHistory
 from app.models.study_material import StudyMaterial
 from app.models.user_settings import UserSettings
+from app.models.user_session import UserSession

@@ -21,6 +21,7 @@ from app.routes.search import router as search_router
 from app.routes.brain import router as brain_router
 from app.routes.smart_organizer import router as smart_organizer_router
 from app.routes.users import router as users_router
+from app.routes.sessions import router as sessions_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -50,6 +51,7 @@ app.include_router(search_router, prefix="/api/search")
 app.include_router(brain_router, prefix="/api/brain")
 app.include_router(smart_organizer_router, prefix="/api/smart-organizer")
 app.include_router(users_router, prefix="/api/users")
+app.include_router(sessions_router, prefix="/api/sessions")
 
 
 @app.get("/")
