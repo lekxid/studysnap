@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getToken, removeToken } from "@/lib/api";
+import { getToken, signOutCurrentSession } from "@/lib/api";
 
 export default function Navbar() {
   const router = useRouter();
   const token = typeof window !== "undefined" ? getToken() : null;
 
-  function handleLogout() {
-    removeToken();
+  async function handleLogout() {
+    await signOutCurrentSession();
     router.push("/login");
   }
 

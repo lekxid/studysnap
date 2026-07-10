@@ -891,6 +891,22 @@ export async function revokeUserSession(sessionId: number) {
   });
 }
 
+export async function logoutCurrentSession() {
+  return apiFetch("/api/sessions/logout-current", {
+    method: "POST",
+  });
+}
+
+export async function signOutCurrentSession() {
+  try {
+    await logoutCurrentSession();
+  } catch (error) {
+    console.warn("Could not revoke current session before logout.", error);
+  } finally {
+    removeToken();
+  }
+}
+
 export async function logoutOtherSessions() {
   return apiFetch("/api/sessions/logout-others", {
     method: "POST",

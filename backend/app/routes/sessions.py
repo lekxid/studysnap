@@ -112,6 +112,35 @@ def revoke_session(
     return {"message": "Device signed out."}
 
 
+@router.post("/logout-current", response_model=SessionMessageResponse)
+def revoke_current_session(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_session_id = get_current_session_id_from_token(token)
+
+    if current_session_id is None:
+        return {"message": "Signed out."}
+
+    session = (
+        db.query(UserSession)
+        .filter(
+            UserSession.id == current_session_id,
+            UserSession.user_id == current_user.id,
+            UserSession.revoked_at.is_(None),
+        )
+        .first()
+    )
+
+    if session is not None:
+        session.revoked_at = datetime.utcnow()
+        db.add(session)
+        db.commit()
+
+    return {"message": "Signed out."}
+
+
 @router.post("/logout-others", response_model=SessionMessageResponse)
 def revoke_other_sessions(
     token: str = Depends(oauth2_scheme),

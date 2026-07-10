@@ -10,7 +10,7 @@ import {
   getSavedProjectRoomId,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-import { removeToken } from "@/lib/api";
+import { signOutCurrentSession } from "@/lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: "⌂" },
@@ -160,8 +160,8 @@ export default function AppShell({
     return `${href}?roomId=${activeProjectRoomId}`;
   }
 
-  function handleLogout() {
-    removeToken();
+  async function handleLogout() {
+    await signOutCurrentSession();
     router.push("/login");
   }
 

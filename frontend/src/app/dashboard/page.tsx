@@ -10,7 +10,7 @@ import {
   getPDFs,
   getQuizzes,
   getStudyRooms,
-  removeToken,
+  signOutCurrentSession,
   retrieveBrain,
   type BrainSource,
 } from "@/lib/api";
@@ -244,8 +244,8 @@ function DashboardSidebar({
 }: {
   activeRoomId: number | null;
 }) {
-  function dashboardLogout() {
-    removeToken();
+  async function dashboardLogout() {
+    await signOutCurrentSession();
     window.location.href = "/login";
   }
 
