@@ -15,10 +15,12 @@ import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
   getPDFs,
+  getRoomFoundation,
   getStudyRooms,
   retrieveBrain,
   summarizePDF,
   type BrainSource,
+  type RoomFoundation,
 } from "@/lib/api";
 
 type StudyRoom = {
@@ -37,6 +39,159 @@ type PDFDocument = {
 
 type AiMode = "general" | "pdf";
 
+function RoomFoundationPanel({
+  foundation,
+  loading,
+  error,
+}: {
+  foundation: RoomFoundation | null;
+  loading: boolean;
+  error: string;
+}) {
+  if (loading) {
+    return (
+      <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-5 text-sm text-white/60">
+        Loading StudySnap room intelligence...
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="rounded-3xl border border-red-500/25 bg-red-500/10 p-5 text-sm text-red-200">
+        Room foundation could not load: {error}
+      </section>
+    );
+  }
+
+  if (!foundation) return null;
+
+  const actions = Array.isArray(foundation.actions) ? foundation.actions : [];
+  const availableSources = Array.isArray(foundation.context_engine?.available_sources)
+    ? foundation.context_engine.available_sources
+    : [];
+  const memoryBucketTypes = Array.isArray(foundation.context_engine?.memory_bucket_types)
+    ? foundation.context_engine.memory_bucket_types
+    : [];
+
+  const liveActions = actions.filter((action) => !action.future);
+  const futureActions = actions.filter((action) => action.future);
+  const contextStatus = foundation.context_engine?.status || "foundation_ready";
+  const realtimeChannel = foundation.realtime?.channel || `room:${foundation.room?.id || "current"}`;
+  const realtimeNote =
+    foundation.realtime?.note || "WebSocket room sync will attach to this channel later.";
+  const userRole = foundation.user_role || "owner";
+
+  return (
+    <section className="rounded-3xl border border-yellow-300/15 bg-[#0a1022] p-6 shadow-2xl shadow-black/20">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.35em] text-yellow-300/80">
+            Room Foundation
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-white">
+            Connected AI learning system
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            This room now has its foundation layer ready: actions, permissions,
+            context sources, memory buckets, and the future realtime channel.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm">
+          <p className="font-bold text-emerald-200">
+            {contextStatus.replaceAll("_", " ")}
+          </p>
+          <p className="mt-1 text-xs text-emerald-100/60">
+            Role: {userRole}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
+            AI Actions
+          </p>
+          <div className="mt-4 grid gap-3">
+            {liveActions.map((action) => (
+              <div
+                key={action.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+              >
+                <p className="text-sm font-bold text-white">{action.label}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  {action.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
+            Context Engine
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {availableSources.map((source) => (
+              <span
+                key={source}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300"
+              >
+                {source}
+              </span>
+            ))}
+          </div>
+
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
+            Memory Buckets
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {memoryBucketTypes.map((bucket) => (
+              <span
+                key={bucket}
+                className="rounded-full border border-yellow-300/15 bg-yellow-300/10 px-3 py-1 text-xs font-semibold text-yellow-100/80"
+              >
+                {bucket.replaceAll("_", " ")}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
+            Realtime Ready
+          </p>
+          <p className="mt-4 text-lg font-black text-white">
+            {realtimeChannel}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            {realtimeNote}
+          </p>
+
+          {futureActions.length ? (
+            <>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
+                Future Actions
+              </p>
+              <div className="mt-3 grid gap-2">
+                {futureActions.map((action) => (
+                  <div
+                    key={action.id}
+                    className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400"
+                  >
+                    {action.label}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function StudyRoomDetailPage() {
   const ready = useRequireAuth();
   const params = useParams();
@@ -51,11 +206,14 @@ export default function StudyRoomDetailPage() {
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
   const [loadingRoom, setLoadingRoom] = useState(true);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
+  const [loadingFoundation, setLoadingFoundation] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [summarizingId, setSummarizingId] = useState<number | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryTitle, setSummaryTitle] = useState("");
+  const [roomFoundation, setRoomFoundation] = useState<RoomFoundation | null>(null);
+  const [foundationError, setFoundationError] = useState("");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
   const [projectSearchResults, setProjectSearchResults] = useState<BrainSource[]>([]);
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
@@ -252,6 +410,25 @@ export default function StudyRoomDetailPage() {
     }
   }
 
+  async function loadRoomFoundation() {
+    if (!studyRoomId || Number.isNaN(studyRoomId)) return;
+
+    try {
+      setLoadingFoundation(true);
+      setFoundationError("");
+
+      const data = await getRoomFoundation(studyRoomId);
+      setRoomFoundation(data);
+    } catch (err) {
+      setRoomFoundation(null);
+      setFoundationError(
+        err instanceof Error ? err.message : "Failed to load room foundation."
+      );
+    } finally {
+      setLoadingFoundation(false);
+    }
+  }
+
   async function handleDelete(pdfId: number) {
     if (!confirm("Delete this PDF?")) return;
 
@@ -292,6 +469,7 @@ export default function StudyRoomDetailPage() {
     saveProjectRoomId(studyRoomId);
     loadRoom();
     loadPdfs();
+    loadRoomFoundation();
   }, [ready, studyRoomId]);
 
   if (!ready) {
@@ -341,6 +519,12 @@ export default function StudyRoomDetailPage() {
           onOpenQuizzes={() => router.push(`/quizzes?roomId=${studyRoomId}`)}
           onOpenPlanner={() => router.push(`/planner?roomId=${studyRoomId}`)}
         >
+          <RoomFoundationPanel
+            foundation={roomFoundation}
+            loading={loadingFoundation}
+            error={foundationError}
+          />
+
           {activeAiMode === "general" ? (
             <div ref={aiSectionRef} className="scroll-mt-8">
               <CompactProjectAI

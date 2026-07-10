@@ -368,6 +368,45 @@ export async function getStudyRooms(): Promise<StudyRoom[]> {
   return apiFetch("/api/study-rooms") as Promise<StudyRoom[]>;
 }
 
+export type RoomFoundationAction = {
+  id: string;
+  label: string;
+  description: string;
+  output_type: string;
+  future?: boolean;
+};
+
+export type RoomFoundation = {
+  room: {
+    id: number;
+    name: string;
+    subject?: string | null;
+    description?: string | null;
+  };
+  user_role: string;
+  permissions: string[];
+  actions: RoomFoundationAction[];
+  output_types: string[];
+  context_engine: {
+    active_context: string | null;
+    available_sources: string[];
+    memory_bucket_types: string[];
+    status: string;
+  };
+  realtime: {
+    enabled: boolean;
+    channel: string;
+    note: string;
+  };
+};
+
+export async function getRoomFoundation(
+  studyRoomId: number
+): Promise<RoomFoundation> {
+  return apiFetch(`/api/room-foundation/${studyRoomId}`) as Promise<RoomFoundation>;
+}
+
+
 export async function createStudyRoom(
   name: string,
   subject: string,
