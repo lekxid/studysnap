@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_vision_model: str = "gpt-4o-mini"
 
+    frontend_app_url: str = "http://localhost:3000"
+
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = "http://127.0.0.1:8000/api/integrations/google/callback"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8"

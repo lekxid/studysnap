@@ -888,6 +888,25 @@ export async function updateUserSettings(
   });
 }
 
+export type GoogleDriveIntegrationStatus = {
+  provider: string;
+  configured: boolean;
+  connected: boolean;
+  account_email?: string | null;
+  scopes?: string | null;
+  last_synced_at?: string | null;
+};
+
+export async function getGoogleDriveStatus(): Promise<GoogleDriveIntegrationStatus> {
+  return apiFetch("/api/integrations/google/status");
+}
+
+export async function getGoogleDriveConnectUrl(): Promise<{
+  authorization_url: string;
+}> {
+  return apiFetch("/api/integrations/google/connect-url");
+}
+
 export type UserSession = {
   id: number;
   device_name: string;

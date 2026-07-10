@@ -7,6 +7,8 @@ import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   getCurrentUser,
+  getGoogleDriveConnectUrl,
+  getGoogleDriveStatus,
   getUserSessions,
   getUserSettings,
   logoutAllSessions,
@@ -14,6 +16,7 @@ import {
   revokeUserSession,
   updateCurrentUserProfile,
   updateUserSettings,
+  type GoogleDriveIntegrationStatus,
   type SyncedUserSettings,
   type UserProfile,
   type UserSession,
@@ -284,6 +287,10 @@ export default function SettingsPage() {
   const [accountStatus, setAccountStatus] = useState("Loading account...");
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [googleDriveStatus, setGoogleDriveStatus] =
+    useState<GoogleDriveIntegrationStatus | null>(null);
+  const [integrationMessage, setIntegrationMessage] = useState("");
+  const [integrationLoading, setIntegrationLoading] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -345,6 +352,7 @@ export default function SettingsPage() {
     loadSettings();
     loadAccount();
     loadSessions();
+    loadGoogleDriveStatus();
 
     return () => {
       cancelled = true;
@@ -522,6 +530,50 @@ export default function SettingsPage() {
       setSavedMessage("Could not update profile name.");
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function loadGoogleDriveStatus() {
+    try {
+      const status = await getGoogleDriveStatus();
+      setGoogleDriveStatus(status);
+
+      if (!status.configured) {
+        setIntegrationMessage("Google Drive setup needs OAuth keys in backend/.env.");
+        return;
+      }
+
+      if (status.connected) {
+        setIntegrationMessage("Google Drive connected.");
+        return;
+      }
+
+      setIntegrationMessage("Google Drive is ready to connect.");
+    } catch (error) {
+      console.error(error);
+      setIntegrationMessage("Could not check Google Drive status.");
+    }
+  }
+
+  async function handleConnectGoogleDrive() {
+    setIntegrationLoading(true);
+
+    try {
+      const result = await getGoogleDriveConnectUrl();
+
+      if (!result.authorization_url) {
+        setIntegrationMessage("Google Drive authorization URL was not returned.");
+        return;
+      }
+
+      window.location.href = result.authorization_url;
+    } catch (error) {
+      console.error(error);
+      setIntegrationMessage(
+        "Google Drive is not configured yet. Add OAuth keys to backend/.env first."
+      );
+    } finally {
+      setIntegrationLoading(false);
     }
   }
 
@@ -1083,7 +1135,11 @@ export default function SettingsPage() {
             </p>
 
             <div className="mt-5 grid gap-3">
-              {Object.entries(settings.connectedApps).map(([key, app]) => {
+              {Object.entries(settings.connectedApps).map(([key]) => {
+                const isGoogleDrive = key === "google_drive";
+                const googleConfigured = Boolean(googleDriveStatus?.configured);
+                const googleConnected = Boolean(googleDriveStatus?.connected);
+
                 return (
                   <div
                     key={key}
@@ -1095,42 +1151,96 @@ export default function SettingsPage() {
                           {connectedAppLabels[key] || key}
                         </p>
                         <p className="mt-1 text-xs font-bold text-slate-500">
-                          Integration coming soon
+                          {isGoogleDrive
+                            ? googleConnected
+                              ? googleDriveStatus?.account_email || "Connected"
+                              : googleConfigured
+                                ? "Ready for OAuth connection"
+                                : "OAuth setup required"
+                            : "Integration coming soon"}
                         </p>
                       </div>
 
-                      <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs font-black text-slate-300">
-                        Coming soon
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black ${
+                          isGoogleDrive && googleConnected
+                            ? "bg-emerald-400/15 text-emerald-100"
+                            : isGoogleDrive && googleConfigured
+                              ? "bg-cyan-400/15 text-cyan-100"
+                              : "bg-white/[0.06] text-slate-300"
+                        }`}
+                      >
+                        {isGoogleDrive
+                          ? googleConnected
+                            ? "Connected"
+                            : googleConfigured
+                              ? "Ready"
+                              : "Setup required"
+                          : "Coming soon"}
                       </span>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        disabled
-                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                      >
-                        Connect later
-                      </button>
-                      <button
-                        type="button"
-                        disabled
-                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                      >
-                        Sync later
-                      </button>
-                      <button
-                        type="button"
-                        disabled
-                        className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                      >
-                        Files later
-                      </button>
-                    </div>
+                    {isGoogleDrive ? (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleConnectGoogleDrive}
+                          disabled={integrationLoading || googleConnected}
+                          className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:text-slate-500"
+                        >
+                          {googleConnected
+                            ? "Connected"
+                            : integrationLoading
+                              ? "Opening..."
+                              : googleConfigured
+                                ? "Connect Google"
+                                : "Setup needed"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={loadGoogleDriveStatus}
+                          disabled={integrationLoading}
+                          className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          disabled
+                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                        >
+                          Connect later
+                        </button>
+                        <button
+                          type="button"
+                          disabled
+                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                        >
+                          Sync later
+                        </button>
+                        <button
+                          type="button"
+                          disabled
+                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                        >
+                          Files later
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+
+            {integrationMessage ? (
+              <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+                {integrationMessage}
+              </div>
+            ) : null}
           </div>
         </section>
 
