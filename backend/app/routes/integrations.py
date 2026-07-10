@@ -19,7 +19,7 @@ router = APIRouter(tags=["Integrations"])
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+GOOGLE_DRIVE_SCOPE = "openid email profile https://www.googleapis.com/auth/drive.readonly"
 GOOGLE_PROVIDER = "google_drive"
 
 
