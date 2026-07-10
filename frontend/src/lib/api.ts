@@ -119,6 +119,15 @@ export async function getCurrentUser(): Promise<UserProfile> {
   return apiFetch("/api/auth/me");
 }
 
+export async function updateCurrentUserProfile(
+  fullName: string
+): Promise<UserProfile> {
+  return apiFetch("/api/users/me/profile", {
+    method: "PUT",
+    body: JSON.stringify({ full_name: fullName }),
+  });
+}
+
 export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }

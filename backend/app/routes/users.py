@@ -1,13 +1,42 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
 from app.models.user_settings import UserSettings
+from app.schemas.user import UserResponse
 from app.schemas.user_settings import UserSettingsResponse, UserSettingsUpdate
 from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Users"])
+
+
+class UserProfileUpdate(BaseModel):
+    full_name: str
+
+
+@router.put("/me/profile", response_model=UserResponse)
+def update_my_profile(
+    payload: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    full_name = payload.full_name.strip()
+
+    if len(full_name) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Full name must be at least 2 characters.",
+        )
+
+    current_user.full_name = full_name
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
 
 
 def get_or_create_user_settings(db: Session, user_id: int) -> UserSettings:

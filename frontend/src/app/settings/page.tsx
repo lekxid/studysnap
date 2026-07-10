@@ -12,6 +12,7 @@ import {
   logoutAllSessions,
   logoutOtherSessions,
   revokeUserSession,
+  updateCurrentUserProfile,
   updateUserSettings,
   type SyncedUserSettings,
   type UserProfile,
@@ -281,6 +282,8 @@ export default function SettingsPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [account, setAccount] = useState<UserProfile | null>(null);
   const [accountStatus, setAccountStatus] = useState("Loading account...");
+  const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -488,10 +491,45 @@ export default function SettingsPage() {
     );
   }
 
+  async function handleSaveProfileName() {
+    const fullName = profileNameDraft.trim();
+
+    if (!fullName) {
+      setAccountStatus("Profile name cannot be empty.");
+      return;
+    }
+
+    setProfileSaving(true);
+
+    try {
+      const updatedProfile = await updateCurrentUserProfile(fullName);
+
+      setAccount(updatedProfile);
+      setProfileNameDraft(updatedProfile.full_name || fullName);
+      setAccountStatus("Profile name updated.");
+      setSavedMessage("Profile name updated.");
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("studysnap_user", JSON.stringify(updatedProfile));
+
+        window.setTimeout(() => {
+          setSavedMessage("");
+        }, 1800);
+      }
+    } catch (error) {
+      console.error(error);
+      setAccountStatus("Could not update profile name.");
+      setSavedMessage("Could not update profile name.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   async function loadAccount() {
     try {
       const profile = await getCurrentUser();
       setAccount(profile);
+      setProfileNameDraft(profile.full_name || "");
       setAccountStatus("Account verified and synced.");
 
       if (typeof window !== "undefined") {
@@ -685,6 +723,30 @@ export default function SettingsPage() {
                 <p className="mt-1 truncate text-sm font-bold text-slate-400">
                   {accountSummary.email}
                 </p>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    className="rounded-[1.2rem] px-4 py-3.5"
+                    placeholder="Profile name"
+                    value={profileNameDraft}
+                    onChange={(event) => setProfileNameDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleSaveProfileName();
+                      }
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleSaveProfileName}
+                    disabled={profileSaving}
+                    className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {profileSaving ? "Saving..." : "Save name"}
+                  </button>
+                </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
