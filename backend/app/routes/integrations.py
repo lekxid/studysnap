@@ -19,6 +19,8 @@ router = APIRouter(tags=["Integrations"])
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
 GOOGLE_DRIVE_SCOPE = "openid email profile https://www.googleapis.com/auth/drive.readonly"
 GOOGLE_PROVIDER = "google_drive"
 
@@ -100,6 +102,22 @@ def exchange_google_code(code: str) -> dict:
         )
 
 
+def fetch_google_profile(access_token: str) -> dict:
+    request = Request(
+        GOOGLE_USERINFO_URL,
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError:
+        return {}
+    except URLError:
+        return {}
+
+
 @router.get("/google/status")
 def google_status(
     db: Session = Depends(get_db),
@@ -178,6 +196,9 @@ def google_callback(
     if not access_token:
         raise HTTPException(status_code=400, detail="Google did not return an access token")
 
+    google_profile = fetch_google_profile(access_token)
+    google_email = google_profile.get("email")
+
     account = (
         db.query(ConnectedAccount)
         .filter(
@@ -203,6 +224,7 @@ def google_callback(
     account.expires_at = now + timedelta(seconds=expires_in)
     account.last_synced_at = now
     account.revoked_at = None
+    account.account_email = google_email or account.account_email
 
     db.add(account)
     db.commit()
