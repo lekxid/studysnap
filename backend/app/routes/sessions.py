@@ -25,6 +25,19 @@ def get_token_payload(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 
+def get_current_session_id_from_token(token: str) -> int | None:
+    payload = get_token_payload(token)
+    session_id = payload.get("session_id")
+
+    if session_id is None:
+        return None
+
+    try:
+        return int(session_id)
+    except (TypeError, ValueError):
+        return None
+
+
 def serialize_session(
     session: UserSession,
     current_session_id: int | None,
@@ -49,8 +62,7 @@ def list_my_sessions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    payload = get_token_payload(token)
-    current_session_id = payload.get("session_id")
+    current_session_id = get_current_session_id_from_token(token)
 
     sessions = (
         db.query(UserSession)
@@ -68,9 +80,18 @@ def list_my_sessions(
 @router.delete("/{session_id}", response_model=SessionMessageResponse)
 def revoke_session(
     session_id: int,
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    current_session_id = get_current_session_id_from_token(token)
+
+    if current_session_id == session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Use the main sign out button to sign out of your current device.",
+        )
+
     session = (
         db.query(UserSession)
         .filter(
@@ -88,7 +109,37 @@ def revoke_session(
         db.add(session)
         db.commit()
 
-    return {"message": "Session signed out."}
+    return {"message": "Device signed out."}
+
+
+@router.post("/logout-others", response_model=SessionMessageResponse)
+def revoke_other_sessions(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_session_id = get_current_session_id_from_token(token)
+
+    query = db.query(UserSession).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.revoked_at.is_(None),
+    )
+
+    if current_session_id is not None:
+        query = query.filter(UserSession.id != current_session_id)
+
+    sessions = query.all()
+
+    for session in sessions:
+        session.revoked_at = datetime.utcnow()
+        db.add(session)
+
+    db.commit()
+
+    count = len(sessions)
+    noun = "device" if count == 1 else "devices"
+
+    return {"message": f"Signed out {count} other {noun}."}
 
 
 @router.post("/logout-all", response_model=SessionMessageResponse)

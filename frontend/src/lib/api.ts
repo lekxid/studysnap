@@ -891,6 +891,12 @@ export async function revokeUserSession(sessionId: number) {
   });
 }
 
+export async function logoutOtherSessions() {
+  return apiFetch("/api/sessions/logout-others", {
+    method: "POST",
+  });
+}
+
 export async function logoutAllSessions() {
   return apiFetch("/api/sessions/logout-all", {
     method: "POST",

@@ -9,6 +9,7 @@ import {
   getUserSessions,
   getUserSettings,
   logoutAllSessions,
+  logoutOtherSessions,
   revokeUserSession,
   updateUserSettings,
   type SyncedUserSettings,
@@ -489,6 +490,27 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleLogoutOtherSessions() {
+    const confirmed = window.confirm(
+      "Sign out all other devices? This device will stay logged in."
+    );
+
+    if (!confirmed) return;
+
+    setSessionsLoading(true);
+
+    try {
+      const result = await logoutOtherSessions();
+      await loadSessions();
+      setSavedMessage(result?.message || "Other devices signed out.");
+    } catch (error) {
+      console.error(error);
+      setSavedMessage("Could not sign out other devices.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
   async function handleLogoutAllSessions() {
     const confirmed = window.confirm(
       "Sign out all devices? You will need to log in again."
@@ -940,15 +962,26 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={loadSessions}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                disabled={sessionsLoading}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {sessionsLoading ? "Refreshing..." : "Refresh"}
               </button>
 
               <button
                 type="button"
+                onClick={handleLogoutOtherSessions}
+                disabled={sessionsLoading}
+                className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Sign out others
+              </button>
+
+              <button
+                type="button"
                 onClick={handleLogoutAllSessions}
-                className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/15"
+                disabled={sessionsLoading}
+                className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Sign out all
               </button>
