@@ -821,3 +821,49 @@ export async function retrieveBrain(
     BrainRetrieveResponse
   >;
 }
+
+export type SyncedUserSettings = {
+  id: number;
+  user_id: number;
+
+  learning_mode: string;
+  knowledge_level: string;
+  progress_sharing: string;
+  favorite_subject: string;
+  selected_subjects: string[];
+  daily_goal: string;
+  notifications: string;
+
+  theme: string;
+
+  ai_memory_enabled: boolean;
+  save_notes_to_memory: boolean;
+  save_flashcards_to_memory: boolean;
+  save_quiz_results_to_memory: boolean;
+  save_weak_strong_concepts: boolean;
+  save_study_history: boolean;
+
+  connected_apps: Record<string, { connected?: boolean; last_synced_at?: string | null }>;
+  auto_import_rules: Record<string, boolean>;
+
+  last_opened_subject?: string | null;
+  last_opened_pdf_id?: number | null;
+  last_ai_conversation_id?: number | null;
+};
+
+export type SyncedUserSettingsUpdate = Partial<
+  Omit<SyncedUserSettings, "id" | "user_id">
+>;
+
+export async function getUserSettings(): Promise<SyncedUserSettings> {
+  return apiFetch("/api/users/me/settings");
+}
+
+export async function updateUserSettings(
+  settings: SyncedUserSettingsUpdate
+): Promise<SyncedUserSettings> {
+  return apiFetch("/api/users/me/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}

@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
+import {
+  getUserSettings,
+  updateUserSettings,
+  type SyncedUserSettings,
+} from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type SettingsState = {
@@ -15,6 +20,20 @@ type SettingsState = {
   selectedSubjects: string[];
   dailyGoal: string;
   notifications: string;
+  theme: string;
+
+  aiMemoryEnabled: boolean;
+  saveNotesToMemory: boolean;
+  saveFlashcardsToMemory: boolean;
+  saveQuizResultsToMemory: boolean;
+  saveWeakStrongConcepts: boolean;
+  saveStudyHistory: boolean;
+
+  connectedApps: Record<
+    string,
+    { connected?: boolean; last_synced_at?: string | null }
+  >;
+  autoImportRules: Record<string, boolean>;
 };
 
 type OnboardingProfile = {
@@ -28,6 +47,22 @@ const SETTINGS_STORAGE_KEY = "studysnap_settings";
 const ONBOARDING_STORAGE_KEY = "studysnap:onboarding";
 const ONBOARDING_COMPLETE_KEY = "studysnap:onboarding-complete";
 
+const defaultConnectedApps = {
+  google_drive: { connected: false, last_synced_at: null },
+  google_docs: { connected: false, last_synced_at: null },
+  icloud: { connected: false, last_synced_at: null },
+  onedrive: { connected: false, last_synced_at: null },
+  dropbox: { connected: false, last_synced_at: null },
+};
+
+const defaultAutoImportRules = {
+  drive_pdfs: false,
+  google_docs: false,
+  icloud_notes: false,
+  flashcards_folder: false,
+  sync_every_24_hours: false,
+};
+
 const defaultSettings: SettingsState = {
   learningMode: "Clear Explain",
   knowledgeLevel: "Medium",
@@ -36,6 +71,17 @@ const defaultSettings: SettingsState = {
   selectedSubjects: ["Networking / IT", "Linux"],
   dailyGoal: "Review 10 flashcards",
   notifications: "Important only",
+  theme: "dark",
+
+  aiMemoryEnabled: true,
+  saveNotesToMemory: true,
+  saveFlashcardsToMemory: true,
+  saveQuizResultsToMemory: true,
+  saveWeakStrongConcepts: true,
+  saveStudyHistory: true,
+
+  connectedApps: defaultConnectedApps,
+  autoImportRules: defaultAutoImportRules,
 };
 
 const learningModes = [
@@ -98,6 +144,22 @@ const notificationOptions = [
   "Off",
 ];
 
+const connectedAppLabels: Record<string, string> = {
+  google_drive: "Google Drive",
+  google_docs: "Google Docs",
+  icloud: "iCloud",
+  onedrive: "OneDrive",
+  dropbox: "Dropbox",
+};
+
+const autoImportLabels: Record<string, string> = {
+  drive_pdfs: "Auto-import PDFs from Drive",
+  google_docs: "Auto-import Google Docs",
+  icloud_notes: "Auto-import iCloud notes",
+  flashcards_folder: "Auto-import flashcards folder",
+  sync_every_24_hours: "Sync every 24 hours",
+};
+
 function getOnboardingProfile(): Partial<OnboardingProfile> {
   try {
     const raw = localStorage.getItem(ONBOARDING_STORAGE_KEY);
@@ -120,42 +182,142 @@ function saveOnboardingFromSettings(settings: SettingsState) {
   localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
 }
 
+function fromBackendSettings(settings: SyncedUserSettings): SettingsState {
+  return {
+    learningMode: settings.learning_mode,
+    knowledgeLevel: settings.knowledge_level,
+    progressSharing: settings.progress_sharing,
+    favoriteSubject: settings.favorite_subject || "",
+    selectedSubjects:
+      Array.isArray(settings.selected_subjects) &&
+      settings.selected_subjects.length > 0
+        ? settings.selected_subjects
+        : defaultSettings.selectedSubjects,
+    dailyGoal: settings.daily_goal,
+    notifications: settings.notifications,
+    theme: settings.theme || "dark",
+
+    aiMemoryEnabled: settings.ai_memory_enabled,
+    saveNotesToMemory: settings.save_notes_to_memory,
+    saveFlashcardsToMemory: settings.save_flashcards_to_memory,
+    saveQuizResultsToMemory: settings.save_quiz_results_to_memory,
+    saveWeakStrongConcepts: settings.save_weak_strong_concepts,
+    saveStudyHistory: settings.save_study_history,
+
+    connectedApps: {
+      ...defaultConnectedApps,
+      ...(settings.connected_apps || {}),
+    },
+    autoImportRules: {
+      ...defaultAutoImportRules,
+      ...(settings.auto_import_rules || {}),
+    },
+  };
+}
+
+function toBackendSettings(settings: SettingsState) {
+  return {
+    learning_mode: settings.learningMode,
+    knowledge_level: settings.knowledgeLevel,
+    progress_sharing: settings.progressSharing,
+    favorite_subject: settings.favoriteSubject,
+    selected_subjects: settings.selectedSubjects,
+    daily_goal: settings.dailyGoal,
+    notifications: settings.notifications,
+    theme: settings.theme,
+
+    ai_memory_enabled: settings.aiMemoryEnabled,
+    save_notes_to_memory: settings.saveNotesToMemory,
+    save_flashcards_to_memory: settings.saveFlashcardsToMemory,
+    save_quiz_results_to_memory: settings.saveQuizResultsToMemory,
+    save_weak_strong_concepts: settings.saveWeakStrongConcepts,
+    save_study_history: settings.saveStudyHistory,
+
+    connected_apps: settings.connectedApps,
+    auto_import_rules: settings.autoImportRules,
+  };
+}
+
+function formatSyncStatus(value?: string | null) {
+  if (!value) return "Never synced";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Never synced";
+
+  return `Last synced ${date.toLocaleDateString()}`;
+}
+
 export default function SettingsPage() {
   const ready = useRequireAuth();
 
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [newSubject, setNewSubject] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
+  const [syncStatus, setSyncStatus] = useState("Loading cloud settings...");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
 
-    const savedSettings = loadJSON<SettingsState>(
-      SETTINGS_STORAGE_KEY,
-      defaultSettings
-    );
+    let cancelled = false;
 
-    const onboarding = getOnboardingProfile();
+    async function loadSettings() {
+      const savedSettings = loadJSON<SettingsState>(
+        SETTINGS_STORAGE_KEY,
+        defaultSettings
+      );
 
-    const mergedSettings: SettingsState = {
-      ...defaultSettings,
-      ...savedSettings,
-      learningMode:
-        onboarding.explanationStyle ||
-        savedSettings.learningMode ||
-        defaultSettings.learningMode,
-      knowledgeLevel:
-        onboarding.knowledgeLevel ||
-        savedSettings.knowledgeLevel ||
-        defaultSettings.knowledgeLevel,
-      selectedSubjects:
-        Array.isArray(onboarding.subjects) && onboarding.subjects.length > 0
-          ? onboarding.subjects
-          : savedSettings.selectedSubjects || defaultSettings.selectedSubjects,
+      const onboarding = getOnboardingProfile();
+
+      const localMergedSettings: SettingsState = {
+        ...defaultSettings,
+        ...savedSettings,
+        learningMode:
+          onboarding.explanationStyle ||
+          savedSettings.learningMode ||
+          defaultSettings.learningMode,
+        knowledgeLevel:
+          onboarding.knowledgeLevel ||
+          savedSettings.knowledgeLevel ||
+          defaultSettings.knowledgeLevel,
+        selectedSubjects:
+          Array.isArray(onboarding.subjects) && onboarding.subjects.length > 0
+            ? onboarding.subjects
+            : savedSettings.selectedSubjects || defaultSettings.selectedSubjects,
+        connectedApps: {
+          ...defaultConnectedApps,
+          ...(savedSettings.connectedApps || {}),
+        },
+        autoImportRules: {
+          ...defaultAutoImportRules,
+          ...(savedSettings.autoImportRules || {}),
+        },
+      };
+
+      setSettings(localMergedSettings);
+      saveJSON(SETTINGS_STORAGE_KEY, localMergedSettings);
+
+      try {
+        const backendSettings = await getUserSettings();
+        if (cancelled) return;
+
+        const syncedSettings = fromBackendSettings(backendSettings);
+        setSettings(syncedSettings);
+        saveJSON(SETTINGS_STORAGE_KEY, syncedSettings);
+        saveOnboardingFromSettings(syncedSettings);
+        setSyncStatus("Cloud settings synced.");
+      } catch (error) {
+        console.error(error);
+        if (cancelled) return;
+        setSyncStatus("Using local settings. Cloud sync unavailable.");
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      cancelled = true;
     };
-
-    setSettings(mergedSettings);
-    saveJSON(SETTINGS_STORAGE_KEY, mergedSettings);
   }, [ready]);
 
   const profileSummary = useMemo(() => {
@@ -167,15 +329,34 @@ export default function SettingsPage() {
     };
   }, [settings]);
 
-  function saveSettings(next: SettingsState, message = "Settings saved.") {
+  async function saveSettings(next: SettingsState, message = "Settings saved.") {
     setSettings(next);
     saveJSON(SETTINGS_STORAGE_KEY, next);
     saveOnboardingFromSettings(next);
     setSavedMessage(message);
+    setIsSaving(true);
 
-    window.setTimeout(() => {
-      setSavedMessage("");
-    }, 1800);
+    try {
+      const synced = await updateUserSettings(toBackendSettings(next));
+      const syncedSettings = fromBackendSettings(synced);
+
+      setSettings(syncedSettings);
+      saveJSON(SETTINGS_STORAGE_KEY, syncedSettings);
+      saveOnboardingFromSettings(syncedSettings);
+
+      setSyncStatus("Cloud settings synced.");
+      setSavedMessage(message);
+    } catch (error) {
+      console.error(error);
+      setSyncStatus("Saved locally. Cloud sync failed.");
+      setSavedMessage("Saved locally. Cloud sync failed.");
+    } finally {
+      setIsSaving(false);
+
+      window.setTimeout(() => {
+        setSavedMessage("");
+      }, 1800);
+    }
   }
 
   function update<K extends keyof SettingsState>(
@@ -229,6 +410,33 @@ export default function SettingsPage() {
     saveSettings(defaultSettings, "Learning setup reset.");
   }
 
+  function toggleMemory(key: keyof SettingsState) {
+    const value = settings[key];
+
+    if (typeof value !== "boolean") return;
+
+    saveSettings(
+      {
+        ...settings,
+        [key]: !value,
+      },
+      "AI memory preference saved."
+    );
+  }
+
+  function toggleAutoImport(ruleKey: string) {
+    saveSettings(
+      {
+        ...settings,
+        autoImportRules: {
+          ...settings.autoImportRules,
+          [ruleKey]: !settings.autoImportRules[ruleKey],
+        },
+      },
+      "Auto-import rule saved."
+    );
+  }
+
   if (!ready) {
     return (
       <div className="min-h-screen bg-black p-6 text-white">
@@ -240,22 +448,25 @@ export default function SettingsPage() {
   return (
     <AppShell
       title="Settings"
-      subtitle="Manage your learning profile, privacy, reminders, and connected StudySnap setup."
+      subtitle="Manage your synced learning profile, AI memory, connected apps, privacy, and StudySnap setup."
     >
       <div className="content-grid">
         <section className="hero-grid">
           <div className="gold-card rounded-[2rem] p-6 sm:p-8">
-            <div className="gold-chip mb-4">Workspace profile</div>
+            <div className="gold-chip mb-4">Cloud profile</div>
 
             <h3 className="panel-title text-white text-balance">
-              Your StudySnap settings are now connected to onboarding.
+              Your StudySnap settings now sync with your account.
             </h3>
 
             <p className="panel-muted mt-4 max-w-2xl">
-              Changes here update your saved learning setup, so your AI style,
-              knowledge level, and subject profile stay consistent across the
-              app.
+              Changes here update your backend profile, onboarding setup, AI
+              Tutor style, memory preferences, and future connected-app sync.
             </p>
+
+            <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+              {isSaving ? "Saving to cloud..." : syncStatus}
+            </div>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-4">
               <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
@@ -314,7 +525,7 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-slate-400">
-                  Settings auto-save when you change them.
+                  Settings auto-save to your account when changed.
                 </div>
               )}
             </div>
@@ -400,7 +611,7 @@ export default function SettingsPage() {
             <div className="gold-chip mb-4">Subjects</div>
             <h3 className="panel-title text-white">Learning subjects</h3>
             <p className="panel-muted mt-3">
-              These subjects sync with onboarding and help personalize your
+              These subjects sync with your account and personalize your
               StudySnap workspace.
             </p>
 
@@ -533,6 +744,143 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Unified AI Memory</div>
+            <h3 className="panel-title text-white">AI Tutor cloud memory</h3>
+            <p className="panel-muted mt-3">
+              Choose what StudySnap Brain can remember to personalize future
+              tutoring, quizzes, progress, and study recommendations.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              {[
+                ["aiMemoryEnabled", "Enable AI memory"],
+                ["saveNotesToMemory", "Save notes to AI memory"],
+                ["saveFlashcardsToMemory", "Save flashcards to AI memory"],
+                ["saveQuizResultsToMemory", "Save quiz results to AI memory"],
+                ["saveWeakStrongConcepts", "Save weak/strong concepts"],
+                ["saveStudyHistory", "Save study history"],
+              ].map(([key, label]) => {
+                const enabled = Boolean(settings[key as keyof SettingsState]);
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleMemory(key as keyof SettingsState)}
+                    className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
+                      enabled
+                        ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+                        : "border-white/8 bg-white/[0.03] text-slate-300"
+                    }`}
+                  >
+                    <span className="text-sm font-black">{label}</span>
+                    <span className="text-xs font-black">
+                      {enabled ? "On" : "Off"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Connected Apps</div>
+            <h3 className="panel-title text-white">Cloud connections</h3>
+            <p className="panel-muted mt-3">
+              This is the dashboard foundation for Google Drive, Google Docs,
+              iCloud, OneDrive, and Dropbox.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              {Object.entries(settings.connectedApps).map(([key, app]) => {
+                const connected = Boolean(app.connected);
+
+                return (
+                  <div
+                    key={key}
+                    className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-white">
+                          {connectedAppLabels[key] || key}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {formatSyncStatus(app.last_synced_at)}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black ${
+                          connected
+                            ? "bg-emerald-400/15 text-emerald-100"
+                            : "bg-white/[0.06] text-slate-300"
+                        }`}
+                      >
+                        {connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                      >
+                        Connect
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                      >
+                        Sync now
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300"
+                      >
+                        View files
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="premium-card gold-border rounded-[2rem] p-6">
+          <div className="gold-chip mb-4">Automation</div>
+          <h3 className="panel-title text-white">Cloud auto-import rules</h3>
+          <p className="panel-muted mt-3">
+            These switches prepare StudySnap for Drive, Docs, iCloud, and
+            folder-based auto-import. The real provider connections come next.
+          </p>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {Object.entries(settings.autoImportRules).map(([key, enabled]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleAutoImport(key)}
+                className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
+                  enabled
+                    ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
+                    : "border-white/8 bg-white/[0.03] text-slate-300"
+                }`}
+              >
+                <span className="text-sm font-black">
+                  {autoImportLabels[key] || key}
+                </span>
+                <span className="text-xs font-black">
+                  {enabled ? "On" : "Off"}
+                </span>
+              </button>
+            ))}
           </div>
         </section>
       </div>
