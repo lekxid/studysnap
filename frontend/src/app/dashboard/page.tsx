@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  getCurrentUser,
   getFlashcards,
   getLearningInsights,
   getNotes,
@@ -943,6 +944,19 @@ export default function DashboardPage() {
     setFullName(payload.full_name || payload.sub?.split("@")[0] || "Student");
     setChecked(true);
 
+    async function loadCurrentProfile() {
+      try {
+        const profile = await getCurrentUser();
+        setFullName(profile.full_name || profile.email?.split("@")[0] || "Student");
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("studysnap_user", JSON.stringify(profile));
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     async function loadDashboardFoundation() {
       try {
         const [roomData, learningData] = await Promise.all([
@@ -971,6 +985,7 @@ export default function DashboardPage() {
       }
     }
 
+    loadCurrentProfile();
     loadDashboardFoundation();
   }, []);
 
