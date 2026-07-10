@@ -1,18 +1,23 @@
 from datetime import datetime, timedelta
 import json
+import uuid
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.models.connected_account import ConnectedAccount
+from app.models.pdf_document import PDFDocument
+from app.models.study_room import StudyRoom
 from app.models.user import User
+from app.routes.pdf_documents import MAX_FILE_SIZE, UPLOAD_DIR, extract_pdf_text
 from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Integrations"])
@@ -28,6 +33,11 @@ GOOGLE_PROVIDER = "google_drive"
 
 class GoogleAccessTokenExpired(Exception):
     pass
+
+
+class GoogleDrivePDFImportRequest(BaseModel):
+    file_id: str
+    study_room_id: int
 
 
 def google_is_configured() -> bool:
@@ -206,6 +216,86 @@ def escape_drive_query_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
+
+def safe_drive_pdf_filename(name: str | None) -> str:
+    cleaned = (name or "google-drive-document.pdf").strip()
+
+    for character in ["\\", "/", ":", "*", "?", "\"", "<", ">", "|"]:
+        cleaned = cleaned.replace(character, "-")
+
+    cleaned = cleaned.strip(" .") or "google-drive-document.pdf"
+
+    if not cleaned.lower().endswith(".pdf"):
+        cleaned = f"{cleaned}.pdf"
+
+    return cleaned[:180]
+
+
+def fetch_google_drive_file_metadata(access_token: str, file_id: str) -> dict:
+    params = urlencode(
+        {
+            "fields": "id,name,mimeType,size,webViewLink",
+            "supportsAllDrives": "true",
+        }
+    )
+    url = f"{GOOGLE_DRIVE_FILES_URL}/{quote(file_id)}?{params}"
+
+    request = Request(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        detail = error.read().decode("utf-8")
+
+        if error.code == 401:
+            raise GoogleAccessTokenExpired()
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Google Drive file metadata failed: {detail}",
+        )
+    except URLError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not reach Google Drive server: {error}",
+        )
+
+
+def download_google_drive_file(access_token: str, file_id: str) -> bytes:
+    params = urlencode({"alt": "media", "supportsAllDrives": "true"})
+    url = f"{GOOGLE_DRIVE_FILES_URL}/{quote(file_id)}?{params}"
+
+    request = Request(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+
+    try:
+        with urlopen(request, timeout=45) as response:
+            return response.read()
+    except HTTPError as error:
+        detail = error.read().decode("utf-8")
+
+        if error.code == 401:
+            raise GoogleAccessTokenExpired()
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Google Drive file download failed: {detail}",
+        )
+    except URLError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not download Google Drive file: {error}",
+        )
+
+
 def fetch_google_drive_files(
     access_token: str,
     page_size: int = 20,
@@ -336,6 +426,111 @@ def google_files(
         "account_email": account.account_email,
         "files": drive_data.get("files", []),
         "next_page_token": drive_data.get("nextPageToken"),
+    }
+
+
+
+@router.post("/google/import-pdf")
+def import_google_drive_pdf(
+    data: GoogleDrivePDFImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    room = (
+        db.query(StudyRoom)
+        .filter(
+            StudyRoom.id == data.study_room_id,
+            StudyRoom.owner_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not room:
+        raise HTTPException(status_code=404, detail="Study room not found")
+
+    account = get_google_account(db=db, user_id=current_user.id)
+
+    try:
+        metadata = fetch_google_drive_file_metadata(
+            access_token=account.access_token,
+            file_id=data.file_id,
+        )
+        contents = download_google_drive_file(
+            access_token=account.access_token,
+            file_id=data.file_id,
+        )
+    except GoogleAccessTokenExpired:
+        refreshed_access_token = refresh_google_access_token(account=account, db=db)
+        metadata = fetch_google_drive_file_metadata(
+            access_token=refreshed_access_token,
+            file_id=data.file_id,
+        )
+        contents = download_google_drive_file(
+            access_token=refreshed_access_token,
+            file_id=data.file_id,
+        )
+
+    if metadata.get("mimeType") != "application/pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="Only Google Drive PDF files can be imported in this version.",
+        )
+
+    if not contents:
+        raise HTTPException(status_code=400, detail="Google Drive file was empty.")
+
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="PDF file is too large. Maximum size is 10MB.",
+        )
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    original_filename = safe_drive_pdf_filename(metadata.get("name"))
+    stored_filename = f"{uuid.uuid4()}.pdf"
+    file_path = UPLOAD_DIR / stored_filename
+
+    with open(file_path, "wb") as output_file:
+        output_file.write(contents)
+
+    extracted_text = extract_pdf_text(file_path)
+
+    pdf_document = PDFDocument(
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        file_path=str(file_path),
+        file_size=len(contents),
+        extracted_text=extracted_text,
+        study_room_id=room.id,
+        owner_id=current_user.id,
+    )
+
+    account.last_synced_at = datetime.utcnow()
+
+    db.add(pdf_document)
+    db.add(account)
+    db.commit()
+    db.refresh(pdf_document)
+    db.refresh(account)
+
+    return {
+        "provider": GOOGLE_PROVIDER,
+        "account_email": account.account_email,
+        "message": "Google Drive PDF imported into StudySnap.",
+        "pdf": {
+            "id": pdf_document.id,
+            "original_filename": pdf_document.original_filename,
+            "stored_filename": pdf_document.stored_filename,
+            "file_path": pdf_document.file_path,
+            "file_size": pdf_document.file_size,
+            "extracted_text": pdf_document.extracted_text,
+            "study_room_id": pdf_document.study_room_id,
+            "owner_id": pdf_document.owner_id,
+            "created_at": pdf_document.created_at.isoformat()
+            if pdf_document.created_at
+            else None,
+        },
     }
 
 
