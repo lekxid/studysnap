@@ -20,9 +20,14 @@ router = APIRouter(tags=["Integrations"])
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+GOOGLE_DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 
 GOOGLE_DRIVE_SCOPE = "openid email profile https://www.googleapis.com/auth/drive.readonly"
 GOOGLE_PROVIDER = "google_drive"
+
+
+class GoogleAccessTokenExpired(Exception):
+    pass
 
 
 def google_is_configured() -> bool:
@@ -118,6 +123,139 @@ def fetch_google_profile(access_token: str) -> dict:
         return {}
 
 
+def refresh_google_access_token(account: ConnectedAccount, db: Session) -> str:
+    if not account.refresh_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Google access expired. Please reconnect Google Drive.",
+        )
+
+    payload = urlencode(
+        {
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "refresh_token": account.refresh_token,
+            "grant_type": "refresh_token",
+        }
+    ).encode("utf-8")
+
+    request = Request(
+        GOOGLE_TOKEN_URL,
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            token_data = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        detail = error.read().decode("utf-8")
+        raise HTTPException(
+            status_code=401,
+            detail=f"Google token refresh failed. Please reconnect Google Drive. {detail}",
+        )
+    except URLError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not reach Google OAuth server: {error}",
+        )
+
+    access_token = token_data.get("access_token")
+    expires_in = int(token_data.get("expires_in") or 3600)
+
+    if not access_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Google did not return a refreshed access token. Please reconnect Google Drive.",
+        )
+
+    account.access_token = access_token
+    account.token_type = token_data.get("token_type") or account.token_type
+    account.scopes = token_data.get("scope") or account.scopes
+    account.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    return access_token
+
+
+def get_google_account(db: Session, user_id: int) -> ConnectedAccount:
+    account = (
+        db.query(ConnectedAccount)
+        .filter(
+            ConnectedAccount.user_id == user_id,
+            ConnectedAccount.provider == GOOGLE_PROVIDER,
+            ConnectedAccount.revoked_at.is_(None),
+        )
+        .first()
+    )
+
+    if account is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Google Drive is not connected yet.",
+        )
+
+    return account
+
+
+def escape_drive_query_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def fetch_google_drive_files(
+    access_token: str,
+    page_size: int = 20,
+    page_token: str | None = None,
+    search: str | None = None,
+) -> dict:
+    drive_query = "trashed = false"
+
+    if search and search.strip():
+        safe_search = escape_drive_query_value(search.strip())
+        drive_query = f"trashed = false and name contains '{safe_search}'"
+
+    params = {
+        "pageSize": str(page_size),
+        "fields": "nextPageToken,files(id,name,mimeType,modifiedTime,size,webViewLink,iconLink)",
+        "orderBy": "modifiedTime desc",
+        "q": drive_query,
+    }
+
+    if page_token:
+        params["pageToken"] = page_token
+
+    url = f"{GOOGLE_DRIVE_FILES_URL}?{urlencode(params)}"
+
+    request = Request(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        detail = error.read().decode("utf-8")
+
+        if error.code == 401:
+            raise GoogleAccessTokenExpired()
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Google Drive file listing failed: {detail}",
+        )
+    except URLError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not reach Google Drive server: {error}",
+        )
+
+
 @router.get("/google/status")
 def google_status(
     db: Session = Depends(get_db),
@@ -165,6 +303,40 @@ def google_connect_url(current_user: User = Depends(get_current_user)):
     }
 
     return {"authorization_url": f"{GOOGLE_AUTH_URL}?{urlencode(params)}"}
+
+
+@router.get("/google/files")
+def google_files(
+    page_size: int = Query(default=20, ge=1, le=50),
+    page_token: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    account = get_google_account(db=db, user_id=current_user.id)
+
+    try:
+        drive_data = fetch_google_drive_files(
+            access_token=account.access_token,
+            page_size=page_size,
+            page_token=page_token,
+            search=search,
+        )
+    except GoogleAccessTokenExpired:
+        refreshed_access_token = refresh_google_access_token(account=account, db=db)
+        drive_data = fetch_google_drive_files(
+            access_token=refreshed_access_token,
+            page_size=page_size,
+            page_token=page_token,
+            search=search,
+        )
+
+    return {
+        "provider": GOOGLE_PROVIDER,
+        "account_email": account.account_email,
+        "files": drive_data.get("files", []),
+        "next_page_token": drive_data.get("nextPageToken"),
+    }
 
 
 @router.get("/google/callback")
