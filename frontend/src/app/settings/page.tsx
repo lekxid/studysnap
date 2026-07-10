@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
+  getCurrentUser,
   getUserSessions,
   getUserSettings,
   logoutAllSessions,
@@ -13,6 +14,7 @@ import {
   revokeUserSession,
   updateUserSettings,
   type SyncedUserSettings,
+  type UserProfile,
   type UserSession,
 } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
@@ -277,6 +279,8 @@ export default function SettingsPage() {
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [sessionsStatus, setSessionsStatus] = useState("Loading devices...");
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [account, setAccount] = useState<UserProfile | null>(null);
+  const [accountStatus, setAccountStatus] = useState("Loading account...");
 
   useEffect(() => {
     if (!ready) return;
@@ -336,6 +340,7 @@ export default function SettingsPage() {
     }
 
     loadSettings();
+    loadAccount();
     loadSessions();
 
     return () => {
@@ -351,6 +356,29 @@ export default function SettingsPage() {
       favorite: settings.favoriteSubject || "Not set",
     };
   }, [settings]);
+
+  const accountSummary = useMemo(() => {
+    const name = account?.full_name?.trim() || "StudySnap Learner";
+    const email = account?.email || "Email unavailable";
+    const initials =
+      name
+        .split(" ")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") ||
+      email[0]?.toUpperCase() ||
+      "S";
+
+    return {
+      name,
+      email,
+      initials,
+      accountId: account?.id ? `#${account.id}` : "Syncing",
+      learningMode: account?.learning_mode || settings.learningMode,
+    };
+  }, [account, settings.learningMode]);
 
   async function saveSettings(next: SettingsState, message = "Settings saved.") {
     setSettings(next);
@@ -458,6 +486,21 @@ export default function SettingsPage() {
       },
       "Auto-import rule saved."
     );
+  }
+
+  async function loadAccount() {
+    try {
+      const profile = await getCurrentUser();
+      setAccount(profile);
+      setAccountStatus("Account verified and synced.");
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("studysnap_user", JSON.stringify(profile));
+      }
+    } catch (error) {
+      console.error(error);
+      setAccountStatus("Could not load account profile.");
+    }
   }
 
   async function loadSessions() {
@@ -622,6 +665,93 @@ export default function SettingsPage() {
                   Settings auto-save to your account when changed.
                 </div>
               )}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Account</div>
+            <div className="flex flex-wrap items-start gap-5">
+              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.6rem] border border-yellow-300/25 bg-yellow-300/15 text-2xl font-black text-yellow-100">
+                {accountSummary.initials}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="panel-title text-white">Profile</h3>
+                <p className="mt-2 truncate text-xl font-black text-white">
+                  {accountSummary.name}
+                </p>
+                <p className="mt-1 truncate text-sm font-bold text-slate-400">
+                  {accountSummary.email}
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="kpi-label">Account ID</p>
+                    <p className="mt-2 text-sm font-black text-slate-100">
+                      {accountSummary.accountId}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="kpi-label">AI mode</p>
+                    <p className="mt-2 text-sm font-black text-cyan-200">
+                      {accountSummary.learningMode}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="kpi-label">Status</p>
+                    <p className="mt-2 text-sm font-black text-emerald-200">
+                      Active
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[1.1rem] border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
+                  {accountStatus}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="premium-card gold-border rounded-[2rem] p-6">
+            <div className="gold-chip mb-4">Security</div>
+            <h3 className="panel-title text-white">Account controls</h3>
+            <p className="panel-muted mt-3">
+              Your sessions are now tracked by StudySnap, so logout and device
+              sign-out actions update your backend account history.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("logged-in-devices")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-left text-sm font-black text-white transition hover:bg-white/[0.07]"
+              >
+                View logged-in devices →
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
+              >
+                Password settings coming soon
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
+              >
+                Email verification coming soon
+              </button>
             </div>
           </div>
         </section>
@@ -947,7 +1077,10 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="premium-card gold-border rounded-[2rem] p-6">
+        <section
+          id="logged-in-devices"
+          className="premium-card gold-border rounded-[2rem] p-6"
+        >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="gold-chip mb-4">Security</div>

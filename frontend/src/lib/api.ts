@@ -108,6 +108,17 @@ export async function forgotPassword(email: string) {
   });
 }
 
+export type UserProfile = {
+  id: number;
+  email: string;
+  full_name: string;
+  learning_mode: string;
+};
+
+export async function getCurrentUser(): Promise<UserProfile> {
+  return apiFetch("/api/auth/me");
+}
+
 export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
