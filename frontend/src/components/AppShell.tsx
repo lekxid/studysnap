@@ -18,7 +18,7 @@ const navItems = [
   { href: "/study-rooms", label: "Study Rooms", icon: "📁" },
   { href: "/study-rooms/organize", label: "Smart Organizer", icon: "🗂️" },
   { href: "/notes", label: "Notes", icon: "▣" },
-  { href: "/flashcards", label: "Flashcards", icon: "◫" },
+  { href: "/flashcards", label: "Concept Cards", icon: "◫" },
   { href: "/quizzes", label: "Quizzes", icon: "▤" },
   { href: "/planner", label: "Planner", icon: "◷" },
   { href: "/progress", label: "Progress", icon: "▲" },
@@ -52,7 +52,7 @@ function getRoomIdFromStudyRoomPath(pathname: string) {
 function getPageKicker(pathname: string) {
   if (pathname.startsWith("/study-rooms")) return "StudySnap Projects";
   if (pathname.startsWith("/notes")) return "Connected Notes";
-  if (pathname.startsWith("/flashcards")) return "Smart Review";
+  if (pathname.startsWith("/flashcards")) return "Concept Cards";
   if (pathname.startsWith("/quizzes")) return "Exam Practice";
   if (pathname.startsWith("/planner")) return "Study Planning";
   if (pathname.startsWith("/progress")) return "Learning Analytics";
@@ -215,7 +215,7 @@ export default function AppShell({
             {activeProjectRoomId ? `Room #${activeProjectRoomId}` : "All StudySnap"}
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-400">
-            Notes, quizzes, flashcards, planner, and AI stay connected.
+            Notes, quizzes, concept cards, planner, and AI stay connected.
           </p>
         </div>
 

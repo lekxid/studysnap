@@ -83,8 +83,8 @@ const workspaceTools = [
   },
   {
     key: "pdf",
-    title: "PDFs",
-    description: "Upload and chat",
+    title: "Materials",
+    description: "Upload + summarize",
     icon: "📄",
   },
   {
@@ -95,8 +95,8 @@ const workspaceTools = [
   },
   {
     key: "flashcards",
-    title: "Flashcards",
-    description: "Review cards",
+    title: "Concept Cards",
+    description: "Review key ideas",
     icon: "🧠",
   },
   {
@@ -116,7 +116,7 @@ const workspaceTools = [
 function getSourceLabel(sourceType: string) {
   if (sourceType === "pdf_chunk") return "PDF";
   if (sourceType === "note_chunk") return "Note";
-  if (sourceType === "flashcard") return "Flashcard";
+  if (sourceType === "flashcard") return "Concept Card";
   if (sourceType === "brain_memory") return "Memory";
 
   return sourceType.replaceAll("_", " ");
@@ -154,7 +154,7 @@ function ProjectSearchBox({
 
       <input
         name="projectSearch"
-        placeholder="Search this project’s PDFs, notes, flashcards, quizzes, and memory..."
+        placeholder="Search this room’s PDFs, notes, concept cards, quizzes, and memory..."
         className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
       />
 
@@ -318,7 +318,7 @@ export default function ProjectWorkspace({
   const [brainLoading, setBrainLoading] = useState(false);
 
   const safeProgress = Math.max(0, Math.min(100, progress));
-  const activeLabel = activeTool === "ai" ? "Project AI" : "PDF Workspace";
+  const activeLabel = activeTool === "ai" ? "Project AI" : "Room Materials";
 
   useEffect(() => {
     let mounted = true;
@@ -375,7 +375,7 @@ export default function ProjectWorkspace({
   const dailyAction =
     continueItems.length > 0
       ? "Continue one saved material, then test yourself with a short quiz."
-      : "Start by uploading a PDF or creating a note so StudySnap can build this project memory.";
+      : "Start by adding a PDF or creating a note so StudySnap can build this project memory.";
 
   return (
     <div className="space-y-5">
@@ -406,7 +406,7 @@ export default function ProjectWorkspace({
 
             <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
               {description ||
-                "Your PDFs, notes, flashcards, quizzes, planner, AI, search, and StudySnap Brain work together inside this project."}
+                "Your PDFs, notes, concept cards, quizzes, planner, AI, search, and StudySnap Brain work together inside this project."}
             </p>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -423,7 +423,7 @@ export default function ProjectWorkspace({
                 onClick={onUploadPDF}
                 className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
               >
-                📄 Upload / Open PDFs
+                📚 Add Materials
               </button>
 
               <Link
@@ -457,7 +457,7 @@ export default function ProjectWorkspace({
                 Materials
               </p>
               <p className="mt-3 text-3xl font-black text-white">{pdfCount}</p>
-              <p className="mt-1 text-xs text-slate-400">PDFs connected</p>
+              <p className="mt-1 text-xs text-slate-400">materials connected</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -638,7 +638,7 @@ export default function ProjectWorkspace({
                     ))
                   ) : (
                     <p className="text-xs leading-5 text-slate-300">
-                      No weak concepts yet. Take a quiz or review flashcards.
+                      No weak concepts yet. Take a quiz or review concept cards.
                     </p>
                   )}
                 </div>
@@ -704,7 +704,7 @@ export default function ProjectWorkspace({
               🏆 Connected study system
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              PDFs, notes, flashcards, quizzes, planner, search, and AI are tied to this room.
+              PDFs, notes, concept cards, quizzes, planner, search, and AI are tied to this room.
             </p>
           </section>
         </aside>

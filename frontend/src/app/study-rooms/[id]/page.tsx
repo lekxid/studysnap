@@ -6,8 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
 import PDFList from "@/components/pdf/PDFList";
-import PDFChat from "@/components/pdf/PDFChat";
-import RoomAIAssistant from "@/components/room-ai/RoomAIAssistant";
 import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
@@ -48,145 +46,76 @@ function RoomFoundationPanel({
   loading: boolean;
   error: string;
 }) {
-  if (loading) {
-    return (
-      <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-5 text-sm text-white/60">
-        Loading StudySnap room intelligence...
-      </section>
-    );
-  }
+  const sources =
+    Array.isArray(foundation?.context_engine?.available_sources) &&
+    foundation.context_engine.available_sources.length
+      ? foundation.context_engine.available_sources
+      : ["pdf", "note", "concept cards", "quiz", "chat"];
 
-  if (error) {
-    return (
-      <section className="rounded-3xl border border-red-500/25 bg-red-500/10 p-5 text-sm text-red-200">
-        Room foundation could not load: {error}
-      </section>
-    );
-  }
+  const status = loading
+    ? "Connecting room..."
+    : error
+      ? "Room guide available"
+      : "AI memory ready";
 
-  if (!foundation) return null;
-
-  const actions = Array.isArray(foundation.actions) ? foundation.actions : [];
-  const availableSources = Array.isArray(foundation.context_engine?.available_sources)
-    ? foundation.context_engine.available_sources
-    : [];
-  const memoryBucketTypes = Array.isArray(foundation.context_engine?.memory_bucket_types)
-    ? foundation.context_engine.memory_bucket_types
-    : [];
-
-  const liveActions = actions.filter((action) => !action.future);
-  const futureActions = actions.filter((action) => action.future);
-  const contextStatus = foundation.context_engine?.status || "foundation_ready";
-  const realtimeChannel = foundation.realtime?.channel || `room:${foundation.room?.id || "current"}`;
-  const realtimeNote =
-    foundation.realtime?.note || "WebSocket room sync will attach to this channel later.";
-  const userRole = foundation.user_role || "owner";
+  const steps = [
+    {
+      icon: "📚",
+      title: "Add materials",
+      text: "Upload PDFs or create notes. Everything stays connected to this room.",
+    },
+    {
+      icon: "🤖",
+      title: "Ask Project AI",
+      text: "Use one assistant to study from this room’s PDFs, notes, concept cards, quizzes, and memory.",
+    },
+    {
+      icon: "🧠",
+      title: "Create study tools",
+      text: "Turn your materials into summaries, notes, concept cards, quizzes, and review plans.",
+    },
+    {
+      icon: "👥",
+      title: "Study together",
+      text: "Soon, this room will support classmates, shared AI help, room chat, and group quizzes.",
+    },
+  ];
 
   return (
-    <section className="rounded-3xl border border-yellow-300/15 bg-[#0a1022] p-6 shadow-2xl shadow-black/20">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <section className="rounded-[1.5rem] border border-yellow-300/15 bg-[linear-gradient(135deg,rgba(250,204,21,0.08),rgba(14,165,233,0.05),rgba(2,6,23,0.92))] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.35em] text-yellow-300/80">
-            Room Foundation
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+            How StudySnap helps in this room
           </p>
           <h2 className="mt-2 text-2xl font-black text-white">
-            Connected AI learning system
+            One connected study workspace
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            This room now has its foundation layer ready: actions, permissions,
-            context sources, memory buckets, and the future realtime channel.
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            This room is the home for this topic. Materials, notes, AI, concept
+            cards, quizzes, progress, and future Study Together all connect here.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm">
-          <p className="font-bold text-emerald-200">
-            {contextStatus.replaceAll("_", " ")}
-          </p>
-          <p className="mt-1 text-xs text-emerald-100/60">
-            Role: {userRole}
+        <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
+          <p className="font-black">{status}</p>
+          <p className="mt-1 text-xs text-emerald-100/70">
+            AI Memory: {sources.map((source) => source.replaceAll("_", " ")).join(" + ")}
           </p>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            AI Actions
-          </p>
-          <div className="mt-4 grid gap-3">
-            {liveActions.map((action) => (
-              <div
-                key={action.id}
-                className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"
-              >
-                <p className="text-sm font-bold text-white">{action.label}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  {action.description}
-                </p>
-              </div>
-            ))}
+      <div className="mt-5 grid gap-3 lg:grid-cols-4">
+        {steps.map((step) => (
+          <div
+            key={step.title}
+            className="rounded-2xl border border-white/10 bg-black/25 p-4"
+          >
+            <div className="text-2xl">{step.icon}</div>
+            <h3 className="mt-3 text-sm font-black text-white">{step.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">{step.text}</p>
           </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            Context Engine
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {availableSources.map((source) => (
-              <span
-                key={source}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300"
-              >
-                {source}
-              </span>
-            ))}
-          </div>
-
-          <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            Memory Buckets
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {memoryBucketTypes.map((bucket) => (
-              <span
-                key={bucket}
-                className="rounded-full border border-yellow-300/15 bg-yellow-300/10 px-3 py-1 text-xs font-semibold text-yellow-100/80"
-              >
-                {bucket.replaceAll("_", " ")}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            Realtime Ready
-          </p>
-          <p className="mt-4 text-lg font-black text-white">
-            {realtimeChannel}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
-            {realtimeNote}
-          </p>
-
-          {futureActions.length ? (
-            <>
-              <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-                Future Actions
-              </p>
-              <div className="mt-3 grid gap-2">
-                {futureActions.map((action) => (
-                  <div
-                    key={action.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400"
-                  >
-                    {action.label}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </div>
+        ))}
       </div>
     </section>
   );
@@ -328,10 +257,15 @@ export default function StudyRoomDetailPage() {
     },
   }));
 
+  const selectedPdfTitle =
+    pdfs.find((pdf) => pdf.id === selectedPdfId)?.original_filename ||
+    summaryTitle ||
+    "Selected PDF material";
+
   const quickActions = [
     {
-      title: "Upload PDF",
-      description: "Add study material",
+      title: "Add Materials",
+      description: "Upload PDFs into this room",
       icon: "📄",
       onClick: openPdfAssistant,
     },
@@ -342,8 +276,8 @@ export default function StudyRoomDetailPage() {
       href: `/notes?roomId=${studyRoomId}`,
     },
     {
-      title: "Flashcards",
-      description: "Review smart cards",
+      title: "Concept Cards",
+      description: "Review key ideas",
       icon: "🧠",
       href: `/flashcards?roomId=${studyRoomId}`,
     },
@@ -525,17 +459,51 @@ export default function StudyRoomDetailPage() {
             error={foundationError}
           />
 
-          {activeAiMode === "general" ? (
-            <div ref={aiSectionRef} className="scroll-mt-8">
-              <CompactProjectAI
-                studyRoomId={studyRoomId}
-                projectTitle={roomTitle}
-              />
+          <section
+            ref={pdfSectionRef}
+            className="scroll-mt-8 rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5"
+          >
+            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+                  Room Materials
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-white">
+                  Add PDFs to this project
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                  PDFs are study materials inside this room. Upload or summarize them here,
+                  then use Project AI below to study everything together.
+                </p>
+
+                {selectedPdfId ? (
+                  <div className="mt-3 rounded-xl border border-yellow-300/15 bg-white/5 p-3 text-xs text-slate-300">
+                    <p className="font-bold text-yellow-100">Selected Material</p>
+                    <p className="mt-1">{selectedPdfTitle}</p>
+                    <button
+                      type="button"
+                      onClick={openProjectAi}
+                      className="mt-3 rounded-lg bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200 transition hover:bg-cyan-300/15 hover:text-cyan-100"
+                    >
+                      Study with Project AI
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <button
+                type="button"
+                onClick={openProjectAi}
+                className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
+              >
+                Ask Project AI about this room
+              </button>
             </div>
-          ) : (
-            <>
-              <section ref={pdfSectionRef} className="grid gap-6 scroll-mt-8 xl:grid-cols-2">
-                <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
+
+              <div className="space-y-4">
                 <PDFList
                   pdfs={pdfs}
                   loading={loadingPdfs}
@@ -544,32 +512,89 @@ export default function StudyRoomDetailPage() {
                   onDelete={handleDelete}
                   onSummarize={handleSummarize}
                 />
+
+                {pdfs.length ? (
+                  <button
+                    type="button"
+                    onClick={openProjectAi}
+                    className="w-full rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                  >
+                    Study these materials with Project AI
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+                  Pinned Items
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Pin PDFs, notes, concept cards, and quizzes here later.
+                </p>
               </section>
 
-              <RoomAIAssistant
-                studyRoomId={studyRoomId}
-                conversationMode="pdf"
-                title="Ask questions about your uploaded PDFs"
-                subtitle="Use this mode when you want help with study documents."
-                emptyPrompt="Upload a PDF, summarize it, then ask a question about it."
-                inputPlaceholder="Ask the PDF Assistant..."
-              />
+              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+                  Room Activity
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  AI actions, uploads, summaries, and Study Together updates will appear here later.
+                </p>
+              </section>
+            </div>
+          </section>
 
-              {summary ? (
-                <section className="rounded-3xl border border-yellow-400/20 bg-[#0a1022] p-6">
-                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-yellow-300/80">
-                    AI Summary
+          {summary ? (
+            <section className="rounded-[1.5rem] border border-yellow-400/20 bg-[#0a1022] p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300/80">
+                    Material Summary
                   </p>
-                  <h3 className="mt-2 text-2xl font-bold text-white">{summaryTitle}</h3>
-                  <pre className="mt-6 whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
-                    {summary}
-                  </pre>
-                </section>
-              ) : null}
+                  <h3 className="mt-2 text-2xl font-black text-white">
+                    {summaryTitle}
+                  </h3>
+                </div>
 
-              <PDFChat pdfId={selectedPdfId} filename={summaryTitle} />
-            </>
-          )}
+                <button
+                  type="button"
+                  onClick={openProjectAi}
+                  className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+                >
+                  Study this with Project AI
+                </button>
+              </div>
+
+              <pre className="mt-6 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
+                {summary}
+              </pre>
+            </section>
+          ) : null}
+
+          <div className="my-10 h-px w-full bg-white/10" />
+
+          <div ref={aiSectionRef} className="scroll-mt-8">
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+                Main Assistant
+              </p>
+              <h2 className="mt-2 text-xl font-black text-white">
+                Project AI Workspace
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Ask one AI about everything in this room: PDFs, notes, concept cards,
+                quizzes, summaries, weak concepts, and study plans.
+              </p>
+            </div>
+
+            <CompactProjectAI
+              studyRoomId={studyRoomId}
+              projectTitle={roomTitle}
+            />
+          </div>
+
         </ProjectWorkspace>
       ) : null}
     </AppShell>

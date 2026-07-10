@@ -385,7 +385,8 @@ export type RoomFoundation = {
   };
   user_role: string;
   permissions: string[];
-  actions: RoomFoundationAction[];
+  actions?: RoomFoundationAction[];
+  available_actions?: RoomFoundationAction[];
   output_types: string[];
   context_engine: {
     active_context: string | null;
