@@ -907,6 +907,47 @@ export async function getGoogleDriveConnectUrl(): Promise<{
   return apiFetch("/api/integrations/google/connect-url");
 }
 
+export type GoogleDriveFile = {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime?: string | null;
+  size?: string | null;
+  webViewLink?: string | null;
+  iconLink?: string | null;
+};
+
+export type GoogleDriveFilesResponse = {
+  provider: string;
+  account_email?: string | null;
+  files: GoogleDriveFile[];
+  next_page_token?: string | null;
+};
+
+export async function getGoogleDriveFiles(
+  options: {
+    pageSize?: number;
+    pageToken?: string | null;
+    search?: string;
+  } = {}
+): Promise<GoogleDriveFilesResponse> {
+  const params = new URLSearchParams();
+
+  params.set("page_size", String(options.pageSize || 10));
+
+  if (options.pageToken) {
+    params.set("page_token", options.pageToken);
+  }
+
+  if (options.search?.trim()) {
+    params.set("search", options.search.trim());
+  }
+
+  return apiFetch(
+    `/api/integrations/google/files?${params.toString()}`
+  ) as Promise<GoogleDriveFilesResponse>;
+}
+
 export type UserSession = {
   id: number;
   device_name: string;

@@ -8,6 +8,7 @@ import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   getCurrentUser,
   getGoogleDriveConnectUrl,
+  getGoogleDriveFiles,
   getGoogleDriveStatus,
   getUserSessions,
   getUserSettings,
@@ -16,6 +17,7 @@ import {
   revokeUserSession,
   updateCurrentUserProfile,
   updateUserSettings,
+  type GoogleDriveFile,
   type GoogleDriveIntegrationStatus,
   type SyncedUserSettings,
   type UserProfile,
@@ -272,6 +274,54 @@ function getSessionStatus(session: UserSession) {
   return "Active";
 }
 
+function formatDriveFileDate(value?: string | null) {
+  if (!value) return "Modified date unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Modified date unavailable";
+  }
+
+  return date.toLocaleString();
+}
+
+function formatDriveFileSize(value?: string | null) {
+  if (!value) return "Size unavailable";
+
+  const bytes = Number(value);
+
+  if (!Number.isFinite(bytes)) {
+    return "Size unavailable";
+  }
+
+  if (bytes < 1024) return `${bytes} B`;
+
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function getDriveFileKind(mimeType?: string | null) {
+  if (!mimeType) return "File";
+
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType === "application/vnd.google-apps.folder") return "Folder";
+  if (mimeType === "application/vnd.google-apps.document") return "Google Doc";
+  if (mimeType === "application/vnd.google-apps.spreadsheet") return "Google Sheet";
+  if (mimeType === "application/vnd.google-apps.presentation") return "Google Slides";
+
+  if (mimeType.includes("image/")) return "Image";
+  if (mimeType.includes("json")) return "JSON";
+  if (mimeType.includes("text/")) return "Text file";
+
+  return "Drive file";
+}
+
 export default function SettingsPage() {
   const ready = useRequireAuth();
 
@@ -291,6 +341,11 @@ export default function SettingsPage() {
     useState<GoogleDriveIntegrationStatus | null>(null);
   const [integrationMessage, setIntegrationMessage] = useState("");
   const [integrationLoading, setIntegrationLoading] = useState(false);
+  const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
+  const [googleDriveFilesNextPageToken, setGoogleDriveFilesNextPageToken] =
+    useState<string | null>(null);
+  const [googleDriveFilesSearch, setGoogleDriveFilesSearch] = useState("");
+  const [googleDriveFilesLoading, setGoogleDriveFilesLoading] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -545,9 +600,12 @@ export default function SettingsPage() {
 
       if (status.connected) {
         setIntegrationMessage("Google Drive connected.");
+        await loadGoogleDriveFiles({ reset: true });
         return;
       }
 
+      setGoogleDriveFiles([]);
+      setGoogleDriveFilesNextPageToken(null);
       setIntegrationMessage("Google Drive is ready to connect.");
     } catch (error) {
       console.error(error);
@@ -574,6 +632,41 @@ export default function SettingsPage() {
       );
     } finally {
       setIntegrationLoading(false);
+    }
+  }
+
+  async function loadGoogleDriveFiles(
+    options: { reset?: boolean; search?: string } = {}
+  ) {
+    setGoogleDriveFilesLoading(true);
+
+    try {
+      const searchValue = options.search ?? googleDriveFilesSearch;
+      const pageToken = options.reset ? null : googleDriveFilesNextPageToken;
+
+      const result = await getGoogleDriveFiles({
+        pageSize: 10,
+        pageToken,
+        search: searchValue,
+      });
+
+      const files = Array.isArray(result.files) ? result.files : [];
+
+      setGoogleDriveFiles((current) =>
+        options.reset ? files : [...current, ...files]
+      );
+      setGoogleDriveFilesNextPageToken(result.next_page_token || null);
+
+      if (options.reset && files.length === 0) {
+        setIntegrationMessage("Google Drive connected. No matching files found.");
+      } else {
+        setIntegrationMessage("Google Drive files loaded.");
+      }
+    } catch (error) {
+      console.error(error);
+      setIntegrationMessage("Could not load Google Drive files.");
+    } finally {
+      setGoogleDriveFilesLoading(false);
     }
   }
 
@@ -1242,6 +1335,144 @@ export default function SettingsPage() {
               </div>
             ) : null}
           </div>
+        </section>
+
+        <section className="premium-card gold-border rounded-[2rem] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="gold-chip mb-4">Google Drive</div>
+              <h3 className="panel-title text-white">Drive file browser</h3>
+              <p className="panel-muted mt-3 max-w-3xl">
+                Browse recent Google Drive files connected to{" "}
+                <span className="font-black text-cyan-100">
+                  {googleDriveStatus?.account_email || "your Google account"}
+                </span>
+                . Import actions come next, but file discovery is now live.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void loadGoogleDriveFiles({ reset: true })}
+                disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {googleDriveFilesLoading ? "Loading..." : "Refresh files"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConnectGoogleDrive}
+                disabled={integrationLoading}
+                className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {integrationLoading ? "Opening..." : "Reconnect"}
+              </button>
+            </div>
+          </div>
+
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void loadGoogleDriveFiles({
+                reset: true,
+                search: googleDriveFilesSearch,
+              });
+            }}
+            className="mt-5 flex flex-col gap-3 sm:flex-row"
+          >
+            <input
+              value={googleDriveFilesSearch}
+              onChange={(event) => setGoogleDriveFilesSearch(event.target.value)}
+              placeholder="Search Drive files, example: resume or pdf"
+              className="rounded-[1.2rem] px-4 py-3.5"
+              disabled={!googleDriveStatus?.connected}
+            />
+
+            <button
+              type="submit"
+              disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
+              className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Search Drive
+            </button>
+          </form>
+
+          <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+            {integrationMessage || "Google Drive status will appear here."}
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {!googleDriveStatus?.connected ? (
+              <div className="empty-state">
+                Connect Google Drive first to preview files.
+              </div>
+            ) : googleDriveFilesLoading && googleDriveFiles.length === 0 ? (
+              <div className="empty-state">Loading Google Drive files...</div>
+            ) : googleDriveFiles.length === 0 ? (
+              <div className="empty-state">
+                No Google Drive files loaded yet. Click Refresh files.
+              </div>
+            ) : (
+              googleDriveFiles.map((file) => (
+                <article
+                  key={file.id}
+                  className="rounded-[1.3rem] border border-white/8 bg-white/[0.03] p-4"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-3">
+                        {file.iconLink ? (
+                          <img
+                            src={file.iconLink}
+                            alt=""
+                            className="h-5 w-5 shrink-0"
+                          />
+                        ) : null}
+
+                        <p className="truncate text-base font-black text-white">
+                          {file.name}
+                        </p>
+                      </div>
+
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        {getDriveFileKind(file.mimeType)} •{" "}
+                        {formatDriveFileSize(file.size)} •{" "}
+                        {formatDriveFileDate(file.modifiedTime)}
+                      </p>
+                    </div>
+
+                    {file.webViewLink ? (
+                      <a
+                        href={file.webViewLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.08]"
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
+                        No link
+                      </span>
+                    )}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+
+          {googleDriveFilesNextPageToken ? (
+            <button
+              type="button"
+              onClick={() => void loadGoogleDriveFiles()}
+              disabled={googleDriveFilesLoading}
+              className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {googleDriveFilesLoading ? "Loading..." : "Load more files"}
+            </button>
+          ) : null}
         </section>
 
         <section
