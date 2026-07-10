@@ -9,7 +9,9 @@ import {
   getCurrentUser,
   getGoogleDriveConnectUrl,
   getGoogleDriveFiles,
+  importGoogleDrivePDF,
   getGoogleDriveStatus,
+  getStudyRooms,
   getUserSessions,
   getUserSettings,
   logoutAllSessions,
@@ -19,6 +21,7 @@ import {
   updateUserSettings,
   type GoogleDriveFile,
   type GoogleDriveIntegrationStatus,
+  type StudyRoom,
   type SyncedUserSettings,
   type UserProfile,
   type UserSession,
@@ -402,6 +405,30 @@ export default function SettingsPage() {
     useState<string | null>(null);
   const [googleDriveFilesSearch, setGoogleDriveFilesSearch] = useState("");
   const [googleDriveFilesLoading, setGoogleDriveFilesLoading] = useState(false);
+  const [studyRooms, setStudyRooms] = useState<StudyRoom[]>([]);
+  const [studyRoomsLoading, setStudyRoomsLoading] = useState(false);
+  const [selectedDriveImportRoomId, setSelectedDriveImportRoomId] =
+    useState<number | "">("");
+  const [driveImportingFileId, setDriveImportingFileId] = useState<string | null>(
+    null
+  );
+  const [driveImportedFiles, setDriveImportedFiles] = useState<
+    Record<
+      string,
+      {
+        pdfId: number;
+        roomId: number;
+        filename: string;
+        roomName: string;
+      }
+    >
+  >({});
+  const [lastDriveImportResult, setLastDriveImportResult] = useState<{
+    pdfId: number;
+    roomId: number;
+    filename: string;
+    roomName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -691,6 +718,47 @@ export default function SettingsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!ready || activeSettingsTab !== "integrations") return;
+
+    void loadStudyRoomsForDriveImport();
+  }, [ready, activeSettingsTab]);
+
+  async function loadStudyRoomsForDriveImport() {
+    setStudyRoomsLoading(true);
+
+    try {
+      const rooms = await getStudyRooms();
+      const safeRooms = Array.isArray(rooms) ? rooms : [];
+
+      setStudyRooms(safeRooms);
+
+      setSelectedDriveImportRoomId((current) => {
+        if (
+          current &&
+          safeRooms.some((room) => room.id === Number(current))
+        ) {
+          return current;
+        }
+
+        return safeRooms[0]?.id || "";
+      });
+
+      if (safeRooms.length === 0) {
+        setIntegrationMessage(
+          "Create a Study Room before importing Google Drive PDFs."
+        );
+      }
+    } catch (error) {
+      console.error("Could not load Study Rooms for Drive import", error);
+      setStudyRooms([]);
+      setSelectedDriveImportRoomId("");
+      setIntegrationMessage("Could not load Study Rooms for Drive import.");
+    } finally {
+      setStudyRoomsLoading(false);
+    }
+  }
+
   async function loadGoogleDriveFiles(
     options: { reset?: boolean; search?: string } = {}
   ) {
@@ -723,6 +791,64 @@ export default function SettingsPage() {
       setIntegrationMessage("Could not load Google Drive files.");
     } finally {
       setGoogleDriveFilesLoading(false);
+    }
+  }
+
+  function getDriveImportRoomLabel(roomId: number | "") {
+    if (!roomId) return "No room selected";
+
+    const room = studyRooms.find((item) => item.id === Number(roomId));
+
+    if (!room) return `Room #${roomId}`;
+
+    return room.subject ? `${room.name} • ${room.subject}` : room.name;
+  }
+
+  async function handleImportGoogleDrivePDF(file: GoogleDriveFile) {
+    if (!selectedDriveImportRoomId) {
+      setIntegrationMessage("Choose a Study Room before importing.");
+      return;
+    }
+
+    if (file.mimeType !== "application/pdf") {
+      setIntegrationMessage("Only PDF files can be imported in this version.");
+      return;
+    }
+
+    const roomId = Number(selectedDriveImportRoomId);
+    const roomName = getDriveImportRoomLabel(roomId);
+
+    setDriveImportingFileId(file.id);
+    setIntegrationMessage(`Importing ${file.name} to ${roomName}...`);
+
+    try {
+      const result = await importGoogleDrivePDF(file.id, roomId);
+
+      const imported = {
+        pdfId: result.pdf.id,
+        roomId: result.pdf.study_room_id,
+        filename: result.pdf.original_filename,
+        roomName,
+      };
+
+      setDriveImportedFiles((current) => ({
+        ...current,
+        [file.id]: imported,
+      }));
+      setLastDriveImportResult(imported);
+
+      setIntegrationMessage(
+        `✅ ${result.pdf.original_filename} imported successfully to ${roomName}.`
+      );
+    } catch (error) {
+      console.error("Google Drive PDF import failed", error);
+      setIntegrationMessage(
+        error instanceof Error
+          ? `Import failed: ${error.message}`
+          : "Import failed: Could not import Google Drive PDF."
+      );
+    } finally {
+      setDriveImportingFileId(null);
     }
   }
 
@@ -1478,6 +1604,75 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                <div className="mt-5 rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-sm font-black text-slate-200">
+                      Import selected PDFs to Study Room
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => void loadStudyRoomsForDriveImport()}
+                      disabled={studyRoomsLoading}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {studyRoomsLoading ? "Loading rooms..." : "Refresh rooms"}
+                    </button>
+                  </div>
+
+                  <select
+                    value={selectedDriveImportRoomId}
+                    onChange={(event) =>
+                      setSelectedDriveImportRoomId(
+                        event.target.value ? Number(event.target.value) : ""
+                      )
+                    }
+                    className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
+                    disabled={studyRoomsLoading || studyRooms.length === 0}
+                  >
+                    {studyRoomsLoading ? (
+                      <option value="">Loading Study Rooms...</option>
+                    ) : studyRooms.length === 0 ? (
+                      <option value="">No Study Rooms found</option>
+                    ) : (
+                      studyRooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name} {room.subject ? `• ${room.subject}` : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+
+                  <p className="mt-2 text-xs font-bold text-slate-500">
+                    Only PDF files show the import button for now. Google Docs import as notes comes next.
+                  </p>
+
+                  <div className="mt-3 rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-xs font-bold text-slate-300">
+                    Destination:{" "}
+                    <span className="text-cyan-100">
+                      {getDriveImportRoomLabel(selectedDriveImportRoomId)}
+                    </span>
+                  </div>
+
+                  {lastDriveImportResult ? (
+                    <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3">
+                      <p className="text-sm font-black text-emerald-100">
+                        ✅ Imported successfully
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-emerald-50/80">
+                        {lastDriveImportResult.filename} was added to{" "}
+                        {lastDriveImportResult.roomName}.
+                      </p>
+                      <Link
+                        href={`/study-rooms/${lastDriveImportResult.roomId}?tab=pdf`}
+                        className="mt-3 inline-flex rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15"
+                      >
+                        View imported PDF in Room →
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
+
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -1551,20 +1746,54 @@ export default function SettingsPage() {
                             </p>
                           </div>
 
-                          {file.webViewLink ? (
-                            <a
-                              href={file.webViewLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.08]"
-                            >
-                              Open
-                            </a>
-                          ) : (
-                            <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
-                              No link
-                            </span>
-                          )}
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            {file.mimeType === "application/pdf" ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleImportGoogleDrivePDF(file)}
+                                disabled={
+                                  !selectedDriveImportRoomId ||
+                                  driveImportingFileId === file.id ||
+                                  Boolean(driveImportedFiles[file.id])
+                                }
+                                className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-center text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {driveImportedFiles[file.id]
+                                  ? "Imported"
+                                  : driveImportingFileId === file.id
+                                    ? "Importing..."
+                                    : "Import to Room"}
+                              </button>
+                            ) : (
+                              <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
+                                Import PDF only
+                              </span>
+                            )}
+
+                            {driveImportedFiles[file.id] ? (
+                              <Link
+                                href={`/study-rooms/${driveImportedFiles[file.id].roomId}?tab=pdf`}
+                                className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-center text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15"
+                              >
+                                View in Room
+                              </Link>
+                            ) : null}
+
+                            {file.webViewLink ? (
+                              <a
+                                href={file.webViewLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.08]"
+                              >
+                                Open
+                              </a>
+                            ) : (
+                              <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
+                                No link
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </article>
                     ))

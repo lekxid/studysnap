@@ -355,8 +355,17 @@ export async function generateQuizzesFromNotes(studyRoomId: number) {
   });
 }
 
-export async function getStudyRooms() {
-  return apiFetch("/api/study-rooms");
+export type StudyRoom = {
+  id: number;
+  name: string;
+  subject: string;
+  description?: string;
+  owner_id?: number;
+  created_at?: string;
+};
+
+export async function getStudyRooms(): Promise<StudyRoom[]> {
+  return apiFetch("/api/study-rooms") as Promise<StudyRoom[]>;
 }
 
 export async function createStudyRoom(
@@ -946,6 +955,37 @@ export async function getGoogleDriveFiles(
   return apiFetch(
     `/api/integrations/google/files?${params.toString()}`
   ) as Promise<GoogleDriveFilesResponse>;
+}
+
+
+export type GoogleDrivePDFImportResponse = {
+  provider: string;
+  account_email?: string | null;
+  message: string;
+  pdf: {
+    id: number;
+    original_filename: string;
+    stored_filename: string;
+    file_path: string;
+    file_size: number;
+    extracted_text?: string | null;
+    study_room_id: number;
+    owner_id: number;
+    created_at?: string | null;
+  };
+};
+
+export async function importGoogleDrivePDF(
+  fileId: string,
+  studyRoomId: number
+): Promise<GoogleDrivePDFImportResponse> {
+  return apiFetch("/api/integrations/google/import-pdf", {
+    method: "POST",
+    body: JSON.stringify({
+      file_id: fileId,
+      study_room_id: studyRoomId,
+    }),
+  }) as Promise<GoogleDrivePDFImportResponse>;
 }
 
 export type UserSession = {
