@@ -251,6 +251,35 @@ function toBackendSettings(settings: SettingsState) {
   };
 }
 
+type SettingsTab = "profile" | "learning" | "integrations" | "security";
+
+const settingsTabs: {
+  id: SettingsTab;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "profile",
+    label: "Profile",
+    description: "Account, setup, and identity",
+  },
+  {
+    id: "learning",
+    label: "Learning",
+    description: "AI Tutor, subjects, goals, and memory",
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    description: "Google Drive, apps, and auto-import",
+  },
+  {
+    id: "security",
+    label: "Security",
+    description: "Sessions and device controls",
+  },
+];
+
 function formatSyncStatus(value?: string | null) {
   if (!value) return "Never synced";
 
@@ -306,6 +335,30 @@ function formatDriveFileSize(value?: string | null) {
   return `${(mb / 1024).toFixed(1)} GB`;
 }
 
+function formatConnectedAppLabel(key: string) {
+  const labels: Record<string, string> = {
+    google_drive: "Google Drive",
+    google_docs: "Google Docs",
+    icloud: "iCloud",
+    onedrive: "OneDrive",
+    dropbox: "Dropbox",
+  };
+
+  return labels[key] || key;
+}
+
+function formatAutoImportRuleLabel(key: string) {
+  const labels: Record<string, string> = {
+    drive_pdfs: "Auto-import PDFs from Drive",
+    google_docs: "Auto-import Google Docs",
+    icloud_notes: "Auto-import iCloud notes",
+    flashcards_folder: "Auto-import flashcards folder",
+    sync_every_24_hours: "Sync every 24 hours",
+  };
+
+  return labels[key] || key.split("_").join(" ");
+}
+
 function getDriveFileKind(mimeType?: string | null) {
   if (!mimeType) return "File";
 
@@ -324,6 +377,9 @@ function getDriveFileKind(mimeType?: string | null) {
 
 export default function SettingsPage() {
   const ready = useRequireAuth();
+
+  const [activeSettingsTab, setActiveSettingsTab] =
+    useState<SettingsTab>("profile");
 
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [newSubject, setNewSubject] = useState("");
@@ -771,855 +827,940 @@ export default function SettingsPage() {
       subtitle="Manage your synced learning profile, AI memory, future app connections, privacy, and StudySnap setup."
     >
       <div className="content-grid">
-        <section className="hero-grid">
-          <div className="gold-card rounded-[2rem] p-6 sm:p-8">
-            <div className="gold-chip mb-4">StudySnap profile</div>
+        <section className="sticky top-4 z-20 rounded-[1.6rem] border border-white/10 bg-[#07111e]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur">
+          <div className="grid gap-2 md:grid-cols-4">
+            {settingsTabs.map((tab) => {
+              const active = activeSettingsTab === tab.id;
 
-            <h3 className="panel-title text-white text-balance">
-              Your StudySnap settings now sync with your account.
-            </h3>
-
-            <p className="panel-muted mt-4 max-w-2xl">
-              Changes here update your backend profile, onboarding setup, AI
-              Tutor style, memory preferences, and future app integrations.
-            </p>
-
-            <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
-              {isSaving ? "Saving to account..." : syncStatus}
-            </div>
-
-            <div className="mt-7 grid gap-4 sm:grid-cols-4">
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Style</p>
-                <p className="mt-3 text-lg font-black text-cyan-300">
-                  {profileSummary.style}
-                </p>
-              </div>
-
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Level</p>
-                <p className="mt-3 text-lg font-black text-amber-300">
-                  {profileSummary.level}
-                </p>
-              </div>
-
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Subjects</p>
-                <p className="mt-3 text-lg font-black text-violet-300">
-                  {profileSummary.subjects}
-                </p>
-              </div>
-
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
-                <p className="kpi-label">Favorite</p>
-                <p className="mt-3 text-lg font-black text-emerald-300">
-                  {profileSummary.favorite}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Quick actions</div>
-            <h3 className="panel-title text-white">Setup controls</h3>
-
-            <div className="mt-5 grid gap-3">
-              <Link
-                href="/onboarding"
-                className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-black text-white transition hover:bg-white/[0.07]"
-              >
-                Open onboarding →
-              </Link>
-
-              <button
-                type="button"
-                onClick={resetLearningSetup}
-                className="rounded-[1.2rem] border border-red-300/20 bg-red-500/10 px-4 py-3.5 text-left text-sm font-black text-red-100 transition hover:bg-red-500/15"
-              >
-                Reset learning setup
-              </button>
-
-              {savedMessage ? (
-                <div className="rounded-[1.2rem] border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
-                  {savedMessage}
-                </div>
-              ) : (
-                <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-slate-400">
-                  Settings auto-save to your account when changed.
-                </div>
-              )}
-            </div>
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveSettingsTab(tab.id)}
+                  className={`rounded-[1.2rem] border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-yellow-300/35 bg-yellow-300/15 text-yellow-50"
+                      : "border-white/8 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <p className="text-sm font-black">{tab.label}</p>
+                  <p
+                    className={`mt-1 text-xs leading-5 ${
+                      active ? "text-yellow-50/80" : "text-slate-500"
+                    }`}
+                  >
+                    {tab.description}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Account</div>
-            <div className="flex flex-wrap items-start gap-5">
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.6rem] border border-yellow-300/25 bg-yellow-300/15 text-2xl font-black text-yellow-100">
-                {accountSummary.initials}
+        {activeSettingsTab === "profile" ? (
+          <>
+            <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="gold-card rounded-[2rem] p-6 sm:p-8">
+                <div className="gold-chip mb-4">StudySnap profile</div>
+
+                <h3 className="panel-title text-white text-balance">
+                  Your StudySnap settings now sync with your account.
+                </h3>
+
+                <p className="panel-muted mt-4 max-w-2xl">
+                  Manage your account name, synced setup, onboarding profile,
+                  and StudySnap identity from one clean place.
+                </p>
+
+                <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+                  {isSaving ? "Saving to account..." : syncStatus}
+                </div>
+
+                <div className="mt-7 grid gap-4 sm:grid-cols-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                    <p className="kpi-label">Style</p>
+                    <p className="mt-3 text-lg font-black text-cyan-300">
+                      {profileSummary.style}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                    <p className="kpi-label">Level</p>
+                    <p className="mt-3 text-lg font-black text-amber-300">
+                      {profileSummary.level}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                    <p className="kpi-label">Subjects</p>
+                    <p className="mt-3 text-lg font-black text-violet-300">
+                      {profileSummary.subjects}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                    <p className="kpi-label">Favorite</p>
+                    <p className="mt-3 text-lg font-black text-emerald-300">
+                      {profileSummary.favorite}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="min-w-0 flex-1">
-                <h3 className="panel-title text-white">Profile</h3>
-                <p className="mt-2 truncate text-xl font-black text-white">
-                  {accountSummary.name}
-                </p>
-                <p className="mt-1 truncate text-sm font-bold text-slate-400">
-                  {accountSummary.email}
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Quick actions</div>
+                <h3 className="panel-title text-white">Setup controls</h3>
+
+                <div className="mt-5 grid gap-3">
+                  <Link
+                    href="/onboarding"
+                    className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-black text-white transition hover:bg-white/[0.07]"
+                  >
+                    Open onboarding →
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={resetLearningSetup}
+                    className="rounded-[1.2rem] border border-red-300/20 bg-red-500/10 px-4 py-3.5 text-left text-sm font-black text-red-100 transition hover:bg-red-500/15"
+                  >
+                    Reset learning setup
+                  </button>
+
+                  <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-slate-400">
+                    {savedMessage || "Settings auto-save to your account when changed."}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Account</div>
+
+                <div className="flex flex-wrap items-start gap-5">
+                  <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.6rem] border border-yellow-300/25 bg-yellow-300/15 text-2xl font-black text-yellow-100">
+                    {accountSummary.initials}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="panel-title text-white">Profile</h3>
+                    <p className="mt-2 truncate text-xl font-black text-white">
+                      {accountSummary.name}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-bold text-slate-400">
+                      {accountSummary.email}
+                    </p>
+
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <input
+                        className="rounded-[1.2rem] px-4 py-3.5"
+                        placeholder="Profile name"
+                        value={profileNameDraft}
+                        onChange={(event) => setProfileNameDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleSaveProfileName();
+                          }
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleSaveProfileName}
+                        disabled={profileSaving}
+                        className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {profileSaving ? "Saving..." : "Save name"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                        <p className="kpi-label">Account ID</p>
+                        <p className="mt-2 text-sm font-black text-slate-100">
+                          {accountSummary.accountId}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                        <p className="kpi-label">AI mode</p>
+                        <p className="mt-2 text-sm font-black text-cyan-200">
+                          {accountSummary.learningMode}
+                        </p>
+                      </div>
+
+                      <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
+                        <p className="kpi-label">Status</p>
+                        <p className="mt-2 text-sm font-black text-emerald-200">
+                          Active
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-[1.1rem] border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
+                      {accountStatus}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Account controls</div>
+                <h3 className="panel-title text-white">Security shortcuts</h3>
+                <p className="panel-muted mt-3">
+                  Session and device controls live inside the Security tab.
                 </p>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-5 grid gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSettingsTab("security")}
+                    className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-left text-sm font-black text-white transition hover:bg-white/[0.07]"
+                  >
+                    Open Security →
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
+                  >
+                    Password settings coming soon
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
+                  >
+                    Email verification coming soon
+                  </button>
+                </div>
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeSettingsTab === "learning" ? (
+          <>
+            <section className="rounded-[1.6rem] border border-cyan-300/15 bg-cyan-400/10 p-5">
+              <div className="gold-chip mb-3">Learning workspace</div>
+              <h3 className="panel-title text-white">
+                Tune how StudySnap teaches you.
+              </h3>
+              <p className="panel-muted mt-2">
+                AI explanation style, difficulty, subjects, goals, privacy, and
+                memory are grouped here.
+              </p>
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">AI Tutor</div>
+                <h3 className="panel-title text-white">Understanding mode</h3>
+                <p className="panel-muted mt-3">
+                  Choose how StudySnap should explain answers.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  {learningModes.map((item) => {
+                    const active = settings.learningMode === item.name;
+
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => update("learningMode", item.name)}
+                        className={`rounded-[1.35rem] border px-5 py-4 text-left transition ${
+                          active
+                            ? "border-transparent bg-gradient-to-r from-violet-500/95 via-indigo-500/92 to-sky-500/85 text-white shadow-[0_14px_30px_rgba(109,94,252,0.25)]"
+                            : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <p className="text-sm font-black">{item.name}</p>
+                        <p
+                          className={`mt-2 text-sm leading-6 ${
+                            active ? "text-white/85" : "text-slate-400"
+                          }`}
+                        >
+                          {item.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Difficulty</div>
+                <h3 className="panel-title text-white">Knowledge level</h3>
+                <p className="panel-muted mt-3">
+                  Set the starting level for explanations and study suggestions.
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  {knowledgeLevels.map((item) => {
+                    const active = settings.knowledgeLevel === item.name;
+
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => update("knowledgeLevel", item.name)}
+                        className={`rounded-[1.35rem] border px-5 py-4 text-left transition ${
+                          active
+                            ? "border-amber-300/30 bg-amber-400/12 text-amber-100"
+                            : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <p className="text-sm font-black">{item.name}</p>
+                        <p
+                          className={`mt-2 text-sm leading-6 ${
+                            active ? "text-amber-50/85" : "text-slate-400"
+                          }`}
+                        >
+                          {item.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Subjects</div>
+                <h3 className="panel-title text-white">Learning subjects</h3>
+                <p className="panel-muted mt-3">
+                  These subjects personalize your StudySnap workspace.
+                </p>
+
+                <div className="mt-5 flex gap-3">
                   <input
                     className="rounded-[1.2rem] px-4 py-3.5"
-                    placeholder="Profile name"
-                    value={profileNameDraft}
-                    onChange={(event) => setProfileNameDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleSaveProfileName();
+                    placeholder="Add subject, example: Anatomy"
+                    value={newSubject}
+                    onChange={(e) => setNewSubject(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addSubject();
                       }
                     }}
                   />
 
                   <button
                     type="button"
-                    onClick={handleSaveProfileName}
-                    disabled={profileSaving}
-                    className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={addSubject}
+                    className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black"
                   >
-                    {profileSaving ? "Saving..." : "Save name"}
+                    Add
                   </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
-                    <p className="kpi-label">Account ID</p>
-                    <p className="mt-2 text-sm font-black text-slate-100">
-                      {accountSummary.accountId}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
-                    <p className="kpi-label">AI mode</p>
-                    <p className="mt-2 text-sm font-black text-cyan-200">
-                      {accountSummary.learningMode}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
-                    <p className="kpi-label">Status</p>
-                    <p className="mt-2 text-sm font-black text-emerald-200">
-                      Active
-                    </p>
-                  </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {settings.selectedSubjects.length === 0 ? (
+                    <div className="empty-state w-full">
+                      No subjects selected yet.
+                    </div>
+                  ) : (
+                    settings.selectedSubjects.map((subject) => (
+                      <button
+                        key={subject}
+                        type="button"
+                        onClick={() => removeSubject(subject)}
+                        className="tag-chip"
+                      >
+                        {subject} ×
+                      </button>
+                    ))
+                  )}
                 </div>
 
-                <div className="mt-4 rounded-[1.1rem] border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
-                  {accountStatus}
+                <div className="mt-6">
+                  <label className="mb-2 block text-sm font-black text-slate-200">
+                    Favorite subject
+                  </label>
+                  <input
+                    className="rounded-[1.2rem] px-4 py-3.5"
+                    placeholder="Favorite subject"
+                    value={settings.favoriteSubject}
+                    onChange={(e) => update("favoriteSubject", e.target.value)}
+                  />
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Security</div>
-            <h3 className="panel-title text-white">Account controls</h3>
-            <p className="panel-muted mt-3">
-              Your sessions are now tracked by StudySnap, so logout and device
-              sign-out actions update your backend account history.
-            </p>
+              <div className="grid gap-5">
+                <div className="premium-card gold-border rounded-[2rem] p-6">
+                  <div className="gold-chip mb-4">Privacy</div>
+                  <h3 className="panel-title text-white">Progress sharing</h3>
 
-            <div className="mt-5 grid gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  document
-                    .getElementById("logged-in-devices")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-                className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-left text-sm font-black text-white transition hover:bg-white/[0.07]"
-              >
-                View logged-in devices →
-              </button>
+                  <div className="mt-5 grid gap-3">
+                    {sharingOptions.map((item) => {
+                      const active = settings.progressSharing === item.name;
 
-              <button
-                type="button"
-                disabled
-                className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
-              >
-                Password settings coming soon
-              </button>
-
-              <button
-                type="button"
-                disabled
-                className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] px-4 py-3.5 text-left text-sm font-black text-slate-500"
-              >
-                Email verification coming soon
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">AI Tutor</div>
-            <h3 className="panel-title text-white">Understanding mode</h3>
-            <p className="panel-muted mt-3">
-              Choose how StudySnap should explain answers.
-            </p>
-
-            <div className="mt-5 grid gap-3">
-              {learningModes.map((item) => {
-                const active = settings.learningMode === item.name;
-
-                return (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={() => update("learningMode", item.name)}
-                    className={`rounded-[1.35rem] border px-5 py-4 text-left transition ${
-                      active
-                        ? "border-transparent bg-gradient-to-r from-violet-500/95 via-indigo-500/92 to-sky-500/85 text-white shadow-[0_14px_30px_rgba(109,94,252,0.25)]"
-                        : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
-                    }`}
-                  >
-                    <p className="text-sm font-black">{item.name}</p>
-                    <p
-                      className={`mt-2 text-sm leading-6 ${
-                        active ? "text-white/85" : "text-slate-400"
-                      }`}
-                    >
-                      {item.desc}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Difficulty</div>
-            <h3 className="panel-title text-white">Knowledge level</h3>
-            <p className="panel-muted mt-3">
-              Set the starting level for explanations and study suggestions.
-            </p>
-
-            <div className="mt-5 grid gap-3">
-              {knowledgeLevels.map((item) => {
-                const active = settings.knowledgeLevel === item.name;
-
-                return (
-                  <button
-                    key={item.name}
-                    type="button"
-                    onClick={() => update("knowledgeLevel", item.name)}
-                    className={`rounded-[1.35rem] border px-5 py-4 text-left transition ${
-                      active
-                        ? "border-amber-300/30 bg-amber-400/12 text-amber-100"
-                        : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
-                    }`}
-                  >
-                    <p className="text-sm font-black">{item.name}</p>
-                    <p
-                      className={`mt-2 text-sm leading-6 ${
-                        active ? "text-amber-50/85" : "text-slate-400"
-                      }`}
-                    >
-                      {item.desc}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Subjects</div>
-            <h3 className="panel-title text-white">Learning subjects</h3>
-            <p className="panel-muted mt-3">
-              These subjects sync with your account and personalize your
-              StudySnap workspace.
-            </p>
-
-            <div className="mt-5 flex gap-3">
-              <input
-                className="rounded-[1.2rem] px-4 py-3.5"
-                placeholder="Add subject, example: Anatomy"
-                value={newSubject}
-                onChange={(e) => setNewSubject(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addSubject();
-                  }
-                }}
-              />
-
-              <button
-                type="button"
-                onClick={addSubject}
-                className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black"
-              >
-                Add
-              </button>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {settings.selectedSubjects.length === 0 ? (
-                <div className="empty-state w-full">
-                  No subjects selected yet.
+                      return (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => update("progressSharing", item.name)}
+                          className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${
+                            active
+                              ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
+                              : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                          }`}
+                        >
+                          <p className="text-sm font-black">{item.name}</p>
+                          <p
+                            className={`mt-1 text-xs leading-5 ${
+                              active ? "text-cyan-50/80" : "text-slate-400"
+                            }`}
+                          >
+                            {item.desc}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              ) : (
-                settings.selectedSubjects.map((subject) => (
-                  <button
-                    key={subject}
-                    type="button"
-                    onClick={() => removeSubject(subject)}
-                    className="tag-chip"
-                  >
-                    {subject} ×
-                  </button>
-                ))
-              )}
-            </div>
 
-            <div className="mt-6">
-              <label className="mb-2 block text-sm font-black text-slate-200">
-                Favorite subject
-              </label>
-              <input
-                className="rounded-[1.2rem] px-4 py-3.5"
-                placeholder="Favorite subject"
-                value={settings.favoriteSubject}
-                onChange={(e) => update("favoriteSubject", e.target.value)}
-              />
-            </div>
-          </div>
+                <div className="gold-card rounded-[2rem] p-6">
+                  <div className="gold-chip mb-4">Daily focus</div>
+                  <h3 className="panel-title text-white">Study preferences</h3>
 
-          <div className="content-grid">
-            <div className="premium-card gold-border rounded-[2rem] p-6">
-              <div className="gold-chip mb-4">Privacy</div>
-              <h3 className="panel-title text-white">Progress sharing</h3>
+                  <div className="mt-5 grid gap-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-black text-slate-200">
+                        Daily smart action
+                      </label>
+                      <select
+                        className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
+                        value={settings.dailyGoal}
+                        onChange={(e) => update("dailyGoal", e.target.value)}
+                      >
+                        {dailyGoals.map((goal) => (
+                          <option key={goal} value={goal}>
+                            {goal}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="mt-5 grid gap-3">
-                {sharingOptions.map((item) => {
-                  const active = settings.progressSharing === item.name;
+                    <div>
+                      <label className="mb-2 block text-sm font-black text-slate-200">
+                        Notifications
+                      </label>
+                      <select
+                        className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
+                        value={settings.notifications}
+                        onChange={(e) => update("notifications", e.target.value)}
+                      >
+                        {notificationOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="premium-card gold-border rounded-[2rem] p-6">
+              <div className="gold-chip mb-4">Unified AI Memory</div>
+              <h3 className="panel-title text-white">AI Tutor cloud memory</h3>
+              <p className="panel-muted mt-3">
+                Choose what StudySnap Brain can remember for future tutoring,
+                quizzes, progress, and recommendations.
+              </p>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {[
+                  ["aiMemoryEnabled", "Enable AI memory"],
+                  ["saveNotesToMemory", "Save notes to AI memory"],
+                  ["saveFlashcardsToMemory", "Save flashcards to AI memory"],
+                  ["saveQuizResultsToMemory", "Save quiz results to AI memory"],
+                  ["saveWeakStrongConcepts", "Save weak/strong concepts"],
+                  ["saveStudyHistory", "Save study history"],
+                ].map(([key, label]) => {
+                  const enabled = Boolean(settings[key as keyof SettingsState]);
 
                   return (
                     <button
-                      key={item.name}
+                      key={key}
                       type="button"
-                      onClick={() => update("progressSharing", item.name)}
-                      className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${
-                        active
-                          ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
-                          : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                      onClick={() => toggleMemory(key as keyof SettingsState)}
+                      className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
+                        enabled
+                          ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+                          : "border-white/8 bg-white/[0.03] text-slate-300"
                       }`}
                     >
-                      <p className="text-sm font-black">{item.name}</p>
-                      <p
-                        className={`mt-1 text-xs leading-5 ${
-                          active ? "text-cyan-50/80" : "text-slate-400"
-                        }`}
-                      >
-                        {item.desc}
-                      </p>
+                      <span className="text-sm font-black">{label}</span>
+                      <span className="text-xs font-black">
+                        {enabled ? "Saved" : "Off"}
+                      </span>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
+          </>
+        ) : null}
 
-            <div className="gold-card rounded-[2rem] p-6">
-              <div className="gold-chip mb-4">Daily focus</div>
-              <h3 className="panel-title text-white">Study preferences</h3>
+        {activeSettingsTab === "integrations" ? (
+          <>
+            <section className="rounded-[1.6rem] border border-emerald-300/15 bg-emerald-400/10 p-5">
+              <div className="gold-chip mb-3">Connected apps workspace</div>
+              <h3 className="panel-title text-white">
+                Manage files, Drive, and future imports.
+              </h3>
+              <p className="panel-muted mt-2">
+                Google Drive is live. Other providers and automatic import rules
+                stay organized here.
+              </p>
+            </section>
 
-              <div className="mt-5 grid gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-black text-slate-200">
-                    Daily smart action
-                  </label>
-                  <select
-                    className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
-                    value={settings.dailyGoal}
-                    onChange={(e) => update("dailyGoal", e.target.value)}
-                  >
-                    {dailyGoals.map((goal) => (
-                      <option key={goal} value={goal}>
-                        {goal}
-                      </option>
-                    ))}
-                  </select>
+            <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Apps</div>
+                <h3 className="panel-title text-white">Future app connections</h3>
+                <p className="panel-muted mt-3">
+                  Google Drive is active. Other providers are prepared as future
+                  integration placeholders.
+                </p>
+
+                <div className="mt-5 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
+                  {Object.entries(settings.connectedApps).map(([key]) => {
+                    const isGoogleDrive = key === "google_drive";
+                    const googleConfigured = Boolean(googleDriveStatus?.configured);
+                    const googleConnected = Boolean(googleDriveStatus?.connected);
+
+                    return (
+                      <div
+                        key={key}
+                        className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-white">
+                              {formatConnectedAppLabel(key)}
+                            </p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              {isGoogleDrive
+                                ? googleConnected
+                                  ? googleDriveStatus?.account_email || "Connected"
+                                  : googleConfigured
+                                    ? "Ready for OAuth connection"
+                                    : "OAuth setup required"
+                                : "Integration coming soon"}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black ${
+                              isGoogleDrive && googleConnected
+                                ? "bg-emerald-400/15 text-emerald-100"
+                                : isGoogleDrive && googleConfigured
+                                  ? "bg-cyan-400/15 text-cyan-100"
+                                  : "bg-white/[0.06] text-slate-300"
+                            }`}
+                          >
+                            {isGoogleDrive
+                              ? googleConnected
+                                ? "Connected"
+                                : googleConfigured
+                                  ? "Ready"
+                                  : "Setup required"
+                              : "Coming soon"}
+                          </span>
+                        </div>
+
+                        {isGoogleDrive ? (
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={handleConnectGoogleDrive}
+                              disabled={integrationLoading || googleConnected}
+                              className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:text-slate-500"
+                            >
+                              {googleConnected
+                                ? "Connected"
+                                : integrationLoading
+                                  ? "Opening..."
+                                  : googleConfigured
+                                    ? "Connect Google"
+                                    : "Setup needed"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={loadGoogleDriveStatus}
+                              disabled={integrationLoading}
+                              className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
+                            >
+                              Refresh
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              disabled
+                              className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                            >
+                              Connect later
+                            </button>
+                            <button
+                              type="button"
+                              disabled
+                              className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                            >
+                              Sync later
+                            </button>
+                            <button
+                              type="button"
+                              disabled
+                              className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
+                            >
+                              Files later
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-black text-slate-200">
-                    Notifications
-                  </label>
-                  <select
-                    className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none"
-                    value={settings.notifications}
-                    onChange={(e) => update("notifications", e.target.value)}
-                  >
-                    {notificationOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {integrationMessage ? (
+                  <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+                    {integrationMessage}
+                  </div>
+                ) : null}
               </div>
-            </div>
-          </div>
-        </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Unified AI Memory</div>
-            <h3 className="panel-title text-white">AI Tutor cloud memory</h3>
-            <p className="panel-muted mt-3">
-              Choose what StudySnap Brain can remember to personalize future
-              tutoring, quizzes, progress, and study recommendations.
-            </p>
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="gold-chip mb-4">Google Drive</div>
+                    <h3 className="panel-title text-white">Drive file browser</h3>
+                    <p className="panel-muted mt-3 max-w-3xl">
+                      Browse recent files connected to{" "}
+                      <span className="font-black text-cyan-100">
+                        {googleDriveStatus?.account_email || "your Google account"}
+                      </span>
+                      . Import actions come next.
+                    </p>
+                  </div>
 
-            <div className="mt-5 grid gap-3">
-              {[
-                ["aiMemoryEnabled", "Enable AI memory"],
-                ["saveNotesToMemory", "Save notes to AI memory"],
-                ["saveFlashcardsToMemory", "Save flashcards to AI memory"],
-                ["saveQuizResultsToMemory", "Save quiz results to AI memory"],
-                ["saveWeakStrongConcepts", "Save weak/strong concepts"],
-                ["saveStudyHistory", "Save study history"],
-              ].map(([key, label]) => {
-                const enabled = Boolean(settings[key as keyof SettingsState]);
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadGoogleDriveFiles({ reset: true })}
+                      disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {googleDriveFilesLoading ? "Loading..." : "Refresh files"}
+                    </button>
 
-                return (
+                    <button
+                      type="button"
+                      onClick={handleConnectGoogleDrive}
+                      disabled={integrationLoading}
+                      className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {integrationLoading ? "Opening..." : "Reconnect"}
+                    </button>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void loadGoogleDriveFiles({
+                      reset: true,
+                      search: googleDriveFilesSearch,
+                    });
+                  }}
+                  className="mt-5 flex flex-col gap-3 sm:flex-row"
+                >
+                  <input
+                    value={googleDriveFilesSearch}
+                    onChange={(event) =>
+                      setGoogleDriveFilesSearch(event.target.value)
+                    }
+                    placeholder="Search Drive files, example: resume or pdf"
+                    className="rounded-[1.2rem] px-4 py-3.5"
+                    disabled={!googleDriveStatus?.connected}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
+                    className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Search Drive
+                  </button>
+                </form>
+
+                <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+                  {integrationMessage || "Google Drive status will appear here."}
+                </div>
+
+                <div className="mt-5 grid max-h-[460px] gap-3 overflow-y-auto pr-2">
+                  {!googleDriveStatus?.connected ? (
+                    <div className="empty-state">
+                      Connect Google Drive first to preview files.
+                    </div>
+                  ) : googleDriveFilesLoading && googleDriveFiles.length === 0 ? (
+                    <div className="empty-state">Loading Google Drive files...</div>
+                  ) : googleDriveFiles.length === 0 ? (
+                    <div className="empty-state">
+                      No files loaded yet. Click Refresh files.
+                    </div>
+                  ) : (
+                    googleDriveFiles.map((file) => (
+                      <article
+                        key={file.id}
+                        className="rounded-[1.3rem] border border-white/8 bg-white/[0.03] p-4"
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-3">
+                              {file.iconLink ? (
+                                <img
+                                  src={file.iconLink}
+                                  alt=""
+                                  className="h-5 w-5 shrink-0"
+                                />
+                              ) : null}
+
+                              <p className="truncate text-base font-black text-white">
+                                {file.name}
+                              </p>
+                            </div>
+
+                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                              {getDriveFileKind(file.mimeType)} •{" "}
+                              {formatDriveFileSize(file.size)} •{" "}
+                              {formatDriveFileDate(file.modifiedTime)}
+                            </p>
+                          </div>
+
+                          {file.webViewLink ? (
+                            <a
+                              href={file.webViewLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.08]"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
+                              No link
+                            </span>
+                          )}
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                {googleDriveFilesNextPageToken ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadGoogleDriveFiles()}
+                    disabled={googleDriveFilesLoading}
+                    className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {googleDriveFilesLoading ? "Loading..." : "Load more files"}
+                  </button>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="premium-card gold-border rounded-[2rem] p-6">
+              <div className="gold-chip mb-4">Automation</div>
+              <h3 className="panel-title text-white">Future auto-import rules</h3>
+              <p className="panel-muted mt-3">
+                These are saved preferences only. Real automatic imports will come
+                in the next provider phase.
+              </p>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {Object.entries(settings.autoImportRules).map(([key, enabled]) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => toggleMemory(key as keyof SettingsState)}
+                    onClick={() =>
+                      saveSettings(
+                        {
+                          ...settings,
+                          autoImportRules: {
+                            ...settings.autoImportRules,
+                            [key]: !settings.autoImportRules[key],
+                          },
+                        },
+                        "Auto-import rule saved."
+                      )
+                    }
                     className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
                       enabled
-                        ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
+                        ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
                         : "border-white/8 bg-white/[0.03] text-slate-300"
                     }`}
                   >
-                    <span className="text-sm font-black">{label}</span>
+                    <span className="text-sm font-black">
+                      {formatAutoImportRuleLabel(key)}
+                    </span>
                     <span className="text-xs font-black">
                       {enabled ? "Saved" : "Off"}
                     </span>
                   </button>
-                );
-              })}
-            </div>
-          </div>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : null}
 
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Future apps</div>
-            <h3 className="panel-title text-white">Future app connections</h3>
-            <p className="panel-muted mt-3">
-              These providers are planned for the next connection phase. They
-              are shown here as future integration placeholders only.
-            </p>
+        {activeSettingsTab === "security" ? (
+          <>
+            <section className="rounded-[1.6rem] border border-red-300/15 bg-red-500/10 p-5">
+              <div className="gold-chip mb-3">Security workspace</div>
+              <h3 className="panel-title text-white">
+                Review active sessions and signed-in devices.
+              </h3>
+              <p className="panel-muted mt-2">
+                Device history is kept inside a scrollable panel so Settings stays
+                clean.
+              </p>
+            </section>
 
-            <div className="mt-5 grid gap-3">
-              {Object.entries(settings.connectedApps).map(([key]) => {
-                const isGoogleDrive = key === "google_drive";
-                const googleConfigured = Boolean(googleDriveStatus?.configured);
-                const googleConnected = Boolean(googleDriveStatus?.connected);
+            <section className="premium-card gold-border rounded-[2rem] p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="gold-chip mb-4">Security</div>
+                  <h3 className="panel-title text-white">Logged-in devices</h3>
+                  <p className="panel-muted mt-3 max-w-3xl">
+                    See where your StudySnap account is signed in. Later this will
+                    support trusted devices, location history, and recovery checks.
+                  </p>
+                </div>
 
-                return (
-                  <div
-                    key={key}
-                    className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4"
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={loadSessions}
+                    disabled={sessionsLoading}
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black text-white">
-                          {connectedAppLabels[key] || key}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {isGoogleDrive
-                            ? googleConnected
-                              ? googleDriveStatus?.account_email || "Connected"
-                              : googleConfigured
-                                ? "Ready for OAuth connection"
-                                : "OAuth setup required"
-                            : "Integration coming soon"}
-                        </p>
-                      </div>
+                    {sessionsLoading ? "Refreshing..." : "Refresh"}
+                  </button>
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ${
-                          isGoogleDrive && googleConnected
-                            ? "bg-emerald-400/15 text-emerald-100"
-                            : isGoogleDrive && googleConfigured
-                              ? "bg-cyan-400/15 text-cyan-100"
-                              : "bg-white/[0.06] text-slate-300"
+                  <button
+                    type="button"
+                    onClick={handleLogoutOtherSessions}
+                    disabled={sessionsLoading}
+                    className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Sign out others
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLogoutAllSessions}
+                    disabled={sessionsLoading}
+                    className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Sign out all
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+                {sessionsStatus}
+              </div>
+
+              <div className="mt-5 grid max-h-[560px] gap-3 overflow-y-auto pr-2">
+                {sessions.length === 0 ? (
+                  <div className="empty-state">
+                    No logged-in devices found yet.
+                  </div>
+                ) : (
+                  sessions.map((session) => {
+                    const lastActive = new Date(session.last_active_at);
+                    const lastActiveLabel = Number.isNaN(lastActive.getTime())
+                      ? "Unknown"
+                      : lastActive.toLocaleString();
+
+                    const signedOut = Boolean(session.revoked_at);
+
+                    return (
+                      <div
+                        key={session.id}
+                        className={`rounded-[1.3rem] border p-4 ${
+                          session.is_current
+                            ? "border-yellow-300/25 bg-yellow-300/10"
+                            : signedOut
+                              ? "border-white/8 bg-white/[0.02] opacity-70"
+                              : "border-white/8 bg-white/[0.03]"
                         }`}
                       >
-                        {isGoogleDrive
-                          ? googleConnected
-                            ? "Connected"
-                            : googleConfigured
-                              ? "Ready"
-                              : "Setup required"
-                          : "Coming soon"}
-                      </span>
-                    </div>
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div>
+                            <p className="text-base font-black text-white">
+                              {session.device_name}
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-slate-400">
+                              {session.browser} • {session.operating_system}
+                            </p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">
+                              IP: {session.ip_address || "Unknown"} • Last active:{" "}
+                              {lastActiveLabel}
+                            </p>
+                          </div>
 
-                    {isGoogleDrive ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={handleConnectGoogleDrive}
-                          disabled={integrationLoading || googleConnected}
-                          className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:text-slate-500"
-                        >
-                          {googleConnected
-                            ? "Connected"
-                            : integrationLoading
-                              ? "Opening..."
-                              : googleConfigured
-                                ? "Connect Google"
-                                : "Setup needed"}
-                        </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-black ${
+                                session.is_current
+                                  ? "bg-yellow-300 text-black"
+                                  : signedOut
+                                    ? "bg-white/[0.06] text-slate-400"
+                                    : "bg-emerald-400/15 text-emerald-100"
+                              }`}
+                            >
+                              {signedOut
+                                ? "Signed out"
+                                : session.is_current
+                                  ? "Current device"
+                                  : "Active"}
+                            </span>
 
-                        <button
-                          type="button"
-                          onClick={loadGoogleDriveStatus}
-                          disabled={integrationLoading}
-                          className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
-                        >
-                          Refresh
-                        </button>
+                            {!session.is_current && !signedOut ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeSession(session.id)}
+                                className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100 transition hover:bg-red-500/15"
+                              >
+                                Sign out
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="mt-3 grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          disabled
-                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                        >
-                          Connect later
-                        </button>
-                        <button
-                          type="button"
-                          disabled
-                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                        >
-                          Sync later
-                        </button>
-                        <button
-                          type="button"
-                          disabled
-                          className="cursor-not-allowed rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-500"
-                        >
-                          Files later
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {integrationMessage ? (
-              <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
-                {integrationMessage}
+                    );
+                  })
+                )}
               </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="premium-card gold-border rounded-[2rem] p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="gold-chip mb-4">Google Drive</div>
-              <h3 className="panel-title text-white">Drive file browser</h3>
-              <p className="panel-muted mt-3 max-w-3xl">
-                Browse recent Google Drive files connected to{" "}
-                <span className="font-black text-cyan-100">
-                  {googleDriveStatus?.account_email || "your Google account"}
-                </span>
-                . Import actions come next, but file discovery is now live.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void loadGoogleDriveFiles({ reset: true })}
-                disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {googleDriveFilesLoading ? "Loading..." : "Refresh files"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConnectGoogleDrive}
-                disabled={integrationLoading}
-                className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {integrationLoading ? "Opening..." : "Reconnect"}
-              </button>
-            </div>
-          </div>
-
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void loadGoogleDriveFiles({
-                reset: true,
-                search: googleDriveFilesSearch,
-              });
-            }}
-            className="mt-5 flex flex-col gap-3 sm:flex-row"
-          >
-            <input
-              value={googleDriveFilesSearch}
-              onChange={(event) => setGoogleDriveFilesSearch(event.target.value)}
-              placeholder="Search Drive files, example: resume or pdf"
-              className="rounded-[1.2rem] px-4 py-3.5"
-              disabled={!googleDriveStatus?.connected}
-            />
-
-            <button
-              type="submit"
-              disabled={!googleDriveStatus?.connected || googleDriveFilesLoading}
-              className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Search Drive
-            </button>
-          </form>
-
-          <div className="mt-4 rounded-[1.2rem] border border-cyan-300/15 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
-            {integrationMessage || "Google Drive status will appear here."}
-          </div>
-
-          <div className="mt-5 grid gap-3">
-            {!googleDriveStatus?.connected ? (
-              <div className="empty-state">
-                Connect Google Drive first to preview files.
-              </div>
-            ) : googleDriveFilesLoading && googleDriveFiles.length === 0 ? (
-              <div className="empty-state">Loading Google Drive files...</div>
-            ) : googleDriveFiles.length === 0 ? (
-              <div className="empty-state">
-                No Google Drive files loaded yet. Click Refresh files.
-              </div>
-            ) : (
-              googleDriveFiles.map((file) => (
-                <article
-                  key={file.id}
-                  className="rounded-[1.3rem] border border-white/8 bg-white/[0.03] p-4"
-                >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-3">
-                        {file.iconLink ? (
-                          <img
-                            src={file.iconLink}
-                            alt=""
-                            className="h-5 w-5 shrink-0"
-                          />
-                        ) : null}
-
-                        <p className="truncate text-base font-black text-white">
-                          {file.name}
-                        </p>
-                      </div>
-
-                      <p className="mt-2 text-sm leading-6 text-slate-400">
-                        {getDriveFileKind(file.mimeType)} •{" "}
-                        {formatDriveFileSize(file.size)} •{" "}
-                        {formatDriveFileDate(file.modifiedTime)}
-                      </p>
-                    </div>
-
-                    {file.webViewLink ? (
-                      <a
-                        href={file.webViewLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-center text-xs font-black text-slate-200 transition hover:bg-white/[0.08]"
-                      >
-                        Open
-                      </a>
-                    ) : (
-                      <span className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2 text-xs font-black text-slate-500">
-                        No link
-                      </span>
-                    )}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-
-          {googleDriveFilesNextPageToken ? (
-            <button
-              type="button"
-              onClick={() => void loadGoogleDriveFiles()}
-              disabled={googleDriveFilesLoading}
-              className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {googleDriveFilesLoading ? "Loading..." : "Load more files"}
-            </button>
-          ) : null}
-        </section>
-
-        <section
-          id="logged-in-devices"
-          className="premium-card gold-border rounded-[2rem] p-6"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="gold-chip mb-4">Security</div>
-              <h3 className="panel-title text-white">Logged-in devices</h3>
-              <p className="panel-muted mt-3 max-w-3xl">
-                See where your StudySnap account is signed in. Later this will
-                support trusted devices, location history, and recovery checks.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={loadSessions}
-                disabled={sessionsLoading}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {sessionsLoading ? "Refreshing..." : "Refresh"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutOtherSessions}
-                disabled={sessionsLoading}
-                className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Sign out others
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogoutAllSessions}
-                disabled={sessionsLoading}
-                className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Sign out all
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
-            {sessionsStatus}
-          </div>
-
-          <div className="mt-5 grid gap-3">
-            {sessions.length === 0 ? (
-              <div className="empty-state">
-                No logged-in devices found yet.
-              </div>
-            ) : (
-              sessions.map((session) => {
-                const revoked = Boolean(session.revoked_at);
-
-                return (
-                  <div
-                    key={session.id}
-                    className={`rounded-[1.3rem] border p-4 ${
-                      session.is_current
-                        ? "border-yellow-300/25 bg-yellow-300/10"
-                        : revoked
-                          ? "border-white/8 bg-white/[0.02] opacity-70"
-                          : "border-white/8 bg-white/[0.03]"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <p className="text-base font-black text-white">
-                          {session.device_name}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-slate-400">
-                          {session.browser} • {session.operating_system}
-                        </p>
-
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          IP: {session.ip_address || "Unknown"} • Last active:{" "}
-                          {formatSessionDate(session.last_active_at)}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-black ${
-                            session.is_current
-                              ? "bg-yellow-300 text-black"
-                              : revoked
-                                ? "bg-white/[0.06] text-slate-400"
-                                : "bg-emerald-400/15 text-emerald-100"
-                          }`}
-                        >
-                          {getSessionStatus(session)}
-                        </span>
-
-                        {!session.is_current && !revoked ? (
-                          <button
-                            type="button"
-                            onClick={() => handleRevokeSession(session.id)}
-                            className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100 transition hover:bg-red-500/15"
-                          >
-                            Sign out
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <section className="premium-card gold-border rounded-[2rem] p-6">
-          <div className="gold-chip mb-4">Automation</div>
-          <h3 className="panel-title text-white">Future auto-import rules</h3>
-          <p className="panel-muted mt-3">
-            These are saved preferences only. Real Drive, Docs, iCloud,
-            and folder connections will come in the next provider phase.
-          </p>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {Object.entries(settings.autoImportRules).map(([key, enabled]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => toggleAutoImport(key)}
-                className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
-                  enabled
-                    ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"
-                    : "border-white/8 bg-white/[0.03] text-slate-300"
-                }`}
-              >
-                <span className="text-sm font-black">
-                  {autoImportLabels[key] || key}
-                </span>
-                <span className="text-xs font-black">
-                  {enabled ? "Saved" : "Off"}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
+            </section>
+          </>
+        ) : null}
       </div>
     </AppShell>
   );
