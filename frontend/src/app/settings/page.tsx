@@ -6,9 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
+  getUserSessions,
   getUserSettings,
+  logoutAllSessions,
+  revokeUserSession,
   updateUserSettings,
   type SyncedUserSettings,
+  type UserSession,
 } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
@@ -247,6 +251,20 @@ function formatSyncStatus(value?: string | null) {
   return `Last synced ${date.toLocaleDateString()}`;
 }
 
+function formatSessionDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Unknown";
+
+  return date.toLocaleString();
+}
+
+function getSessionStatus(session: UserSession) {
+  if (session.revoked_at) return "Signed out";
+  if (session.is_current) return "Current device";
+  return "Active";
+}
+
 export default function SettingsPage() {
   const ready = useRequireAuth();
 
@@ -255,6 +273,9 @@ export default function SettingsPage() {
   const [savedMessage, setSavedMessage] = useState("");
   const [syncStatus, setSyncStatus] = useState("Loading cloud settings...");
   const [isSaving, setIsSaving] = useState(false);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [sessionsStatus, setSessionsStatus] = useState("Loading devices...");
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -314,6 +335,7 @@ export default function SettingsPage() {
     }
 
     loadSettings();
+    loadSessions();
 
     return () => {
       cancelled = true;
@@ -435,6 +457,56 @@ export default function SettingsPage() {
       },
       "Auto-import rule saved."
     );
+  }
+
+  async function loadSessions() {
+    setSessionsLoading(true);
+
+    try {
+      const nextSessions = await getUserSessions();
+      setSessions(nextSessions);
+      setSessionsStatus("Devices synced.");
+    } catch (error) {
+      console.error(error);
+      setSessionsStatus("Could not load logged-in devices.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  async function handleRevokeSession(sessionId: number) {
+    setSessionsLoading(true);
+
+    try {
+      await revokeUserSession(sessionId);
+      await loadSessions();
+      setSavedMessage("Device signed out.");
+    } catch (error) {
+      console.error(error);
+      setSavedMessage("Could not sign out that device.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  async function handleLogoutAllSessions() {
+    const confirmed = window.confirm(
+      "Sign out all devices? You will need to log in again."
+    );
+
+    if (!confirmed) return;
+
+    setSessionsLoading(true);
+
+    try {
+      await logoutAllSessions();
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    } catch (error) {
+      console.error(error);
+      setSavedMessage("Could not sign out all devices.");
+      setSessionsLoading(false);
+    }
   }
 
   if (!ready) {
@@ -850,6 +922,107 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        <section className="premium-card gold-border rounded-[2rem] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="gold-chip mb-4">Security</div>
+              <h3 className="panel-title text-white">Logged-in devices</h3>
+              <p className="panel-muted mt-3 max-w-3xl">
+                See where your StudySnap account is signed in. Later this will
+                support trusted devices, location history, and recovery checks.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={loadSessions}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+              >
+                {sessionsLoading ? "Refreshing..." : "Refresh"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogoutAllSessions}
+                className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/15"
+              >
+                Sign out all
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+            {sessionsStatus}
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {sessions.length === 0 ? (
+              <div className="empty-state">
+                No logged-in devices found yet.
+              </div>
+            ) : (
+              sessions.map((session) => {
+                const revoked = Boolean(session.revoked_at);
+
+                return (
+                  <div
+                    key={session.id}
+                    className={`rounded-[1.3rem] border p-4 ${
+                      session.is_current
+                        ? "border-yellow-300/25 bg-yellow-300/10"
+                        : revoked
+                          ? "border-white/8 bg-white/[0.02] opacity-70"
+                          : "border-white/8 bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-base font-black text-white">
+                          {session.device_name}
+                        </p>
+
+                        <p className="mt-1 text-sm leading-6 text-slate-400">
+                          {session.browser} • {session.operating_system}
+                        </p>
+
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          IP: {session.ip_address || "Unknown"} • Last active:{" "}
+                          {formatSessionDate(session.last_active_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black ${
+                            session.is_current
+                              ? "bg-yellow-300 text-black"
+                              : revoked
+                                ? "bg-white/[0.06] text-slate-400"
+                                : "bg-emerald-400/15 text-emerald-100"
+                          }`}
+                        >
+                          {getSessionStatus(session)}
+                        </span>
+
+                        {!session.is_current && !revoked ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeSession(session.id)}
+                            className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-100 transition hover:bg-red-500/15"
+                          >
+                            Sign out
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
 

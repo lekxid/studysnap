@@ -867,3 +867,32 @@ export async function updateUserSettings(
     body: JSON.stringify(settings),
   });
 }
+
+export type UserSession = {
+  id: number;
+  device_name: string;
+  browser: string;
+  operating_system: string;
+  ip_address?: string | null;
+  is_trusted: boolean;
+  is_current: boolean;
+  created_at: string;
+  last_active_at: string;
+  revoked_at?: string | null;
+};
+
+export async function getUserSessions(): Promise<UserSession[]> {
+  return apiFetch("/api/sessions");
+}
+
+export async function revokeUserSession(sessionId: number) {
+  return apiFetch(`/api/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function logoutAllSessions() {
+  return apiFetch("/api/sessions/logout-all", {
+    method: "POST",
+  });
+}
