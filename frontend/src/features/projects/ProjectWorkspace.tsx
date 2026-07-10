@@ -5,20 +5,21 @@ import Link from "next/link";
 
 import { getBrainInsights, type BrainSource } from "@/lib/api";
 
+export type RoomTab =
+  | "overview"
+  | "materials"
+  | "notes"
+  | "ai"
+  | "practice"
+  | "together"
+  | "progress";
+
 type ContinueItem = {
-  id: number;
+  id: string | number;
   title: string;
   subtitle: string;
   icon?: string;
   onOpen: () => void;
-};
-
-type Action = {
-  title: string;
-  description: string;
-  icon: string;
-  href?: string;
-  onClick?: () => void;
 };
 
 type BrainConcept = {
@@ -47,71 +48,78 @@ type Props = {
   subject: string;
   description?: string | null;
 
-  pdfCount: number;
+  materialsCount: number;
+  notesCount: number;
+  conceptCardsCount: number;
+  quizzesCount: number;
   progress: number;
 
   continueItems: ContinueItem[];
-  quickActions: Action[];
 
   searchQuery: string;
   searchResults: BrainSource[];
   searchLoading: boolean;
   searchError: string;
 
+  activeTab: RoomTab;
+  onChangeTab: (tab: RoomTab) => void;
+
   onBack: () => void;
-  onAskAI: () => void;
-  onUploadPDF: () => void;
   onSearch: (query: string) => void;
   onOpenSearchResult: (result: BrainSource) => void;
-  onViewAll: () => void;
-
-  activeTool: "ai" | "pdf";
-  onOpenNotes: () => void;
-  onOpenFlashcards: () => void;
-  onOpenQuizzes: () => void;
-  onOpenPlanner: () => void;
 
   children?: ReactNode;
 };
 
-const workspaceTools = [
+const roomTabs: {
+  key: RoomTab;
+  title: string;
+  description: string;
+  icon: string;
+}[] = [
   {
-    key: "ai",
-    title: "Project AI",
-    description: "Ask this room",
-    icon: "🤖",
+    key: "overview",
+    title: "Overview",
+    description: "Start here",
+    icon: "🏠",
   },
   {
-    key: "pdf",
+    key: "materials",
     title: "Materials",
-    description: "Upload + summarize",
-    icon: "📄",
+    description: "PDFs + uploads",
+    icon: "📚",
   },
   {
     key: "notes",
     title: "Notes",
-    description: "Write and save",
+    description: "Write + review",
     icon: "📝",
   },
   {
-    key: "flashcards",
-    title: "Concept Cards",
-    description: "Review key ideas",
+    key: "ai",
+    title: "AI Tutor",
+    description: "Ask this room",
+    icon: "🤖",
+  },
+  {
+    key: "practice",
+    title: "Practice",
+    description: "Cards + quizzes",
     icon: "🧠",
   },
   {
-    key: "quizzes",
-    title: "Quizzes",
-    description: "Test yourself",
-    icon: "🧾",
+    key: "together",
+    title: "Study Together",
+    description: "Coming soon",
+    icon: "👥",
   },
   {
-    key: "planner",
-    title: "Planner",
-    description: "Plan study",
-    icon: "📅",
+    key: "progress",
+    title: "Progress",
+    description: "Weak + strong",
+    icon: "📈",
   },
-] as const;
+];
 
 function getSourceLabel(sourceType: string) {
   if (sourceType === "pdf_chunk") return "PDF";
@@ -189,10 +197,10 @@ function ProjectSearchResults({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-            Project Search
+            Room Search
           </p>
           <h3 className="mt-1 text-lg font-black text-white">
-            {query ? `Results for “${query}”` : "Searching project..."}
+            {query ? `Results for “${query}”` : "Searching room..."}
           </h3>
         </div>
 
@@ -209,7 +217,7 @@ function ProjectSearchResults({
 
       {!loading && !error && query && results.length === 0 ? (
         <p className="mt-4 text-sm text-slate-400">
-          No matching project materials found yet.
+          No matching room materials found yet.
         </p>
       ) : null}
 
@@ -251,12 +259,12 @@ function ProjectSearchResults({
   );
 }
 
-function ToolButton({
-  tool,
+function TabButton({
+  tab,
   active,
   onClick,
 }: {
-  tool: (typeof workspaceTools)[number];
+  tab: (typeof roomTabs)[number];
   active: boolean;
   onClick: () => void;
 }) {
@@ -264,14 +272,14 @@ function ToolButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[1.25rem] border p-4 text-left transition hover:-translate-y-0.5 ${
+      className={`rounded-[1.15rem] border p-3 text-left transition hover:-translate-y-0.5 ${
         active
           ? "border-yellow-300/50 bg-yellow-300/15 shadow-[0_0_28px_rgba(250,204,21,0.12)]"
           : "border-white/10 bg-black/30 hover:border-yellow-300/35 hover:bg-yellow-300/10"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-2xl">{tool.icon}</span>
+        <span className="text-xl">{tab.icon}</span>
 
         {active ? (
           <span className="rounded-full bg-yellow-300 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-black">
@@ -280,9 +288,9 @@ function ToolButton({
         ) : null}
       </div>
 
-      <p className="mt-4 text-sm font-black text-white">{tool.title}</p>
+      <p className="mt-3 text-sm font-black text-white">{tab.title}</p>
       <p className="mt-1 text-xs leading-5 text-slate-400">
-        {tool.description}
+        {tab.description}
       </p>
     </button>
   );
@@ -293,32 +301,27 @@ export default function ProjectWorkspace({
   title,
   subject,
   description,
-  pdfCount,
+  materialsCount,
+  notesCount,
+  conceptCardsCount,
+  quizzesCount,
   progress,
   continueItems,
-  quickActions,
   searchQuery,
   searchResults,
   searchLoading,
   searchError,
+  activeTab,
+  onChangeTab,
   onBack,
-  onAskAI,
-  onUploadPDF,
   onSearch,
   onOpenSearchResult,
-  onViewAll,
-  activeTool,
-  onOpenNotes,
-  onOpenFlashcards,
-  onOpenQuizzes,
-  onOpenPlanner,
   children,
 }: Props) {
   const [brainInsights, setBrainInsights] = useState<BrainInsights | null>(null);
   const [brainLoading, setBrainLoading] = useState(false);
 
   const safeProgress = Math.max(0, Math.min(100, progress));
-  const activeLabel = activeTool === "ai" ? "Project AI" : "Room Materials";
 
   useEffect(() => {
     let mounted = true;
@@ -363,20 +366,6 @@ export default function ProjectWorkspace({
 
   const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
 
-  function openTool(key: string) {
-    if (key === "ai") onAskAI();
-    if (key === "pdf") onUploadPDF();
-    if (key === "notes") onOpenNotes();
-    if (key === "flashcards") onOpenFlashcards();
-    if (key === "quizzes") onOpenQuizzes();
-    if (key === "planner") onOpenPlanner();
-  }
-
-  const dailyAction =
-    continueItems.length > 0
-      ? "Continue one saved material, then test yourself with a short quiz."
-      : "Start by adding a PDF or creating a note so StudySnap can build this project memory.";
-
   return (
     <div className="space-y-5">
       <section className="overflow-hidden rounded-[1.7rem] border border-yellow-300/20 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.13),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-5">
@@ -388,11 +377,11 @@ export default function ProjectWorkspace({
                 onClick={onBack}
                 className="rounded-xl border border-yellow-300/30 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
               >
-                ← Projects
+                ← Rooms
               </button>
 
               <span className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-yellow-100">
-                AI Project Room
+                Study Room
               </span>
 
               <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
@@ -406,44 +395,42 @@ export default function ProjectWorkspace({
 
             <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
               {description ||
-                "Your PDFs, notes, concept cards, quizzes, planner, AI, search, and StudySnap Brain work together inside this project."}
+                "Your materials, notes, AI Tutor, concept cards, quizzes, planner, progress, and future Study Together stay connected in this room."}
             </p>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={onAskAI}
+                onClick={() => onChangeTab("overview")}
                 className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
               >
-                🤖 Ask Project AI
+                🏠 Start overview
               </button>
 
               <button
                 type="button"
-                onClick={onUploadPDF}
+                onClick={() => onChangeTab("materials")}
                 className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
               >
                 📚 Add Materials
               </button>
 
-              <Link
-                href={`/quizzes?roomId=${studyRoomId}`}
-                className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-center text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+              <button
+                type="button"
+                onClick={() => onChangeTab("ai")}
+                className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
               >
-                🧾 Take Quiz
-              </Link>
+                🤖 Ask AI Tutor
+              </button>
             </div>
           </div>
 
-          <aside className="grid gap-3 sm:grid-cols-3 xl:w-[430px] xl:grid-cols-1">
+          <aside className="grid gap-3 sm:grid-cols-4 xl:w-[500px] xl:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Project Progress
+                Progress
               </p>
-              <div className="mt-3 flex items-end justify-between gap-4">
-                <p className="text-3xl font-black text-white">{safeProgress}%</p>
-                <p className="text-xs font-bold text-yellow-100">Live</p>
-              </div>
+              <p className="mt-3 text-3xl font-black text-white">{safeProgress}%</p>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-yellow-300"
@@ -456,16 +443,22 @@ export default function ProjectWorkspace({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Materials
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{pdfCount}</p>
-              <p className="mt-1 text-xs text-slate-400">materials connected</p>
+              <p className="mt-3 text-3xl font-black text-white">{materialsCount}</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Smart Action
+                Notes
               </p>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                {dailyAction}
+              <p className="mt-3 text-3xl font-black text-white">{notesCount}</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                Practice
+              </p>
+              <p className="mt-3 text-3xl font-black text-white">
+                {conceptCardsCount + quizzesCount}
               </p>
             </div>
           </aside>
@@ -478,23 +471,23 @@ export default function ProjectWorkspace({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Workspace Tools
+                  Room Workspace
                 </p>
                 <h2 className="mt-1 text-xl font-black text-white">
-                  Everything connected in this project
+                  Everything happens inside this room
                 </h2>
               </div>
 
               <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {workspaceTools.map((tool) => (
-                <ToolButton
-                  key={tool.key}
-                  tool={tool}
-                  active={tool.key === activeTool}
-                  onClick={() => openTool(tool.key)}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+              {roomTabs.map((tab) => (
+                <TabButton
+                  key={tab.key}
+                  tab={tab}
+                  active={tab.key === activeTab}
+                  onClick={() => onChangeTab(tab.key)}
                 />
               ))}
             </div>
@@ -509,21 +502,6 @@ export default function ProjectWorkspace({
           />
 
           <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Active Workspace
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-white">
-                  {activeLabel}
-                </h2>
-              </div>
-
-              <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1.5 text-xs font-black text-cyan-100">
-                Focused on room #{studyRoomId}
-              </span>
-            </div>
-
             {children}
           </section>
         </div>
@@ -539,7 +517,7 @@ export default function ProjectWorkspace({
 
             <div className="mt-5 space-y-3">
               {continueItems.length ? (
-                continueItems.slice(0, 3).map((item) => (
+                continueItems.slice(0, 4).map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -563,10 +541,10 @@ export default function ProjectWorkspace({
 
             <button
               type="button"
-              onClick={onViewAll}
+              onClick={() => onChangeTab("materials")}
               className="mt-4 w-full rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
             >
-              View all materials →
+              View materials →
             </button>
           </section>
 
@@ -617,10 +595,7 @@ export default function ProjectWorkspace({
 
             <div className="mt-5 space-y-3">
               <div className="rounded-2xl border border-red-300/15 bg-red-400/10 p-4">
-                <p className="text-sm font-black text-red-100">
-                  Weak concepts
-                </p>
-
+                <p className="text-sm font-black text-red-100">Weak concepts</p>
                 <div className="mt-3 space-y-2">
                   {weakConcepts.length ? (
                     weakConcepts.map((concept) => (
@@ -632,7 +607,7 @@ export default function ProjectWorkspace({
                           {concept.concept_name}
                         </p>
                         <p className="mt-1 text-[11px] text-slate-400">
-                          {Math.round(concept.mastery_score * 100)}% mastery · review needed
+                          {Math.round(concept.mastery_score * 100)}% mastery
                         </p>
                       </div>
                     ))
@@ -648,7 +623,6 @@ export default function ProjectWorkspace({
                 <p className="text-sm font-black text-emerald-100">
                   Strong concepts
                 </p>
-
                 <div className="mt-3 space-y-2">
                   {strongConcepts.length ? (
                     strongConcepts.map((concept) => (
@@ -658,9 +632,6 @@ export default function ProjectWorkspace({
                       >
                         <p className="line-clamp-2 text-xs font-bold text-white">
                           {concept.concept_name}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {Math.round(concept.mastery_score * 100)}% mastery
                         </p>
                       </div>
                     ))
@@ -673,10 +644,7 @@ export default function ProjectWorkspace({
               </div>
 
               <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-4">
-                <p className="text-sm font-black text-cyan-100">
-                  Review queue
-                </p>
-
+                <p className="text-sm font-black text-cyan-100">Review queue</p>
                 <div className="mt-3 space-y-2">
                   {reviewQueue.length ? (
                     reviewQueue.map((concept) => (
@@ -704,7 +672,8 @@ export default function ProjectWorkspace({
               🏆 Connected study system
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              PDFs, notes, concept cards, quizzes, planner, search, and AI are tied to this room.
+              Materials, notes, concept cards, quizzes, planner, search, AI Tutor,
+              and Study Together are tied to this room.
             </p>
           </section>
         </aside>

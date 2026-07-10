@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
 import PDFList from "@/components/pdf/PDFList";
 import CompactProjectAI from "@/features/projects/CompactProjectAI";
-import ProjectWorkspace from "@/features/projects/ProjectWorkspace";
+import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
+  getFlashcards,
+  getNotes,
   getPDFs,
+  getQuizzes,
   getRoomFoundation,
   getStudyRooms,
   retrieveBrain,
@@ -35,9 +39,32 @@ type PDFDocument = {
   created_at: string;
 };
 
-type AiMode = "general" | "pdf";
+type NoteItem = {
+  id: number;
+  title: string;
+  content: string;
+  study_room_id: number;
+  created_at?: string;
+};
 
-function RoomFoundationPanel({
+type ConceptCardItem = {
+  id: number;
+  question?: string;
+  answer?: string;
+  front?: string;
+  back?: string;
+  created_at?: string;
+};
+
+type QuizItem = {
+  id: number;
+  title?: string;
+  question?: string;
+  study_room_id?: number;
+  created_at?: string;
+};
+
+function RoomGuide({
   foundation,
   loading,
   error,
@@ -66,18 +93,18 @@ function RoomFoundationPanel({
     },
     {
       icon: "🤖",
-      title: "Ask Project AI",
-      text: "Use one assistant to study from this room’s PDFs, notes, concept cards, quizzes, and memory.",
+      title: "Ask AI Tutor",
+      text: "Ask one assistant about this room’s materials, notes, concept cards, quizzes, and memory.",
     },
     {
       icon: "🧠",
-      title: "Create study tools",
-      text: "Turn your materials into summaries, notes, concept cards, quizzes, and review plans.",
+      title: "Practice",
+      text: "Turn what you study into concept cards, quizzes, smart retry, and review plans.",
     },
     {
       icon: "👥",
       title: "Study together",
-      text: "Soon, this room will support classmates, shared AI help, room chat, and group quizzes.",
+      text: "Soon, invite classmates, use room chat, share notes, and run group quizzes.",
     },
   ];
 
@@ -92,8 +119,9 @@ function RoomFoundationPanel({
             One connected study workspace
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            This room is the home for this topic. Materials, notes, AI, concept
-            cards, quizzes, progress, and future Study Together all connect here.
+            This room is the home for this topic. Materials, notes, AI Tutor,
+            concept cards, quizzes, progress, and future Study Together all
+            connect here.
           </p>
         </div>
 
@@ -130,17 +158,25 @@ export default function StudyRoomDetailPage() {
   const studyRoomId = Number(id);
 
   const [room, setRoom] = useState<StudyRoom | null>(null);
-  const [activeAiMode, setActiveAiMode] = useState<AiMode>("general");
+  const [activeRoomTab, setActiveRoomTab] = useState<RoomTab>("overview");
 
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [conceptCards, setConceptCards] = useState<ConceptCardItem[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+
   const [loadingRoom, setLoadingRoom] = useState(true);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [loadingPractice, setLoadingPractice] = useState(false);
   const [loadingFoundation, setLoadingFoundation] = useState(false);
+
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [summarizingId, setSummarizingId] = useState<number | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryTitle, setSummaryTitle] = useState("");
+
   const [roomFoundation, setRoomFoundation] = useState<RoomFoundation | null>(null);
   const [foundationError, setFoundationError] = useState("");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
@@ -150,24 +186,16 @@ export default function StudyRoomDetailPage() {
   const [error, setError] = useState("");
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
-  const pdfSectionRef = useRef<HTMLDivElement | null>(null);
-
-  function scrollToAi() {
-    aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  function scrollToPdf() {
-    pdfSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   function openProjectAi() {
-    setActiveAiMode("general");
-    setTimeout(scrollToAi, 100);
+    setActiveRoomTab("ai");
+    setTimeout(() => {
+      aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }
 
-  function openPdfAssistant() {
-    setActiveAiMode("pdf");
-    setTimeout(scrollToPdf, 100);
+  function openMaterials() {
+    setActiveRoomTab("materials");
   }
 
   async function handleProjectSearch(query: string) {
@@ -183,7 +211,7 @@ export default function StudyRoomDetailPage() {
       setProjectSearchResults(Array.isArray(data.results) ? data.results : []);
     } catch (err) {
       setProjectSearchError(
-        err instanceof Error ? err.message : "Project search failed."
+        err instanceof Error ? err.message : "Room search failed."
       );
     } finally {
       setProjectSearchLoading(false);
@@ -210,22 +238,17 @@ export default function StudyRoomDetailPage() {
       }
 
       setSummaryTitle(result.title || "PDF result");
-      openPdfAssistant();
+      setActiveRoomTab("materials");
       return;
     }
 
     if (result.source_type === "note_chunk") {
-      const noteId =
-        getNumberValue(metadata.note_id) ||
-        getNumberValue(result.source_id);
-
-      const noteParam = noteId !== null ? `&noteId=${noteId}` : "";
-      router.push(`/notes?roomId=${studyRoomId}${noteParam}`);
+      setActiveRoomTab("notes");
       return;
     }
 
     if (result.source_type === "flashcard") {
-      router.push(`/flashcards?roomId=${studyRoomId}`);
+      setActiveRoomTab("practice");
       return;
     }
 
@@ -243,63 +266,45 @@ export default function StudyRoomDetailPage() {
 
   const roomTitle = cleanDisplayText(room?.name, 90) || "Project";
   const roomSubject = cleanDisplayText(room?.subject, 60) || "Subject";
-  const progressPercent = Math.min(100, Math.round((pdfs.length / 5) * 100));
 
-  const continueItems = pdfs.slice(0, 3).map((pdf) => ({
-    id: pdf.id,
-    title: pdf.original_filename,
-    subtitle: "Uploaded study material",
-    icon: "📕",
-    onOpen: () => {
-      setSelectedPdfId(pdf.id);
-      setSummaryTitle(pdf.original_filename);
-      openPdfAssistant();
-    },
-  }));
+  const progressPercent = Math.min(
+    100,
+    Math.round(
+      ((pdfs.length + notes.length + conceptCards.length + quizzes.length) / 12) *
+        100
+    )
+  );
 
   const selectedPdfTitle =
     pdfs.find((pdf) => pdf.id === selectedPdfId)?.original_filename ||
     summaryTitle ||
     "Selected PDF material";
 
-  const quickActions = [
-    {
-      title: "Add Materials",
-      description: "Upload PDFs into this room",
-      icon: "📄",
-      onClick: openPdfAssistant,
-    },
-    {
-      title: "Create Note",
-      description: "Write and organize ideas",
+  const continueItems = useMemo(() => {
+    const pdfItems = pdfs.slice(0, 2).map((pdf) => ({
+      id: `pdf-${pdf.id}`,
+      title: pdf.original_filename,
+      subtitle: "Uploaded study material",
+      icon: "📕",
+      onOpen: () => {
+        setSelectedPdfId(pdf.id);
+        setSummaryTitle(pdf.original_filename);
+        setActiveRoomTab("materials");
+      },
+    }));
+
+    const noteItems = notes.slice(0, 2).map((note) => ({
+      id: `note-${note.id}`,
+      title: note.title || "Untitled Note",
+      subtitle: "Saved room note",
       icon: "📝",
-      href: `/notes?roomId=${studyRoomId}`,
-    },
-    {
-      title: "Concept Cards",
-      description: "Review key ideas",
-      icon: "🧠",
-      href: `/flashcards?roomId=${studyRoomId}`,
-    },
-    {
-      title: "Take Quiz",
-      description: "Test your knowledge",
-      icon: "🧾",
-      href: `/quizzes?roomId=${studyRoomId}`,
-    },
-    {
-      title: "Planner",
-      description: "Plan study sessions",
-      icon: "📅",
-      href: `/planner?roomId=${studyRoomId}`,
-    },
-    {
-      title: "Ask Project AI",
-      description: "Get instant help",
-      icon: "🤖",
-      onClick: openProjectAi,
-    },
-  ];
+      onOpen: () => {
+        setActiveRoomTab("notes");
+      },
+    }));
+
+    return [...pdfItems, ...noteItems];
+  }, [notes, pdfs]);
 
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
@@ -341,6 +346,37 @@ export default function StudyRoomDetailPage() {
       setPdfs([]);
     } finally {
       setLoadingPdfs(false);
+    }
+  }
+
+  async function loadNotes() {
+    if (!studyRoomId || Number.isNaN(studyRoomId)) return;
+
+    try {
+      setLoadingNotes(true);
+      const data = await getNotes(studyRoomId);
+      setNotes(Array.isArray(data) ? data : []);
+    } catch {
+      setNotes([]);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }
+
+  async function loadPractice() {
+    if (!studyRoomId || Number.isNaN(studyRoomId)) return;
+
+    try {
+      setLoadingPractice(true);
+      const [cardData, quizData] = await Promise.all([
+        getFlashcards(studyRoomId).catch(() => []),
+        getQuizzes(studyRoomId).catch(() => []),
+      ]);
+
+      setConceptCards(Array.isArray(cardData) ? cardData : []);
+      setQuizzes(Array.isArray(quizData) ? quizData : []);
+    } finally {
+      setLoadingPractice(false);
     }
   }
 
@@ -392,7 +428,7 @@ export default function StudyRoomDetailPage() {
 
       setSummaryTitle(data.filename || "PDF Summary");
       setSummary(data.summary || "No summary returned.");
-      openPdfAssistant();
+      setActiveRoomTab("materials");
     } finally {
       setSummarizingId(null);
     }
@@ -403,6 +439,8 @@ export default function StudyRoomDetailPage() {
     saveProjectRoomId(studyRoomId);
     loadRoom();
     loadPdfs();
+    loadNotes();
+    loadPractice();
     loadRoomFoundation();
   }, [ready, studyRoomId]);
 
@@ -410,14 +448,462 @@ export default function StudyRoomDetailPage() {
     return <div className="min-h-screen bg-black p-6 text-white">Checking authentication...</div>;
   }
 
+  function renderOverviewTab() {
+    return (
+      <div className="space-y-5">
+        <RoomGuide
+          foundation={roomFoundation}
+          loading={loadingFoundation}
+          error={foundationError}
+        />
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+              Recent Materials
+            </p>
+            <h3 className="mt-2 text-xl font-black text-white">
+              PDFs in this room
+            </h3>
+
+            <div className="mt-4 space-y-3">
+              {pdfs.length ? (
+                pdfs.slice(0, 3).map((pdf) => (
+                  <button
+                    key={pdf.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPdfId(pdf.id);
+                      setSummaryTitle(pdf.original_filename);
+                      setActiveRoomTab("materials");
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
+                  >
+                    📕 {pdf.original_filename}
+                  </button>
+                ))
+              ) : (
+                <p className="text-sm leading-6 text-slate-400">
+                  No PDFs yet. Add materials to build this room memory.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+              Recent Notes
+            </p>
+            <h3 className="mt-2 text-xl font-black text-white">
+              Notes connected to this room
+            </h3>
+
+            <div className="mt-4 space-y-3">
+              {notes.length ? (
+                notes.slice(0, 3).map((note) => (
+                  <div
+                    key={note.id}
+                    className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                  >
+                    <p className="line-clamp-1 text-sm font-black text-white">
+                      📝 {note.title || "Untitled Note"}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                      {note.content || "No content yet."}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-6 text-slate-400">
+                  No notes yet. Create notes from class, PDFs, or AI answers.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-5">
+            <p className="text-sm font-black text-yellow-100">Pinned Items</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Pin PDFs, notes, concept cards, and quizzes here later.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-5">
+            <p className="text-sm font-black text-cyan-100">Room Activity</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Uploads, AI actions, summaries, and Study Together updates will appear here.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/10 p-5">
+            <p className="text-sm font-black text-emerald-100">
+              Study Together Preview
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Invite classmates, share notes, and quiz together soon.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function renderMaterialsTab() {
+    return (
+      <div className="space-y-5">
+        <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+                Room Materials
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Add PDFs to this project
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Upload and summarize PDFs here. Then ask AI Tutor to study from
+                the whole room.
+              </p>
+
+              {selectedPdfId ? (
+                <div className="mt-3 rounded-xl border border-yellow-300/15 bg-white/5 p-3 text-xs text-slate-300">
+                  <p className="font-bold text-yellow-100">Selected Material</p>
+                  <p className="mt-1">{selectedPdfTitle}</p>
+                  <button
+                    type="button"
+                    onClick={openProjectAi}
+                    className="mt-3 rounded-lg bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200 transition hover:bg-cyan-300/15 hover:text-cyan-100"
+                  >
+                    Study with AI Tutor
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              onClick={openProjectAi}
+              className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
+            >
+              Ask AI Tutor about this room
+            </button>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
+
+            <div className="space-y-4">
+              <PDFList
+                pdfs={pdfs}
+                loading={loadingPdfs}
+                deletingId={deletingId}
+                summarizingId={summarizingId}
+                onDelete={handleDelete}
+                onSummarize={handleSummarize}
+              />
+
+              {pdfs.length ? (
+                <button
+                  type="button"
+                  onClick={openProjectAi}
+                  className="w-full rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                >
+                  Study these materials with AI Tutor
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        {summary ? (
+          <section className="rounded-[1.5rem] border border-yellow-400/20 bg-[#0a1022] p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300/80">
+                  Material Summary
+                </p>
+                <h3 className="mt-2 text-2xl font-black text-white">
+                  {summaryTitle}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={openProjectAi}
+                className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+              >
+                Study this with AI Tutor
+              </button>
+            </div>
+
+            <pre className="mt-6 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
+              {summary}
+            </pre>
+          </section>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderNotesTab() {
+    return (
+      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+              Room Notes
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-white">
+              Notes live inside this room
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              Create notes for this topic. AI Tutor can use them together with
+              PDFs, concept cards, quizzes, and room memory.
+            </p>
+          </div>
+
+          <Link
+            href={`/notes?roomId=${studyRoomId}`}
+            className="rounded-2xl bg-yellow-300 px-5 py-3 text-center text-sm font-black text-black transition hover:bg-yellow-200"
+          >
+            Open full Notes page
+          </Link>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-sm font-black text-white">Quick note</p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Use the full Notes page for editing now. Next, we can add inline
+              note creation directly inside this tab.
+            </p>
+            <Link
+              href={`/notes?roomId=${studyRoomId}`}
+              className="mt-4 inline-flex rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100"
+            >
+              Create note →
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-sm font-black text-white">Recent notes</p>
+
+            <div className="mt-4 space-y-3">
+              {loadingNotes ? (
+                <p className="text-sm text-slate-400">Loading notes...</p>
+              ) : notes.length ? (
+                notes.slice(0, 5).map((note) => (
+                  <Link
+                    key={note.id}
+                    href={`/notes?roomId=${studyRoomId}&noteId=${note.id}`}
+                    className="block rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/25 hover:bg-cyan-300/10"
+                  >
+                    <p className="line-clamp-1 text-sm font-black text-white">
+                      {note.title || "Untitled Note"}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                      {note.content || "No content yet."}
+                    </p>
+                  </Link>
+                ))
+              ) : (
+                <p className="text-sm leading-6 text-slate-400">
+                  No notes yet for this room.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderAiTab() {
+    return (
+      <div ref={aiSectionRef} className="scroll-mt-8">
+        <div className="mb-4">
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+            AI Tutor
+          </p>
+          <h2 className="mt-2 text-xl font-black text-white">
+            Ask one AI about this whole room
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Ask about PDFs, notes, concept cards, quizzes, summaries, weak
+            concepts, and study plans.
+          </p>
+        </div>
+
+        <CompactProjectAI studyRoomId={studyRoomId} projectTitle={roomTitle} />
+      </div>
+    );
+  }
+
+  function renderPracticeTab() {
+    return (
+      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+              Practice
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-white">
+              Concept cards, quizzes, and smart retry
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              This is where review becomes active practice. Smart retry and weak
+              concept practice will grow here.
+            </p>
+          </div>
+
+          <span className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100">
+            {loadingPractice ? "Loading practice..." : "Practice ready"}
+          </span>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <Link
+            href={`/flashcards?roomId=${studyRoomId}`}
+            className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-yellow-300/30 hover:bg-yellow-300/10"
+          >
+            <p className="text-3xl">🧠</p>
+            <h3 className="mt-3 text-xl font-black text-white">
+              Concept Cards
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              {conceptCards.length} card{conceptCards.length === 1 ? "" : "s"} connected to this room.
+            </p>
+          </Link>
+
+          <Link
+            href={`/quizzes?roomId=${studyRoomId}`}
+            className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-cyan-300/30 hover:bg-cyan-300/10"
+          >
+            <p className="text-3xl">🧾</p>
+            <h3 className="mt-3 text-xl font-black text-white">Quizzes</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              {quizzes.length} quiz item{quizzes.length === 1 ? "" : "s"} connected to this room.
+            </p>
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-red-300/15 bg-red-400/10 p-5">
+            <p className="font-black text-red-100">Weak concept retry</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Soon: automatically retry missed, slow, or low-confidence questions.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-5">
+            <p className="font-black text-emerald-100">AI practice plan</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Soon: AI Tutor will recommend what to review next from this room.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderStudyTogetherTab() {
+    return (
+      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+        <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+          Study Together
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-white">
+          Make this room feel alive
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+          Study Together will live inside each room so classmates can study from
+          the same materials, notes, quizzes, and AI Tutor.
+        </p>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {[
+            ["👥", "Invite classmates", "Add people to this room later."],
+            ["💬", "Room chat", "Discuss materials and questions in context."],
+            ["🤖", "Shared AI Tutor", "Ask questions as a group with room memory."],
+            ["🧾", "Group quiz", "Practice together from the same room content."],
+          ].map(([icon, title, text]) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-white/10 bg-black/20 p-5"
+            >
+              <p className="text-3xl">{icon}</p>
+              <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderProgressTab() {
+    return (
+      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+        <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+          Progress
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-white">
+          Room learning progress
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+          Track how much content is connected and where practice should focus.
+        </p>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Materials", pdfs.length],
+            ["Notes", notes.length],
+            ["Concept Cards", conceptCards.length],
+            ["Quizzes", quizzes.length],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              className="rounded-2xl border border-white/10 bg-black/20 p-5"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                {label}
+              </p>
+              <p className="mt-3 text-3xl font-black text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-5">
+          <p className="font-black text-yellow-100">Next progress upgrade</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Add concept heatmap, quiz history, confidence tracking, time-to-answer,
+            and smart retry analytics.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  function renderActiveTab() {
+    if (activeRoomTab === "overview") return renderOverviewTab();
+    if (activeRoomTab === "materials") return renderMaterialsTab();
+    if (activeRoomTab === "notes") return renderNotesTab();
+    if (activeRoomTab === "ai") return renderAiTab();
+    if (activeRoomTab === "practice") return renderPracticeTab();
+    if (activeRoomTab === "together") return renderStudyTogetherTab();
+    return renderProgressTab();
+  }
+
   return (
     <AppShell
       title={roomTitle}
-      subtitle={room ? `Subject: ${roomSubject} • Project workspace` : "Project workspace"}
+      subtitle={room ? `Subject: ${roomSubject} • Connected study room` : "Connected study room"}
     >
       {loadingRoom ? (
         <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-6 text-white/70">
-          Loading project...
+          Loading room...
         </section>
       ) : null}
 
@@ -433,168 +919,23 @@ export default function StudyRoomDetailPage() {
           title={roomTitle}
           subject={roomSubject}
           description={room.description}
-          pdfCount={pdfs.length}
+          materialsCount={pdfs.length}
+          notesCount={notes.length}
+          conceptCardsCount={conceptCards.length}
+          quizzesCount={quizzes.length}
           progress={progressPercent}
           continueItems={continueItems}
-          quickActions={quickActions}
           searchQuery={projectSearchQuery}
           searchResults={projectSearchResults}
           searchLoading={projectSearchLoading}
           searchError={projectSearchError}
+          activeTab={activeRoomTab}
+          onChangeTab={setActiveRoomTab}
           onBack={() => router.push("/study-rooms")}
-          onAskAI={openProjectAi}
-          onUploadPDF={openPdfAssistant}
           onSearch={handleProjectSearch}
           onOpenSearchResult={handleOpenSearchResult}
-          onViewAll={openPdfAssistant}
-          activeTool={activeAiMode === "general" ? "ai" : "pdf"}
-          onOpenNotes={() => router.push(`/notes?roomId=${studyRoomId}`)}
-          onOpenFlashcards={() => router.push(`/flashcards?roomId=${studyRoomId}`)}
-          onOpenQuizzes={() => router.push(`/quizzes?roomId=${studyRoomId}`)}
-          onOpenPlanner={() => router.push(`/planner?roomId=${studyRoomId}`)}
         >
-          <RoomFoundationPanel
-            foundation={roomFoundation}
-            loading={loadingFoundation}
-            error={foundationError}
-          />
-
-          <section
-            ref={pdfSectionRef}
-            className="scroll-mt-8 rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5"
-          >
-            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
-                  Room Materials
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-white">
-                  Add PDFs to this project
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                  PDFs are study materials inside this room. Upload or summarize them here,
-                  then use Project AI below to study everything together.
-                </p>
-
-                {selectedPdfId ? (
-                  <div className="mt-3 rounded-xl border border-yellow-300/15 bg-white/5 p-3 text-xs text-slate-300">
-                    <p className="font-bold text-yellow-100">Selected Material</p>
-                    <p className="mt-1">{selectedPdfTitle}</p>
-                    <button
-                      type="button"
-                      onClick={openProjectAi}
-                      className="mt-3 rounded-lg bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200 transition hover:bg-cyan-300/15 hover:text-cyan-100"
-                    >
-                      Study with Project AI
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={openProjectAi}
-                className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
-              >
-                Ask Project AI about this room
-              </button>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-2">
-              <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
-
-              <div className="space-y-4">
-                <PDFList
-                  pdfs={pdfs}
-                  loading={loadingPdfs}
-                  deletingId={deletingId}
-                  summarizingId={summarizingId}
-                  onDelete={handleDelete}
-                  onSummarize={handleSummarize}
-                />
-
-                {pdfs.length ? (
-                  <button
-                    type="button"
-                    onClick={openProjectAi}
-                    className="w-full rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
-                  >
-                    Study these materials with Project AI
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
-                  Pinned Items
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Pin PDFs, notes, concept cards, and quizzes here later.
-                </p>
-              </section>
-
-              <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
-                  Room Activity
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  AI actions, uploads, summaries, and Study Together updates will appear here later.
-                </p>
-              </section>
-            </div>
-          </section>
-
-          {summary ? (
-            <section className="rounded-[1.5rem] border border-yellow-400/20 bg-[#0a1022] p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300/80">
-                    Material Summary
-                  </p>
-                  <h3 className="mt-2 text-2xl font-black text-white">
-                    {summaryTitle}
-                  </h3>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={openProjectAi}
-                  className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
-                >
-                  Study this with Project AI
-                </button>
-              </div>
-
-              <pre className="mt-6 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
-                {summary}
-              </pre>
-            </section>
-          ) : null}
-
-          <div className="my-10 h-px w-full bg-white/10" />
-
-          <div ref={aiSectionRef} className="scroll-mt-8">
-            <div className="mb-4">
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
-                Main Assistant
-              </p>
-              <h2 className="mt-2 text-xl font-black text-white">
-                Project AI Workspace
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Ask one AI about everything in this room: PDFs, notes, concept cards,
-                quizzes, summaries, weak concepts, and study plans.
-              </p>
-            </div>
-
-            <CompactProjectAI
-              studyRoomId={studyRoomId}
-              projectTitle={roomTitle}
-            />
-          </div>
-
+          {renderActiveTab()}
         </ProjectWorkspace>
       ) : null}
     </AppShell>
