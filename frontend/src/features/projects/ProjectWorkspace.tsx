@@ -22,6 +22,13 @@ type ContinueItem = {
   onOpen: () => void;
 };
 
+type SmartSuggestion = {
+  title: string;
+  text: string;
+  tab: RoomTab;
+  actionLabel: string;
+};
+
 type BrainConcept = {
   concept_id: string;
   concept_name: string;
@@ -55,6 +62,7 @@ type Props = {
   progress: number;
 
   continueItems: ContinueItem[];
+  smartSuggestion: SmartSuggestion;
 
   searchQuery: string;
   searchResults: BrainSource[];
@@ -307,6 +315,8 @@ export default function ProjectWorkspace({
   quizzesCount,
   progress,
   continueItems,
+  
+  smartSuggestion,
   searchQuery,
   searchResults,
   searchLoading,
@@ -530,26 +540,55 @@ export default function ProjectWorkspace({
 
             <div className="mt-5 space-y-3">
               {continueItems.length ? (
-                continueItems.slice(0, 4).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={item.onOpen}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 p-4 text-left transition hover:border-yellow-300/35 hover:bg-yellow-300/10"
-                  >
-                    <p className="line-clamp-2 break-all text-sm font-black text-white">
-                      {item.icon || "📘"} {item.title}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      {item.subtitle}
-                    </p>
-                  </button>
-                ))
+                <button
+                  type="button"
+                  onClick={() => continueItems[0]?.onOpen()}
+                  className="w-full rounded-2xl border border-yellow-300/25 bg-gradient-to-br from-yellow-300/15 to-cyan-300/[0.06] p-4 text-left transition hover:border-yellow-300/45 hover:bg-yellow-300/20"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-200">
+                    Recommended next
+                  </p>
+
+                  <p className="mt-2 line-clamp-2 break-words text-sm font-black text-white">
+                    {continueItems[0]?.icon || "📘"}{" "}
+                    {continueItems[0]?.title}
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-300">
+                    {continueItems[0]?.subtitle}
+                  </p>
+
+                  <p className="mt-3 text-xs font-black text-yellow-100">
+                    Continue learning →
+                  </p>
+                </button>
               ) : (
                 <p className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-400">
                   Add your first study material and your AI Tutor will help you continue from there.
                 </p>
               )}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.07] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                AI Tutor suggests
+              </p>
+
+              <p className="mt-2 text-sm font-black text-white">
+                {smartSuggestion.title}
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                {smartSuggestion.text}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => onChangeTab(smartSuggestion.tab)}
+                className="mt-3 text-xs font-black text-cyan-100 transition hover:text-white"
+              >
+                {smartSuggestion.actionLabel} →
+              </button>
             </div>
 
             <button

@@ -159,6 +159,90 @@ export default function StudyRoomDetailPage() {
 
   const [room, setRoom] = useState<StudyRoom | null>(null);
   const [activeRoomTab, setActiveRoomTab] = useState<RoomTab>("overview");
+  const [resumeRoomId, setResumeRoomId] = useState<number | null>(null);
+  const [lastOpenedRoomItem, setLastOpenedRoomItem] = useState<{
+    type: "pdf" | "note";
+    id: number;
+    title: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (
+      !studyRoomId ||
+      Number.isNaN(studyRoomId) ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    setResumeRoomId(null);
+    setActiveRoomTab("overview");
+    setLastOpenedRoomItem(null);
+
+    const allowedTabs: RoomTab[] = [
+      "overview",
+      "materials",
+      "notes",
+      "ai",
+      "practice",
+      "together",
+      "progress",
+    ];
+
+    const savedTab = window.localStorage.getItem(
+      `studysnap:room:${studyRoomId}:last-tab`
+    );
+
+    if (savedTab && allowedTabs.includes(savedTab as RoomTab)) {
+      setActiveRoomTab(savedTab as RoomTab);
+    }
+
+    const savedItem = window.localStorage.getItem(
+      `studysnap:room:${studyRoomId}:last-item`
+    );
+
+    if (savedItem) {
+      try {
+        const parsed = JSON.parse(savedItem) as {
+          type?: "pdf" | "note";
+          id?: number;
+          title?: string;
+        };
+
+        if (
+          (parsed.type === "pdf" || parsed.type === "note") &&
+          typeof parsed.id === "number" &&
+          typeof parsed.title === "string"
+        ) {
+          setLastOpenedRoomItem({
+            type: parsed.type,
+            id: parsed.id,
+            title: parsed.title,
+          });
+        }
+      } catch {
+        window.localStorage.removeItem(
+          `studysnap:room:${studyRoomId}:last-item`
+        );
+      }
+    }
+
+    setResumeRoomId(studyRoomId);
+  }, [studyRoomId]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      resumeRoomId !== studyRoomId
+    ) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      `studysnap:room:${studyRoomId}:last-tab`,
+      activeRoomTab
+    );
+  }, [activeRoomTab, resumeRoomId, studyRoomId]);
 
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -280,31 +364,177 @@ export default function StudyRoomDetailPage() {
     summaryTitle ||
     "Selected PDF material";
 
+  const smartSuggestion = useMemo(() => {
+    if (!pdfs.length && !notes.length) {
+      return {
+        title: "Add your first study material",
+        text: "Upload a PDF or create a note so your AI Tutor can start learning with you.",
+        tab: "materials" as RoomTab,
+        actionLabel: "Add study material",
+      };
+    }
+
+    if (!notes.length) {
+      return {
+        title: "Capture what you are learning",
+        text: "Create a note from your material so the important ideas stay easy to review.",
+        tab: "notes" as RoomTab,
+        actionLabel: "Create a note",
+      };
+    }
+
+    if (!conceptCards.length && !quizzes.length) {
+      return {
+        title: "Turn learning into practice",
+        text: "You already have room context. Create Concept Cards or a quiz to test yourself.",
+        tab: "practice" as RoomTab,
+        actionLabel: "Start practicing",
+      };
+    }
+
+    return {
+      title: "Ask what to study next",
+      text: "Your AI Tutor now has enough room context to explain, review, and guide your next step.",
+      tab: "ai" as RoomTab,
+      actionLabel: "Ask AI Tutor",
+    };
+  }, [
+    conceptCards.length,
+    notes.length,
+    pdfs.length,
+    quizzes.length,
+  ]);
+
+  function rememberRoomItem(item: {
+    type: "pdf" | "note";
+    id: number;
+    title: string;
+  }) {
+    setLastOpenedRoomItem(item);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        `studysnap:room:${studyRoomId}:last-item`,
+        JSON.stringify(item)
+      );
+    }
+  }
+
   const continueItems = useMemo(() => {
-    const pdfItems = pdfs.slice(0, 2).map((pdf) => ({
-      id: `pdf-${pdf.id}`,
-      title: pdf.original_filename,
-      subtitle: "Uploaded study material",
-      icon: "📕",
-      onOpen: () => {
-        setSelectedPdfId(pdf.id);
-        setSummaryTitle(pdf.original_filename);
-        setActiveRoomTab("materials");
-      },
-    }));
+    const items: {
+      id: string;
+      title: string;
+      subtitle: string;
+      icon: string;
+      onOpen: () => void;
+    }[] = [];
 
-    const noteItems = notes.slice(0, 2).map((note) => ({
-      id: `note-${note.id}`,
-      title: note.title || "Untitled Note",
-      subtitle: "Saved room note",
-      icon: "📝",
-      onOpen: () => {
-        setActiveRoomTab("notes");
-      },
-    }));
+    const recentPdfs = [...pdfs].sort((first, second) => {
+      const firstTime = Date.parse(first.created_at || "") || 0;
+      const secondTime = Date.parse(second.created_at || "") || 0;
+      return secondTime - firstTime;
+    });
 
-    return [...pdfItems, ...noteItems];
-  }, [notes, pdfs]);
+    const recentNotes = [...notes].sort((first, second) => {
+      const firstTime = Date.parse(first.created_at || "") || 0;
+      const secondTime = Date.parse(second.created_at || "") || 0;
+      return secondTime - firstTime;
+    });
+
+    if (lastOpenedRoomItem?.type === "pdf") {
+      const pdf = pdfs.find(
+        (item) => item.id === lastOpenedRoomItem.id
+      );
+
+      if (pdf) {
+        items.push({
+          id: `pdf-${pdf.id}`,
+          title: pdf.original_filename,
+          subtitle: "Continue where you stopped",
+          icon: "📕",
+          onOpen: () => {
+            rememberRoomItem({
+              type: "pdf",
+              id: pdf.id,
+              title: pdf.original_filename,
+            });
+            setSelectedPdfId(pdf.id);
+            setSummaryTitle(pdf.original_filename);
+            setActiveRoomTab("materials");
+          },
+        });
+      }
+    }
+
+    if (lastOpenedRoomItem?.type === "note") {
+      const note = notes.find(
+        (item) => item.id === lastOpenedRoomItem.id
+      );
+
+      if (note) {
+        items.push({
+          id: `note-${note.id}`,
+          title: note.title || "Untitled Note",
+          subtitle: "Continue where you stopped",
+          icon: "📝",
+          onOpen: () => {
+            rememberRoomItem({
+              type: "note",
+              id: note.id,
+              title: note.title || "Untitled Note",
+            });
+            setActiveRoomTab("notes");
+          },
+        });
+      }
+    }
+
+    recentPdfs.forEach((pdf) => {
+      const id = `pdf-${pdf.id}`;
+
+      if (items.some((item) => item.id === id)) return;
+
+      items.push({
+        id,
+        title: pdf.original_filename,
+        subtitle: "Recently added study material",
+        icon: "📕",
+        onOpen: () => {
+          rememberRoomItem({
+            type: "pdf",
+            id: pdf.id,
+            title: pdf.original_filename,
+          });
+          setSelectedPdfId(pdf.id);
+          setSummaryTitle(pdf.original_filename);
+          setActiveRoomTab("materials");
+        },
+      });
+    });
+
+    recentNotes.forEach((note) => {
+      const id = `note-${note.id}`;
+
+      if (items.some((item) => item.id === id)) return;
+
+      items.push({
+        id,
+        title: note.title || "Untitled Note",
+        subtitle: "Recent room note",
+        icon: "📝",
+        onOpen: () => {
+          rememberRoomItem({
+            type: "note",
+            id: note.id,
+            title: note.title || "Untitled Note",
+          });
+          setActiveRoomTab("notes");
+        },
+      });
+    });
+
+    return items.slice(0, 4);
+  }, [lastOpenedRoomItem, notes, pdfs]);
 
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
@@ -484,7 +714,7 @@ export default function StudyRoomDetailPage() {
                 ))
               ) : (
                 <p className="text-sm leading-6 text-slate-400">
-                  No PDFs yet. Add materials to build this room memory.
+                  Add your first PDF to start learning. Your AI Tutor can summarize it, explain it, and help you practice.
                 </p>
               )}
             </div>
@@ -509,13 +739,13 @@ export default function StudyRoomDetailPage() {
                       📝 {note.title || "Untitled Note"}
                     </p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-                      {note.content || "No content yet."}
+                      {note.content || "Start writing — your AI Tutor can help you build this note."}
                     </p>
                   </div>
                 ))
               ) : (
                 <p className="text-sm leading-6 text-slate-400">
-                  No notes yet. Create notes from class, PDFs, or AI answers.
+                  Write your first note — your AI Tutor will learn from it.
                 </p>
               )}
             </div>
@@ -670,13 +900,13 @@ export default function StudyRoomDetailPage() {
                       {note.title || "Untitled Note"}
                     </p>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-                      {note.content || "No content yet."}
+                      {note.content || "Start writing — your AI Tutor can help you build this note."}
                     </p>
                   </Link>
                 ))
               ) : (
                 <p className="text-sm leading-6 text-slate-400">
-                  No notes yet for this room.
+                  Write your first note — your AI Tutor will learn from it.
                 </p>
               )}
             </div>
@@ -891,6 +1121,7 @@ export default function StudyRoomDetailPage() {
           quizzesCount={quizzes.length}
           progress={progressPercent}
           continueItems={continueItems}
+          smartSuggestion={smartSuggestion}
           searchQuery={projectSearchQuery}
           searchResults={projectSearchResults}
           searchLoading={projectSearchLoading}
