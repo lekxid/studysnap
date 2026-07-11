@@ -244,6 +244,32 @@ export default function StudyRoomDetailPage() {
     );
   }, [activeRoomTab, resumeRoomId, studyRoomId]);
 
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      resumeRoomId !== studyRoomId
+    ) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    window.localStorage.setItem(
+      "studysnap:last-study-activity-at",
+      now
+    );
+
+    window.localStorage.setItem(
+      "studysnap:last-study-room-id",
+      String(studyRoomId)
+    );
+
+    window.localStorage.setItem(
+      `studysnap:room:${studyRoomId}:last-active-at`,
+      now
+    );
+  }, [activeRoomTab, resumeRoomId, studyRoomId]);
+
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [conceptCards, setConceptCards] = useState<ConceptCardItem[]>([]);
