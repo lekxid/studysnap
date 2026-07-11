@@ -11,6 +11,7 @@ import {
 import {
   getSavedProjectRoomId,
 } from "@/features/projects/projectRoomContext";
+import { getUserSettings } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type Notice = {
@@ -31,6 +32,8 @@ const LAST_STUDY_ACTIVITY_KEY =
   "studysnap:last-study-activity-at";
 const LAST_REMINDER_DAY_KEY =
   "studysnap:last-study-reminder-day";
+const REMINDER_SNOOZED_UNTIL_KEY =
+  "studysnap:study-reminder-snoozed-until";
 
 const REMINDER_AFTER_HOURS = 24;
 const MAX_NOTIFICATIONS = 30;
@@ -41,6 +44,12 @@ function getDayKey(date: Date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+function allowsStudyReminders(
+  preference: string | null | undefined
+) {
+  return preference?.trim().toLowerCase() === "study reminders";
 }
 
 function parseTime(value: string | null) {
@@ -123,94 +132,159 @@ export default function NotificationBell() {
 
     initializedRef.current = true;
 
-    const now = new Date();
-    const nowIso = now.toISOString();
-    const todayKey = getDayKey(now);
+    let cancelled = false;
 
-    const saved = normalizeNotices(
-      loadJSON<Notice[]>(STORAGE_KEY, [])
-    );
+    async function initializeNotifications() {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const todayKey = getDayKey(now);
 
-    const lastStudyActivity = window.localStorage.getItem(
-      LAST_STUDY_ACTIVITY_KEY
-    );
-
-    const previousAppVisit = window.localStorage.getItem(
-      LAST_APP_VISIT_KEY
-    );
-
-    const activityTime =
-      parseTime(lastStudyActivity) ??
-      parseTime(previousAppVisit);
-
-    const inactiveHours =
-      activityTime === null
-        ? 0
-        : (now.getTime() - activityTime) / 3_600_000;
-
-    const lastReminderDay = window.localStorage.getItem(
-      LAST_REMINDER_DAY_KEY
-    );
-
-    const reminderDedupeKey =
-      `study-reminder:${todayKey}`;
-
-    const alreadySaved = saved.some(
-      (item) => item.dedupeKey === reminderDedupeKey
-    );
-
-    let nextItems = saved;
-
-    if (
-      inactiveHours >= REMINDER_AFTER_HOURS &&
-      lastReminderDay !== todayKey &&
-      !alreadySaved
-    ) {
-      const activeRoomId = getSavedProjectRoomId();
-
-      const reminder: Notice = {
-        id: Date.now(),
-        kind: "study-reminder",
-        dedupeKey: reminderDedupeKey,
-        read: false,
-        text:
-          inactiveHours >= 72
-            ? "Welcome back. Take a quiet 10-minute study break and restart with one small step—no pressure."
-            : "A quiet 10-minute study break can help you keep your learning fresh. Continue with one small step.",
-        createdAt: now.toLocaleString("en-CA", {
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        createdAtIso: nowIso,
-        href: activeRoomId
-          ? `/study-rooms/${activeRoomId}`
-          : "/study-rooms",
-        actionLabel: activeRoomId
-          ? "Continue my room"
-          : "Choose a study room",
-      };
-
-      nextItems = [reminder, ...saved].slice(
-        0,
-        MAX_NOTIFICATIONS
+      const saved = normalizeNotices(
+        loadJSON<Notice[]>(STORAGE_KEY, [])
       );
 
-      saveJSON(STORAGE_KEY, nextItems);
+      let notificationPreference: string | null = null;
+
+      try {
+        const settings = await getUserSettings();
+        notificationPreference =
+          settings.notifications || "Important only";
+      } catch {
+        // Keep existing notifications when settings cannot be loaded.
+        // Do not create a new reminder until the preference is known.
+      }
+
+      if (cancelled) return;
+
+      const settingsLoaded =
+        notificationPreference !== null;
+
+      const studyRemindersEnabled =
+        allowsStudyReminders(notificationPreference);
+
+      let nextItems = saved;
+
+      if (settingsLoaded && !studyRemindersEnabled) {
+        nextItems = saved.filter(
+          (item) => item.kind !== "study-reminder"
+        );
+
+        if (nextItems.length !== saved.length) {
+          saveJSON(STORAGE_KEY, nextItems);
+        }
+      }
+
+      const lastStudyActivity =
+        window.localStorage.getItem(
+          LAST_STUDY_ACTIVITY_KEY
+        );
+
+      const previousAppVisit =
+        window.localStorage.getItem(
+          LAST_APP_VISIT_KEY
+        );
+
+      const activityTime =
+        parseTime(lastStudyActivity) ??
+        parseTime(previousAppVisit);
+
+      const inactiveHours =
+        activityTime === null
+          ? 0
+          : (now.getTime() - activityTime) / 3_600_000;
+
+      const lastReminderDay =
+        window.localStorage.getItem(
+          LAST_REMINDER_DAY_KEY
+        );
+
+      const snoozedUntil = parseTime(
+        window.localStorage.getItem(
+          REMINDER_SNOOZED_UNTIL_KEY
+        )
+      );
+
+      const reminderIsSnoozed =
+        snoozedUntil !== null &&
+        now.getTime() < snoozedUntil;
+
+      if (
+        snoozedUntil !== null &&
+        now.getTime() >= snoozedUntil
+      ) {
+        window.localStorage.removeItem(
+          REMINDER_SNOOZED_UNTIL_KEY
+        );
+      }
+
+      const reminderDedupeKey =
+        `study-reminder:${todayKey}`;
+
+      const alreadySaved = nextItems.some(
+        (item) =>
+          item.dedupeKey === reminderDedupeKey
+      );
+
+      if (
+        studyRemindersEnabled &&
+        !reminderIsSnoozed &&
+        inactiveHours >= REMINDER_AFTER_HOURS &&
+        lastReminderDay !== todayKey &&
+        !alreadySaved
+      ) {
+        const activeRoomId =
+          getSavedProjectRoomId();
+
+        const reminder: Notice = {
+          id: Date.now(),
+          kind: "study-reminder",
+          dedupeKey: reminderDedupeKey,
+          read: false,
+          text:
+            inactiveHours >= 72
+              ? "Welcome back. Take a quiet 10-minute study break and restart with one small step—no pressure."
+              : "A quiet 10-minute study break can help you keep your learning fresh. Continue with one small step.",
+          createdAt: now.toLocaleString("en-CA", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          }),
+          createdAtIso: nowIso,
+          href: activeRoomId
+            ? `/study-rooms/${activeRoomId}`
+            : "/study-rooms",
+          actionLabel: activeRoomId
+            ? "Continue my room"
+            : "Choose a study room",
+        };
+
+        nextItems = [
+          reminder,
+          ...nextItems,
+        ].slice(0, MAX_NOTIFICATIONS);
+
+        saveJSON(STORAGE_KEY, nextItems);
+
+        window.localStorage.setItem(
+          LAST_REMINDER_DAY_KEY,
+          todayKey
+        );
+      }
+
+      setItems(nextItems);
 
       window.localStorage.setItem(
-        LAST_REMINDER_DAY_KEY,
-        todayKey
+        LAST_APP_VISIT_KEY,
+        nowIso
       );
     }
 
-    setItems(nextItems);
+    void initializeNotifications();
 
-    window.localStorage.setItem(
-      LAST_APP_VISIT_KEY,
-      nowIso
-    );
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -282,6 +356,21 @@ export default function NotificationBell() {
 
   function clearAll() {
     persist([]);
+  }
+
+  function snoozeReminder(id: number) {
+    const tomorrow = new Date(
+      Date.now() + 24 * 60 * 60 * 1000
+    );
+
+    window.localStorage.setItem(
+      REMINDER_SNOOZED_UNTIL_KEY,
+      tomorrow.toISOString()
+    );
+
+    persist(
+      items.filter((item) => item.id !== id)
+    );
   }
 
   function dismissNotice(id: number) {
@@ -384,7 +473,39 @@ export default function NotificationBell() {
                         {formatRelativeTime(item)}
                       </p>
 
-                      {item.href && item.actionLabel ? (
+                      {item.kind === "study-reminder" ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.href && item.actionLabel ? (
+                            <Link
+                              href={item.href}
+                              onClick={() => setOpen(false)}
+                              className="inline-flex rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
+                            >
+                              {item.actionLabel} →
+                            </Link>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              snoozeReminder(item.id)
+                            }
+                            className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                          >
+                            Remind me tomorrow
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              dismissNotice(item.id)
+                            }
+                            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      ) : item.href && item.actionLabel ? (
                         <Link
                           href={item.href}
                           onClick={() => setOpen(false)}
@@ -395,14 +516,16 @@ export default function NotificationBell() {
                       ) : null}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => dismissNotice(item.id)}
-                      aria-label="Dismiss notification"
-                      className="shrink-0 rounded-lg px-2 py-1 text-sm text-slate-500 transition hover:bg-white/[0.06] hover:text-white"
-                    >
-                      ×
-                    </button>
+                    {item.kind !== "study-reminder" ? (
+                      <button
+                        type="button"
+                        onClick={() => dismissNotice(item.id)}
+                        aria-label="Dismiss notification"
+                        className="shrink-0 rounded-lg px-2 py-1 text-sm text-slate-500 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        ×
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               ))}
