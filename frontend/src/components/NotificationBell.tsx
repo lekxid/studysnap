@@ -11,7 +11,10 @@ import {
 import {
   getSavedProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-import { getUserSettings } from "@/lib/api";
+import {
+  getLearningInsights,
+  getUserSettings,
+} from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type Notice = {
@@ -21,7 +24,11 @@ type Notice = {
   createdAtIso?: string;
   href?: string;
   actionLabel?: string;
-  kind?: "planner" | "study-reminder" | "general";
+  kind?:
+    | "planner"
+    | "study-reminder"
+    | "daily-summary"
+    | "general";
   dedupeKey?: string;
   read?: boolean;
 };
@@ -34,6 +41,8 @@ const LAST_REMINDER_DAY_KEY =
   "studysnap:last-study-reminder-day";
 const REMINDER_SNOOZED_UNTIL_KEY =
   "studysnap:study-reminder-snoozed-until";
+const LAST_DAILY_SUMMARY_DAY_KEY =
+  "studysnap:last-daily-summary-day";
 
 const REMINDER_AFTER_HOURS = 24;
 const MAX_NOTIFICATIONS = 30;
@@ -44,6 +53,36 @@ function getDayKey(date: Date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+type DailySummaryInsights = {
+  learning_score?: number;
+  cards_reviewed_today?: number;
+  correct_today?: number;
+  wrong_today?: number;
+  study_streak?: number;
+  ai_recommendation?: string;
+};
+
+function cleanSummaryText(
+  value: string | null | undefined,
+  maxLength = 180
+) {
+  const cleaned = (value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length <= maxLength) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, maxLength).trim()}...`;
+}
+
+function allowsDailySummary(
+  preference: string | null | undefined
+) {
+  return preference?.trim().toLowerCase() === "daily summary";
 }
 
 function allowsStudyReminders(
@@ -162,12 +201,23 @@ export default function NotificationBell() {
       const studyRemindersEnabled =
         allowsStudyReminders(notificationPreference);
 
+      const dailySummaryEnabled =
+        allowsDailySummary(notificationPreference);
+
       let nextItems = saved;
 
-      if (settingsLoaded && !studyRemindersEnabled) {
-        nextItems = saved.filter(
-          (item) => item.kind !== "study-reminder"
-        );
+      if (settingsLoaded) {
+        nextItems = saved.filter((item) => {
+          if (item.kind === "study-reminder") {
+            return studyRemindersEnabled;
+          }
+
+          if (item.kind === "daily-summary") {
+            return dailySummaryEnabled;
+          }
+
+          return true;
+        });
 
         if (nextItems.length !== saved.length) {
           saveJSON(STORAGE_KEY, nextItems);
@@ -270,6 +320,152 @@ export default function NotificationBell() {
           LAST_REMINDER_DAY_KEY,
           todayKey
         );
+      }
+
+      const lastDailySummaryDay =
+        window.localStorage.getItem(
+          LAST_DAILY_SUMMARY_DAY_KEY
+        );
+
+      const dailySummaryDedupeKey =
+        `daily-summary:${todayKey}`;
+
+      const dailySummaryAlreadySaved =
+        nextItems.some(
+          (item) =>
+            item.dedupeKey === dailySummaryDedupeKey
+        );
+
+      if (
+        dailySummaryEnabled &&
+        lastDailySummaryDay !== todayKey &&
+        !dailySummaryAlreadySaved
+      ) {
+        try {
+          const insights =
+            (await getLearningInsights()) as DailySummaryInsights;
+
+          if (cancelled) return;
+
+          const reviews = Math.max(
+            0,
+            Number(insights.cards_reviewed_today) || 0
+          );
+
+          const correct = Math.max(
+            0,
+            Number(insights.correct_today) || 0
+          );
+
+          const wrong = Math.max(
+            0,
+            Number(insights.wrong_today) || 0
+          );
+
+          const streak = Math.max(
+            0,
+            Number(insights.study_streak) || 0
+          );
+
+          const learningScore = Math.max(
+            0,
+            Math.round(
+              Number(insights.learning_score) || 0
+            )
+          );
+
+          const recommendation = cleanSummaryText(
+            insights.ai_recommendation
+          );
+
+          const hasUsefulSummary =
+            reviews > 0 ||
+            correct > 0 ||
+            wrong > 0 ||
+            streak > 0 ||
+            learningScore > 0 ||
+            recommendation.length > 0;
+
+          if (hasUsefulSummary) {
+            const summaryParts: string[] = [];
+
+            if (reviews > 0) {
+              summaryParts.push(
+                `Today you reviewed ${reviews} Concept Card${
+                  reviews === 1 ? "" : "s"
+                }.`
+              );
+            } else {
+              summaryParts.push(
+                "No reviews have been recorded yet today."
+              );
+            }
+
+            if (correct > 0 || wrong > 0) {
+              summaryParts.push(
+                `${correct} correct and ${wrong} to review.`
+              );
+            }
+
+            if (streak > 0) {
+              summaryParts.push(
+                `Your study streak is ${streak} day${
+                  streak === 1 ? "" : "s"
+                }.`
+              );
+            }
+
+            if (learningScore > 0) {
+              summaryParts.push(
+                `Learning score: ${learningScore}%.`
+              );
+            }
+
+            if (recommendation) {
+              summaryParts.push(
+                `Next: ${recommendation}`
+              );
+            }
+
+            const activeRoomId =
+              getSavedProjectRoomId();
+
+            const dailySummary: Notice = {
+              id: Date.now(),
+              kind: "daily-summary",
+              dedupeKey: dailySummaryDedupeKey,
+              read: false,
+              text: summaryParts.join(" "),
+              createdAt: now.toLocaleString("en-CA", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              }),
+              createdAtIso: nowIso,
+              href: activeRoomId
+                ? `/study-rooms/${activeRoomId}`
+                : "/dashboard",
+              actionLabel: activeRoomId
+                ? "Continue my room"
+                : "View my progress",
+            };
+
+            nextItems = [
+              dailySummary,
+              ...nextItems,
+            ].slice(0, MAX_NOTIFICATIONS);
+
+            saveJSON(STORAGE_KEY, nextItems);
+
+            window.localStorage.setItem(
+              LAST_DAILY_SUMMARY_DAY_KEY,
+              todayKey
+            );
+          }
+        } catch {
+          // Do not create an empty summary when insights fail.
+        }
       }
 
       setItems(nextItems);
@@ -412,7 +608,7 @@ export default function NotificationBell() {
               </h3>
 
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                Gentle reminders and important study updates.
+                Gentle reminders, daily summaries, and important study updates.
               </p>
             </div>
 
@@ -448,20 +644,28 @@ export default function NotificationBell() {
                     "rounded-2xl border p-4",
                     item.kind === "study-reminder"
                       ? "border-yellow-300/25 bg-gradient-to-br from-yellow-300/12 to-cyan-300/[0.05]"
-                      : "border-white/10 bg-white/[0.03]",
+                      : item.kind === "daily-summary"
+                        ? "border-cyan-300/25 bg-gradient-to-br from-cyan-300/10 to-emerald-300/[0.05]"
+                        : "border-white/10 bg-white/[0.03]",
                   ].join(" ")}
                 >
                   <div className="flex items-start gap-3">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-lg">
                       {item.kind === "study-reminder"
                         ? "🌱"
-                        : "🔔"}
+                        : item.kind === "daily-summary"
+                          ? "📊"
+                          : "🔔"}
                     </span>
 
                     <div className="min-w-0 flex-1">
                       {item.kind === "study-reminder" ? (
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-yellow-200">
                           Gentle study reminder
+                        </p>
+                      ) : item.kind === "daily-summary" ? (
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+                          Daily learning summary
                         </p>
                       ) : null}
 
