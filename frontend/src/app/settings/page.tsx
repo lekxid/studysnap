@@ -85,7 +85,7 @@ const defaultSettings: SettingsState = {
   progressSharing: "Private",
   favoriteSubject: "",
   selectedSubjects: ["Networking / IT", "Linux"],
-  dailyGoal: "Review 10 flashcards",
+  dailyGoal: "Review 10 Concept Cards",
   notifications: "Important only",
   theme: "dark",
 
@@ -146,7 +146,7 @@ const sharingOptions = [
 ];
 
 const dailyGoals = [
-  "Review 10 flashcards",
+  "Review 10 Concept Cards",
   "Take 1 mini quiz",
   "Summarize 1 note",
   "Study for 25 minutes",
@@ -172,7 +172,7 @@ const autoImportLabels: Record<string, string> = {
   drive_pdfs: "Auto-import PDFs from Drive",
   google_docs: "Auto-import Google Docs",
   icloud_notes: "Auto-import iCloud notes",
-  flashcards_folder: "Auto-import flashcards folder",
+  flashcards_folder: "Auto-import Concept Cards folder",
   sync_every_24_hours: "Sync every 24 hours",
 };
 
@@ -355,7 +355,7 @@ function formatAutoImportRuleLabel(key: string) {
     drive_pdfs: "Auto-import PDFs from Drive",
     google_docs: "Auto-import Google Docs",
     icloud_notes: "Auto-import iCloud notes",
-    flashcards_folder: "Auto-import flashcards folder",
+    flashcards_folder: "Auto-import Concept Cards folder",
     sync_every_24_hours: "Sync every 24 hours",
   };
 
@@ -1201,14 +1201,14 @@ export default function SettingsPage() {
                         onClick={() => update("learningMode", item.name)}
                         className={`rounded-[1.35rem] border px-5 py-4 text-left transition ${
                           active
-                            ? "border-transparent bg-gradient-to-r from-violet-500/95 via-indigo-500/92 to-sky-500/85 text-white shadow-[0_14px_30px_rgba(109,94,252,0.25)]"
-                            : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                            ? "border-amber-300/35 bg-amber-400/12 text-amber-100 shadow-[0_12px_28px_rgba(250,204,21,0.10)]"
+                            : "border-white/8 bg-white/[0.03] text-slate-200 hover:border-white/12 hover:bg-white/[0.05]"
                         }`}
                       >
                         <p className="text-sm font-black">{item.name}</p>
                         <p
                           className={`mt-2 text-sm leading-6 ${
-                            active ? "text-white/85" : "text-slate-400"
+                            active ? "text-amber-50/85" : "text-slate-400"
                           }`}
                         >
                           {item.desc}
@@ -1256,7 +1256,7 @@ export default function SettingsPage() {
               </div>
             </section>
 
-            <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="grid items-start gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="premium-card gold-border rounded-[2rem] p-6">
                 <div className="gold-chip mb-4">Subjects</div>
                 <h3 className="panel-title text-white">Learning subjects</h3>
@@ -1319,9 +1319,8 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-5">
-                <div className="premium-card gold-border rounded-[2rem] p-6">
-                  <div className="gold-chip mb-4">Privacy</div>
+              <div className="premium-card gold-border rounded-[2rem] p-6">
+                <div className="gold-chip mb-4">Privacy</div>
                   <h3 className="panel-title text-white">Progress sharing</h3>
 
                   <div className="mt-5 grid gap-3">
@@ -1335,14 +1334,14 @@ export default function SettingsPage() {
                           onClick={() => update("progressSharing", item.name)}
                           className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${
                             active
-                              ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
-                              : "border-white/8 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                              ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
+                              : "border-white/8 bg-white/[0.03] text-slate-200 hover:border-white/12 hover:bg-white/[0.05]"
                           }`}
                         >
                           <p className="text-sm font-black">{item.name}</p>
                           <p
                             className={`mt-1 text-xs leading-5 ${
-                              active ? "text-cyan-50/80" : "text-slate-400"
+                              active ? "text-amber-50/80" : "text-slate-400"
                             }`}
                           >
                             {item.desc}
@@ -1351,11 +1350,11 @@ export default function SettingsPage() {
                       );
                     })}
                   </div>
-                </div>
+              </div>
 
-                <div className="gold-card rounded-[2rem] p-6">
-                  <div className="gold-chip mb-4">Daily focus</div>
-                  <h3 className="panel-title text-white">Study preferences</h3>
+              <div className="gold-card rounded-[2rem] p-6 xl:col-span-2">
+                <div className="gold-chip mb-4">Daily focus</div>
+                <h3 className="panel-title text-white">Study preferences</h3>
 
                   <div className="mt-5 grid gap-4">
                     <div>
@@ -1391,14 +1390,13 @@ export default function SettingsPage() {
                         ))}
                       </select>
                     </div>
-                  </div>
                 </div>
               </div>
             </section>
 
             <section className="premium-card gold-border rounded-[2rem] p-6">
               <div className="gold-chip mb-4">Unified AI Memory</div>
-              <h3 className="panel-title text-white">AI Tutor cloud memory</h3>
+              <h3 className="panel-title text-white">AI Tutor memory</h3>
               <p className="panel-muted mt-3">
                 Choose what StudySnap Brain can remember for future tutoring,
                 quizzes, progress, and recommendations.
@@ -1408,7 +1406,7 @@ export default function SettingsPage() {
                 {[
                   ["aiMemoryEnabled", "Enable AI memory"],
                   ["saveNotesToMemory", "Save notes to AI memory"],
-                  ["saveFlashcardsToMemory", "Save flashcards to AI memory"],
+                  ["saveFlashcardsToMemory", "Save Concept Cards to AI memory"],
                   ["saveQuizResultsToMemory", "Save quiz results to AI memory"],
                   ["saveWeakStrongConcepts", "Save weak/strong concepts"],
                   ["saveStudyHistory", "Save study history"],
@@ -1419,16 +1417,39 @@ export default function SettingsPage() {
                     <button
                       key={key}
                       type="button"
+                      aria-pressed={enabled}
                       onClick={() => toggleMemory(key as keyof SettingsState)}
-                      className={`flex items-center justify-between rounded-[1.2rem] border px-4 py-3 text-left transition ${
+                      className={`flex items-center justify-between gap-4 rounded-[1.2rem] border px-4 py-3 text-left transition ${
                         enabled
-                          ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
-                          : "border-white/8 bg-white/[0.03] text-slate-300"
+                          ? "border-amber-300/25 bg-amber-400/10 text-amber-100"
+                          : "border-white/8 bg-white/[0.03] text-slate-300 hover:border-white/12 hover:bg-white/[0.05]"
                       }`}
                     >
                       <span className="text-sm font-black">{label}</span>
-                      <span className="text-xs font-black">
-                        {enabled ? "Saved" : "Off"}
+
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={`text-xs font-black ${
+                            enabled ? "text-amber-100" : "text-slate-500"
+                          }`}
+                        >
+                          {enabled ? "On" : "Off"}
+                        </span>
+
+                        <span
+                          aria-hidden="true"
+                          className={`relative inline-flex h-6 w-11 rounded-full border transition ${
+                            enabled
+                              ? "border-amber-300/40 bg-amber-300/30"
+                              : "border-white/10 bg-slate-800"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                              enabled ? "left-6" : "left-1"
+                            }`}
+                          />
+                        </span>
                       </span>
                     </button>
                   );

@@ -43,7 +43,7 @@ const defaultSettings: SettingsState = {
   progressSharing: "Private",
   favoriteSubject: "",
   selectedSubjects: ["Networking / IT", "Linux"],
-  dailyGoal: "Review 10 flashcards",
+  dailyGoal: "Review 10 Concept Cards",
   notifications: "Important only",
 };
 
