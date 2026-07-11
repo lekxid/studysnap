@@ -154,6 +154,7 @@ export default function RoomMaterialsTab({
 }: Props) {
   const [filter, setFilter] = useState<MaterialFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
 
   const materials = useMemo<UnifiedMaterial[]>(() => {
     const pdfItems: UnifiedMaterial[] = pdfs.map((pdf) => ({
@@ -261,104 +262,131 @@ export default function RoomMaterialsTab({
 
   const loading = loadingPdfs || loadingNotes || loadingPractice;
 
-  function renderMaterialActions(material: UnifiedMaterial) {
+  function renderPrimaryAction(material: UnifiedMaterial) {
+    const buttonClass =
+      "inline-flex min-w-[92px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100";
+
+    if (material.type === "pdf") {
+      const selected = material.id === selectedPdfId;
+
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            onSelectPdf(material.id, material.title);
+            setOpenMenuKey(null);
+          }}
+          className={[
+            buttonClass,
+            selected
+              ? "border-yellow-300/40 bg-yellow-300/15 text-yellow-100"
+              : "",
+          ].join(" ")}
+        >
+          {selected ? "Selected" : "Select"}
+        </button>
+      );
+    }
+
+    if (material.type === "note") {
+      return (
+        <Link
+          href={`/notes?room=${studyRoomId}&note=${material.id}`}
+          className={buttonClass}
+        >
+          Open
+        </Link>
+      );
+    }
+
+    if (material.type === "concept-card") {
+      return (
+        <Link
+          href={`/flashcards?room=${studyRoomId}`}
+          className={buttonClass}
+        >
+          Practice
+        </Link>
+      );
+    }
+
+    return (
+      <Link
+        href={`/quizzes?room=${studyRoomId}`}
+        className={buttonClass}
+      >
+        Start Quiz
+      </Link>
+    );
+  }
+
+  function renderMaterialMenu(material: UnifiedMaterial) {
+    const menuItemClass =
+      "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08] hover:text-white";
+
     if (material.type === "pdf") {
       return (
         <>
           <button
             type="button"
-            onClick={() => onSelectPdf(material.id, material.title)}
-            className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.09]"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onSummarizePdf(material.id);
+            }}
+            className={menuItemClass}
           >
-            Select
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSummarizePdf(material.id)}
-            className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
-          >
+            <span aria-hidden="true">✨</span>
             Summarize
           </button>
 
           <button
             type="button"
-            onClick={onOpenAiTutor}
-            className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onSelectPdf(material.id, material.title);
+              onOpenAiTutor();
+            }}
+            className={menuItemClass}
           >
-            Ask AI
+            <span aria-hidden="true">🤖</span>
+            Ask AI Tutor
           </button>
+
+          <div className="my-1 border-t border-white/10" />
 
           <button
             type="button"
-            onClick={() => onDeletePdf(material.id)}
-            className="rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-100 transition hover:bg-red-400/20"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onDeletePdf(material.id);
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
           >
+            <span aria-hidden="true">🗑️</span>
             Delete
           </button>
         </>
       );
     }
 
-    if (material.type === "note") {
-      return (
-        <>
-          <Link
-            href={`/notes?room=${studyRoomId}&note=${material.id}`}
-            className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white transition hover:bg-white/[0.09]"
-          >
-            Open Note
-          </Link>
-
-          <button
-            type="button"
-            onClick={onOpenAiTutor}
-            className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
-          >
-            Ask AI
-          </button>
-        </>
-      );
-    }
-
-    if (material.type === "concept-card") {
-      return (
-        <>
-          <Link
-            href={`/flashcards?room=${studyRoomId}`}
-            className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
-          >
-            Practice
-          </Link>
-
-          <button
-            type="button"
-            onClick={onOpenAiTutor}
-            className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
-          >
-            Explain
-          </button>
-        </>
-      );
-    }
-
     return (
-      <>
-        <Link
-          href={`/quizzes?room=${studyRoomId}`}
-          className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
-        >
-          Start Quiz
-        </Link>
-
-        <button
-          type="button"
-          onClick={onOpenAiTutor}
-          className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/20"
-        >
-          Ask AI
-        </button>
-      </>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpenMenuKey(null);
+          onOpenAiTutor();
+        }}
+        className={menuItemClass}
+      >
+        <span aria-hidden="true">🤖</span>
+        {material.type === "concept-card"
+          ? "Explain with AI"
+          : "Ask AI Tutor"}
+      </button>
     );
   }
 
@@ -434,10 +462,34 @@ export default function RoomMaterialsTab({
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <div>{renderUploader}</div>
+      <section className="min-w-0 space-y-5">
+        <details className="group rounded-[1.5rem] border border-cyan-300/15 bg-cyan-300/[0.05] p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-2xl outline-none [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
+                Add study material
+              </p>
 
-        <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+              <h3 className="mt-1 text-lg font-black text-white">
+                Upload a PDF
+              </h3>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Open when you are ready to add another study material.
+              </p>
+            </div>
+
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <div className="mt-4 border-t border-white/10 pt-4">
+            {renderUploader}
+          </div>
+        </details>
+
+        <div className="min-w-0 rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
@@ -507,37 +559,68 @@ export default function RoomMaterialsTab({
                         : "border-white/10 bg-black/25 hover:border-white/20 hover:bg-white/[0.04]",
                     ].join(" ")}
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex min-w-0 gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xl">
-                          {material.icon}
-                        </div>
+                    <div className="min-w-0">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xl">
+                            {material.icon}
+                          </div>
 
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="break-words text-sm font-black text-white">
+                          <div className="min-w-0 flex-1">
+                            <p
+                              title={material.title}
+                              className="line-clamp-2 break-words text-sm font-black leading-5 text-white"
+                            >
                               {material.title}
                             </p>
 
-                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
-                              {filterLabel(material.type)}
-                            </span>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                              <span className="uppercase tracking-[0.1em] text-slate-300">
+                                {filterLabel(material.type)}
+                              </span>
+
+                              <span aria-hidden="true">•</span>
+
+                              <span>{formatDate(material.createdAt)}</span>
+                            </div>
+
+                            <p className="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-400">
+                              {material.description}
+                            </p>
                           </div>
+                        </div>
 
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">
-                            {material.description}
-                          </p>
+                        <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-3">
+                          {renderPrimaryAction(material)}
 
-                          <p className="mt-2 text-[11px] font-bold text-slate-500">
-                            {formatDate(material.createdAt)}
-                          </p>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              aria-label={`More actions for ${material.title}`}
+                              aria-haspopup="menu"
+                              aria-expanded={openMenuKey === material.key}
+                              onClick={() =>
+                                setOpenMenuKey((current) =>
+                                  current === material.key
+                                    ? null
+                                    : material.key
+                                )
+                              }
+                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-lg font-black text-slate-300 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white"
+                            >
+                              <span aria-hidden="true">⋯</span>
+                            </button>
+
+                            {openMenuKey === material.key ? (
+                              <div
+                                role="menu"
+                                className="absolute bottom-12 right-0 z-50 w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/60"
+                              >
+                                {renderMaterialMenu(material)}
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        {renderMaterialActions(material)}
-                      </div>
-                    </div>
                   </article>
                 );
               })

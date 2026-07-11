@@ -80,43 +80,43 @@ const roomTabs: {
   {
     key: "overview",
     title: "Overview",
-    description: "Start here",
+    description: "Your study home",
     icon: "🏠",
   },
   {
     key: "materials",
     title: "Materials",
-    description: "PDFs + uploads",
+    description: "Everything you study",
     icon: "📚",
   },
   {
     key: "notes",
     title: "Notes",
-    description: "Write + review",
+    description: "Capture what you learn",
     icon: "📝",
   },
   {
     key: "ai",
     title: "AI Tutor",
-    description: "Ask this room",
+    description: "Get help anytime",
     icon: "🤖",
   },
   {
     key: "practice",
     title: "Practice",
-    description: "Cards + quizzes",
+    description: "Practice what you learned",
     icon: "🧠",
   },
   {
     key: "together",
     title: "Study Together",
-    description: "Coming soon",
+    description: "Learn with classmates",
     icon: "👥",
   },
   {
     key: "progress",
     title: "Progress",
-    description: "Weak + strong",
+    description: "See how you are growing",
     icon: "📈",
   },
 ];
@@ -162,7 +162,7 @@ function ProjectSearchBox({
 
       <input
         name="projectSearch"
-        placeholder="Search this room’s PDFs, notes, concept cards, quizzes, and memory..."
+        placeholder="Search your study materials or ask about this room..."
         className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
       />
 
@@ -197,7 +197,7 @@ function ProjectSearchResults({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-            Room Search
+            Search Your Room
           </p>
           <h3 className="mt-1 text-lg font-black text-white">
             {query ? `Results for “${query}”` : "Searching room..."}
@@ -217,7 +217,7 @@ function ProjectSearchResults({
 
       {!loading && !error && query && results.length === 0 ? (
         <p className="mt-4 text-sm text-slate-400">
-          No matching room materials found yet.
+          I could not find that yet. Try another phrase or add more study materials.
         </p>
       ) : null}
 
@@ -381,7 +381,7 @@ export default function ProjectWorkspace({
               </button>
 
               <span className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-yellow-100">
-                Study Room
+                Your Study Room
               </span>
 
               <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
@@ -404,7 +404,7 @@ export default function ProjectWorkspace({
                 onClick={() => onChangeTab("overview")}
                 className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
               >
-                🏠 Start overview
+                🏠 Open overview
               </button>
 
               <button
@@ -412,7 +412,7 @@ export default function ProjectWorkspace({
                 onClick={() => onChangeTab("materials")}
                 className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
               >
-                📚 Add Materials
+                📚 Add study material
               </button>
 
               <button
@@ -465,7 +465,14 @@ export default function ProjectWorkspace({
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <section
+        className={[
+          "grid min-w-0 gap-5",
+          activeTab === "overview"
+            ? "xl:grid-cols-[minmax(0,1fr)_340px]"
+            : "grid-cols-1",
+        ].join(" ")}
+      >
         <div className="space-y-5">
           <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -474,7 +481,7 @@ export default function ProjectWorkspace({
                   Room Workspace
                 </p>
                 <h2 className="mt-1 text-xl font-black text-white">
-                  Everything happens inside this room
+                  Everything you need is here
                 </h2>
               </div>
 
@@ -506,7 +513,13 @@ export default function ProjectWorkspace({
           </section>
         </div>
 
-        <aside className="space-y-5">
+        <aside
+          className={
+            activeTab === "overview"
+              ? "space-y-5"
+              : "hidden"
+          }
+        >
           <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
               Continue Learning
@@ -534,7 +547,7 @@ export default function ProjectWorkspace({
                 ))
               ) : (
                 <p className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-400">
-                  Nothing to continue yet.
+                  Add your first study material and your AI Tutor will help you continue from there.
                 </p>
               )}
             </div>
@@ -544,7 +557,7 @@ export default function ProjectWorkspace({
               onClick={() => onChangeTab("materials")}
               className="mt-4 w-full rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
             >
-              View materials →
+              Add or view materials →
             </button>
           </section>
 
@@ -552,10 +565,10 @@ export default function ProjectWorkspace({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Project Brain
+                  Your AI Tutor
                 </p>
                 <h3 className="mt-1 text-xl font-black text-white">
-                  Learning intelligence
+                  What your AI Tutor knows
                 </h3>
               </div>
 
@@ -570,7 +583,7 @@ export default function ProjectWorkspace({
                   {brainInsights?.weak_count || 0}
                 </p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-red-100">
-                  Weak
+                  Review
                 </p>
               </div>
 
@@ -579,7 +592,7 @@ export default function ProjectWorkspace({
                   {brainInsights?.developing_count || 0}
                 </p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-yellow-100">
-                  Building
+                  Learning
                 </p>
               </div>
 
@@ -588,14 +601,14 @@ export default function ProjectWorkspace({
                   {brainInsights?.mastered_count || 0}
                 </p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-100">
-                  Strong
+                  Confident
                 </p>
               </div>
             </div>
 
             <div className="mt-5 space-y-3">
               <div className="rounded-2xl border border-red-300/15 bg-red-400/10 p-4">
-                <p className="text-sm font-black text-red-100">Weak concepts</p>
+                <p className="text-sm font-black text-red-100">Let’s review these next</p>
                 <div className="mt-3 space-y-2">
                   {weakConcepts.length ? (
                     weakConcepts.map((concept) => (
@@ -613,7 +626,7 @@ export default function ProjectWorkspace({
                     ))
                   ) : (
                     <p className="text-xs leading-5 text-slate-300">
-                      No weak concepts yet. Take a quiz or review concept cards.
+                      Nothing needs extra review yet. Practice with Concept Cards or take a quiz when you are ready.
                     </p>
                   )}
                 </div>
@@ -621,7 +634,7 @@ export default function ProjectWorkspace({
 
               <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-4">
                 <p className="text-sm font-black text-emerald-100">
-                  Strong concepts
+                  Confident concepts
                 </p>
                 <div className="mt-3 space-y-2">
                   {strongConcepts.length ? (
