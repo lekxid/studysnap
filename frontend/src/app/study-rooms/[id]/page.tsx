@@ -6,9 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
-import PDFList from "@/components/pdf/PDFList";
 import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
+import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
@@ -553,69 +553,34 @@ export default function StudyRoomDetailPage() {
   function renderMaterialsTab() {
     return (
       <div className="space-y-5">
-        <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
-                Room Materials
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-white">
-                Add PDFs to this project
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Upload and summarize PDFs here. Then ask AI Tutor to study from
-                the whole room.
-              </p>
-
-              {selectedPdfId ? (
-                <div className="mt-3 rounded-xl border border-yellow-300/15 bg-white/5 p-3 text-xs text-slate-300">
-                  <p className="font-bold text-yellow-100">Selected Material</p>
-                  <p className="mt-1">{selectedPdfTitle}</p>
-                  <button
-                    type="button"
-                    onClick={openProjectAi}
-                    className="mt-3 rounded-lg bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200 transition hover:bg-cyan-300/15 hover:text-cyan-100"
-                  >
-                    Study with AI Tutor
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              onClick={openProjectAi}
-              className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
-            >
-              Ask AI Tutor about this room
-            </button>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-2">
-            <PDFUploader studyRoomId={studyRoomId} onUploaded={loadPdfs} />
-
-            <div className="space-y-4">
-              <PDFList
-                pdfs={pdfs}
-                loading={loadingPdfs}
-                deletingId={deletingId}
-                summarizingId={summarizingId}
-                onDelete={handleDelete}
-                onSummarize={handleSummarize}
-              />
-
-              {pdfs.length ? (
-                <button
-                  type="button"
-                  onClick={openProjectAi}
-                  className="w-full rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
-                >
-                  Study these materials with AI Tutor
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </section>
+        <RoomMaterialsTab
+          studyRoomId={studyRoomId}
+          pdfs={pdfs}
+          notes={notes}
+          conceptCards={conceptCards}
+          quizzes={quizzes}
+          loadingPdfs={loadingPdfs}
+          loadingNotes={loadingNotes}
+          loadingPractice={loadingPractice}
+          selectedPdfId={selectedPdfId}
+          selectedPdfTitle={selectedPdfTitle}
+          onSelectPdf={(pdfId, title) => {
+            setSelectedPdfId(pdfId);
+            setSummaryTitle(title);
+          }}
+          onSummarizePdf={handleSummarize}
+          onDeletePdf={handleDelete}
+          onOpenAiTutor={openProjectAi}
+          renderUploader={
+            <PDFUploader
+              studyRoomId={studyRoomId}
+              onUploaded={async () => {
+                await loadPdfs();
+                await loadRoomFoundation();
+              }}
+            />
+          }
+        />
 
         {summary ? (
           <section className="rounded-[1.5rem] border border-yellow-400/20 bg-[#0a1022] p-6">
@@ -624,7 +589,8 @@ export default function StudyRoomDetailPage() {
                 <p className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300/80">
                   Material Summary
                 </p>
-                <h3 className="mt-2 text-2xl font-black text-white">
+
+                <h3 className="mt-2 break-words text-2xl font-black text-white">
                   {summaryTitle}
                 </h3>
               </div>
