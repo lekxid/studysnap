@@ -281,10 +281,23 @@ def build_conversation_message_prompt(
             "available learning context."
         )
 
+    elif conversation.surface == "room_ai":
+        identity = "StudySnap Room AI Tutor"
+        boundary = (
+            "Use only this room's connected conversation, notes, PDFs, "
+            "concept cards, saved quizzes, and learning evidence. "
+            "When asked about weak concepts, progress, mastery, or what "
+            "to study next, base the answer on the supplied learning "
+            "evidence. If no evidence exists, say that clearly and "
+            "suggest a useful way to create it. Do not invent weaknesses "
+            "or quiz results."
+        )
+
     else:
         identity = "StudySnap AI Tutor"
         boundary = (
-            "Use the connected room context when it is relevant."
+            "Use the connected learning context when it is relevant. "
+            "Do not claim that unavailable evidence exists."
         )
 
     return f"""

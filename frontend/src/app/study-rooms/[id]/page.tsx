@@ -294,13 +294,29 @@ export default function StudyRoomDetailPage() {
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const [projectSearchError, setProjectSearchError] = useState("");
   const [error, setError] = useState("");
+  const [aiComposerFocusToken, setAiComposerFocusToken] =
+    useState(0);
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
+  function changeRoomTab(tab: RoomTab) {
+    setActiveRoomTab(tab);
+
+    if (tab === "ai") {
+      setAiComposerFocusToken(
+        (current) => current + 1
+      );
+    }
+  }
+
   function openProjectAi() {
-    setActiveRoomTab("ai");
+    changeRoomTab("ai");
+
     setTimeout(() => {
-      aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      aiSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }, 100);
   }
 
@@ -958,7 +974,11 @@ export default function StudyRoomDetailPage() {
           </p>
         </div>
 
-        <CompactProjectAI studyRoomId={studyRoomId} projectTitle={roomTitle} />
+        <CompactProjectAI
+          studyRoomId={studyRoomId}
+          projectTitle={roomTitle}
+          focusComposerToken={aiComposerFocusToken}
+        />
       </div>
     );
   }
@@ -1153,7 +1173,7 @@ export default function StudyRoomDetailPage() {
           searchLoading={projectSearchLoading}
           searchError={projectSearchError}
           activeTab={activeRoomTab}
-          onChangeTab={setActiveRoomTab}
+          onChangeTab={changeRoomTab}
           onBack={() => router.push("/study-rooms")}
           onSearch={handleProjectSearch}
           onOpenSearchResult={handleOpenSearchResult}

@@ -32,6 +32,7 @@ type ChatMessage = {
 type CompactProjectAIProps = {
   studyRoomId: number;
   projectTitle: string;
+  focusComposerToken?: number;
 };
 
 const quickPrompts = [
@@ -68,10 +69,17 @@ function mapStoredMessage(
 export default function CompactProjectAI({
   studyRoomId,
   projectTitle,
+  focusComposerToken = 0,
 }: CompactProjectAIProps) {
   const chatRef = useRef<HTMLDivElement | null>(
     null
   );
+
+  const composerRef =
+    useRef<HTMLTextAreaElement | null>(null);
+
+  const renameInputRef =
+    useRef<HTMLInputElement | null>(null);
 
   const [trails, setTrails] = useState<
     AIConversation[]
@@ -97,6 +105,18 @@ export default function CompactProjectAI({
     useState(true);
 
   const [error, setError] = useState("");
+
+  const [renameRequest, setRenameRequest] =
+    useState<AIConversation | null>(null);
+
+  const [renameTitle, setRenameTitle] =
+    useState("");
+
+  const [deleteRequest, setDeleteRequest] =
+    useState<AIConversation | null>(null);
+
+  const [trailActionLoading, setTrailActionLoading] =
+    useState(false);
 
   const activeTrail = trails.find(
     (trail) => trail.id === activeConversationId
@@ -234,6 +254,23 @@ export default function CompactProjectAI({
       cancelled = true;
     };
   }, [studyRoomId]);
+
+  useEffect(() => {
+    if (focusComposerToken <= 0) return;
+
+    const timer = window.setTimeout(() => {
+      composerRef.current?.focus();
+
+      composerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [focusComposerToken]);
 
   async function ensureConversation() {
     if (activeConversationId !== null) {
@@ -391,40 +428,58 @@ export default function CompactProjectAI({
     await loadMessages(trail.id);
   }
 
-  async function renameTrail(
+  function renameTrail(
     trail: AIConversation
   ) {
-    const nextTitle = window.prompt(
-      "Rename Room Study Trail",
-      trail.title
-    );
+    if (loading || trailActionLoading) return;
 
-    if (nextTitle === null) return;
+    setRenameRequest(trail);
+    setRenameTitle(trail.title);
 
-    const cleanTitle = nextTitle.trim();
+    window.setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 80);
+  }
 
-    if (!cleanTitle) return;
+  async function confirmRenameTrail() {
+    if (!renameRequest) return;
+
+    const cleanTitle = renameTitle.trim();
+
+    if (!cleanTitle) {
+      setError("Enter a name for this Study Trail.");
+      return;
+    }
 
     try {
+      setTrailActionLoading(true);
+      setError("");
+
       const updated =
         await renameAIConversation(
-          trail.id,
+          renameRequest.id,
           cleanTitle
         );
 
       setTrails((current) =>
         current.map((item) =>
-          item.id === trail.id
+          item.id === renameRequest.id
             ? updated
             : item
         )
       );
+
+      setRenameRequest(null);
+      setRenameTitle("");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Could not rename this trail."
       );
+    } finally {
+      setTrailActionLoading(false);
     }
   }
 
@@ -449,16 +504,23 @@ export default function CompactProjectAI({
     }
   }
 
-  async function deleteTrail(
+  function deleteTrail(
     trail: AIConversation
   ) {
-    const confirmed = window.confirm(
-      `Delete "${trail.title}"? This cannot be undone.`
-    );
+    if (loading || trailActionLoading) return;
 
-    if (!confirmed) return;
+    setDeleteRequest(trail);
+  }
+
+  async function confirmDeleteTrail() {
+    if (!deleteRequest) return;
+
+    const trail = deleteRequest;
 
     try {
+      setTrailActionLoading(true);
+      setError("");
+
       await deleteAIConversation(trail.id);
 
       const remaining = trails.filter(
@@ -482,12 +544,16 @@ export default function CompactProjectAI({
           startNewTrail();
         }
       }
+
+      setDeleteRequest(null);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Could not delete this trail."
       );
+    } finally {
+      setTrailActionLoading(false);
     }
   }
 
@@ -641,6 +707,7 @@ export default function CompactProjectAI({
 
         <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/35 p-3">
           <textarea
+            ref={composerRef}
             value={input}
             onChange={(event) =>
               setInput(event.target.value)
@@ -717,6 +784,145 @@ export default function CompactProjectAI({
           </p>
         </section>
       </aside>
+
+      {renameRequest ? (
+        <div
+          className="fixed inset-0 z-[110] grid place-items-center bg-black/75 px-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setRenameRequest(null);
+              setRenameTitle("");
+            }
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-trail-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirmRenameTrail();
+            }}
+            className="w-full max-w-md rounded-[1.5rem] border border-yellow-300/20 bg-[#091422] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-yellow-300/20 bg-yellow-300/10 text-xl">
+              ✎
+            </div>
+
+            <h3
+              id="rename-trail-title"
+              className="mt-5 text-xl font-black text-white"
+            >
+              Rename Study Trail
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Give this conversation a clear name so it is easy to continue later.
+            </p>
+
+            <input
+              ref={renameInputRef}
+              value={renameTitle}
+              onChange={(event) =>
+                setRenameTitle(event.target.value)
+              }
+              maxLength={100}
+              className="mt-5 w-full rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-yellow-300/45"
+              placeholder="Study Trail name"
+            />
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameRequest(null);
+                  setRenameTitle("");
+                }}
+                disabled={trailActionLoading}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  trailActionLoading ||
+                  !renameTitle.trim()
+                }
+                className="rounded-xl bg-yellow-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:opacity-50"
+              >
+                {trailActionLoading
+                  ? "Saving..."
+                  : "Save name"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {deleteRequest ? (
+        <div
+          className="fixed inset-0 z-[110] grid place-items-center bg-black/75 px-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setDeleteRequest(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-trail-title"
+            className="w-full max-w-md rounded-[1.5rem] border border-red-400/20 bg-[#091422] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-red-400/20 bg-red-500/10 text-xl">
+              🗑️
+            </div>
+
+            <h3
+              id="delete-trail-title"
+              className="mt-5 text-xl font-black text-white"
+            >
+              Delete this Study Trail?
+            </h3>
+
+            <p className="mt-2 break-words text-sm leading-6 text-slate-400">
+              “{deleteRequest.title}” and its saved conversation will be removed.
+            </p>
+
+            <p className="mt-3 text-xs font-semibold text-red-300">
+              This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteRequest(null)}
+                disabled={trailActionLoading}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                Keep trail
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void confirmDeleteTrail()
+                }
+                disabled={trailActionLoading}
+                className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-400 disabled:opacity-50"
+              >
+                {trailActionLoading
+                  ? "Deleting..."
+                  : "Delete trail"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
 
+from app.services.context.providers.brain_memory import build_brain_memory_context
 from app.services.context.providers.conversation import build_conversation_context
 from app.services.context.providers.flashcards import build_flashcards_context
 from app.services.context.providers.notes import build_notes_context
 from app.services.context.providers.pdf import build_pdf_context
+from app.services.context.providers.quizzes import build_quizzes_context
 
 
 def build_study_room_context(
@@ -22,11 +24,12 @@ def build_study_room_context(
     - Conversation
     - Notes
     - PDFs
-    - Flashcards
+    - Concept cards
+    - Quizzes
+    - Brain concept mastery
 
     Future providers:
-    - Quizzes
-    - Learning Events
+    - Detailed learning events
     - Recommendations
     """
 
@@ -56,6 +59,20 @@ def build_study_room_context(
         question=question,
     )
 
+    quizzes_context = build_quizzes_context(
+        db=db,
+        study_room_id=study_room_id,
+        owner_id=owner_id,
+        question=question,
+    )
+
+    brain_memory_context = build_brain_memory_context(
+        db=db,
+        study_room_id=study_room_id,
+        owner_id=owner_id,
+        question=question,
+    )
+
     context_parts = []
 
     if conversation_context.strip():
@@ -75,7 +92,20 @@ def build_study_room_context(
 
     if flashcards_context.strip():
         context_parts.append(
-            "Study room flashcards:\n" + flashcards_context.strip()
+            "Study room concept cards:\n"
+            + flashcards_context.strip()
+        )
+
+    if quizzes_context.strip():
+        context_parts.append(
+            "Study room saved quizzes:\n"
+            + quizzes_context.strip()
+        )
+
+    if brain_memory_context.strip():
+        context_parts.append(
+            "Study room learning evidence and concept mastery:\n"
+            + brain_memory_context.strip()
         )
 
     return "\n\n====================\n\n".join(context_parts)
