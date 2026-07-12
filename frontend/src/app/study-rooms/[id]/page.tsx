@@ -13,6 +13,7 @@ import PDFUploader from "@/components/pdf/PDFUploader";
 import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
+import StudyTogetherWorkspace from "@/features/projects/StudyTogetherWorkspace";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
@@ -1146,36 +1147,19 @@ export default function StudyRoomDetailPage() {
 
   function renderStudyTogetherTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
-          Study Together
-        </p>
-        <h2 className="mt-2 text-2xl font-black text-white">
-          Make this room feel alive
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-          Study Together will live inside each room so classmates can study from
-          the same materials, notes, quizzes, and AI Tutor.
-        </p>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          {[
-            ["👥", "Invite classmates", "Add people to this room later."],
-            ["💬", "Room chat", "Discuss materials and questions in context."],
-            ["🤖", "Shared AI Tutor", "Ask questions as a group with room memory."],
-            ["🧾", "Group quiz", "Practice together from the same room content."],
-          ].map(([icon, title, text]) => (
-            <div
-              key={title}
-              className="rounded-2xl border border-white/10 bg-black/20 p-5"
-            >
-              <p className="text-3xl">{icon}</p>
-              <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <StudyTogetherWorkspace
+        studyRoomId={studyRoomId}
+        roomTitle={roomTitle}
+        materialsCount={pdfs.length}
+        notesCount={notes.length}
+        conceptCardsCount={conceptCards.length}
+        quizzesCount={quizzes.length}
+        onOpenMaterials={openMaterials}
+        onOpenNotes={() =>
+          setActiveRoomTab("notes")
+        }
+        onOpenAiTutor={openProjectAi}
+      />
     );
   }
 
