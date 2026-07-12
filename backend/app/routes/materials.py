@@ -18,8 +18,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.study_material import StudyMaterial
-from app.models.study_room import StudyRoom
 from app.models.user import User
+from app.services.rooms.access import (
+    require_room_contributor,
+    require_room_item_change,
+    require_room_view,
+)
 from app.routes.pdf_documents import extract_pdf_text
 from app.utils.deps import get_current_user
 
@@ -331,49 +335,25 @@ def serialize_material(material: StudyMaterial) -> dict:
         "processing_status": status,
         "preview_available": bool(material.extracted_text),
         "study_room_id": material.study_room_id,
+        "created_by_user_id": material.owner_id,
         "created_at": material.created_at,
         "last_opened_at": material.last_opened_at,
     }
 
 
-def get_owned_room(
-    db: Session,
-    room_id: int,
-    owner_id: int,
-) -> StudyRoom:
-    room = (
-        db.query(StudyRoom)
-        .filter(
-            StudyRoom.id == room_id,
-            StudyRoom.owner_id == owner_id,
-        )
-        .first()
-    )
-
-    if not room:
-        raise HTTPException(
-            status_code=404,
-            detail="Study room not found.",
-        )
-
-    return room
-
-
-def get_owned_material(
+def get_material_or_404(
     db: Session,
     material_id: int,
-    owner_id: int,
 ) -> StudyMaterial:
     material = (
         db.query(StudyMaterial)
         .filter(
-            StudyMaterial.id == material_id,
-            StudyMaterial.owner_id == owner_id,
+            StudyMaterial.id == material_id
         )
         .first()
     )
 
-    if not material:
+    if material is None:
         raise HTTPException(
             status_code=404,
             detail="Material not found.",
@@ -389,10 +369,10 @@ async def upload_material(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_owned_room(
+    require_room_contributor(
         db=db,
         room_id=study_room_id,
-        owner_id=current_user.id,
+        user_id=current_user.id,
     )
 
     original_filename = clean_original_filename(file.filename)
@@ -513,7 +493,9 @@ async def upload_material(
                     else "File uploaded securely."
                 ),
                 "security": {
-                    "private_to_owner": True,
+                    "private_to_room": True,
+                    "private_to_owner": False,
+                    "created_by_user_id": current_user.id,
                     "automatic_execution": False,
                     "basic_executable_check": True,
                 },
@@ -558,17 +540,16 @@ def list_room_materials(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_owned_room(
+    require_room_view(
         db=db,
         room_id=study_room_id,
-        owner_id=current_user.id,
+        user_id=current_user.id,
     )
 
     materials = (
         db.query(StudyMaterial)
         .filter(
-            StudyMaterial.study_room_id == study_room_id,
-            StudyMaterial.owner_id == current_user.id,
+            StudyMaterial.study_room_id == study_room_id
         )
         .order_by(StudyMaterial.created_at.desc())
         .all()
@@ -589,10 +570,15 @@ def preview_material(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    material = get_owned_material(
+    material = get_material_or_404(
         db=db,
         material_id=material_id,
-        owner_id=current_user.id,
+    )
+
+    require_room_view(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
     )
 
     if material.material_type == "quarantined":
@@ -621,11 +607,25 @@ def download_material(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    material = get_owned_material(
+    material = get_material_or_404(
         db=db,
         material_id=material_id,
-        owner_id=current_user.id,
     )
+
+    require_room_view(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+    )
+
+    if material.material_type == "quarantined":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Quarantined files cannot be downloaded "
+                "from StudySnap."
+            ),
+        )
 
     file_path = Path(material.file_path)
 
@@ -649,10 +649,16 @@ def delete_material(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    material = get_owned_material(
+    material = get_material_or_404(
         db=db,
         material_id=material_id,
-        owner_id=current_user.id,
+    )
+
+    require_room_item_change(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+        item_owner_id=material.owner_id,
     )
 
     file_path = Path(material.file_path)
