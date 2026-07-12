@@ -1,6 +1,7 @@
 import json
 from openai import OpenAI
 from app.config import settings
+from app.services.intent_understanding import get_intent_understanding_instructions
 
 client = OpenAI(api_key=settings.openai_api_key, timeout=30.0)
 
@@ -36,6 +37,8 @@ def build_studysnap_system_prompt(mode: str) -> str:
         "Use headings, bullet points, steps, or practice questions only when the user asks for a lesson, quiz, flashcards, summary, or a deeper explanation. "
         "If the user asks a quick question, give a quick answer first. "
         "Avoid sounding like a worksheet unless the user specifically wants study practice."
+        + "\n\n"
+        + get_intent_understanding_instructions()
     )
 
 

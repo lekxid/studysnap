@@ -11,6 +11,7 @@ import {
   getAIMessages,
   renameAIConversation,
   streamAIMessage,
+  type AIConversation,
 } from "@/lib/api";
 
 type ConversationMode = "general" | "pdf";
@@ -22,14 +23,6 @@ type RoomAiMessage = {
   created_at?: string;
   imagePreview?: string;
   imageName?: string;
-};
-
-type AIConversation = {
-  id: number;
-  title: string;
-  mode?: string;
-  study_room_id: number;
-  created_at: string;
 };
 
 type RoomAIAssistantProps = {
@@ -58,6 +51,11 @@ export default function RoomAIAssistant({
   emptyPrompt = "Type a topic like “subnetting”, “Linux commands”, or “math fractions”.",
   inputPlaceholder = "Ask the Room AI Assistant...",
 }: RoomAIAssistantProps) {
+  const conversationSurface =
+    conversationMode === "pdf"
+      ? "pdf_ai"
+      : "room_ai";
+
   const chatBoxRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -104,7 +102,11 @@ export default function RoomAIAssistant({
 
     try {
       setLoadingHistory(true);
-      const data = await getAIConversations(studyRoomId, conversationMode);
+      const data = await getAIConversations(
+        studyRoomId,
+        conversationMode,
+        conversationSurface
+      );
       const list = Array.isArray(data) ? data : [];
 
       setConversations(list);
@@ -127,15 +129,11 @@ export default function RoomAIAssistant({
   }
 
   async function handleResetChat() {
-    if (!activeConversationId) return;
-
-    try {
-      setQuestion("");
-      await loadMessages(activeConversationId);
-      scrollToBottom();
-    } catch (err) {
-      console.error(err);
-    }
+    setActiveConversationId(null);
+    setMessages([]);
+    setQuestion("");
+    setOpenConversationMenuId(null);
+    removeSelectedImage();
   }
 
   async function handleSelectConversation(conversationId: number) {
@@ -279,11 +277,18 @@ async function handleDeleteConversation(conversation: AIConversation) {
       let conversationId = activeConversationId;
 
       if (!conversationId) {
-        const conversation = await createAIConversation(
+        const conversation = await createAIConversation({
           studyRoomId,
-          "New Conversation",
-          conversationMode
-        );
+          title: "New Conversation",
+          mode: conversationMode,
+          surface: conversationSurface,
+          contextType:
+            conversationMode === "pdf"
+              ? "room_pdf"
+              : "study_room",
+          contextId: studyRoomId,
+          forceNew: true,
+        });
 
         conversationId = conversation.id;
         setActiveConversationId(conversation.id);
@@ -447,11 +452,18 @@ async function handleDeleteConversation(conversation: AIConversation) {
       return activeConversationId;
     }
 
-    const conversation = await createAIConversation(
+    const conversation = await createAIConversation({
       studyRoomId,
-      "New Conversation",
-      conversationMode
-    );
+      title: "New Conversation",
+      mode: conversationMode,
+      surface: conversationSurface,
+      contextType:
+        conversationMode === "pdf"
+          ? "room_pdf"
+          : "study_room",
+      contextId: studyRoomId,
+      forceNew: true,
+    });
 
     setActiveConversationId(conversation.id);
     setConversations((prev) => [conversation, ...prev]);

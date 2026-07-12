@@ -1,32 +1,68 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { askAi, askAiWithImage } from "@/lib/api";
+import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
+import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
+import {
+  askAiWithImage,
+  createAIConversation,
+  deleteAIConversation,
+  getAIMessages,
+  getStudyTrails,
+  pinAIConversation,
+  renameAIConversation,
+  streamAIMessage,
+  type AIConversation,
+  type AIMessage,
+} from "@/lib/api";
 
-type ChatMessage = {
-  id: string;
+type DisplayMessage = {
+  id: number | string;
   role: "user" | "assistant";
   content: string;
+  created_at?: string;
   imagePreview?: string;
   imageName?: string;
 };
 
 const suggestions = [
   "Explain something new",
-  "Brainstorm ideas",
-  "Help me study",
-  "Write better",
+  "Help me study step by step",
   "Create practice questions",
-  "Give me advice",
+  "Brainstorm ideas",
+  "Simplify a difficult topic",
+  "Help me write better",
 ];
 
 function makeId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+  if (
+    typeof crypto !== "undefined" &&
+    "randomUUID" in crypto
+  ) {
     return crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${Date.now()}-${Math.random()
+    .toString(16)
+    .slice(2)}`;
+}
+
+function mapStoredMessage(
+  message: AIMessage
+): DisplayMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    created_at: message.created_at,
+  };
 }
 
 function extractAIText(data: unknown): string {
@@ -44,45 +80,213 @@ function extractAIText(data: unknown): string {
       "result",
       "output",
     ]) {
-      if (typeof value[key] === "string" && value[key]) {
+      if (
+        typeof value[key] === "string" &&
+        value[key]
+      ) {
         return value[key] as string;
       }
     }
-
-    return JSON.stringify(value, null, 2);
   }
 
   return "I could not read the AI response.";
 }
 
-export default function GeneralAIChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [copiedId, setCopiedId] = useState("");
-  const [error, setError] = useState("");
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [selectedImagePreview, setSelectedImagePreview] = useState("");
+async function copyTextWithFallback(text: string) {
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
 
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.setAttribute("readonly", "");
+
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error("Copy failed.");
+  }
+}
+
+export default function GeneralAIChat() {
+  const [trails, setTrails] = useState<
+    AIConversation[]
+  >([]);
+  const [
+    activeConversationId,
+    setActiveConversationId,
+  ] = useState<number | null>(null);
+  const [messages, setMessages] = useState<
+    DisplayMessage[]
+  >([]);
+
+  const [input, setInput] = useState("");
+  const [trailSearch, setTrailSearch] =
+    useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingTrails, setLoadingTrails] =
+    useState(true);
+  const [loadingMessages, setLoadingMessages] =
+    useState(false);
+  const [copiedId, setCopiedId] = useState<
+    string | number | null
+  >(null);
+  const [error, setError] = useState("");
+
+  const [selectedImage, setSelectedImage] =
+    useState<File | null>(null);
+  const [
+    selectedImagePreview,
+    setSelectedImagePreview,
+  ] = useState("");
+
+  const inputRef =
+    useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef =
+    useRef<HTMLInputElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(
+    null
+  );
 
   const hasMessages = messages.length > 0;
 
+  const activeTrail = trails.find(
+    (trail) => trail.id === activeConversationId
+  );
+
   const canSend = useMemo(() => {
-    return (input.trim().length > 0 || selectedImage !== null) && !loading;
+    return (
+      (input.trim().length > 0 ||
+        selectedImage !== null) &&
+      !loading
+    );
   }, [input, selectedImage, loading]);
 
+  function scrollToBottom() {
+    window.setTimeout(() => {
+      bottomRef.current?.scrollIntoView({
+        behavior: "smooth",
+      });
+    }, 50);
+  }
+
+  async function loadMessages(
+    conversationId: number
+  ) {
+    try {
+      setLoadingMessages(true);
+      setError("");
+
+      const storedMessages =
+        await getAIMessages(conversationId);
+
+      setMessages(
+        storedMessages.map(mapStoredMessage)
+      );
+      scrollToBottom();
+    } catch (err) {
+      setMessages([]);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not load this Study Trail."
+      );
+    } finally {
+      setLoadingMessages(false);
+    }
+  }
+
+  async function refreshTrails(
+    preferredConversationId?: number
+  ) {
+    const list = await getStudyTrails(
+      "general_ai",
+      "",
+      100
+    );
+
+    setTrails(list);
+
+    if (
+      typeof preferredConversationId === "number" &&
+      list.some(
+        (trail) =>
+          trail.id === preferredConversationId
+      )
+    ) {
+      setActiveConversationId(
+        preferredConversationId
+      );
+    }
+
+    return list;
+  }
+
   useEffect(() => {
-    inputRef.current?.focus();
+    let cancelled = false;
+
+    async function initialize() {
+      try {
+        setLoadingTrails(true);
+        setError("");
+
+        const list = await getStudyTrails(
+          "general_ai",
+          "",
+          100
+        );
+
+        if (cancelled) return;
+
+        setTrails(list);
+
+        if (list.length > 0) {
+          setActiveConversationId(list[0].id);
+          await loadMessages(list[0].id);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not load your Study Trails."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingTrails(false);
+        }
+      }
+    }
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    inputRef.current?.focus();
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    scrollToBottom();
   }, [messages, loading, error]);
 
-  function handleImageChange(file: File | undefined) {
+  function handleImageChange(
+    file: File | undefined
+  ) {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
@@ -101,7 +305,9 @@ export default function GeneralAIChat() {
 
     reader.onload = () => {
       setSelectedImage(file);
-      setSelectedImagePreview(String(reader.result || ""));
+      setSelectedImagePreview(
+        String(reader.result || "")
+      );
       setError("");
       inputRef.current?.focus();
     };
@@ -116,99 +322,345 @@ export default function GeneralAIChat() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-
-    inputRef.current?.focus();
   }
 
   function clearComposer() {
     setInput("");
-    setSelectedImage(null);
-    setSelectedImagePreview("");
+    removeSelectedImage();
     setError("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    setTimeout(() => inputRef.current?.focus(), 50);
+    inputRef.current?.focus();
   }
 
-  async function sendMessage(messageText?: string) {
-    const question = (messageText ?? input).trim();
-    const imageToSend = selectedImage;
-    const imagePreviewToSend = selectedImagePreview;
-    const imageNameToSend = selectedImage?.name;
-
-    if ((!question && !imageToSend) || loading) return;
-
-    const finalQuestion = question || "Describe this image clearly.";
-
-    const userMessage: ChatMessage = {
-      id: makeId(),
-      role: "user",
-      content: finalQuestion,
-      imagePreview: imagePreviewToSend || undefined,
-      imageName: imageNameToSend,
-    };
-
-    setMessages((current) => [...current, userMessage]);
-    setInput("");
-    setSelectedImage(null);
-    setSelectedImagePreview("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  async function ensureConversation() {
+    if (activeConversationId !== null) {
+      return activeConversationId;
     }
+
+    const conversation =
+      await createAIConversation({
+        studyRoomId: null,
+        title: "New Conversation",
+        mode: "general",
+        surface: "general_ai",
+        contextType: "general",
+        contextId: null,
+        forceNew: true,
+      });
+
+    setTrails((current) => [
+      conversation,
+      ...current.filter(
+        (trail) => trail.id !== conversation.id
+      ),
+    ]);
+
+    setActiveConversationId(conversation.id);
+
+    return conversation.id;
+  }
+
+  async function sendMessage(
+    messageText?: string
+  ) {
+    const question = (
+      messageText ?? input
+    ).trim();
+
+    const imageToSend = selectedImage;
+    const imagePreviewToSend =
+      selectedImagePreview;
+    const imageNameToSend =
+      selectedImage?.name;
+
+    if (
+      (!question && !imageToSend) ||
+      loading
+    ) {
+      return;
+    }
+
+    const finalQuestion =
+      question || "Describe this image clearly.";
 
     setLoading(true);
     setError("");
+    setInput("");
+    removeSelectedImage();
+
+    const pendingAssistantId = makeId();
 
     try {
-      const data = imageToSend
-        ? await askAiWithImage(finalQuestion, imageToSend)
-        : await askAi(finalQuestion, "");
+      const conversationId =
+        await ensureConversation();
 
-      const answer = extractAIText(data);
+      setMessages((current) => [
+        ...current,
+        {
+          id: makeId(),
+          role: "user",
+          content: finalQuestion,
+          imagePreview:
+            imagePreviewToSend || undefined,
+          imageName: imageNameToSend,
+        },
+        {
+          id: pendingAssistantId,
+          role: "assistant",
+          content: imageToSend
+            ? "StudySnap AI is reading the image..."
+            : "StudySnap AI is thinking...",
+        },
+      ]);
 
-      const assistantMessage: ChatMessage = {
-        id: makeId(),
-        role: "assistant",
-        content: answer,
-      };
+      scrollToBottom();
 
-      setMessages((current) => [...current, assistantMessage]);
+      if (imageToSend) {
+        const data = await askAiWithImage(
+          finalQuestion,
+          imageToSend,
+          {
+            conversationId,
+          }
+        );
+
+        const answer = extractAIText(data);
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === pendingAssistantId
+              ? {
+                  ...message,
+                  content: answer,
+                }
+              : message
+          )
+        );
+      } else {
+        let streamedAnswer = "";
+
+        await streamAIMessage(
+          conversationId,
+          finalQuestion,
+          "explain",
+          (token) => {
+            streamedAnswer += token;
+
+            setMessages((current) =>
+              current.map((message) =>
+                message.id ===
+                pendingAssistantId
+                  ? {
+                      ...message,
+                      content: streamedAnswer,
+                    }
+                  : message
+              )
+            );
+
+            scrollToBottom();
+          }
+        );
+
+        if (!streamedAnswer) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === pendingAssistantId
+                ? {
+                    ...message,
+                    content:
+                      "No answer was returned.",
+                  }
+                : message
+            )
+          );
+        }
+      }
+
+      await refreshTrails(conversationId);
     } catch (err) {
-      setError(
+      const message =
         err instanceof Error
           ? err.message
-          : "StudySnap AI could not reply right now."
+          : "StudySnap AI could not reply right now.";
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === pendingAssistantId
+            ? {
+                ...item,
+                content: message,
+              }
+            : item
+        )
       );
+
+      setError(message);
     } finally {
       setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      inputRef.current?.focus();
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    if ((input.trim().length > 0 || selectedImage !== null) && !loading) {
+    if (canSend) {
       await sendMessage();
     }
   }
 
-  function startNewChat() {
+  function startNewTrail() {
+    setActiveConversationId(null);
     setMessages([]);
     setInput("");
     setError("");
-    setCopiedId("");
+    setCopiedId(null);
     removeSelectedImage();
+    inputRef.current?.focus();
   }
 
-  async function copyMessage(message: ChatMessage) {
-    await navigator.clipboard.writeText(message.content);
-    setCopiedId(message.id);
-    setTimeout(() => setCopiedId(""), 1200);
+  async function selectTrail(
+    trail: AIConversation
+  ) {
+    if (loading) return;
+
+    setActiveConversationId(trail.id);
+    setInput("");
+    setError("");
+    removeSelectedImage();
+
+    await loadMessages(trail.id);
+  }
+
+  async function renameTrail(
+    trail: AIConversation
+  ) {
+    const nextTitle = window.prompt(
+      "Rename Study Trail",
+      trail.title
+    );
+
+    if (nextTitle === null) return;
+
+    const cleanTitle = nextTitle.trim();
+
+    if (!cleanTitle) return;
+
+    try {
+      const updated =
+        await renameAIConversation(
+          trail.id,
+          cleanTitle
+        );
+
+      setTrails((current) =>
+        current.map((item) =>
+          item.id === trail.id
+            ? updated
+            : item
+        )
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not rename this trail."
+      );
+    }
+  }
+
+  async function togglePinTrail(
+    trail: AIConversation
+  ) {
+    try {
+      const updated =
+        await pinAIConversation(
+          trail.id,
+          !trail.is_pinned
+        );
+
+      setTrails((current) =>
+        current
+          .map((item) =>
+            item.id === trail.id
+              ? updated
+              : item
+          )
+          .sort(
+            (a, b) =>
+              Number(b.is_pinned) -
+              Number(a.is_pinned)
+          )
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not update this trail."
+      );
+    }
+  }
+
+  async function deleteTrail(
+    trail: AIConversation
+  ) {
+    const confirmed = window.confirm(
+      `Delete "${trail.title}"? This cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteAIConversation(trail.id);
+
+      const remaining = trails.filter(
+        (item) => item.id !== trail.id
+      );
+
+      setTrails(remaining);
+
+      if (
+        activeConversationId === trail.id
+      ) {
+        if (remaining.length > 0) {
+          setActiveConversationId(
+            remaining[0].id
+          );
+          await loadMessages(
+            remaining[0].id
+          );
+        } else {
+          startNewTrail();
+        }
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not delete this trail."
+      );
+    }
+  }
+
+  async function copyMessage(
+    message: DisplayMessage
+  ) {
+    try {
+      await copyTextWithFallback(
+        message.content
+      );
+
+      setCopiedId(message.id);
+
+      window.setTimeout(
+        () => setCopiedId(null),
+        1200
+      );
+    } catch {
+      setError("Unable to copy this answer.");
+    }
   }
 
   function renderComposer(large = false) {
@@ -217,8 +669,8 @@ export default function GeneralAIChat() {
         onSubmit={handleSubmit}
         className={
           large
-            ? "mx-auto mt-7 w-full max-w-5xl rounded-[1.7rem] border border-yellow-300/15 bg-[#08111d]/95 p-4 shadow-[0_0_60px_rgba(250,204,21,0.06)]"
-            : "rounded-[1.4rem] border border-white/10 bg-[#08111d]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+            ? "rounded-[1.6rem] border border-yellow-300/15 bg-[#08111d]/95 p-4 shadow-[0_0_60px_rgba(250,204,21,0.05)]"
+            : "rounded-[1.4rem] border border-white/10 bg-[#08111d]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.42)]"
         }
       >
         <input
@@ -226,240 +678,310 @@ export default function GeneralAIChat() {
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"
           className="hidden"
-          onChange={(event) => handleImageChange(event.target.files?.[0])}
+          onChange={(event) =>
+            handleImageChange(
+              event.target.files?.[0]
+            )
+          }
         />
 
         {selectedImagePreview ? (
           <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
             <img
               src={selectedImagePreview}
-              alt="Selected upload preview"
+              alt="Selected upload"
               className="h-16 w-16 rounded-xl object-cover"
             />
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-black text-white">
-                {selectedImage?.name || "Selected image"}
+                {selectedImage?.name}
               </p>
-              <p className="text-xs font-semibold text-slate-400">
-                Ask StudySnap AI about this image.
+              <p className="text-xs text-slate-400">
+                This image will stay connected to the current trail.
               </p>
             </div>
 
             <button
               type="button"
               onClick={removeSelectedImage}
-              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.08]"
+              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]"
             >
               Remove
             </button>
           </div>
         ) : null}
 
-        <div className={large ? "space-y-3" : "flex items-end gap-3"}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(event) =>
+            setInput(event.target.value)
+          }
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey
+            ) {
+              event.preventDefault();
 
-                if (canSend) {
-                  void sendMessage();
-                }
+              if (canSend) {
+                void sendMessage();
               }
-            }}
-            placeholder={
-              selectedImage ? "Ask about this image..." : "Message StudySnap AI"
             }
-            rows={large ? 3 : 1}
-            className={
-              large
-                ? "min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 text-lg font-semibold text-white outline-none placeholder:text-slate-500 focus:border-yellow-300/35"
-                : "max-h-40 min-h-12 w-full resize-none bg-transparent px-3 py-3 text-base font-semibold text-white outline-none placeholder:text-slate-500"
-            }
-          />
+          }}
+          placeholder={
+            selectedImage
+              ? "Ask about this image..."
+              : "Message StudySnap AI"
+          }
+          rows={large ? 4 : 2}
+          className={`w-full resize-none bg-transparent px-3 py-3 font-semibold text-white outline-none placeholder:text-slate-500 ${
+            large
+              ? "min-h-32 text-lg"
+              : "max-h-40 min-h-16 text-sm"
+          }`}
+        />
 
-          <div
-            className={
-              large
-                ? "flex items-center justify-between gap-3"
-                : "flex shrink-0 items-center gap-2"
-            }
-          >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.05] text-xl font-black text-slate-300 transition hover:bg-white/[0.1]"
+              onClick={() =>
+                fileInputRef.current?.click()
+              }
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-300 hover:bg-white/[0.1]"
               title="Upload image"
             >
               ＋
             </button>
 
-            {(input.trim().length > 0 || selectedImage !== null) ? (
+            {(input.trim() ||
+              selectedImage) ? (
               <button
                 type="button"
                 onClick={clearComposer}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-black text-slate-300 transition hover:bg-white/[0.1]"
+                className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-400 hover:bg-white/[0.08] hover:text-white"
               >
                 Clear
               </button>
             ) : null}
+          </div>
 
-            {large ? (
-              <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-4 py-2 text-xs font-black text-yellow-100">
-                Image + text ready
-              </span>
-            ) : null}
+          <div className="flex items-center gap-3">
+            <p className="hidden text-[11px] text-slate-500 sm:block">
+              Enter sends · Shift + Enter adds a line
+            </p>
 
             <button
               type="submit"
               disabled={!canSend}
-              className="grid h-11 w-11 place-items-center rounded-2xl bg-yellow-300 text-xl font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
+              className="grid h-10 w-10 place-items-center rounded-xl bg-yellow-300 text-lg font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
               title="Send"
             >
               ↑
             </button>
           </div>
         </div>
-
-        {!large ? (
-          <p className="mt-2 text-center text-xs font-semibold text-slate-500">
-            Enter sends • Shift + Enter makes a new line • Space and typing work normally.
-          </p>
-        ) : null}
       </form>
     );
   }
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.10),rgba(8,17,29,0.92))] p-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
-              StudySnap General AI
-            </p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">
-              What can I help you with?
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Ask anything, upload an image, create practice questions, brainstorm, or get help explaining a topic.
-            </p>
+    <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <StudyTrailPanel
+        trails={trails}
+        activeTrailId={activeConversationId}
+        loading={loadingTrails}
+        search={trailSearch}
+        title="Study Trail"
+        emptyMessage="Ask your first question to begin a learning journey."
+        onSearchChange={setTrailSearch}
+        onSelect={(trail) =>
+          void selectTrail(trail)
+        }
+        onNew={startNewTrail}
+        onRename={(trail) =>
+          void renameTrail(trail)
+        }
+        onDelete={(trail) =>
+          void deleteTrail(trail)
+        }
+        onTogglePin={(trail) =>
+          void togglePinTrail(trail)
+        }
+      />
+
+      <div className="min-w-0 space-y-4">
+        <header className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.11),rgba(8,17,29,0.94))] p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
+                StudySnap General AI
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
+                {activeTrail?.title ||
+                  "Start a new learning trail"}
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                Ask anything naturally. StudySnap remembers this conversation while keeping room and learning memory separate.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={startNewTrail}
+              className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+            >
+              New Trail
+            </button>
           </div>
+        </header>
 
-          <button
-            type="button"
-            onClick={startNewChat}
-            className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
-          >
-            New Chat
-          </button>
-        </div>
+        {!hasMessages &&
+        !loadingMessages ? (
+          <div className="rounded-[1.7rem] border border-white/10 bg-[#08111d]/88 p-5">
+            <div className="mx-auto max-w-4xl py-6 text-center">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-yellow-300/20 bg-yellow-300/10 text-3xl">
+                ✦
+              </div>
 
-        {!hasMessages ? (
-          <>
+              <h3 className="mt-4 text-3xl font-black text-white">
+                What are we learning today?
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Continue an old trail or begin a fresh conversation. Typos, shorthand, images, and follow-up questions are welcome.
+              </p>
+            </div>
+
             {renderComposer(true)}
 
-            <div className="mx-auto mt-4 flex max-w-5xl flex-wrap justify-center gap-2">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               {suggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
-                  onClick={() => void sendMessage(suggestion)}
-                  className="rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-slate-300 shadow-xl transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-white"
+                  onClick={() =>
+                    void sendMessage(suggestion)
+                  }
+                  disabled={loading}
+                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-white disabled:opacity-50"
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
-          </>
-        ) : null}
-      </div>
-
-      {hasMessages ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="max-h-[62vh] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#08111d]/90 p-4">
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={
-                  message.role === "user"
-                    ? "ml-auto max-w-[82%] rounded-[1.4rem] bg-yellow-300 px-4 py-3 text-slate-950"
-                    : "mr-auto max-w-[90%] rounded-[1.4rem] border border-white/10 bg-white/[0.06] px-4 py-3 text-slate-100"
-                }
-              >
-                {message.imagePreview ? (
-                  <img
-                    src={message.imagePreview}
-                    alt={message.imageName || "Uploaded image"}
-                    className="mb-3 max-h-72 rounded-2xl object-contain"
-                  />
-                ) : null}
-
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] opacity-70">
-                    {message.role === "user" ? "You" : "StudySnap AI"}
-                  </p>
-
-                  {message.role === "assistant" ? (
-                    <button
-                      type="button"
-                      onClick={() => void copyMessage(message)}
-                      className="rounded-full border border-white/10 px-3 py-1 text-xs font-black text-slate-300 transition hover:bg-white/[0.08]"
-                    >
-                      {copiedId === message.id ? "Copied" : "Copy"}
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="whitespace-pre-wrap text-sm leading-6">
-                  {message.content}
-                </div>
-              </article>
-            ))}
-
-            {loading ? (
-              <article className="mr-auto max-w-[90%] rounded-[1.4rem] border border-white/10 bg-white/[0.06] px-4 py-3">
-                <p className="text-sm font-bold text-slate-300">
-                  StudySnap AI is thinking...
-                </p>
-              </article>
-            ) : null}
-
-            {error ? (
-              <article className="mr-auto max-w-[90%] rounded-[1.4rem] border border-red-400/25 bg-red-500/10 px-5 py-4">
-                <p className="text-sm font-bold text-red-100">{error}</p>
-              </article>
-            ) : null}
-
-            <div ref={bottomRef} />
           </div>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_290px]">
+            <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#08111d]/90 p-4">
+              {loadingMessages ? (
+                <p className="py-12 text-center text-sm font-bold text-slate-400">
+                  Opening Study Trail...
+                </p>
+              ) : null}
 
-          <aside className="space-y-4">
-            <div className="rounded-[1.5rem] border border-yellow-300/15 bg-yellow-300/10 p-3">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
-                Smart Tools
-              </p>
-              <div className="mt-3 grid gap-2">
-                {suggestions.slice(0, 4).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void sendMessage(suggestion)}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-yellow-300/10"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
+              {messages.map((message) => (
+                <article
+                  key={message.id}
+                  className={
+                    message.role === "user"
+                      ? "ml-auto max-w-[84%] rounded-[1.35rem] bg-yellow-300 px-4 py-3 text-slate-950"
+                      : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/10 bg-white/[0.055] px-4 py-3 text-slate-100"
+                  }
+                >
+                  {message.imagePreview ? (
+                    <img
+                      src={message.imagePreview}
+                      alt={
+                        message.imageName ||
+                        "Uploaded image"
+                      }
+                      className="mb-3 max-h-72 rounded-2xl object-contain"
+                    />
+                  ) : null}
+
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">
+                      {message.role === "user"
+                        ? "You"
+                        : "StudySnap AI"}
+                    </p>
+
+                    {message.role ===
+                    "assistant" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void copyMessage(message)
+                        }
+                        className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
+                      >
+                        {copiedId === message.id
+                          ? "Copied"
+                          : "Copy"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {message.role ===
+                  "assistant" ? (
+                    <SimpleMarkdown
+                      content={message.content}
+                      className="text-sm leading-7"
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap text-sm leading-6">
+                      {message.content}
+                    </div>
+                  )}
+                </article>
+              ))}
+
+              <div ref={bottomRef} />
             </div>
 
-            {renderComposer(false)}
-          </aside>
-        </div>
-      ) : null}
+            <aside className="space-y-4">
+              <div className="rounded-[1.4rem] border border-yellow-300/15 bg-yellow-300/10 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                  Continue the flow
+                </p>
+
+                <div className="mt-3 grid gap-2">
+                  {suggestions
+                    .slice(0, 4)
+                    .map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() =>
+                          void sendMessage(
+                            suggestion
+                          )
+                        }
+                        disabled={loading}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-yellow-300/10 disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {renderComposer(false)}
+            </aside>
+          </div>
+        )}
+
+        {error ? (
+          <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-100">
+            {error}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

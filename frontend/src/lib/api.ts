@@ -198,39 +198,157 @@ export async function generateLesson(question: string, context?: string) {
   });
 }
 
+export type AIConversationSurface =
+  | "general_ai"
+  | "room_ai"
+  | "pdf_ai"
+  | "notes_ai"
+  | "quiz_ai"
+  | "concept_cards_ai"
+  | "brain"
+  | "planner_ai"
+  | "smart_organizer"
+  | "voice_ai";
+
+export type AIConversation = {
+  id: number;
+  title: string;
+  mode: string;
+  surface: AIConversationSurface;
+  study_room_id: number | null;
+  context_type: string | null;
+  context_id: number | null;
+  is_pinned: boolean;
+  owner_id: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIMessage = {
+  id: number;
+  conversation_id: number;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+};
+
+export type CreateAIConversationOptions = {
+  studyRoomId?: number | null;
+  title?: string;
+  mode?: string;
+  surface?: AIConversationSurface;
+  contextType?: string | null;
+  contextId?: number | null;
+  forceNew?: boolean;
+};
+
 export async function createAIConversation(
-  studyRoomId: number,
+  studyRoomIdOrOptions: number | CreateAIConversationOptions | null,
   title = "New Conversation",
   conversationMode = "general"
-) {
+): Promise<AIConversation> {
+  const options: CreateAIConversationOptions =
+    typeof studyRoomIdOrOptions === "object" &&
+    studyRoomIdOrOptions !== null
+      ? studyRoomIdOrOptions
+      : {
+          studyRoomId: studyRoomIdOrOptions,
+          title,
+          mode: conversationMode,
+          surface:
+            conversationMode === "pdf"
+              ? "pdf_ai"
+              : "room_ai",
+        };
+
   return apiFetch("/api/ai/conversations", {
     method: "POST",
     body: JSON.stringify({
-      study_room_id: studyRoomId,
-      title,
-      mode: conversationMode,
+      study_room_id:
+        typeof options.studyRoomId === "number"
+          ? options.studyRoomId
+          : null,
+      title: options.title || "New Conversation",
+      mode: options.mode || "general",
+      surface: options.surface || "general_ai",
+      context_type: options.contextType || null,
+      context_id:
+        typeof options.contextId === "number"
+          ? options.contextId
+          : null,
+      force_new: Boolean(options.forceNew),
     }),
-  });
+  }) as Promise<AIConversation>;
+}
+
+export async function getStudyTrails(
+  surface?: AIConversationSurface,
+  search = "",
+  limit = 100
+): Promise<AIConversation[]> {
+  const params = new URLSearchParams();
+
+  if (surface) {
+    params.set("surface", surface);
+  }
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  params.set("limit", String(limit));
+
+  return apiFetch(
+    `/api/ai/trails?${params.toString()}`
+  ) as Promise<AIConversation[]>;
 }
 
 export async function getAIConversations(
   studyRoomId: number,
-  conversationMode = "general"
-) {
+  conversationMode = "general",
+  surface?: AIConversationSurface
+): Promise<AIConversation[]> {
+  const params = new URLSearchParams();
+  params.set("mode", conversationMode);
+
+  if (surface) {
+    params.set("surface", surface);
+  }
+
   return apiFetch(
-    `/api/ai/conversations/${studyRoomId}?mode=${encodeURIComponent(
-      conversationMode
-    )}`
-  );
+    `/api/ai/conversations/${studyRoomId}?${params.toString()}`
+  ) as Promise<AIConversation[]>;
+}
+
+export async function updateAIConversation(
+  conversationId: number,
+  updates: {
+    title?: string;
+    isPinned?: boolean;
+  }
+): Promise<AIConversation> {
+  return apiFetch(`/api/ai/conversations/${conversationId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: updates.title,
+      is_pinned: updates.isPinned,
+    }),
+  }) as Promise<AIConversation>;
 }
 
 export async function renameAIConversation(
   conversationId: number,
   title: string
-) {
-  return apiFetch(`/api/ai/conversations/${conversationId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ title }),
+): Promise<AIConversation> {
+  return updateAIConversation(conversationId, { title });
+}
+
+export async function pinAIConversation(
+  conversationId: number,
+  isPinned: boolean
+): Promise<AIConversation> {
+  return updateAIConversation(conversationId, {
+    isPinned,
   });
 }
 
@@ -240,14 +358,19 @@ export async function deleteAIConversation(conversationId: number) {
   });
 }
 
-export async function getAIMessages(conversationId: number) {
-  return apiFetch(`/api/ai/messages/${conversationId}`);
+export async function getAIMessages(
+  conversationId: number
+): Promise<AIMessage[]> {
+  return apiFetch(
+    `/api/ai/messages/${conversationId}`
+  ) as Promise<AIMessage[]>;
 }
 
 export async function sendAIMessage(
   conversationId: number,
   content: string,
-  mode = "explain"
+  mode = "explain",
+  context = ""
 ) {
   return apiFetch("/api/ai/messages", {
     method: "POST",
@@ -255,6 +378,22 @@ export async function sendAIMessage(
       conversation_id: conversationId,
       content,
       mode,
+      context,
+    }),
+  });
+}
+
+export async function recordAIConversationExchange(
+  conversationId: number,
+  userContent: string,
+  assistantContent: string
+) {
+  return apiFetch("/api/ai/messages/record", {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      user_content: userContent,
+      assistant_content: assistantContent,
     }),
   });
 }
@@ -263,7 +402,8 @@ export async function streamAIMessage(
   conversationId: number,
   content: string,
   mode = "explain",
-  onToken: (token: string) => void
+  onToken: (token: string) => void,
+  context = ""
 ) {
   const token = getToken();
 
@@ -281,6 +421,7 @@ export async function streamAIMessage(
       conversation_id: conversationId,
       content,
       mode,
+      context,
     }),
   });
 

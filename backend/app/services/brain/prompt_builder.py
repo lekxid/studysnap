@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.services.intent_understanding import get_intent_understanding_instructions
+
 
 @dataclass
 class BrainPrompt:
@@ -117,7 +119,7 @@ Rules:
 5. Use the Brain Coach recommendation only if it clearly matches the student's current question or retrieved context.
 6. If the Brain Coach recommendation is unrelated, ignore it and suggest a next action based on the retrieved context instead.
 7. Do not invent sources or pretend the retrieved context says something it does not say.
-""".strip()
+""".strip() + "\n\n" + get_intent_understanding_instructions()
 
     user_prompt = f"""
 Student Question:

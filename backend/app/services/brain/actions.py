@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+
+from app.services.intent_understanding import normalize_action_command
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -139,7 +141,7 @@ def detect_action_intent(command: str) -> ParsedAction | None:
     This prevents normal learning questions from accidentally modifying user data.
     """
 
-    clean_command = (command or "").strip()
+    clean_command = normalize_action_command(command)
     lower_command = clean_command.lower()
 
     if lower_command in SAVE_LAST_ANSWER_COMMANDS:
