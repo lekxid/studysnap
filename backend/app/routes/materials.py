@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 import re
 import uuid
@@ -24,6 +25,8 @@ from app.utils.deps import get_current_user
 
 
 router = APIRouter(tags=["Universal Materials"])
+
+logger = logging.getLogger(__name__)
 
 UPLOAD_ROOT = Path("uploads/materials")
 QUARANTINE_ROOT = Path("uploads/quarantine")
@@ -403,6 +406,7 @@ async def upload_material(
     temp_directory.mkdir(parents=True, exist_ok=True)
 
     temp_path = temp_directory / f"{uuid.uuid4()}.upload"
+    final_path: Path | None = None
 
     size = 0
     captured = bytearray()
@@ -526,8 +530,18 @@ async def upload_material(
     except Exception:
         db.rollback()
 
+        logger.exception(
+            "Universal upload failed for user_id=%s room_id=%s filename=%s",
+            current_user.id,
+            study_room_id,
+            original_filename,
+        )
+
         if temp_path.exists():
             temp_path.unlink(missing_ok=True)
+
+        if final_path is not None and final_path.exists():
+            final_path.unlink(missing_ok=True)
 
         raise HTTPException(
             status_code=500,
