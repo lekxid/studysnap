@@ -44,3 +44,5 @@ backend/uploads/**
 *.backup
 *.backup-*
 *.orig
+
+uploads/

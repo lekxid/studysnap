@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
@@ -11,7 +19,10 @@ import {
   PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-import { getStudyRooms, signOutCurrentSession } from "@/lib/api";
+import {
+  getStudyRooms,
+  signOutCurrentSession,
+} from "@/lib/api";
 
 type NavItem = {
   href: string;
@@ -25,8 +36,16 @@ type RoomSummary = {
 };
 
 const primaryNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Home", icon: "⌂" },
-  { href: "/study-rooms", label: "Study Rooms", icon: "📁" },
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: "⌂",
+  },
+  {
+    href: "/study-rooms",
+    label: "Study Rooms",
+    icon: "📁",
+  },
   {
     href: "/study-rooms/organize",
     label: "Smart Organizer",
@@ -35,18 +54,54 @@ const primaryNavItems: NavItem[] = [
 ];
 
 const studyToolNavItems: NavItem[] = [
-  { href: "/notes", label: "Notes", icon: "▣" },
-  { href: "/flashcards", label: "Concept Cards", icon: "◫" },
-  { href: "/quizzes", label: "Quizzes", icon: "▤" },
-  { href: "/planner", label: "Planner", icon: "◷" },
-  { href: "/progress", label: "Progress", icon: "▲" },
-  { href: "/ai-tutor", label: "AI Tutor", icon: "✦" },
+  {
+    href: "/notes",
+    label: "Notes",
+    icon: "▣",
+  },
+  {
+    href: "/flashcards",
+    label: "Concept Cards",
+    icon: "◫",
+  },
+  {
+    href: "/quizzes",
+    label: "Quizzes",
+    icon: "▤",
+  },
+  {
+    href: "/planner",
+    label: "Planner",
+    icon: "◷",
+  },
+  {
+    href: "/progress",
+    label: "Progress",
+    icon: "▲",
+  },
+  {
+    href: "/ai-tutor",
+    label: "AI Tutor",
+    icon: "✦",
+  },
 ];
 
 const moreNavItems: NavItem[] = [
-  { href: "/onboarding", label: "Learning Setup", icon: "◎" },
-  { href: "/brain", label: "AI Memory", icon: "🧠" },
-  { href: "/groups", label: "Study Groups", icon: "👥" },
+  {
+    href: "/onboarding",
+    label: "Learning Setup",
+    icon: "◎",
+  },
+  {
+    href: "/brain",
+    label: "AI Memory",
+    icon: "🧠",
+  },
+  {
+    href: "/groups",
+    label: "Study Groups",
+    icon: "👥",
+  },
 ];
 
 const projectAwareNavHrefs = new Set([
@@ -56,43 +111,99 @@ const projectAwareNavHrefs = new Set([
   "/planner",
 ]);
 
-function isNavItemActive(pathname: string, href: string) {
+function isNavItemActive(
+  pathname: string,
+  href: string
+) {
   if (href === "/study-rooms") {
-    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
+    return (
+      pathname === "/study-rooms" ||
+      /^\/study-rooms\/\d+/.test(pathname)
+    );
   }
 
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    pathname === href ||
+    pathname.startsWith(`${href}/`)
+  );
 }
 
-function isAnyNavItemActive(pathname: string, items: NavItem[]) {
-  return items.some((item) => isNavItemActive(pathname, item.href));
+function isAnyNavItemActive(
+  pathname: string,
+  items: NavItem[]
+) {
+  return items.some((item) =>
+    isNavItemActive(pathname, item.href)
+  );
 }
 
-function getRoomIdFromStudyRoomPath(pathname: string) {
-  const match = pathname.match(/^\/study-rooms\/(\d+)/);
+function getRoomIdFromStudyRoomPath(
+  pathname: string
+) {
+  const match = pathname.match(
+    /^\/study-rooms\/(\d+)/
+  );
+
   const roomId = Number(match?.[1]);
 
-  return Number.isFinite(roomId) && roomId > 0 ? roomId : null;
+  return Number.isFinite(roomId) &&
+    roomId > 0
+    ? roomId
+    : null;
 }
 
 function getPageKicker(pathname: string) {
-  if (pathname.startsWith("/study-rooms")) return "StudySnap Projects";
-  if (pathname.startsWith("/notes")) return "Connected Notes";
-  if (pathname.startsWith("/flashcards")) return "Concept Cards";
-  if (pathname.startsWith("/quizzes")) return "Exam Practice";
-  if (pathname.startsWith("/planner")) return "Study Planning";
-  if (pathname.startsWith("/progress")) return "Learning Analytics";
-  if (pathname.startsWith("/brain")) return "AI Memory";
-  if (pathname.startsWith("/groups")) return "Study Together";
-  if (pathname.startsWith("/settings")) return "Workspace Settings";
-  if (pathname.startsWith("/ai-tutor")) return "AI Tutor";
-  if (pathname.startsWith("/onboarding")) return "Learning Setup";
+  if (pathname.startsWith("/study-rooms")) {
+    return "StudySnap Projects";
+  }
+
+  if (pathname.startsWith("/notes")) {
+    return "Connected Notes";
+  }
+
+  if (pathname.startsWith("/flashcards")) {
+    return "Concept Cards";
+  }
+
+  if (pathname.startsWith("/quizzes")) {
+    return "Exam Practice";
+  }
+
+  if (pathname.startsWith("/planner")) {
+    return "Study Planning";
+  }
+
+  if (pathname.startsWith("/progress")) {
+    return "Learning Analytics";
+  }
+
+  if (pathname.startsWith("/brain")) {
+    return "AI Memory";
+  }
+
+  if (pathname.startsWith("/groups")) {
+    return "Study Together";
+  }
+
+  if (pathname.startsWith("/settings")) {
+    return "Workspace Settings";
+  }
+
+  if (pathname.startsWith("/ai-tutor")) {
+    return "AI Tutor";
+  }
+
+  if (pathname.startsWith("/onboarding")) {
+    return "Learning Setup";
+  }
 
   return "Focus Mode";
 }
 
 function getStoredUserName() {
-  if (typeof window === "undefined") return "StudySnap Learner";
+  if (typeof window === "undefined") {
+    return "StudySnap Learner";
+  }
 
   try {
     const possibleKeys = [
@@ -103,24 +214,34 @@ function getStoredUserName() {
     ];
 
     for (const key of possibleKeys) {
-      const raw = localStorage.getItem(key);
+      const raw =
+        localStorage.getItem(key);
 
       if (!raw) continue;
 
       const parsed = JSON.parse(raw);
 
       if (
-        typeof parsed?.full_name === "string" &&
+        typeof parsed?.full_name ===
+          "string" &&
         parsed.full_name.trim()
       ) {
         return parsed.full_name.trim();
       }
 
-      if (typeof parsed?.name === "string" && parsed.name.trim()) {
+      if (
+        typeof parsed?.name ===
+          "string" &&
+        parsed.name.trim()
+      ) {
         return parsed.name.trim();
       }
 
-      if (typeof parsed?.email === "string" && parsed.email.trim()) {
+      if (
+        typeof parsed?.email ===
+          "string" &&
+        parsed.email.trim()
+      ) {
         return parsed.email.trim();
       }
     }
@@ -137,11 +258,15 @@ function getInitials(name: string) {
     .map((part) => part.trim())
     .filter(Boolean);
 
-  if (parts.length === 0) return "S";
+  if (parts.length === 0) {
+    return "S";
+  }
 
   return parts
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
+    .map((part) =>
+      part[0]?.toUpperCase()
+    )
     .join("");
 }
 
@@ -157,26 +282,83 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [roomMenuOpen, setRoomMenuOpen] = useState(false);
-  const [studyToolsOpen, setStudyToolsOpen] = useState(() =>
-    isAnyNavItemActive(pathname, studyToolNavItems)
-  );
-  const [moreOpen, setMoreOpen] = useState(() =>
-    isAnyNavItemActive(pathname, moreNavItems)
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
+
+  const [
+    desktopSidebarOpen,
+    setDesktopSidebarOpen,
+  ] = useState(true);
+
+  const [
+    roomMenuOpen,
+    setRoomMenuOpen,
+  ] = useState(false);
+
+  const [
+    studyToolsOpen,
+    setStudyToolsOpen,
+  ] = useState(() =>
+    isAnyNavItemActive(
+      pathname,
+      studyToolNavItems
+    )
   );
 
-  const [activeProjectRoomId, setActiveProjectRoomId] = useState<
-    number | null
-  >(null);
+  const [moreOpen, setMoreOpen] =
+    useState(() =>
+      isAnyNavItemActive(
+        pathname,
+        moreNavItems
+      )
+    );
 
-  const [studyRooms, setStudyRooms] = useState<RoomSummary[]>([]);
-  const [roomsLoading, setRoomsLoading] = useState(true);
-  const [roomsError, setRoomsError] = useState("");
-  const [learnerName, setLearnerName] = useState("StudySnap Learner");
+  const [
+    activeProjectRoomId,
+    setActiveProjectRoomId,
+  ] = useState<number | null>(null);
+
+  const [
+    studyRooms,
+    setStudyRooms,
+  ] = useState<RoomSummary[]>([]);
+
+  const [
+    roomsLoading,
+    setRoomsLoading,
+  ] = useState(true);
+
+  const [roomsError, setRoomsError] =
+    useState("");
+
+  const [
+    learnerName,
+    setLearnerName,
+  ] = useState(
+    "StudySnap Learner"
+  );
 
   useEffect(() => {
-    setLearnerName(getStoredUserName());
+    const savedSidebarState =
+      window.localStorage.getItem(
+        "studysnap:desktop-sidebar-open"
+      );
+
+    if (
+      savedSidebarState !== null
+    ) {
+      setDesktopSidebarOpen(
+        savedSidebarState !== "false"
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    setLearnerName(
+      getStoredUserName()
+    );
   }, []);
 
   useEffect(() => {
@@ -187,19 +369,24 @@ export default function AppShell({
         setRoomsLoading(true);
         setRoomsError("");
 
-        const rooms = await getStudyRooms();
+        const rooms =
+          await getStudyRooms();
 
         if (cancelled) return;
 
         setStudyRooms(
           rooms.map((room) => ({
             id: room.id,
-            name: room.name?.trim() || `Room #${room.id}`,
+            name:
+              room.name?.trim() ||
+              `Room #${room.id}`,
           }))
         );
       } catch {
         if (!cancelled) {
-          setRoomsError("Rooms could not be loaded.");
+          setRoomsError(
+            "Rooms could not be loaded."
+          );
         }
       } finally {
         if (!cancelled) {
@@ -216,20 +403,43 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
-    const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
+    const roomIdFromPath =
+      getRoomIdFromStudyRoomPath(
+        pathname
+      );
 
-    if (roomIdFromPath !== null) {
-      const savedRoomId = saveProjectRoomId(roomIdFromPath);
-      setActiveProjectRoomId(savedRoomId);
+    if (
+      roomIdFromPath !== null
+    ) {
+      const savedRoomId =
+        saveProjectRoomId(
+          roomIdFromPath
+        );
+
+      setActiveProjectRoomId(
+        savedRoomId
+      );
     } else {
-      setActiveProjectRoomId(getSavedProjectRoomId());
+      setActiveProjectRoomId(
+        getSavedProjectRoomId()
+      );
     }
 
-    if (isAnyNavItemActive(pathname, studyToolNavItems)) {
+    if (
+      isAnyNavItemActive(
+        pathname,
+        studyToolNavItems
+      )
+    ) {
       setStudyToolsOpen(true);
     }
 
-    if (isAnyNavItemActive(pathname, moreNavItems)) {
+    if (
+      isAnyNavItemActive(
+        pathname,
+        moreNavItems
+      )
+    ) {
       setMoreOpen(true);
     }
 
@@ -237,12 +447,21 @@ export default function AppShell({
   }, [pathname]);
 
   useEffect(() => {
-    function handleProjectRoomChanged(event: Event) {
-      const roomEvent = event as CustomEvent<{ roomId?: number }>;
-      const nextRoomId =
-        roomEvent.detail?.roomId ?? getSavedProjectRoomId();
+    function handleProjectRoomChanged(
+      event: Event
+    ) {
+      const roomEvent =
+        event as CustomEvent<{
+          roomId?: number;
+        }>;
 
-      setActiveProjectRoomId(nextRoomId);
+      const nextRoomId =
+        roomEvent.detail?.roomId ??
+        getSavedProjectRoomId();
+
+      setActiveProjectRoomId(
+        nextRoomId
+      );
     }
 
     window.addEventListener(
@@ -258,32 +477,57 @@ export default function AppShell({
     };
   }, []);
 
-  const learnerInitials = useMemo(() => {
-    return getInitials(learnerName);
-  }, [learnerName]);
+  const learnerInitials =
+    useMemo(() => {
+      return getInitials(
+        learnerName
+      );
+    }, [learnerName]);
 
   const activeRoom = useMemo(() => {
-    if (activeProjectRoomId === null) return null;
+    if (
+      activeProjectRoomId === null
+    ) {
+      return null;
+    }
 
     return (
-      studyRooms.find((room) => room.id === activeProjectRoomId) ?? null
+      studyRooms.find(
+        (room) =>
+          room.id ===
+          activeProjectRoomId
+      ) ?? null
     );
-  }, [activeProjectRoomId, studyRooms]);
+  }, [
+    activeProjectRoomId,
+    studyRooms,
+  ]);
 
   const recentRooms = useMemo(() => {
-    const currentRoom = studyRooms.find(
-      (room) => room.id === activeProjectRoomId
-    );
+    const currentRoom =
+      studyRooms.find(
+        (room) =>
+          room.id ===
+          activeProjectRoomId
+      );
 
-    const otherRooms = studyRooms.filter(
-      (room) => room.id !== activeProjectRoomId
-    );
+    const otherRooms =
+      studyRooms.filter(
+        (room) =>
+          room.id !==
+          activeProjectRoomId
+      );
 
     return [
-      ...(currentRoom ? [currentRoom] : []),
+      ...(currentRoom
+        ? [currentRoom]
+        : []),
       ...otherRooms,
     ].slice(0, 6);
-  }, [activeProjectRoomId, studyRooms]);
+  }, [
+    activeProjectRoomId,
+    studyRooms,
+  ]);
 
   const currentRoomLabel =
     activeRoom?.name ||
@@ -291,9 +535,13 @@ export default function AppShell({
       ? `Room #${activeProjectRoomId}`
       : "Choose a study room");
 
-  function getConnectedHref(href: string) {
+  function getConnectedHref(
+    href: string
+  ) {
     if (
-      !projectAwareNavHrefs.has(href) ||
+      !projectAwareNavHrefs.has(
+        href
+      ) ||
       activeProjectRoomId === null
     ) {
       return href;
@@ -302,32 +550,80 @@ export default function AppShell({
     return `${href}?roomId=${activeProjectRoomId}`;
   }
 
-  function handleChooseRoom(room: RoomSummary) {
-    const savedRoomId = saveProjectRoomId(room.id);
+  function handleChooseRoom(
+    room: RoomSummary
+  ) {
+    const savedRoomId =
+      saveProjectRoomId(room.id);
 
-    setActiveProjectRoomId(savedRoomId);
+    setActiveProjectRoomId(
+      savedRoomId
+    );
+
     setRoomMenuOpen(false);
     setMobileMenuOpen(false);
-    router.push(`/study-rooms/${room.id}`);
+
+    router.push(
+      `/study-rooms/${room.id}`
+    );
   }
 
   async function handleLogout() {
     await signOutCurrentSession();
+
     router.push("/login");
   }
 
-  function renderNavItems(items: NavItem[], closeMobile = false) {
+  function toggleDesktopSidebar() {
+    setDesktopSidebarOpen(
+      (current) => {
+        const next = !current;
+
+        window.localStorage.setItem(
+          "studysnap:desktop-sidebar-open",
+          String(next)
+        );
+
+        if (!next) {
+          setRoomMenuOpen(false);
+        }
+
+        return next;
+      }
+    );
+  }
+
+  function renderNavItems(
+    items: NavItem[],
+    closeMobile = false
+  ) {
     return items.map((item) => {
-      const active = isNavItemActive(pathname, item.href);
-      const connectedHref = getConnectedHref(item.href);
+      const active =
+        isNavItemActive(
+          pathname,
+          item.href
+        );
+
+      const connectedHref =
+        getConnectedHref(
+          item.href
+        );
 
       return (
         <Link
           key={item.href}
           href={connectedHref}
-          aria-current={active ? "page" : undefined}
+          aria-current={
+            active
+              ? "page"
+              : undefined
+          }
           onClick={() => {
-            if (closeMobile) setMobileMenuOpen(false);
+            if (closeMobile) {
+              setMobileMenuOpen(
+                false
+              );
+            }
           }}
           className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
             active
@@ -345,7 +641,9 @@ export default function AppShell({
             {item.icon}
           </span>
 
-          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          <span className="min-w-0 flex-1 truncate">
+            {item.label}
+          </span>
         </Link>
       );
     });
@@ -366,7 +664,11 @@ export default function AppShell({
     onToggle: () => void;
     closeMobile?: boolean;
   }) {
-    const sectionActive = isAnyNavItemActive(pathname, items);
+    const sectionActive =
+      isAnyNavItemActive(
+        pathname,
+        items
+      );
 
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-1.5">
@@ -384,11 +686,15 @@ export default function AppShell({
             {icon}
           </span>
 
-          <span className="min-w-0 flex-1">{sectionTitle}</span>
+          <span className="min-w-0 flex-1">
+            {sectionTitle}
+          </span>
 
           <span
             className={`text-xs transition-transform ${
-              open ? "rotate-180" : ""
+              open
+                ? "rotate-180"
+                : ""
             }`}
           >
             ▾
@@ -397,7 +703,10 @@ export default function AppShell({
 
         {open ? (
           <div className="mt-1 space-y-1">
-            {renderNavItems(items, closeMobile)}
+            {renderNavItems(
+              items,
+              closeMobile
+            )}
           </div>
         ) : null}
       </div>
@@ -406,21 +715,59 @@ export default function AppShell({
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#05080d] text-white">
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-hidden border-r border-white/10 bg-[#061018] px-4 py-5 lg:flex lg:flex-col">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
-          <span className="text-4xl text-yellow-300">★</span>
+      <aside
+        className={`fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-hidden border-r border-white/10 bg-[#061018] px-4 py-5 transition-transform duration-300 lg:flex lg:flex-col ${
+          desktopSidebarOpen
+            ? "lg:translate-x-0"
+            : "lg:-translate-x-full"
+        }`}
+        aria-hidden={
+          !desktopSidebarOpen
+        }
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3">
+          <Link
+            href="/dashboard"
+            className="flex min-w-0 items-center gap-3"
+          >
+            <span className="text-4xl text-yellow-300">
+              ★
+            </span>
 
-          <span className="text-2xl font-black tracking-tight text-white">
-            StudySnap <span className="text-yellow-300">AI</span>
-          </span>
-        </Link>
+            <span className="truncate text-2xl font-black tracking-tight text-white">
+              StudySnap{" "}
+              <span className="text-yellow-300">
+                AI
+              </span>
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={
+              toggleDesktopSidebar
+            }
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm font-black text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
+            aria-label="Close sidebar"
+            title="Close sidebar"
+          >
+            ←
+          </button>
+        </div>
 
         <div className="relative mt-5 shrink-0">
           <button
             type="button"
-            aria-expanded={roomMenuOpen}
+            aria-expanded={
+              roomMenuOpen
+            }
             aria-haspopup="menu"
-            onClick={() => setRoomMenuOpen((current) => !current)}
+            onClick={() =>
+              setRoomMenuOpen(
+                (current) =>
+                  !current
+              )
+            }
             className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-yellow-300/25 hover:bg-white/[0.06]"
           >
             <div className="flex items-center justify-between gap-3">
@@ -442,7 +789,9 @@ export default function AppShell({
 
               <span
                 className={`shrink-0 text-sm text-slate-400 transition-transform ${
-                  roomMenuOpen ? "rotate-180" : ""
+                  roomMenuOpen
+                    ? "rotate-180"
+                    : ""
                 }`}
               >
                 ▾
@@ -461,7 +810,8 @@ export default function AppShell({
 
               {roomsLoading ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
-                  Loading your rooms...
+                  Loading your
+                  rooms...
                 </p>
               ) : roomsError ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-red-200">
@@ -469,39 +819,55 @@ export default function AppShell({
                 </p>
               ) : recentRooms.length ? (
                 <div className="space-y-1">
-                  {recentRooms.map((room) => {
-                    const selected = room.id === activeProjectRoomId;
+                  {recentRooms.map(
+                    (room) => {
+                      const selected =
+                        room.id ===
+                        activeProjectRoomId;
 
-                    return (
-                      <button
-                        key={room.id}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => handleChooseRoom(room)}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
-                          selected
-                            ? "bg-yellow-300 text-black"
-                            : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
-                        }`}
-                      >
-                        <span
-                          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                      return (
+                        <button
+                          key={
+                            room.id
+                          }
+                          type="button"
+                          role="menuitem"
+                          onClick={() =>
+                            handleChooseRoom(
+                              room
+                            )
+                          }
+                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
                             selected
-                              ? "bg-black/15"
-                              : "bg-white/[0.06]"
+                              ? "bg-yellow-300 text-black"
+                              : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
                           }`}
                         >
-                          📚
-                        </span>
+                          <span
+                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                              selected
+                                ? "bg-black/15"
+                                : "bg-white/[0.06]"
+                            }`}
+                          >
+                            📚
+                          </span>
 
-                        <span className="min-w-0 flex-1 truncate">
-                          {room.name}
-                        </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {
+                              room.name
+                            }
+                          </span>
 
-                        {selected ? <span>✓</span> : null}
-                      </button>
-                    );
-                  })}
+                          {selected ? (
+                            <span>
+                              ✓
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    }
+                  )}
                 </div>
               ) : (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
@@ -512,10 +878,15 @@ export default function AppShell({
               <div className="mt-2 border-t border-white/10 pt-2">
                 <Link
                   href="/study-rooms"
-                  onClick={() => setRoomMenuOpen(false)}
+                  onClick={() =>
+                    setRoomMenuOpen(
+                      false
+                    )
+                  }
                   className="flex items-center justify-center rounded-xl bg-white/[0.06] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.1]"
                 >
-                  View all study rooms →
+                  View all study
+                  rooms →
                 </Link>
               </div>
             </div>
@@ -524,17 +895,23 @@ export default function AppShell({
 
         <nav className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="space-y-1.5">
-            {renderNavItems(primaryNavItems)}
+            {renderNavItems(
+              primaryNavItems
+            )}
           </div>
 
           <div className="mt-3">
             {renderExpandableNav({
               title: "Study Tools",
               icon: "✦",
-              items: studyToolNavItems,
+              items:
+                studyToolNavItems,
               open: studyToolsOpen,
               onToggle: () =>
-                setStudyToolsOpen((current) => !current),
+                setStudyToolsOpen(
+                  (current) =>
+                    !current
+                ),
             })}
           </div>
 
@@ -544,7 +921,11 @@ export default function AppShell({
               icon: "•••",
               items: moreNavItems,
               open: moreOpen,
-              onToggle: () => setMoreOpen((current) => !current),
+              onToggle: () =>
+                setMoreOpen(
+                  (current) =>
+                    !current
+                ),
             })}
           </div>
         </nav>
@@ -560,11 +941,14 @@ export default function AppShell({
               </span>
 
               <span className="mt-0.5 block text-[10px] text-slate-400">
-                More AI and study tools
+                More AI and study
+                tools
               </span>
             </span>
 
-            <span className="text-yellow-200">→</span>
+            <span className="text-yellow-200">
+              →
+            </span>
           </button>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -588,7 +972,9 @@ export default function AppShell({
               <Link
                 href="/settings"
                 className={`rounded-xl px-3 py-2 text-center text-xs font-black transition ${
-                  pathname.startsWith("/settings")
+                  pathname.startsWith(
+                    "/settings"
+                  )
                     ? "bg-yellow-300 text-black"
                     : "bg-white/[0.06] text-slate-200 hover:bg-white/[0.09]"
                 }`}
@@ -608,15 +994,38 @@ export default function AppShell({
         </div>
       </aside>
 
-      <div className="min-w-0 lg:ml-[280px]">
+      <div
+        className={`min-w-0 transition-[margin] duration-300 ${
+          desktopSidebarOpen
+            ? "lg:ml-[280px]"
+            : "lg:ml-0"
+        }`}
+      >
         <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05080d]/86 backdrop-blur-xl">
           <div className="mx-auto max-w-[1380px] px-5 py-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div className="min-w-0">
+                {!desktopSidebarOpen ? (
+                  <button
+                    type="button"
+                    onClick={
+                      toggleDesktopSidebar
+                    }
+                    className="mb-3 hidden items-center gap-2 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20 lg:inline-flex"
+                    aria-label="Open sidebar"
+                    title="Open sidebar"
+                  >
+                    ☰ Navigation
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
                   onClick={() =>
-                    setMobileMenuOpen((current) => !current)
+                    setMobileMenuOpen(
+                      (current) =>
+                        !current
+                    )
                   }
                   className="mb-3 inline-flex rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white lg:hidden"
                 >
@@ -624,7 +1033,9 @@ export default function AppShell({
                 </button>
 
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
-                  {getPageKicker(pathname)}
+                  {getPageKicker(
+                    pathname
+                  )}
                 </p>
 
                 <h1 className="mt-2 text-[2.35rem] font-black leading-none tracking-tight text-white">
@@ -672,7 +1083,11 @@ export default function AppShell({
                       ? `/study-rooms/${activeProjectRoomId}`
                       : "/study-rooms"
                   }
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() =>
+                    setMobileMenuOpen(
+                      false
+                    )
+                  }
                   className="mt-3 inline-flex rounded-xl bg-yellow-300 px-3 py-2 text-xs font-black text-black"
                 >
                   {activeProjectRoomId
@@ -683,50 +1098,75 @@ export default function AppShell({
 
               <nav className="space-y-2">
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {renderNavItems(primaryNavItems, true)}
+                  {renderNavItems(
+                    primaryNavItems,
+                    true
+                  )}
                 </div>
 
                 {renderExpandableNav({
-                  title: "Study Tools",
+                  title:
+                    "Study Tools",
                   icon: "✦",
-                  items: studyToolNavItems,
-                  open: studyToolsOpen,
+                  items:
+                    studyToolNavItems,
+                  open:
+                    studyToolsOpen,
                   onToggle: () =>
-                    setStudyToolsOpen((current) => !current),
+                    setStudyToolsOpen(
+                      (current) =>
+                        !current
+                    ),
                   closeMobile: true,
                 })}
 
                 {renderExpandableNav({
                   title: "More",
                   icon: "•••",
-                  items: moreNavItems,
+                  items:
+                    moreNavItems,
                   open: moreOpen,
                   onToggle: () =>
-                    setMoreOpen((current) => !current),
+                    setMoreOpen(
+                      (current) =>
+                        !current
+                    ),
                   closeMobile: true,
                 })}
 
                 <div className="grid gap-2 pt-2 sm:grid-cols-2">
                   <Link
                     href="/settings"
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={() =>
+                      setMobileMenuOpen(
+                        false
+                      )
+                    }
                     className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-black ${
-                      pathname.startsWith("/settings")
+                      pathname.startsWith(
+                        "/settings"
+                      )
                         ? "bg-yellow-300 text-black"
                         : "bg-white/[0.05] text-white"
                     }`}
                   >
                     <span>⚙</span>
-                    <span>Settings</span>
+                    <span>
+                      Settings
+                    </span>
                   </Link>
 
                   <button
                     type="button"
-                    onClick={handleLogout}
+                    onClick={
+                      handleLogout
+                    }
                     className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-3 py-3 text-left text-sm font-black text-white"
                   >
                     <span>↪</span>
-                    <span>Logout</span>
+                    <span>
+                      Logout
+                    </span>
                   </button>
                 </div>
               </nav>

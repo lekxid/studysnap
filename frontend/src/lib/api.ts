@@ -257,6 +257,66 @@ export type AIMessage = {
   created_at: string;
 };
 
+export type GenerateAIImageSize =
+  | "1024x1024"
+  | "1536x1024"
+  | "1024x1536";
+
+export type GenerateAIImageQuality =
+  | "low"
+  | "medium"
+  | "high"
+  | "auto";
+
+export type GenerateAIImageOptions = {
+  conversationId?: number | null;
+  studyRoomId?: number | null;
+  size?: GenerateAIImageSize;
+  quality?: GenerateAIImageQuality;
+};
+
+export type GenerateAIImageResponse = {
+  image_data_url: string | null;
+  image_url: string | null;
+  mime_type: string | null;
+  model: string;
+  prompt: string;
+  revised_prompt?: string | null;
+  conversation?: AIConversation | null;
+  user_message?: AIMessage | null;
+  assistant_message?: AIMessage | null;
+};
+
+export async function generateAIImage(
+  prompt: string,
+  options: GenerateAIImageOptions = {}
+): Promise<GenerateAIImageResponse> {
+  const cleanPrompt = prompt.trim();
+
+  if (!cleanPrompt) {
+    throw new Error(
+      "Describe the image you want StudySnap to create."
+    );
+  }
+
+  return apiFetch("/api/ai/generate-image", {
+    method: "POST",
+    body: JSON.stringify({
+      prompt: cleanPrompt,
+      conversation_id:
+        typeof options.conversationId === "number"
+          ? options.conversationId
+          : null,
+      study_room_id:
+        typeof options.studyRoomId === "number"
+          ? options.studyRoomId
+          : null,
+      size: options.size || "1024x1024",
+      quality: options.quality || "medium",
+    }),
+  }) as Promise<GenerateAIImageResponse>;
+}
+
 export type CreateAIConversationOptions = {
   studyRoomId?: number | null;
   title?: string;
@@ -1265,4 +1325,186 @@ export async function logoutAllSessions() {
   return apiFetch("/api/sessions/logout-all", {
     method: "POST",
   });
+}
+
+export type UniversalMaterialUploadResponse = {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type?: string | null;
+  material_type: string;
+  processing_status:
+    | "ready"
+    | "stored_only"
+    | "quarantined";
+  preview_available: boolean;
+  study_room_id: number;
+  created_at?: string | null;
+  sha256?: string;
+  message?: string;
+  security?: {
+    private_to_owner: boolean;
+    automatic_execution: boolean;
+    basic_executable_check: boolean;
+  };
+};
+
+export type UniversalMaterialListItem = {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type?: string | null;
+  material_type: string;
+  processing_status:
+    | "ready"
+    | "stored_only"
+    | "quarantined";
+  preview_available: boolean;
+  study_room_id: number;
+  created_at?: string | null;
+  last_opened_at?: string | null;
+};
+
+export function uploadUniversalMaterial({
+  file,
+  studyRoomId,
+  onProgress,
+  signal,
+}: {
+  file: File;
+  studyRoomId: number;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<UniversalMaterialUploadResponse> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+
+    xhr.open(
+      "POST",
+      `${API_BASE}/api/materials/upload`
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`
+      );
+    }
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) return;
+
+        const percent = Math.min(
+          99,
+          Math.max(
+            0,
+            Math.round(
+              (event.loaded / event.total) * 100
+            )
+          )
+        );
+
+        onProgress?.(percent);
+      }
+    );
+
+    xhr.addEventListener("load", () => {
+      let body: unknown = null;
+
+      try {
+        body = xhr.responseText
+          ? JSON.parse(xhr.responseText)
+          : null;
+      } catch {
+        body = xhr.responseText;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+        resolve(
+          body as UniversalMaterialUploadResponse
+        );
+        return;
+      }
+
+      reject(
+        new Error(
+          getErrorMessage(body) ||
+            `Upload failed with status ${xhr.status}.`
+        )
+      );
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(
+        new Error(
+          "The upload could not reach StudySnap."
+        )
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Upload cancelled."));
+    });
+
+    const abortUpload = () => {
+      xhr.abort();
+    };
+
+    signal?.addEventListener(
+      "abort",
+      abortUpload,
+      { once: true }
+    );
+
+    xhr.addEventListener("loadend", () => {
+      signal?.removeEventListener(
+        "abort",
+        abortUpload
+      );
+    });
+
+    const formData = new FormData();
+
+    formData.append(
+      "study_room_id",
+      String(studyRoomId)
+    );
+
+    formData.append(
+      "file",
+      file,
+      file.name
+    );
+
+    xhr.send(formData);
+  });
+}
+
+export async function getRoomMaterials(
+  studyRoomId: number
+): Promise<{
+  study_room_id: number;
+  materials: UniversalMaterialListItem[];
+}> {
+  return apiFetch(
+    `/api/materials/room/${studyRoomId}`
+  ) as Promise<{
+    study_room_id: number;
+    materials: UniversalMaterialListItem[];
+  }>;
+}
+
+export async function deleteUniversalMaterial(
+  materialId: number
+) {
+  return apiFetch(
+    `/api/materials/${materialId}`,
+    {
+      method: "DELETE",
+    }
+  );
 }

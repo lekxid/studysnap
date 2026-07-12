@@ -1,9 +1,26 @@
 from sqlalchemy.orm import Session
 
-from app.services.context.providers.conversation import build_conversation_context
-from app.services.context.providers.flashcards import build_flashcards_context
-from app.services.context.providers.notes import build_notes_context
-from app.services.context.providers.pdf import build_pdf_context
+from app.services.context.providers.brain_memory import (
+    build_brain_memory_context,
+)
+from app.services.context.providers.conversation import (
+    build_conversation_context,
+)
+from app.services.context.providers.flashcards import (
+    build_flashcards_context,
+)
+from app.services.context.providers.materials import (
+    build_materials_context,
+)
+from app.services.context.providers.notes import (
+    build_notes_context,
+)
+from app.services.context.providers.pdf import (
+    build_pdf_context,
+)
+from app.services.context.providers.quizzes import (
+    build_quizzes_context,
+)
 
 
 def build_study_room_context(
@@ -12,27 +29,21 @@ def build_study_room_context(
     study_room_id: int,
     owner_id: int,
     question: str = "",
+    focused_material_id: int | None = None,
 ) -> str:
     """
-    Build the StudySnap Brain context for a study room.
+    Build the connected StudySnap Brain context for a Study Room.
 
-    The question argument enables relevance ranking inside providers.
-
-    Current providers:
-    - Conversation
-    - Notes
-    - PDFs
-    - Flashcards
-
-    Future providers:
-    - Quizzes
-    - Learning Events
-    - Recommendations
+    focused_material_id makes one safe universal upload the primary
+    source while the rest of the room remains available as supporting
+    learning context.
     """
 
-    conversation_context = build_conversation_context(
-        db=db,
-        conversation_id=conversation_id,
+    conversation_context = (
+        build_conversation_context(
+            db=db,
+            conversation_id=conversation_id,
+        )
     )
 
     notes_context = build_notes_context(
@@ -49,33 +60,87 @@ def build_study_room_context(
         question=question,
     )
 
-    flashcards_context = build_flashcards_context(
-        db=db,
-        study_room_id=study_room_id,
-        owner_id=owner_id,
-        question=question,
+    materials_context = (
+        build_materials_context(
+            db=db,
+            study_room_id=study_room_id,
+            owner_id=owner_id,
+            question=question,
+            focused_material_id=focused_material_id,
+        )
+    )
+
+    flashcards_context = (
+        build_flashcards_context(
+            db=db,
+            study_room_id=study_room_id,
+            owner_id=owner_id,
+            question=question,
+        )
+    )
+
+    quizzes_context = (
+        build_quizzes_context(
+            db=db,
+            study_room_id=study_room_id,
+            owner_id=owner_id,
+            question=question,
+        )
+    )
+
+    brain_memory_context = (
+        build_brain_memory_context(
+            db=db,
+            study_room_id=study_room_id,
+            owner_id=owner_id,
+            question=question,
+        )
     )
 
     context_parts = []
 
     if conversation_context.strip():
         context_parts.append(
-            "Conversation history:\n" + conversation_context.strip()
+            "Conversation history:\n"
+            + conversation_context.strip()
         )
 
     if notes_context.strip():
         context_parts.append(
-            "Study room notes:\n" + notes_context.strip()
+            "Study Room notes:\n"
+            + notes_context.strip()
         )
 
     if pdf_context.strip():
         context_parts.append(
-            "Study room PDFs:\n" + pdf_context.strip()
+            "Study Room PDFs:\n"
+            + pdf_context.strip()
+        )
+
+    if materials_context.strip():
+        context_parts.append(
+            "Study Room uploaded materials:\n"
+            + materials_context.strip()
         )
 
     if flashcards_context.strip():
         context_parts.append(
-            "Study room flashcards:\n" + flashcards_context.strip()
+            "Study Room Concept Cards:\n"
+            + flashcards_context.strip()
         )
 
-    return "\n\n====================\n\n".join(context_parts)
+    if quizzes_context.strip():
+        context_parts.append(
+            "Study Room saved quizzes:\n"
+            + quizzes_context.strip()
+        )
+
+    if brain_memory_context.strip():
+        context_parts.append(
+            "Study Room learning evidence and concept mastery:\n"
+            + brain_memory_context.strip()
+        )
+
+    return (
+        "\n\n====================\n\n"
+    ).join(context_parts)

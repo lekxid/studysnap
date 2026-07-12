@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useParams,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
@@ -153,6 +157,7 @@ export default function StudyRoomDetailPage() {
   const ready = useRequireAuth();
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const studyRoomId = Number(id);
@@ -164,6 +169,13 @@ export default function StudyRoomDetailPage() {
     type: "pdf" | "note";
     id: number;
     title: string;
+  } | null>(null);
+  const [
+    selectedUniversalMaterial,
+    setSelectedUniversalMaterial,
+  ] = useState<{
+    id: number;
+    name: string;
   } | null>(null);
 
   useEffect(() => {
@@ -178,6 +190,7 @@ export default function StudyRoomDetailPage() {
     setResumeRoomId(null);
     setActiveRoomTab("overview");
     setLastOpenedRoomItem(null);
+    setSelectedUniversalMaterial(null);
 
     const allowedTabs: RoomTab[] = [
       "overview",
@@ -294,19 +307,114 @@ export default function StudyRoomDetailPage() {
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const [projectSearchError, setProjectSearchError] = useState("");
   const [error, setError] = useState("");
+  const [aiComposerFocusToken, setAiComposerFocusToken] =
+    useState(0);
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const requestedTab =
+    searchParams.get("tab");
+
+  const requestedMaterialId =
+    searchParams.get("materialId") ??
+    searchParams.get("material_id") ??
+    searchParams.get("studyMaterialId") ??
+    searchParams.get("study_material_id") ??
+    searchParams.get("taskMaterialId") ??
+    searchParams.get("task_material_id") ??
+    searchParams.get("contextId") ??
+    searchParams.get("context_id") ??
+    searchParams.get("material");
+
+  const requestedMaterialName =
+    searchParams.get("materialName") ??
+    searchParams.get("material_name") ??
+    searchParams.get("materialTitle") ??
+    searchParams.get("material_title") ??
+    searchParams.get("filename") ??
+    searchParams.get("name") ??
+    searchParams.get("title");
+
+  function changeRoomTab(tab: RoomTab) {
+    setActiveRoomTab(tab);
+
+    if (tab === "ai") {
+      setAiComposerFocusToken(
+        (current) => current + 1
+      );
+    }
+  }
+
   function openProjectAi() {
-    setActiveRoomTab("ai");
+    changeRoomTab("ai");
+
     setTimeout(() => {
-      aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      aiSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }, 100);
   }
 
   function openMaterials() {
     setActiveRoomTab("materials");
   }
+
+  useEffect(() => {
+    if (
+      !studyRoomId ||
+      Number.isNaN(studyRoomId)
+    ) {
+      return;
+    }
+
+    const parsedMaterialId = Number(
+      requestedMaterialId
+    );
+
+    const hasRequestedMaterial =
+      requestedMaterialId !== null &&
+      Number.isFinite(parsedMaterialId) &&
+      parsedMaterialId > 0;
+
+    const shouldOpenAi =
+      requestedTab === "ai" ||
+      hasRequestedMaterial;
+
+    if (!shouldOpenAi) {
+      return;
+    }
+
+    if (hasRequestedMaterial) {
+      setSelectedUniversalMaterial({
+        id: parsedMaterialId,
+        name:
+          requestedMaterialName?.trim() ||
+          "Selected material",
+      });
+    }
+
+    setActiveRoomTab("ai");
+    setAiComposerFocusToken(
+      (current) => current + 1
+    );
+
+    const timer = window.setTimeout(() => {
+      aiSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 150);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    requestedMaterialId,
+    requestedMaterialName,
+    requestedTab,
+    studyRoomId,
+  ]);
 
   async function handleProjectSearch(query: string) {
     if (!query.trim()) return;
@@ -958,7 +1066,13 @@ export default function StudyRoomDetailPage() {
           </p>
         </div>
 
-        <CompactProjectAI studyRoomId={studyRoomId} projectTitle={roomTitle} />
+        <CompactProjectAI
+          studyRoomId={studyRoomId}
+          projectTitle={roomTitle}
+          focusComposerToken={aiComposerFocusToken}
+            selectedMaterial={
+              selectedUniversalMaterial
+            }        />
       </div>
     );
   }
@@ -1153,7 +1267,7 @@ export default function StudyRoomDetailPage() {
           searchLoading={projectSearchLoading}
           searchError={projectSearchError}
           activeTab={activeRoomTab}
-          onChangeTab={setActiveRoomTab}
+          onChangeTab={changeRoomTab}
           onBack={() => router.push("/study-rooms")}
           onSearch={handleProjectSearch}
           onOpenSearchResult={handleOpenSearchResult}
