@@ -184,25 +184,49 @@ def build_conversation_history_context(
     conversation: AIConversation,
     owner_id: int,
     question: str,
+    context_override: str = "",
 ) -> str:
+    sections: list[str] = []
+    override_text = (context_override or "").strip()
+
     if conversation.study_room_id is not None:
-        return build_study_room_context(
+        room_context = (
+            build_study_room_context(
+                db=db,
+                conversation_id=conversation.id,
+                study_room_id=conversation.study_room_id,
+                owner_id=owner_id,
+                question=question,
+            )
+            or ""
+        ).strip()
+
+        if room_context:
+            sections.append(room_context)
+    else:
+        history = build_conversation_context(
             db=db,
             conversation_id=conversation.id,
-            study_room_id=conversation.study_room_id,
-            owner_id=owner_id,
-            question=question,
+        ).strip()
+
+        if history:
+            sections.append(
+                "Conversation history:\n" + history
+            )
+        else:
+            sections.append(
+                "No previous messages in this Study Trail."
+            )
+
+    if override_text:
+        sections.append(
+            "Current surface context:\n" + override_text
         )
 
-    history = build_conversation_context(
-        db=db,
-        conversation_id=conversation.id,
-    ).strip()
-
-    if not history:
-        return "No previous messages in this Study Trail."
-
-    return "Conversation history:\n" + history
+    return (
+        "\n\n".join(sections)
+        or "No additional conversation context available."
+    )
 
 
 def build_conversation_message_prompt(

@@ -43,6 +43,23 @@ function getErrorMessage(data: unknown): string {
   return "Request failed";
 }
 
+async function readResponseError(
+  response: Response,
+  fallbackMessage: string
+): Promise<string> {
+  const rawBody = await response.text();
+
+  if (!rawBody.trim()) {
+    return fallbackMessage;
+  }
+
+  try {
+    return getErrorMessage(JSON.parse(rawBody));
+  } catch {
+    return rawBody;
+  }
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(options.headers || {});
@@ -61,16 +78,11 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   });
 
   if (!res.ok) {
-    let message = "Request failed";
-
-    try {
-      const data = await res.json();
-      message = getErrorMessage(data);
-    } catch {
-      message = await res.text();
-    }
-
-    throw new Error(message || "Request failed");
+    const message = await readResponseError(
+      res,
+      "Request failed"
+    );
+    throw new Error(message);
   }
 
   const contentType = res.headers.get("content-type") || "";
@@ -425,17 +437,18 @@ export async function streamAIMessage(
     }),
   });
 
-  if (!res.ok || !res.body) {
-    let message = "Streaming request failed";
+  if (!res.ok) {
+    const message = await readResponseError(
+      res,
+      "Streaming request failed"
+    );
+    throw new Error(message);
+  }
 
-    try {
-      const data = await res.json();
-      message = getErrorMessage(data);
-    } catch {
-      message = await res.text();
-    }
-
-    throw new Error(message || "Streaming request failed");
+  if (!res.body) {
+    throw new Error(
+      "Streaming response did not include a readable body."
+    );
   }
 
   const reader = res.body.getReader();
@@ -619,16 +632,11 @@ export async function deleteNote(noteId: number) {
 
 async function downloadPdfResponse(res: Response, fallbackFilename: string) {
   if (!res.ok) {
-    let message = "Failed to download PDF.";
-
-    try {
-      const data = await res.json();
-      message = getErrorMessage(data);
-    } catch {
-      message = await res.text();
-    }
-
-    throw new Error(message || "Failed to download PDF.");
+    const message = await readResponseError(
+      res,
+      "Failed to download PDF."
+    );
+    throw new Error(message);
   }
 
   const blob = await res.blob();
