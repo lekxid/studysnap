@@ -10,9 +10,12 @@ from app.models.room_event import RoomEvent
 from app.models.room_member import RoomMember
 from app.models.room_memory_bucket import RoomMemoryBucket
 from app.models.study_room import StudyRoom
+from app.services.rooms.access import (
+    ROOM_ROLES,
+    ensure_room_owner_membership,
+)
 
 
-ROOM_ROLES = ["owner", "admin", "member", "viewer", "ai_tutor"]
 
 DEFAULT_MEMORY_BUCKETS = [
     "pdfs",
@@ -105,28 +108,11 @@ def from_json(value: str | None, fallback: Any = None) -> Any:
 def ensure_room_foundation(db: Session, room: StudyRoom, user_id: int) -> None:
     changed = False
 
-    owner_member = (
-        db.query(RoomMember)
-        .filter(
-            RoomMember.room_id == room.id,
-            RoomMember.user_id == room.owner_id,
-        )
-        .first()
-    )
-
-    if owner_member is None:
-        owner_member = RoomMember(
-            room_id=room.id,
-            user_id=room.owner_id,
-            role="owner",
-            status="active",
-            last_active_at=datetime.utcnow(),
-        )
-        db.add(owner_member)
-        changed = True
-    elif owner_member.role != "owner":
-        owner_member.role = "owner"
-        owner_member.status = "active"
+    if ensure_room_owner_membership(
+        db=db,
+        room=room,
+        commit=False,
+    ):
         changed = True
 
     current_member = (

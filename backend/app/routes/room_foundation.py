@@ -13,11 +13,14 @@ from app.models.room_member import RoomMember
 from app.models.room_memory_bucket import RoomMemoryBucket
 from app.models.study_room import StudyRoom
 from app.models.user import User
+from app.services.rooms.access import (
+    get_room_for_user,
+    get_user_room_role,
+)
 from app.services.rooms.foundation import (
     DEFAULT_MEMORY_BUCKETS,
     ROOM_ACTION_DEFINITIONS,
     ROOM_AI_OUTPUT_TYPES,
-    ROOM_ROLES,
     ensure_room_foundation,
     from_json,
     log_room_event,
@@ -38,48 +41,6 @@ class RoomEventCreate(BaseModel):
 class RoomMemoryBucketUpdate(BaseModel):
     summary: str | None = None
     data: dict[str, Any] | None = None
-
-
-def get_room_for_user(db: Session, room_id: int, user_id: int) -> StudyRoom:
-    room = db.query(StudyRoom).filter(StudyRoom.id == room_id).first()
-
-    if not room:
-        raise HTTPException(status_code=404, detail="Study room not found")
-
-    if room.owner_id == user_id:
-        return room
-
-    membership = (
-        db.query(RoomMember)
-        .filter(
-            RoomMember.room_id == room_id,
-            RoomMember.user_id == user_id,
-            RoomMember.status == "active",
-        )
-        .first()
-    )
-
-    if not membership:
-        raise HTTPException(status_code=404, detail="Study room not found")
-
-    return room
-
-
-def get_user_room_role(db: Session, room: StudyRoom, user_id: int) -> str:
-    if room.owner_id == user_id:
-        return "owner"
-
-    membership = (
-        db.query(RoomMember)
-        .filter(
-            RoomMember.room_id == room.id,
-            RoomMember.user_id == user_id,
-            RoomMember.status == "active",
-        )
-        .first()
-    )
-
-    return membership.role if membership else "none"
 
 
 def serialize_event(event: RoomEvent) -> dict[str, Any]:
