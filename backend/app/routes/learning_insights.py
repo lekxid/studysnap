@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -91,11 +91,33 @@ def get_ai_recommendation(learning_score: int, average_confidence: int, wrong_to
 
 @router.get("")
 def get_learning_insights(
+    timezone_offset_minutes: int = Query(
+        default=0,
+        ge=-840,
+        le=840,
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    now = datetime.utcnow()
-    today_start = datetime(now.year, now.month, now.day)
+    now_utc = datetime.utcnow()
+
+    # JavaScript getTimezoneOffset returns minutes between local time and UTC.
+    # Example: Toronto during daylight time returns 240.
+    local_now = now_utc - timedelta(
+        minutes=timezone_offset_minutes
+    )
+
+    local_today_start = datetime(
+        local_now.year,
+        local_now.month,
+        local_now.day,
+    )
+
+    # Convert the student's local midnight back to UTC for DB comparisons.
+    today_start = local_today_start + timedelta(
+        minutes=timezone_offset_minutes
+    )
+
     seven_days_ago = today_start - timedelta(days=6)
 
     events = (
@@ -105,42 +127,111 @@ def get_learning_insights(
         .all()
     )
 
-    today_events = [event for event in events if event.created_at and event.created_at >= today_start]
-    recent_events = [event for event in events if event.created_at and event.created_at >= seven_days_ago]
-
-    confidence_values = [
-        event.confidence
+    today_events = [
+        event
         for event in events
-        if event.confidence is not None
+        if event.created_at
+        and event.created_at >= today_start
     ]
 
-    average_confidence = int(sum(confidence_values) / len(confidence_values)) if confidence_values else 0
+    recent_events = [
+        event
+        for event in events
+        if event.created_at
+        and event.created_at >= seven_days_ago
+    ]
 
-    correct_today = len([event for event in today_events if event.result == "correct"])
-    wrong_today = len([event for event in today_events if event.result == "wrong"])
+    review_activity_types = {
+        "flashcard",
+        "quiz_question",
+    }
 
-    review_activity_types = {"flashcard", "quiz_question"}
+    # Only question/card reviews should affect accuracy and mastery scores.
+    # A quiz summary event must not be counted again after its questions.
+    review_events = [
+        event
+        for event in events
+        if event.activity_type in review_activity_types
+    ]
 
-    cards_reviewed_today = len([
+    today_review_events = [
         event
         for event in today_events
         if event.activity_type in review_activity_types
+    ]
+
+    recent_review_events = [
+        event
+        for event in recent_events
+        if event.activity_type in review_activity_types
+    ]
+
+    confidence_values = [
+        event.confidence
+        for event in review_events
+        if event.confidence is not None
+    ]
+
+    average_confidence = (
+        int(
+            sum(confidence_values)
+            / len(confidence_values)
+        )
+        if confidence_values
+        else 0
+    )
+
+    correct_today = len([
+        event
+        for event in today_review_events
+        if event.result == "correct"
     ])
 
-    correct_all = len([event for event in events if event.result == "correct"])
-    wrong_all = len([event for event in events if event.result == "wrong"])
+    wrong_today = len([
+        event
+        for event in today_review_events
+        if event.result == "wrong"
+    ])
+
+    cards_reviewed_today = len(
+        today_review_events
+    )
+
+    correct_all = len([
+        event
+        for event in review_events
+        if event.result == "correct"
+    ])
+
+    wrong_all = len([
+        event
+        for event in review_events
+        if event.result == "wrong"
+    ])
 
     learning_score = calculate_learning_score(
-        total_events=len(events),
+        total_events=len(review_events),
         average_confidence=average_confidence,
         correct_count=correct_all,
         wrong_count=wrong_all,
     )
 
     active_days = set()
+
     for event in events:
-        if event.created_at:
-            active_days.add(event.created_at.date())
+        if not event.created_at:
+            continue
+
+        local_event_time = (
+            event.created_at
+            - timedelta(
+                minutes=timezone_offset_minutes
+            )
+        )
+
+        active_days.add(
+            local_event_time.date()
+        )
 
     study_streak = 0
     check_day = today_start.date()
@@ -162,12 +253,22 @@ def get_learning_insights(
     yesterday_events = [
         event
         for event in events
-        if event.created_at and yesterday_start <= event.created_at < today_start
+        if event.created_at
+        and yesterday_start
+        <= event.created_at
+        < today_start
+    ]
+
+    yesterday_review_events = [
+        event
+        for event in yesterday_events
+        if event.activity_type
+        in review_activity_types
     ]
 
     yesterday_confidence_values = [
         event.confidence
-        for event in yesterday_events
+        for event in yesterday_review_events
         if event.confidence is not None
     ]
 
@@ -177,16 +278,24 @@ def get_learning_insights(
         else 0
     )
 
-    yesterday_correct = len([event for event in yesterday_events if event.result == "correct"])
-    yesterday_wrong = len([event for event in yesterday_events if event.result == "wrong"])
-    yesterday_cards_reviewed = len([
+    yesterday_correct = len([
         event
-        for event in yesterday_events
-        if event.activity_type == "flashcard"
+        for event in yesterday_review_events
+        if event.result == "correct"
     ])
 
+    yesterday_wrong = len([
+        event
+        for event in yesterday_review_events
+        if event.result == "wrong"
+    ])
+
+    yesterday_cards_reviewed = len(
+        yesterday_review_events
+    )
+
     yesterday_learning_score = calculate_learning_score(
-        total_events=len(yesterday_events),
+        total_events=len(yesterday_review_events),
         average_confidence=yesterday_average_confidence,
         correct_count=yesterday_correct,
         wrong_count=yesterday_wrong,
@@ -305,9 +414,16 @@ def get_learning_insights(
             if event.created_at and day <= event.created_at < next_day
         ]
 
+        day_review_events = [
+            event
+            for event in day_events
+            if event.activity_type
+            in review_activity_types
+        ]
+
         day_confidence_values = [
             event.confidence
-            for event in day_events
+            for event in day_review_events
             if event.confidence is not None
         ]
 
@@ -319,13 +435,35 @@ def get_learning_insights(
 
         trend.append({
             "date": day.date().isoformat(),
-            "reviews": len([event for event in day_events if event.activity_type in review_activity_types]),
+            "reviews": len(day_review_events),
             "average_confidence": day_average_confidence,
-            "correct": len([event for event in day_events if event.result == "correct"]),
-            "wrong": len([event for event in day_events if event.result == "wrong"]),
+            "correct": len([
+                event
+                for event in day_review_events
+                if event.result == "correct"
+            ]),
+            "wrong": len([
+                event
+                for event in day_review_events
+                if event.result == "wrong"
+            ]),
         })
 
+    last_activity_at = (
+        events[0].created_at
+        if events
+        else None
+    )
+
     return {
+        "has_learning_data": bool(review_events),
+        "all_time_reviews": len(review_events),
+        "reviews_last_7_days": len(
+            recent_review_events
+        ),
+        "total_learning_events": len(events),
+        "last_activity_at": last_activity_at,
+        "score_basis": "all_time_review_evidence",
         "learning_score": learning_score,
         "learning_index": learning_index,
         "learning_index_today_change": learning_index_today_change,

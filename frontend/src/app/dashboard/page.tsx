@@ -94,6 +94,12 @@ type LearningInsights = {
   strong_topics: LearningTopic[];
   ai_recommendation: string;
   trend: LearningTrend[];
+  has_learning_data?: boolean;
+  all_time_reviews?: number;
+  reviews_last_7_days?: number;
+  total_learning_events?: number;
+  last_activity_at?: string | null;
+  score_basis?: string;
 };
 
 type SystemStats = {
@@ -767,15 +773,47 @@ function RightProgressCard({
   overall: number;
   learningInsights: LearningInsights | null;
 }) {
-  const liveScore = learningInsights?.learning_score ?? overall;
-  const reviewsToday = learningInsights?.cards_reviewed_today ?? 0;
+  const liveScore =
+    learningInsights?.learning_score ?? 0;
+
+  const reviewsToday =
+    learningInsights?.cards_reviewed_today ?? 0;
   const correctToday = learningInsights?.correct_today ?? 0;
   const wrongToday = learningInsights?.wrong_today ?? 0;
   const streak = learningInsights?.study_streak ?? 0;
   const accuracy =
     correctToday + wrongToday > 0
-      ? Math.round((correctToday / (correctToday + wrongToday)) * 100)
+      ? Math.round(
+          (correctToday /
+            (correctToday + wrongToday)) *
+            100
+        )
       : 0;
+
+  const hasLearningData =
+    learningInsights?.has_learning_data ??
+    false;
+
+  const reviewsLastSevenDays =
+    learningInsights?.reviews_last_7_days ??
+    0;
+
+  const hasTodayActivity =
+    reviewsToday > 0;
+
+  const progressStatus = hasTodayActivity
+    ? `${reviewsToday} review${
+        reviewsToday === 1 ? "" : "s"
+      } recorded today.`
+    : hasLearningData
+      ? `No reviews today · ${reviewsLastSevenDays} in the last 7 days${
+          learningInsights?.last_activity_at
+            ? ` · Last activity ${formatTimeAgo(
+                learningInsights.last_activity_at
+              )}`
+            : ""
+        }.`
+      : "Complete a quiz or review a Concept Card to activate Live Progress.";
 
   const mood =
     reviewsToday === 0
@@ -817,6 +855,18 @@ function RightProgressCard({
         ))}
       </div>
 
+      <div
+        className={`mt-3 rounded-xl border px-3 py-2.5 text-xs leading-5 ${
+          hasTodayActivity
+            ? "border-emerald-300/15 bg-emerald-300/10 text-emerald-100"
+            : hasLearningData
+              ? "border-yellow-300/15 bg-yellow-300/10 text-yellow-100"
+              : "border-white/10 bg-white/[0.04] text-slate-400"
+        }`}
+      >
+        {progressStatus}
+      </div>
+
       <div className="mt-3 grid grid-cols-[128px_minmax(0,1fr)] items-end gap-3">
         <div
           className="grid h-[122px] w-[122px] place-items-center rounded-full"
@@ -828,7 +878,11 @@ function RightProgressCard({
             <div>
               <p className="text-3xl font-black text-white">{liveScore}%</p>
               <p className="text-[11px] text-slate-300">
-                {accuracy ? `${accuracy}% accuracy` : "Learning Score"}
+                {hasTodayActivity && accuracy
+                  ? `${accuracy}% today`
+                  : hasLearningData
+                    ? "Overall Score"
+                    : "Not active yet"}
               </p>
             </div>
           </div>
@@ -911,18 +965,95 @@ export default function DashboardPage() {
   const [insights, setInsights] = useState<LearningInsights | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadLearningInsights() {
       try {
         setLearningInsightsError("");
-        const data = await getLearningInsights();
-        setLearningInsights(data as LearningInsights);
+
+        const data =
+          (await getLearningInsights()) as LearningInsights;
+
+        if (cancelled) return;
+
+        setLearningInsights(data);
+        setInsights(data);
       } catch {
+        if (cancelled) return;
+
         setLearningInsights(null);
-        setLearningInsightsError("Live progress is not available yet.");
+        setLearningInsightsError(
+          "Live progress is not available yet."
+        );
       }
     }
 
-    loadLearningInsights();
+    function refreshFromLearningActivity() {
+      void loadLearningInsights();
+    }
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void loadLearningInsights();
+      }
+    }
+
+    function refreshFromStorage(
+      event: StorageEvent
+    ) {
+      if (
+        event.key ===
+        "studysnap:last-learning-progress-update"
+      ) {
+        void loadLearningInsights();
+      }
+    }
+
+    void loadLearningInsights();
+
+    window.addEventListener(
+      "studysnap:learning-progress-updated",
+      refreshFromLearningActivity
+    );
+
+    window.addEventListener(
+      "focus",
+      refreshFromLearningActivity
+    );
+
+    window.addEventListener(
+      "storage",
+      refreshFromStorage
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible
+    );
+
+    return () => {
+      cancelled = true;
+
+      window.removeEventListener(
+        "studysnap:learning-progress-updated",
+        refreshFromLearningActivity
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshFromLearningActivity
+      );
+
+      window.removeEventListener(
+        "storage",
+        refreshFromStorage
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible
+      );
+    };
   }, []);
 
   useEffect(() => {

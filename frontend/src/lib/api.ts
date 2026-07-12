@@ -145,7 +145,20 @@ export async function getDashboard() {
 }
 
 export async function getLearningInsights() {
-  return apiFetch("/api/learning-insights");
+  const params = new URLSearchParams();
+
+  if (typeof window !== "undefined") {
+    params.set(
+      "timezone_offset_minutes",
+      String(new Date().getTimezoneOffset())
+    );
+  }
+
+  const query = params.toString();
+
+  return apiFetch(
+    query ? `/api/learning-insights?${query}` : "/api/learning-insights"
+  );
 }
 
 export async function askAi(question: string, context?: string) {
@@ -825,10 +838,36 @@ export async function createLearningEvent(data: {
   concept_type?: string | null;
   source?: string | null;
 }) {
-  return apiFetch("/api/learning-events", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  const result = await apiFetch(
+    "/api/learning-events",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (typeof window !== "undefined") {
+    const updatedAt = new Date().toISOString();
+
+    window.localStorage.setItem(
+      "studysnap:last-learning-progress-update",
+      updatedAt
+    );
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "studysnap:learning-progress-updated",
+        {
+          detail: {
+            updatedAt,
+            activityType: data.activity_type,
+          },
+        }
+      )
+    );
+  }
+
+  return result;
 }
 
 export type UniversalSearchResult = {
