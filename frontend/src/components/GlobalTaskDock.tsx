@@ -55,6 +55,7 @@ type UploadTask = {
   message?: string;
   materialId?: number;
   materialType?: string;
+  previewAvailable?: boolean;
   createdAt: string;
   completedAt?: string;
 };
@@ -704,6 +705,9 @@ export default function GlobalTaskDock({
         materialId: result.id,
         materialType:
           result.material_type,
+
+          previewAvailable:
+            result.preview_available,
         message: result.message,
         completedAt:
           new Date().toISOString(),
@@ -1140,6 +1144,34 @@ export default function GlobalTaskDock({
     setPanelOpen(false);
   }
 
+  function openTaskAI(
+    task: UploadTask
+  ) {
+    if (
+      typeof task.materialId !==
+      "number"
+    ) {
+      openTaskRoom(task);
+      return;
+    }
+
+    const searchParams =
+      new URLSearchParams({
+        tab: "ai",
+        materialId: String(
+          task.materialId
+        ),
+        materialName:
+          task.filename,
+      });
+
+    router.push(
+      `/study-rooms/${task.roomId}?${searchParams.toString()}`
+    );
+
+    setPanelOpen(false);
+  }
+
   const canShowDock =
     hydrated &&
     !hideDock &&
@@ -1331,6 +1363,14 @@ export default function GlobalTaskDock({
                           task.id
                         );
 
+
+                      const canAskAI =
+                        task.status ===
+                          "ready" &&
+                        task.previewAvailable ===
+                          true &&
+                        typeof task.materialId ===
+                          "number";
                       return (
                         <article
                           key={task.id}
@@ -1439,6 +1479,20 @@ export default function GlobalTaskDock({
                                 Retry
                               </button>
                             ) : null}
+                              {canAskAI ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openTaskAI(
+                                      task
+                                    )
+                                  }
+                                  className="rounded-lg bg-yellow-300 px-3 py-1.5 text-xs font-black text-black transition hover:bg-yellow-200"
+                                >
+                                  Ask AI
+                                </button>
+                              ) : null}
+
 
                             {[
                               "ready",

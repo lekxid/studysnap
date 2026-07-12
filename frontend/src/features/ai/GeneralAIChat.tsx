@@ -150,6 +150,11 @@ export default function GeneralAIChat() {
     setSelectedImagePreview,
   ] = useState("");
 
+  const [historyOpen, setHistoryOpen] =
+    useState(false);
+  const [studyToolsOpen, setStudyToolsOpen] =
+    useState(false);
+
   const inputRef =
     useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef =
@@ -231,6 +236,27 @@ export default function GeneralAIChat() {
 
     return list;
   }
+
+  useEffect(() => {
+    const savedHistory =
+      window.localStorage.getItem(
+        "studysnap:general-ai-history-open"
+      );
+    const savedStudyTools =
+      window.localStorage.getItem(
+        "studysnap:general-ai-study-tools-open"
+      );
+
+    if (savedHistory !== null) {
+      setHistoryOpen(savedHistory === "true");
+    }
+
+    if (savedStudyTools !== null) {
+      setStudyToolsOpen(
+        savedStudyTools === "true"
+      );
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -788,198 +814,288 @@ export default function GeneralAIChat() {
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <StudyTrailPanel
-        trails={trails}
-        activeTrailId={activeConversationId}
-        loading={loadingTrails}
-        search={trailSearch}
-        title="Study Trail"
-        emptyMessage="Ask your first question to begin a learning journey."
-        onSearchChange={setTrailSearch}
-        onSelect={(trail) =>
-          void selectTrail(trail)
-        }
-        onNew={startNewTrail}
-        onRename={(trail) =>
-          void renameTrail(trail)
-        }
-        onDelete={(trail) =>
-          void deleteTrail(trail)
-        }
-        onTogglePin={(trail) =>
-          void togglePinTrail(trail)
-        }
-      />
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
+            AI workspace
+          </p>
 
-      <div className="min-w-0 space-y-4">
-        <header className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.11),rgba(8,17,29,0.94))] p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
-                StudySnap General AI
-              </p>
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            Open only the panels you need. Your choices stay saved.
+          </p>
+        </div>
 
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
-                {activeTrail?.title ||
-                  "Start a new learning trail"}
-              </h2>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            aria-pressed={historyOpen}
+            onClick={() => {
+              setHistoryOpen((current) => {
+                const next = !current;
 
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                Ask anything naturally. StudySnap remembers this conversation while keeping room and learning memory separate.
-              </p>
-            </div>
+                window.localStorage.setItem(
+                  "studysnap:general-ai-history-open",
+                  String(next)
+                );
 
-            <button
-              type="button"
-              onClick={startNewTrail}
-              className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
-            >
-              New Trail
-            </button>
-          </div>
-        </header>
+                return next;
+              });
+            }}
+            className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+              historyOpen
+                ? "border-yellow-300/30 bg-yellow-300/15 text-yellow-100"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+            }`}
+          >
+            {historyOpen
+              ? "Hide history"
+              : "Show history"}
+          </button>
 
-        {!hasMessages &&
-        !loadingMessages ? (
-          <div className="rounded-[1.7rem] border border-white/10 bg-[#08111d]/88 p-5">
-            <div className="mx-auto max-w-4xl py-6 text-center">
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-yellow-300/20 bg-yellow-300/10 text-3xl">
-                ✦
+          <button
+            type="button"
+            aria-pressed={studyToolsOpen}
+            onClick={() => {
+              setStudyToolsOpen((current) => {
+                const next = !current;
+
+                window.localStorage.setItem(
+                  "studysnap:general-ai-study-tools-open",
+                  String(next)
+                );
+
+                return next;
+              });
+            }}
+            className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+              studyToolsOpen
+                ? "border-yellow-300/30 bg-yellow-300/15 text-yellow-100"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+            }`}
+          >
+            {studyToolsOpen
+              ? "Hide study tools"
+              : "Show study tools"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`grid gap-4 ${
+          historyOpen && studyToolsOpen
+            ? "xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_290px]"
+            : historyOpen
+              ? "xl:grid-cols-[280px_minmax(0,1fr)]"
+              : studyToolsOpen
+                ? "xl:grid-cols-[minmax(0,1fr)_290px]"
+                : "grid-cols-1"
+        }`}
+      >
+        {historyOpen ? (
+          <StudyTrailPanel
+            trails={trails}
+            activeTrailId={activeConversationId}
+            loading={loadingTrails}
+            search={trailSearch}
+            title="Study Trail"
+            emptyMessage="Ask your first question to begin a learning journey."
+            onSearchChange={setTrailSearch}
+            onSelect={(trail) =>
+              void selectTrail(trail)
+            }
+            onNew={startNewTrail}
+            onRename={(trail) =>
+              void renameTrail(trail)
+            }
+            onDelete={(trail) =>
+              void deleteTrail(trail)
+            }
+            onTogglePin={(trail) =>
+              void togglePinTrail(trail)
+            }
+          />
+        ) : null}
+
+        <div className="min-w-0 space-y-4">
+          <header className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.11),rgba(8,17,29,0.94))] p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
+                  StudySnap General AI
+                </p>
+
+                <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
+                  {activeTrail?.title ||
+                    "Start a new learning trail"}
+                </h2>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                  Ask anything naturally. StudySnap remembers this conversation while keeping room and learning memory separate.
+                </p>
               </div>
 
-              <h3 className="mt-4 text-3xl font-black text-white">
-                What are we learning today?
-              </h3>
-
-              <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Continue an old trail or begin a fresh conversation. Typos, shorthand, images, and follow-up questions are welcome.
-              </p>
+              <button
+                type="button"
+                onClick={startNewTrail}
+                className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+              >
+                New Trail
+              </button>
             </div>
+          </header>
 
-            {renderComposer(true)}
+          {!hasMessages &&
+          !loadingMessages ? (
+            <div className="rounded-[1.7rem] border border-white/10 bg-[#08111d]/88 p-5">
+              <div className="mx-auto max-w-4xl py-6 text-center">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-yellow-300/20 bg-yellow-300/10 text-3xl">
+                  ✦
+                </div>
 
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() =>
-                    void sendMessage(suggestion)
-                  }
-                  disabled={loading}
-                  className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-white disabled:opacity-50"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_290px]">
-            <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#08111d]/90 p-4">
-              {loadingMessages ? (
-                <p className="py-12 text-center text-sm font-bold text-slate-400">
-                  Opening Study Trail...
+                <h3 className="mt-4 text-3xl font-black text-white">
+                  What are we learning today?
+                </h3>
+
+                <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                  Continue an old trail or begin a fresh conversation. Typos, shorthand, images, and follow-up questions are welcome.
                 </p>
-              ) : null}
+              </div>
 
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={
-                    message.role === "user"
-                      ? "ml-auto max-w-[84%] rounded-[1.35rem] bg-yellow-300 px-4 py-3 text-slate-950"
-                      : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/10 bg-white/[0.055] px-4 py-3 text-slate-100"
-                  }
-                >
-                  {message.imagePreview ? (
-                    <img
-                      src={message.imagePreview}
-                      alt={
-                        message.imageName ||
-                        "Uploaded image"
-                      }
-                      className="mb-3 max-h-72 rounded-2xl object-contain"
-                    />
-                  ) : null}
+              {renderComposer(true)}
 
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">
-                      {message.role === "user"
-                        ? "You"
-                        : "StudySnap AI"}
-                    </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() =>
+                      void sendMessage(suggestion)
+                    }
+                    disabled={loading}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-white disabled:opacity-50"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#08111d]/90 p-4">
+                {loadingMessages ? (
+                  <p className="py-12 text-center text-sm font-bold text-slate-400">
+                    Opening Study Trail...
+                  </p>
+                ) : null}
+
+                {messages.map((message) => (
+                  <article
+                    key={message.id}
+                    className={
+                      message.role === "user"
+                        ? "ml-auto max-w-[84%] rounded-[1.35rem] bg-yellow-300 px-4 py-3 text-slate-950"
+                        : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/10 bg-white/[0.055] px-4 py-3 text-slate-100"
+                    }
+                  >
+                    {message.imagePreview ? (
+                      <img
+                        src={message.imagePreview}
+                        alt={
+                          message.imageName ||
+                          "Uploaded image"
+                        }
+                        className="mb-3 max-h-72 rounded-2xl object-contain"
+                      />
+                    ) : null}
+
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">
+                        {message.role === "user"
+                          ? "You"
+                          : "StudySnap AI"}
+                      </p>
+
+                      {message.role ===
+                      "assistant" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyMessage(message)
+                          }
+                          className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
+                        >
+                          {copiedId === message.id
+                            ? "Copied"
+                            : "Copy"}
+                        </button>
+                      ) : null}
+                    </div>
 
                     {message.role ===
                     "assistant" ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void copyMessage(message)
-                        }
-                        className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
-                      >
-                        {copiedId === message.id
-                          ? "Copied"
-                          : "Copy"}
-                      </button>
-                    ) : null}
-                  </div>
+                      <SimpleMarkdown
+                        content={message.content}
+                        className="text-sm leading-7"
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap text-sm leading-6">
+                        {message.content}
+                      </div>
+                    )}
+                  </article>
+                ))}
 
-                  {message.role ===
-                  "assistant" ? (
-                    <SimpleMarkdown
-                      content={message.content}
-                      className="text-sm leading-7"
-                    />
-                  ) : (
-                    <div className="whitespace-pre-wrap text-sm leading-6">
-                      {message.content}
-                    </div>
-                  )}
-                </article>
-              ))}
-
-              <div ref={bottomRef} />
-            </div>
-
-            <aside className="space-y-4">
-              <div className="rounded-[1.4rem] border border-yellow-300/15 bg-yellow-300/10 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
-                  Continue the flow
-                </p>
-
-                <div className="mt-3 grid gap-2">
-                  {suggestions
-                    .slice(0, 4)
-                    .map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onClick={() =>
-                          void sendMessage(
-                            suggestion
-                          )
-                        }
-                        disabled={loading}
-                        className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-yellow-300/10 disabled:opacity-50"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                </div>
+                <div ref={bottomRef} />
               </div>
 
               {renderComposer(false)}
-            </aside>
-          </div>
-        )}
+            </>
+          )}
 
-        {error ? (
-          <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-100">
-            {error}
-          </div>
+          {error ? (
+            <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-100">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        {studyToolsOpen ? (
+          <aside className="space-y-4 xl:col-start-2 2xl:col-start-auto">
+            <div className="rounded-[1.4rem] border border-yellow-300/15 bg-yellow-300/10 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                Continue the flow
+              </p>
+
+              <div className="mt-3 grid gap-2">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() =>
+                      void sendMessage(
+                        suggestion
+                      )
+                    }
+                    disabled={loading}
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-yellow-300/10 disabled:opacity-50"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[1.4rem] border border-cyan-300/15 bg-cyan-300/5 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                General AI boundary
+              </p>
+
+              <p className="mt-3 text-xs leading-6 text-slate-400">
+                This trail stays separate from Study Room AI so general questions do not mix with room-specific learning history.
+              </p>
+            </div>
+          </aside>
         ) : null}
       </div>
     </section>

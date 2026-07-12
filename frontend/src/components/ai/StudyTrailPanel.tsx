@@ -242,38 +242,40 @@ export default function StudyTrailPanel({
                           </span>
                         </button>
 
-                        <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5 opacity-100 lg:opacity-0 lg:transition lg:group-hover:opacity-100">
+                        <div className="grid grid-cols-3 gap-1 border-t border-white/[0.06] px-2 py-2">
                           <button
                             type="button"
                             onClick={() =>
                               onTogglePin(trail)
                             }
-                            className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-white/10 hover:text-yellow-200"
+                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-yellow-300/10 hover:text-yellow-100"
                             title={
                               trail.is_pinned
                                 ? "Unpin trail"
                                 : "Pin trail"
                             }
                           >
-                            {trail.is_pinned ? "★" : "☆"}
+                            {trail.is_pinned
+                                ? "★ Unpin"
+                                : "☆ Pin"}
                           </button>
 
                           <button
                             type="button"
                             onClick={() => onRename(trail)}
-                            className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-white/10 hover:text-white"
+                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-white/10 hover:text-white"
                             title="Rename trail"
                           >
-                            ✎
+                            ✎ Rename
                           </button>
 
                           <button
                             type="button"
                             onClick={() => onDelete(trail)}
-                            className="rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-red-500/10 hover:text-red-200"
+                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
                             title="Delete trail"
                           >
-                            ×
+                            × Delete
                           </button>
                         </div>
                       </article>
