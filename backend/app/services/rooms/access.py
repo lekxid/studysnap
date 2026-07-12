@@ -18,6 +18,40 @@ ROOM_ROLES = [
     "ai_tutor",
 ]
 
+ROOM_VIEW_ROLES = frozenset(
+    {
+        "owner",
+        "admin",
+        "member",
+        "viewer",
+        "ai_tutor",
+    }
+)
+
+ROOM_CONTRIBUTOR_ROLES = frozenset(
+    {
+        "owner",
+        "admin",
+        "member",
+    }
+)
+
+ROOM_AI_ROLES = frozenset(
+    {
+        "owner",
+        "admin",
+        "member",
+        "ai_tutor",
+    }
+)
+
+ROOM_MANAGER_ROLES = frozenset(
+    {
+        "owner",
+        "admin",
+    }
+)
+
 
 def ensure_room_owner_membership(
     db: Session,
@@ -151,3 +185,69 @@ def require_room_roles(
         )
 
     return room, role
+
+
+def require_room_view(
+    db: Session,
+    room_id: int,
+    user_id: int,
+) -> tuple[StudyRoom, str]:
+    return require_room_roles(
+        db=db,
+        room_id=room_id,
+        user_id=user_id,
+        allowed_roles=ROOM_VIEW_ROLES,
+    )
+
+
+def require_room_contributor(
+    db: Session,
+    room_id: int,
+    user_id: int,
+) -> tuple[StudyRoom, str]:
+    return require_room_roles(
+        db=db,
+        room_id=room_id,
+        user_id=user_id,
+        allowed_roles=ROOM_CONTRIBUTOR_ROLES,
+    )
+
+
+def require_room_ai(
+    db: Session,
+    room_id: int,
+    user_id: int,
+) -> tuple[StudyRoom, str]:
+    return require_room_roles(
+        db=db,
+        room_id=room_id,
+        user_id=user_id,
+        allowed_roles=ROOM_AI_ROLES,
+    )
+
+
+def require_room_item_change(
+    db: Session,
+    room_id: int,
+    user_id: int,
+    item_owner_id: int,
+) -> tuple[StudyRoom, str]:
+    room, role = require_room_contributor(
+        db=db,
+        room_id=room_id,
+        user_id=user_id,
+    )
+
+    if (
+        role in ROOM_MANAGER_ROLES
+        or item_owner_id == user_id
+    ):
+        return room, role
+
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "You can only change items you created "
+            "unless you manage this room."
+        ),
+    )

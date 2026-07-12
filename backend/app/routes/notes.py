@@ -1,16 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 from io import BytesIO
 
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.note import Note
-from app.models.study_room import StudyRoom
 from app.models.user import User
+from app.services.export.pdf import (
+    build_note_pdf_bytes,
+    build_studysnap_pdf_bytes,
+    safe_pdf_filename,
+)
+from app.services.rooms.access import (
+    get_room_for_user,
+    require_room_contributor,
+    require_room_item_change,
+    require_room_view,
+)
 from app.utils.deps import get_current_user
-from app.services.export.pdf import build_note_pdf_bytes, build_studysnap_pdf_bytes, safe_pdf_filename
+
 
 router = APIRouter(tags=["Notes"])
 
@@ -32,33 +42,66 @@ class PdfExportRequest(BaseModel):
     subtitle: str | None = None
 
 
+def get_note_or_404(
+    db: Session,
+    note_id: int,
+) -> Note:
+    note = (
+        db.query(Note)
+        .filter(Note.id == note_id)
+        .first()
+    )
+
+    if note is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Note not found",
+        )
+
+    return note
+
+
 @router.post("/export-pdf")
 def export_text_pdf(
     data: PdfExportRequest,
     current_user: User = Depends(get_current_user),
 ):
-    title = data.title.strip() or "StudySnap AI Export"
+    title = (
+        data.title.strip()
+        or "StudySnap AI Export"
+    )
+
     content = data.content.strip()
 
     if not content:
-        raise HTTPException(status_code=400, detail="PDF content cannot be empty")
+        raise HTTPException(
+            status_code=400,
+            detail="PDF content cannot be empty",
+        )
 
     pdf_bytes = build_studysnap_pdf_bytes(
         title=title,
         content=content,
-        subtitle=data.subtitle or "Exported from StudySnap AI Workspace",
+        subtitle=(
+            data.subtitle
+            or "Exported from StudySnap AI Workspace"
+        ),
     )
 
-    filename = safe_pdf_filename(title, fallback="studysnap-ai-export")
+    filename = safe_pdf_filename(
+        title,
+        fallback="studysnap-ai-export",
+    )
 
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            )
         },
     )
-
 
 
 @router.get("/{note_id}/download-pdf")
@@ -67,33 +110,35 @@ def download_note_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = db.query(Note).filter(
-        Note.id == note_id,
-        Note.owner_id == current_user.id
-    ).first()
+    note = get_note_or_404(
+        db=db,
+        note_id=note_id,
+    )
 
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
-
-    room = db.query(StudyRoom).filter(
-        StudyRoom.id == note.study_room_id,
-        StudyRoom.owner_id == current_user.id
-    ).first()
+    room = get_room_for_user(
+        db=db,
+        room_id=note.study_room_id,
+        user_id=current_user.id,
+    )
 
     pdf_bytes = build_note_pdf_bytes(
         title=note.title,
         content=note.content,
-        room_name=room.name if room else None,
-        subject=room.subject if room else None,
+        room_name=room.name,
+        subject=room.subject,
     )
 
-    filename = safe_pdf_filename(note.title)
+    filename = safe_pdf_filename(
+        note.title
+    )
 
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"'
+            )
         },
     )
 
@@ -102,35 +147,41 @@ def download_note_pdf(
 def get_notes(
     study_room_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    notes = db.query(Note).filter(
-        Note.study_room_id == study_room_id,
-        Note.owner_id == current_user.id
-    ).order_by(Note.id.desc()).all()
+    require_room_view(
+        db=db,
+        room_id=study_room_id,
+        user_id=current_user.id,
+    )
 
-    return notes
+    return (
+        db.query(Note)
+        .filter(
+            Note.study_room_id == study_room_id
+        )
+        .order_by(Note.id.desc())
+        .all()
+    )
 
 
 @router.post("")
 def create_note(
     data: NoteCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    room = db.query(StudyRoom).filter(
-        StudyRoom.id == data.study_room_id,
-        StudyRoom.owner_id == current_user.id
-    ).first()
-
-    if not room:
-        raise HTTPException(status_code=404, detail="Study room not found")
+    require_room_contributor(
+        db=db,
+        room_id=data.study_room_id,
+        user_id=current_user.id,
+    )
 
     note = Note(
         title=data.title,
         content=data.content,
         study_room_id=data.study_room_id,
-        owner_id=current_user.id
+        owner_id=current_user.id,
     )
 
     db.add(note)
@@ -145,15 +196,19 @@ def update_note(
     note_id: int,
     data: NoteUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    note = db.query(Note).filter(
-        Note.id == note_id,
-        Note.owner_id == current_user.id
-    ).first()
+    note = get_note_or_404(
+        db=db,
+        note_id=note_id,
+    )
 
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    require_room_item_change(
+        db=db,
+        room_id=note.study_room_id,
+        user_id=current_user.id,
+        item_owner_id=note.owner_id,
+    )
 
     note.title = data.title
     note.content = data.content
@@ -168,17 +223,23 @@ def update_note(
 def delete_note(
     note_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    note = db.query(Note).filter(
-        Note.id == note_id,
-        Note.owner_id == current_user.id
-    ).first()
+    note = get_note_or_404(
+        db=db,
+        note_id=note_id,
+    )
 
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    require_room_item_change(
+        db=db,
+        room_id=note.study_room_id,
+        user_id=current_user.id,
+        item_owner_id=note.owner_id,
+    )
 
     db.delete(note)
     db.commit()
 
-    return {"message": "Note deleted"}
+    return {
+        "message": "Note deleted"
+    }
