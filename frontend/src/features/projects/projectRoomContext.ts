@@ -1,3 +1,5 @@
+export const PROJECT_ROOM_CHANGED_EVENT = "studysnap:project-room-changed";
+
 export const LAST_PROJECT_ROOM_ID_KEY = "studysnap_last_project_room_id";
 
 export function normalizeProjectRoomId(value: unknown): number | null {
@@ -13,6 +15,13 @@ export function saveProjectRoomId(value: unknown): number | null {
   }
 
   window.localStorage.setItem(LAST_PROJECT_ROOM_ID_KEY, String(roomId));
+
+  window.dispatchEvent(
+    new CustomEvent(PROJECT_ROOM_CHANGED_EVENT, {
+      detail: { roomId },
+    })
+  );
+
   return roomId;
 }
 

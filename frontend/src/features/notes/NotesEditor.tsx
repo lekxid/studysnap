@@ -48,18 +48,20 @@ export default function NotesEditor({
   onQuiz,
   onAskAI,
 }: Props) {
+  const hasNoteContent = content.trim().length > 0;
+
   return (
     <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-2xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300/80">
-            Notes 2.0
+            Study Notes
           </p>
           <h3 className="mt-2 text-2xl font-bold text-white">
             Write a study note
           </h3>
           <p className="mt-2 text-sm text-white/60">
-            Notes now save to the backend database and are linked to a study room.
+            Write naturally. StudySnap keeps this note connected to your room and AI Tutor.
           </p>
         </div>
 
@@ -74,6 +76,7 @@ export default function NotesEditor({
 
       <div className="mt-6 space-y-4">
         <NotesAIToolbar
+          hasContent={hasNoteContent}
           onSummarize={onSummarize}
           onExplain={onExplain}
           onLesson={onLesson}
@@ -87,7 +90,7 @@ export default function NotesEditor({
             Study Room
           </span>
           <select
-            className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition focus:border-cyan-300"
+            className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-300"
             value={selectedRoomId ?? ""}
             onChange={(e) => onRoomChange(Number(e.target.value))}
             disabled={loadingRooms || rooms.length === 0}
@@ -105,15 +108,15 @@ export default function NotesEditor({
         </label>
 
         <input
-          className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300"
+          className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-yellow-300"
           placeholder="Note title"
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
         />
 
         <textarea
-          className="min-h-[380px] w-full resize-y rounded-xl border border-white/20 bg-black px-4 py-4 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300"
-          placeholder="Write your study notes here..."
+          className="min-h-[380px] w-full resize-y rounded-xl border border-white/20 bg-black px-4 py-4 text-white outline-none transition placeholder:text-white/30 focus:border-yellow-300"
+          placeholder="Start with class notes, key ideas, or anything you want to remember..."
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
         />
@@ -126,7 +129,7 @@ export default function NotesEditor({
           {selectedRoom ? (
             <div>
               Saving into:{" "}
-              <span className="font-semibold text-cyan-300">
+              <span className="font-semibold text-yellow-200">
                 {selectedRoom.name}
               </span>
             </div>
@@ -136,7 +139,7 @@ export default function NotesEditor({
         <button
           onClick={onSave}
           disabled={saving || rooms.length === 0}
-          className="w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-xl bg-yellow-300 px-4 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving Note..." : "Save Note"}
         </button>

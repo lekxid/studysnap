@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
-import ConnectedProjectBanner from "@/features/projects/ConnectedProjectBanner";
 import {
   ensureProjectRoomIdInUrl,
   getActiveProjectRoomId,
@@ -31,6 +30,16 @@ type NoteItem = {
   created_at?: string;
 };
 
+type AIHistoryDeleteRequest =
+  | {
+      kind: "item";
+      itemId: string;
+    }
+  | {
+      kind: "all";
+    }
+  | null;
+
 export default function NotesPage() {
   const ready = useRequireAuth();
 
@@ -47,16 +56,19 @@ export default function NotesPage() {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [aiTitle, setAiTitle] = useState("AI Assistant");
+  const [aiTitle, setAiTitle] = useState("Your AI Tutor");
   const [aiContent, setAiContent] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
   const [aiHistory, setAiHistory] = useState<AIHistoryItem[]>([]);
   const [aiChatMessages, setAiChatMessages] = useState<AIChatMessage[]>([]);
   const [aiChatInput, setAiChatInput] = useState("");
+  const [aiComposerFocusToken, setAiComposerFocusToken] = useState(0);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [aiHistoryDeleteRequest, setAiHistoryDeleteRequest] =
+    useState<AIHistoryDeleteRequest>(null);
 
   const lastSavedNoteRef = useRef<{
     id: number;
@@ -73,6 +85,17 @@ export default function NotesPage() {
         block: "start",
       });
     }, 120);
+  }
+
+  function focusAIComposer() {
+    setAiComposerFocusToken((current) => current + 1);
+
+    window.setTimeout(() => {
+      aiWorkspaceRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
   }
 
   function getAIText(result: unknown): string {
@@ -140,6 +163,8 @@ export default function NotesPage() {
           ensureProjectRoomIdInUrl(matchingRoom.id);
           setSelectedRoomId(matchingRoom.id);
         } else if (roomList.length > 0) {
+          saveProjectRoomId(roomList[0].id);
+          ensureProjectRoomIdInUrl(roomList[0].id);
           setSelectedRoomId(roomList[0].id);
         }
       } catch (err) {
@@ -151,6 +176,13 @@ export default function NotesPage() {
 
     loadRooms();
   }, [ready]);
+
+  useEffect(() => {
+    if (selectedRoomId === null) return;
+
+    saveProjectRoomId(selectedRoomId);
+    ensureProjectRoomIdInUrl(selectedRoomId);
+  }, [selectedRoomId]);
 
   useEffect(() => {
     if (!ready || selectedRoomId === null) return;
@@ -467,11 +499,11 @@ export default function NotesPage() {
       setAiLoading(true);
       setError("");
 
-      setAiTitle("Flashcards");
+      setAiTitle("Concept Cards");
       await generateFlashcardsFromNotes(selectedRoomId);
       const output = "Flashcards generated. Open Flashcards to review them.";
       setAiContent(output);
-      addAIHistoryItem("Flashcards", output, {
+      addAIHistoryItem("Concept Cards", output, {
         tool: "flashcards",
       });
     } catch (err) {
@@ -505,7 +537,7 @@ export default function NotesPage() {
     }
   }
 
-  async function sendAIChatMessage(message: string, titleForHistory = "AI Chat") {
+  async function sendAIChatMessage(message: string) {
     const userMessage = message.trim();
 
     if (!userMessage) return;
@@ -535,16 +567,29 @@ export default function NotesPage() {
       setAiStatus("StudySnap AI is replying...");
       scrollToAIWorkspace();
 
-      const chatContext = `Current note content:
+      const recentConversation = aiChatMessages
+        .slice(-8)
+        .map(
+          (message) =>
+            `${message.role === "user" ? "Student" : "StudySnap AI"}: ${message.content}`
+        )
+        .join("\n\n");
 
-${content}
+      const roomDescription = selectedRoom
+        ? `${selectedRoom.name}${selectedRoom.subject ? ` — ${selectedRoom.subject}` : ""}`
+        : "No study room selected";
 
-Recent conversation:
+      const chatContext = `CURRENT STUDY ROOM:
+${roomDescription}
 
-${aiChatMessages
-  .slice(-6)
-  .map((message) => `${message.role === "user" ? "Student" : "StudySnap AI"}: ${message.content}`)
-  .join("\n\n")}`;
+CURRENT NOTE TITLE:
+${title.trim() || "Untitled note"}
+
+CURRENT NOTE CONTENT:
+${content.trim()}
+
+RECENT CONVERSATION:
+${recentConversation || "No previous messages in this note conversation."}`;
 
       const result = await askAi(userMessage, chatContext);
       const output = getAIText(result);
@@ -559,13 +604,6 @@ ${aiChatMessages
         },
       ]);
 
-      setAiTitle(titleForHistory);
-      setAiContent(output);
-      addAIHistoryItem(titleForHistory, output, {
-        prompt: userMessage,
-        context: content,
-        tool: "ask",
-      });
       setAiStatus("AI reply created.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send AI chat message.");
@@ -574,15 +612,14 @@ ${aiChatMessages
     }
   }
 
-  async function handleAskAINote() {
-    await sendAIChatMessage(
-      "Based on these notes, ask me 3 helpful study questions and give short answers.",
-      "Study Questions"
-    );
+  function handleAskAINote() {
+    setError("");
+    setAiStatus("Your AI Tutor is ready. Ask anything about this note.");
+    focusAIComposer();
   }
 
   async function handleSendAIChat() {
-    await sendAIChatMessage(aiChatInput, "AI Chat");
+    await sendAIChatMessage(aiChatInput);
   }
 
   const wordCount = useMemo(() => {
@@ -641,7 +678,7 @@ ${aiChatMessages
         itemContent,
         selectedRoom
           ? `AI export from ${selectedRoom.name}`
-          : "Exported from StudySnap AI Workspace"
+          : "Exported from StudySnap"
       );
 
       setAiStatus("PDF downloaded.");
@@ -737,25 +774,35 @@ ${aiChatMessages
   }
 
   function handleDeleteAIHistory(itemId: string) {
-    const confirmed = window.confirm("Delete this AI history item? This cannot be undone.");
-
-    if (!confirmed) {
-      return;
-    }
-
-    setAiHistory((current) => current.filter((item) => item.id !== itemId));
-    setAiStatus("AI history item deleted.");
+    setAiHistoryDeleteRequest({
+      kind: "item",
+      itemId,
+    });
   }
 
   function handleClearAIHistory() {
-    const confirmed = window.confirm("Clear all AI history? This cannot be undone.");
+    setAiHistoryDeleteRequest({
+      kind: "all",
+    });
+  }
 
-    if (!confirmed) {
-      return;
+  function confirmAIHistoryDelete() {
+    if (!aiHistoryDeleteRequest) return;
+
+    if (aiHistoryDeleteRequest.kind === "item") {
+      const itemId = aiHistoryDeleteRequest.itemId;
+
+      setAiHistory((current) =>
+        current.filter((item) => item.id !== itemId)
+      );
+
+      setAiStatus("AI history item deleted.");
+    } else {
+      setAiHistory([]);
+      setAiStatus("AI history cleared.");
     }
 
-    setAiHistory([]);
-    setAiStatus("AI history cleared.");
+    setAiHistoryDeleteRequest(null);
   }
 
   async function handleRegenerateAIHistory(itemId: string) {
@@ -875,14 +922,9 @@ Answer clearly in a helpful student-friendly way.`;
   return (
     <AppShell
       title="Notes"
-      subtitle="Create database-backed study notes connected to your study rooms"
+      subtitle="Write, understand, and practise inside your study room"
     >
 
-      <ConnectedProjectBanner
-        toolName="Notes"
-        toolIcon="📝"
-        description="Your notes stay linked to this project so StudySnap can use them for search, AI help, flashcards, quizzes, and learning memory."
-      />
       <NotesStats notes={notes} selectedRoom={selectedRoom} />
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -929,11 +971,12 @@ Answer clearly in a helpful student-friendly way.`;
           onReplyHistory={handleReplyAIHistory}
           onDeleteHistory={handleDeleteAIHistory}
           onClearHistory={handleClearAIHistory}
-            chatMessages={aiChatMessages}
-            chatInput={aiChatInput}
-            chatLoading={aiLoading}
-            onChatInputChange={setAiChatInput}
-            onSendChat={handleSendAIChat}
+          chatMessages={aiChatMessages}
+          chatInput={aiChatInput}
+          chatLoading={aiLoading}
+          focusComposerToken={aiComposerFocusToken}
+          onChatInputChange={setAiChatInput}
+          onSendChat={handleSendAIChat}
           />
         </div>
 
@@ -957,9 +1000,76 @@ Answer clearly in a helpful student-friendly way.`;
               content: note.content.trim(),
             };
             setSaveStatus("saved");
+            setAiChatMessages([]);
+            setAiChatInput("");
+            setAiContent("");
+            setAiTitle("Your AI Tutor");
+            setAiStatus("Opened a new note. Ask anything about it.");
           }}
         />
       </div>
+
+      {aiHistoryDeleteRequest ? (
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-black/75 px-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setAiHistoryDeleteRequest(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-delete-title"
+            className="w-full max-w-md rounded-[1.5rem] border border-red-400/20 bg-[#0a1422] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+          >
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-red-400/20 bg-red-500/10 text-xl">
+              🗑️
+            </div>
+
+            <h3
+              id="ai-delete-title"
+              className="mt-5 text-xl font-black text-white"
+            >
+              {aiHistoryDeleteRequest.kind === "all"
+                ? "Clear created results?"
+                : "Delete this result?"}
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              {aiHistoryDeleteRequest.kind === "all"
+                ? "This will remove every summary, lesson, explanation, and practice result created from this note."
+                : "This result will be removed from your AI history."}
+            </p>
+
+            <p className="mt-3 text-xs font-semibold text-red-300">
+              This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAiHistoryDeleteRequest(null)}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/[0.08]"
+              >
+                Keep it
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmAIHistoryDelete}
+                className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-400"
+              >
+                {aiHistoryDeleteRequest.kind === "all"
+                  ? "Clear all"
+                  : "Delete"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

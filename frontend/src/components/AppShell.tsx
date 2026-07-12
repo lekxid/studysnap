@@ -8,6 +8,7 @@ import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
 import {
   getSavedProjectRoomId,
+  PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import { getStudyRooms, signOutCurrentSession } from "@/lib/api";
@@ -234,6 +235,28 @@ export default function AppShell({
 
     setRoomMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    function handleProjectRoomChanged(event: Event) {
+      const roomEvent = event as CustomEvent<{ roomId?: number }>;
+      const nextRoomId =
+        roomEvent.detail?.roomId ?? getSavedProjectRoomId();
+
+      setActiveProjectRoomId(nextRoomId);
+    }
+
+    window.addEventListener(
+      PROJECT_ROOM_CHANGED_EVENT,
+      handleProjectRoomChanged
+    );
+
+    return () => {
+      window.removeEventListener(
+        PROJECT_ROOM_CHANGED_EVENT,
+        handleProjectRoomChanged
+      );
+    };
+  }, []);
 
   const learnerInitials = useMemo(() => {
     return getInitials(learnerName);

@@ -51,7 +51,7 @@ export default function NotesLibrary({
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300/80">
           Library
         </p>
-        <h3 className="mt-2 text-2xl font-bold text-white">Room Notes</h3>
+        <h3 className="mt-2 text-2xl font-bold text-white">Notes for this room</h3>
         <p className="mt-2 text-sm text-white/60">
           {selectedRoom
             ? `Showing notes for ${selectedRoom.name}.`
