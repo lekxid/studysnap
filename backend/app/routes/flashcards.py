@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.flashcard import Flashcard
-from app.models.study_room import StudyRoom
 from app.models.user import User
+from app.services.rooms.access import (
+    require_room_contributor,
+    require_room_item_change,
+    require_room_view,
+)
 from app.utils.deps import get_current_user
+
 
 router = APIRouter(tags=["Flashcards"])
 
@@ -21,33 +26,61 @@ class FlashcardCreate(BaseModel):
     source_id: str | None = None
 
 
+def get_flashcard_or_404(
+    db: Session,
+    flashcard_id: int,
+) -> Flashcard:
+    card = (
+        db.query(Flashcard)
+        .filter(
+            Flashcard.id == flashcard_id
+        )
+        .first()
+    )
+
+    if card is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Concept Card not found",
+        )
+
+    return card
+
+
 @router.get("/{study_room_id}")
 def get_flashcards(
     study_room_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    cards = db.query(Flashcard).filter(
-        Flashcard.study_room_id == study_room_id,
-        Flashcard.owner_id == current_user.id
-    ).order_by(Flashcard.id.desc()).all()
+    require_room_view(
+        db=db,
+        room_id=study_room_id,
+        user_id=current_user.id,
+    )
 
-    return cards
+    return (
+        db.query(Flashcard)
+        .filter(
+            Flashcard.study_room_id
+            == study_room_id
+        )
+        .order_by(Flashcard.id.desc())
+        .all()
+    )
 
 
 @router.post("")
 def create_flashcard(
     data: FlashcardCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    room = db.query(StudyRoom).filter(
-        StudyRoom.id == data.study_room_id,
-        StudyRoom.owner_id == current_user.id
-    ).first()
-
-    if not room:
-        raise HTTPException(status_code=404, detail="Study room not found")
+    require_room_contributor(
+        db=db,
+        room_id=data.study_room_id,
+        user_id=current_user.id,
+    )
 
     card = Flashcard(
         question=data.question,
@@ -71,17 +104,23 @@ def create_flashcard(
 def delete_flashcard(
     flashcard_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    card = db.query(Flashcard).filter(
-        Flashcard.id == flashcard_id,
-        Flashcard.owner_id == current_user.id
-    ).first()
+    card = get_flashcard_or_404(
+        db=db,
+        flashcard_id=flashcard_id,
+    )
 
-    if not card:
-        raise HTTPException(status_code=404, detail="Flashcard not found")
+    require_room_item_change(
+        db=db,
+        room_id=card.study_room_id,
+        user_id=current_user.id,
+        item_owner_id=card.owner_id,
+    )
 
     db.delete(card)
     db.commit()
 
-    return {"message": "Flashcard deleted"}
+    return {
+        "message": "Concept Card deleted"
+    }
