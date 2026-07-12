@@ -13,6 +13,7 @@ import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
   askAiWithImage,
   createAIConversation,
+  generateAIImage,
   deleteAIConversation,
   getAIMessages,
   getStudyTrails,
@@ -21,6 +22,7 @@ import {
   streamAIMessage,
   type AIConversation,
   type AIMessage,
+  type GenerateAIImageSize,
 } from "@/lib/api";
 
 type DisplayMessage = {
@@ -30,6 +32,7 @@ type DisplayMessage = {
   created_at?: string;
   imagePreview?: string;
   imageName?: string;
+  generatedImage?: boolean;
 };
 
 const suggestions = [
@@ -154,6 +157,10 @@ export default function GeneralAIChat() {
     useState(false);
   const [studyToolsOpen, setStudyToolsOpen] =
     useState(false);
+  const [createImageMode, setCreateImageMode] =
+    useState(false);
+  const [imageSize, setImageSize] =
+    useState<GenerateAIImageSize>("1024x1024");
 
   const inputRef =
     useRef<HTMLTextAreaElement | null>(null);
@@ -170,12 +177,21 @@ export default function GeneralAIChat() {
   );
 
   const canSend = useMemo(() => {
+    if (createImageMode) {
+      return input.trim().length > 0 && !loading;
+    }
+
     return (
       (input.trim().length > 0 ||
         selectedImage !== null) &&
       !loading
     );
-  }, [input, selectedImage, loading]);
+  }, [
+    createImageMode,
+    input,
+    selectedImage,
+    loading,
+  ]);
 
   function scrollToBottom() {
     window.setTimeout(() => {
@@ -330,6 +346,7 @@ export default function GeneralAIChat() {
     const reader = new FileReader();
 
     reader.onload = () => {
+      setCreateImageMode(false);
       setSelectedImage(file);
       setSelectedImagePreview(
         String(reader.result || "")
@@ -383,6 +400,105 @@ export default function GeneralAIChat() {
     setActiveConversationId(conversation.id);
 
     return conversation.id;
+  }
+
+  async function createGeneratedImage(
+    promptText?: string
+  ) {
+    const prompt = (
+      promptText ?? input
+    ).trim();
+
+    if (!prompt || loading) return;
+
+    const userMessageId = makeId();
+    const assistantMessageId = makeId();
+
+    try {
+      setLoading(true);
+      setError("");
+      setInput("");
+
+      const conversationId =
+        await ensureConversation();
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: userMessageId,
+          role: "user",
+          content: `Create an image: ${prompt}`,
+        },
+        {
+          id: assistantMessageId,
+          role: "assistant",
+          content:
+            "StudySnap AI is creating your image...",
+        },
+      ]);
+
+      scrollToBottom();
+
+      const result = await generateAIImage(
+        prompt,
+        {
+          conversationId,
+          size: imageSize,
+          quality: "medium",
+        }
+      );
+
+      const imageSource =
+        result.image_data_url ||
+        result.image_url;
+
+      if (!imageSource) {
+        throw new Error(
+          "The image model returned no displayable image."
+        );
+      }
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                content: result.revised_prompt
+                  ? `Your image is ready.\n\nCreated from: ${result.revised_prompt}`
+                  : `Your image is ready.\n\nCreated from: ${prompt}`,
+                imagePreview: imageSource,
+                imageName:
+                  "StudySnap generated image",
+                generatedImage: true,
+              }
+            : message
+        )
+      );
+
+      await refreshTrails(conversationId);
+      scrollToBottom();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "StudySnap AI could not create the image.";
+
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === assistantMessageId
+            ? {
+                ...item,
+                content: message,
+              }
+            : item
+        )
+      );
+
+      setError(message);
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
   }
 
   async function sendMessage(
@@ -532,9 +648,14 @@ export default function GeneralAIChat() {
   ) {
     event.preventDefault();
 
-    if (canSend) {
-      await sendMessage();
+    if (!canSend) return;
+
+    if (createImageMode) {
+      await createGeneratedImage();
+      return;
     }
+
+    await sendMessage();
   }
 
   function startNewTrail() {
@@ -543,6 +664,7 @@ export default function GeneralAIChat() {
     setInput("");
     setError("");
     setCopiedId(null);
+    setCreateImageMode(false);
     removeSelectedImage();
     inputRef.current?.focus();
   }
@@ -555,6 +677,7 @@ export default function GeneralAIChat() {
     setActiveConversationId(trail.id);
     setInput("");
     setError("");
+    setCreateImageMode(false);
     removeSelectedImage();
 
     await loadMessages(trail.id);
@@ -689,6 +812,23 @@ export default function GeneralAIChat() {
     }
   }
 
+  function downloadGeneratedImage(
+    message: DisplayMessage
+  ) {
+    if (!message.imagePreview) return;
+
+    const link = document.createElement("a");
+
+    link.href = message.imagePreview;
+    link.download =
+      `studysnap-image-${Date.now()}.png`;
+    link.rel = "noopener";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   function renderComposer(large = false) {
     return (
       <form
@@ -710,6 +850,50 @@ export default function GeneralAIChat() {
             )
           }
         />
+
+        {createImageMode ? (
+          <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+                Image creator
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Describe the diagram, illustration, or study visual you want.
+              </p>
+            </div>
+
+            <select
+              value={imageSize}
+              onChange={(event) =>
+                setImageSize(
+                  event.target
+                    .value as GenerateAIImageSize
+                )
+              }
+              className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs font-black text-white outline-none"
+              aria-label="Generated image size"
+            >
+              <option
+                value="1024x1024"
+                className="bg-[#101826]"
+              >
+                Square
+              </option>
+              <option
+                value="1536x1024"
+                className="bg-[#101826]"
+              >
+                Landscape
+              </option>
+              <option
+                value="1024x1536"
+                className="bg-[#101826]"
+              >
+                Portrait
+              </option>
+            </select>
+          </div>
+        ) : null}
 
         {selectedImagePreview ? (
           <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
@@ -751,15 +935,21 @@ export default function GeneralAIChat() {
             ) {
               event.preventDefault();
 
-              if (canSend) {
+              if (!canSend) return;
+
+              if (createImageMode) {
+                void createGeneratedImage();
+              } else {
                 void sendMessage();
               }
             }
           }}
           placeholder={
-            selectedImage
-              ? "Ask about this image..."
-              : "Message StudySnap AI"
+            createImageMode
+              ? "Describe the image you want StudySnap to create..."
+              : selectedImage
+                ? "Ask about this image..."
+                : "Message StudySnap AI"
           }
           rows={large ? 4 : 2}
           className={`w-full resize-none bg-transparent px-3 py-3 font-semibold text-white outline-none placeholder:text-slate-500 ${
@@ -776,10 +966,33 @@ export default function GeneralAIChat() {
               onClick={() =>
                 fileInputRef.current?.click()
               }
-              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-300 hover:bg-white/[0.1]"
+              disabled={createImageMode}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-300 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
               title="Upload image"
             >
               ＋
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={createImageMode}
+              onClick={() => {
+                setCreateImageMode(
+                  (current) => !current
+                );
+                removeSelectedImage();
+                setError("");
+                inputRef.current?.focus();
+              }}
+              className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                createImageMode
+                  ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
+                  : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.1] hover:text-white"
+              }`}
+            >
+              {createImageMode
+                ? "✦ Image mode"
+                : "✦ Create image"}
             </button>
 
             {(input.trim() ||
@@ -802,10 +1015,22 @@ export default function GeneralAIChat() {
             <button
               type="submit"
               disabled={!canSend}
-              className="grid h-10 w-10 place-items-center rounded-xl bg-yellow-300 text-lg font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Send"
+              className={`grid h-10 place-items-center rounded-xl bg-yellow-300 font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+                createImageMode
+                  ? "min-w-24 px-4 text-xs"
+                  : "w-10 text-lg"
+              }`}
+              title={
+                createImageMode
+                  ? "Create image"
+                  : "Send"
+              }
             >
-              ↑
+              {loading
+                ? "..."
+                : createImageMode
+                  ? "Create"
+                  : "↑"}
             </button>
           </div>
         </div>
@@ -1005,7 +1230,11 @@ export default function GeneralAIChat() {
                           message.imageName ||
                           "Uploaded image"
                         }
-                        className="mb-3 max-h-72 rounded-2xl object-contain"
+                        className={`mb-3 rounded-2xl object-contain ${
+                          message.generatedImage
+                            ? "max-h-[520px] w-full"
+                            : "max-h-72"
+                        }`}
                       />
                     ) : null}
 
@@ -1018,17 +1247,34 @@ export default function GeneralAIChat() {
 
                       {message.role ===
                       "assistant" ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void copyMessage(message)
-                          }
-                          className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
-                        >
-                          {copiedId === message.id
-                            ? "Copied"
-                            : "Copy"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {message.generatedImage &&
+                          message.imagePreview ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadGeneratedImage(
+                                  message
+                                )
+                              }
+                              className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
+                            >
+                              Download
+                            </button>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copyMessage(message)
+                            }
+                            className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
+                          >
+                            {copiedId === message.id
+                              ? "Copied"
+                              : "Copy"}
+                          </button>
+                        </div>
                       ) : null}
                     </div>
 

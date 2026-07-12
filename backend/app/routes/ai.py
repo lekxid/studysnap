@@ -2,6 +2,7 @@ import base64
 import json
 import os
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -60,6 +61,23 @@ class AskAIRequest(BaseModel):
     question: str
     context: str = ""
     study_room_id: int | None = None
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    conversation_id: int | None = None
+    study_room_id: int | None = None
+    size: Literal[
+        "1024x1024",
+        "1536x1024",
+        "1024x1536",
+    ] = "1024x1024"
+    quality: Literal[
+        "low",
+        "medium",
+        "high",
+        "auto",
+    ] = "medium"
 
 
 class GenerateFlashcardsRequest(BaseModel):
@@ -331,6 +349,230 @@ def ask_ai(
     answer = generate_studysnap_answer(data.question, data.context)
 
     return {"answer": answer}
+
+
+@router.post("/generate-image")
+def generate_image(
+    data: GenerateImageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate one image for General AI or Room AI.
+
+    The generated image is returned as a data URL so the frontend can
+    display it immediately. Conversation messages store a lightweight
+    record of the request without putting the full base64 image in the
+    database.
+    """
+
+    clean_prompt = data.prompt.strip()
+
+    if not clean_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Image prompt cannot be empty.",
+        )
+
+    if len(clean_prompt) > 4000:
+        raise HTTPException(
+            status_code=400,
+            detail="Image prompt must be 4000 characters or fewer.",
+        )
+
+    conversation = None
+    effective_room_id = data.study_room_id
+
+    if data.conversation_id is not None:
+        conversation = verify_conversation(
+            db,
+            data.conversation_id,
+            current_user.id,
+        )
+
+        if (
+            data.study_room_id is not None
+            and conversation.study_room_id
+            != data.study_room_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Conversation and study room do not match."
+                ),
+            )
+
+        effective_room_id = conversation.study_room_id
+
+    if effective_room_id is not None:
+        verify_study_room(
+            db,
+            effective_room_id,
+            current_user.id,
+        )
+
+    image_model = (
+        os.getenv("OPENAI_IMAGE_MODEL")
+        or "gpt-image-1"
+    )
+
+    generation_prompt = f"""
+Create a polished, useful image for StudySnap.
+
+Follow the student's request closely.
+For educational diagrams, prioritize clarity, accurate structure,
+clean spacing, and readable labels.
+Do not add unrelated logos, watermarks, or decorative text.
+When the request is ambiguous, create the most useful
+student-friendly interpretation.
+
+Student request:
+{clean_prompt}
+""".strip()
+
+    try:
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=180.0,
+        )
+
+        response = client.images.generate(
+            model=image_model,
+            prompt=generation_prompt,
+            size=data.size,
+            quality=data.quality,
+            n=1,
+        )
+
+        if not response.data:
+            raise RuntimeError(
+                "The image model returned no image."
+            )
+
+        generated = response.data[0]
+        image_b64 = getattr(
+            generated,
+            "b64_json",
+            None,
+        )
+        image_url = getattr(
+            generated,
+            "url",
+            None,
+        )
+        revised_prompt = getattr(
+            generated,
+            "revised_prompt",
+            None,
+        )
+
+        if not image_b64 and not image_url:
+            raise RuntimeError(
+                "The image response did not contain image data."
+            )
+
+        saved_user_message = None
+        saved_ai_message = None
+
+        if conversation is not None:
+            saved_user_message = AIMessage(
+                conversation_id=conversation.id,
+                role="user",
+                content=(
+                    "[Create image] "
+                    + clean_prompt
+                ),
+            )
+
+            saved_ai_message = AIMessage(
+                conversation_id=conversation.id,
+                role="assistant",
+                content=(
+                    "[Generated image]\n\n"
+                    f"Prompt: {clean_prompt}"
+                ),
+            )
+
+            db.add(saved_user_message)
+            db.add(saved_ai_message)
+
+            if conversation.title == "New Conversation":
+                conversation.title = (
+                    clean_prompt[:50]
+                    or "Generated image"
+                )
+
+            conversation.updated_at = utc_now()
+
+            db.commit()
+            db.refresh(saved_user_message)
+            db.refresh(saved_ai_message)
+            db.refresh(conversation)
+
+        return {
+            "image_data_url": (
+                f"data:image/png;base64,{image_b64}"
+                if image_b64
+                else None
+            ),
+            "image_url": image_url,
+            "mime_type": (
+                "image/png"
+                if image_b64
+                else None
+            ),
+            "model": image_model,
+            "prompt": clean_prompt,
+            "revised_prompt": revised_prompt,
+            "conversation": (
+                serialize_conversation(conversation)
+                if conversation
+                else None
+            ),
+            "user_message": (
+                {
+                    "id": saved_user_message.id,
+                    "conversation_id": (
+                        saved_user_message.conversation_id
+                    ),
+                    "role": saved_user_message.role,
+                    "content": saved_user_message.content,
+                    "created_at": (
+                        saved_user_message.created_at
+                    ),
+                }
+                if saved_user_message
+                else None
+            ),
+            "assistant_message": (
+                {
+                    "id": saved_ai_message.id,
+                    "conversation_id": (
+                        saved_ai_message.conversation_id
+                    ),
+                    "role": saved_ai_message.role,
+                    "content": saved_ai_message.content,
+                    "created_at": (
+                        saved_ai_message.created_at
+                    ),
+                }
+                if saved_ai_message
+                else None
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Image generation failed: "
+                + str(exc)
+            ),
+        ) from exc
 
 
 @router.post("/ask-image")

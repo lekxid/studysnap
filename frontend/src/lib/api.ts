@@ -257,6 +257,66 @@ export type AIMessage = {
   created_at: string;
 };
 
+export type GenerateAIImageSize =
+  | "1024x1024"
+  | "1536x1024"
+  | "1024x1536";
+
+export type GenerateAIImageQuality =
+  | "low"
+  | "medium"
+  | "high"
+  | "auto";
+
+export type GenerateAIImageOptions = {
+  conversationId?: number | null;
+  studyRoomId?: number | null;
+  size?: GenerateAIImageSize;
+  quality?: GenerateAIImageQuality;
+};
+
+export type GenerateAIImageResponse = {
+  image_data_url: string | null;
+  image_url: string | null;
+  mime_type: string | null;
+  model: string;
+  prompt: string;
+  revised_prompt?: string | null;
+  conversation?: AIConversation | null;
+  user_message?: AIMessage | null;
+  assistant_message?: AIMessage | null;
+};
+
+export async function generateAIImage(
+  prompt: string,
+  options: GenerateAIImageOptions = {}
+): Promise<GenerateAIImageResponse> {
+  const cleanPrompt = prompt.trim();
+
+  if (!cleanPrompt) {
+    throw new Error(
+      "Describe the image you want StudySnap to create."
+    );
+  }
+
+  return apiFetch("/api/ai/generate-image", {
+    method: "POST",
+    body: JSON.stringify({
+      prompt: cleanPrompt,
+      conversation_id:
+        typeof options.conversationId === "number"
+          ? options.conversationId
+          : null,
+      study_room_id:
+        typeof options.studyRoomId === "number"
+          ? options.studyRoomId
+          : null,
+      size: options.size || "1024x1024",
+      quality: options.quality || "medium",
+    }),
+  }) as Promise<GenerateAIImageResponse>;
+}
+
 export type CreateAIConversationOptions = {
   studyRoomId?: number | null;
   title?: string;

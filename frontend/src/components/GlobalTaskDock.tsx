@@ -3,6 +3,7 @@
 import {
   ChangeEvent,
   DragEvent,
+  PointerEvent as ReactPointerEvent,
   ReactNode,
   useEffect,
   useMemo,
@@ -60,8 +61,27 @@ type UploadTask = {
   completedAt?: string;
 };
 
+type FloatingButtonPosition = {
+  x: number;
+  y: number;
+};
+
+type FloatingButtonDragSession = {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+};
+
 const TASK_STORAGE_KEY =
   "studysnap:universal-upload-history";
+
+const FLOATING_BUTTON_POSITION_KEY =
+  "studysnap:upload-button-position";
+
+const FLOATING_BUTTON_MARGIN = 12;
 
 const MAX_VISIBLE_HISTORY = 100;
 const MAX_FILES_PER_BATCH = 50;
@@ -182,6 +202,42 @@ function isUploadStatus(
   ].includes(String(value));
 }
 
+function clampFloatingButtonPosition(
+  position: FloatingButtonPosition,
+  width: number,
+  height: number
+): FloatingButtonPosition {
+  if (typeof window === "undefined") {
+    return position;
+  }
+
+  const maxX = Math.max(
+    FLOATING_BUTTON_MARGIN,
+    window.innerWidth -
+      width -
+      FLOATING_BUTTON_MARGIN
+  );
+
+  const maxY = Math.max(
+    FLOATING_BUTTON_MARGIN,
+    window.innerHeight -
+      height -
+      FLOATING_BUTTON_MARGIN
+  );
+
+  return {
+    x: Math.min(
+      Math.max(position.x, FLOATING_BUTTON_MARGIN),
+      maxX
+    ),
+    y: Math.min(
+      Math.max(position.y, FLOATING_BUTTON_MARGIN),
+      maxY
+    ),
+  };
+}
+
+
 function normalizeServerStatus(
   result: UniversalMaterialUploadResponse
 ): UploadStatus {
@@ -213,6 +269,17 @@ export default function GlobalTaskDock({
   const fileInputRef =
     useRef<HTMLInputElement | null>(null);
 
+  const floatingButtonRef =
+    useRef<HTMLButtonElement | null>(null);
+
+  const floatingButtonDragRef =
+    useRef<FloatingButtonDragSession | null>(
+      null
+    );
+
+  const ignoreNextButtonClickRef =
+    useRef(false);
+
   const fileRefs = useRef<
     Map<string, File>
   >(new Map());
@@ -242,6 +309,18 @@ export default function GlobalTaskDock({
 
   const [panelOpen, setPanelOpen] =
     useState(false);
+
+  const [
+    floatingButtonPosition,
+    setFloatingButtonPosition,
+  ] = useState<FloatingButtonPosition | null>(
+    null
+  );
+
+  const [
+    draggingFloatingButton,
+    setDraggingFloatingButton,
+  ] = useState(false);
 
   const [dragging, setDragging] =
     useState(false);
@@ -488,6 +567,260 @@ export default function GlobalTaskDock({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !hydrated ||
+      hideDock ||
+      panelOpen ||
+      !getToken()
+    ) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(
+      () => {
+        const button =
+          floatingButtonRef.current;
+
+        if (!button) return;
+
+        const rect =
+          button.getBoundingClientRect();
+
+        let nextPosition:
+          | FloatingButtonPosition
+          | null = null;
+
+        try {
+          const saved =
+            window.localStorage.getItem(
+              FLOATING_BUTTON_POSITION_KEY
+            );
+
+          if (saved) {
+            const parsed = JSON.parse(
+              saved
+            ) as Partial<FloatingButtonPosition>;
+
+            if (
+              typeof parsed.x === "number" &&
+              Number.isFinite(parsed.x) &&
+              typeof parsed.y === "number" &&
+              Number.isFinite(parsed.y)
+            ) {
+              nextPosition = {
+                x: parsed.x,
+                y: parsed.y,
+              };
+            }
+          }
+        } catch {
+          window.localStorage.removeItem(
+            FLOATING_BUTTON_POSITION_KEY
+          );
+        }
+
+        if (!nextPosition) {
+          nextPosition = {
+            x:
+              window.innerWidth -
+              rect.width -
+              20,
+            y:
+              window.innerHeight -
+              rect.height -
+              20,
+          };
+        }
+
+        setFloatingButtonPosition(
+          clampFloatingButtonPosition(
+            nextPosition,
+            rect.width,
+            rect.height
+          )
+        );
+      }
+    );
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [
+    hydrated,
+    hideDock,
+    panelOpen,
+    pathname,
+  ]);
+
+  useEffect(() => {
+    if (!floatingButtonPosition) return;
+
+    window.localStorage.setItem(
+      FLOATING_BUTTON_POSITION_KEY,
+      JSON.stringify(
+        floatingButtonPosition
+      )
+    );
+  }, [floatingButtonPosition]);
+
+  useEffect(() => {
+    function handleResize() {
+      const button =
+        floatingButtonRef.current;
+
+      if (!button) return;
+
+      const rect =
+        button.getBoundingClientRect();
+
+      setFloatingButtonPosition(
+        (current) =>
+          current
+            ? clampFloatingButtonPosition(
+                current,
+                rect.width,
+                rect.height
+              )
+            : current
+      );
+    }
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draggingFloatingButton) {
+      return;
+    }
+
+    function handlePointerMove(
+      event: PointerEvent
+    ) {
+      const dragSession =
+        floatingButtonDragRef.current;
+
+      const button =
+        floatingButtonRef.current;
+
+      if (
+        !dragSession ||
+        !button ||
+        event.pointerId !==
+          dragSession.pointerId
+      ) {
+        return;
+      }
+
+      const movedDistance = Math.hypot(
+        event.clientX -
+          dragSession.startX,
+        event.clientY -
+          dragSession.startY
+      );
+
+      if (movedDistance > 4) {
+        dragSession.moved = true;
+      }
+
+      const rect =
+        button.getBoundingClientRect();
+
+      const nextPosition =
+        clampFloatingButtonPosition(
+          {
+            x:
+              event.clientX -
+              dragSession.offsetX,
+            y:
+              event.clientY -
+              dragSession.offsetY,
+          },
+          rect.width,
+          rect.height
+        );
+
+      setFloatingButtonPosition(
+        nextPosition
+      );
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+    }
+
+    function finishPointerDrag(
+      event: PointerEvent
+    ) {
+      const dragSession =
+        floatingButtonDragRef.current;
+
+      if (
+        !dragSession ||
+        event.pointerId !==
+          dragSession.pointerId
+      ) {
+        return;
+      }
+
+      ignoreNextButtonClickRef.current =
+        dragSession.moved;
+
+      floatingButtonDragRef.current =
+        null;
+
+      setDraggingFloatingButton(false);
+
+      window.setTimeout(() => {
+        ignoreNextButtonClickRef.current =
+          false;
+      }, 0);
+    }
+
+    window.addEventListener(
+      "pointermove",
+      handlePointerMove,
+      { passive: false }
+    );
+
+    window.addEventListener(
+      "pointerup",
+      finishPointerDrag
+    );
+
+    window.addEventListener(
+      "pointercancel",
+      finishPointerDrag
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pointermove",
+        handlePointerMove
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        finishPointerDrag
+      );
+
+      window.removeEventListener(
+        "pointercancel",
+        finishPointerDrag
+      );
+    };
+  }, [draggingFloatingButton]);
 
   useEffect(() => {
     function handleRoomChange(
@@ -967,6 +1300,49 @@ export default function GlobalTaskDock({
     setQueueTick(
       (current) => current + 1
     );
+  }
+
+  function beginFloatingButtonDrag(
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) {
+    if (
+      event.button !== 0 ||
+      panelOpen
+    ) {
+      return;
+    }
+
+    const rect =
+      event.currentTarget.getBoundingClientRect();
+
+    floatingButtonDragRef.current = {
+      pointerId: event.pointerId,
+      offsetX:
+        event.clientX - rect.left,
+      offsetY:
+        event.clientY - rect.top,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+
+    setDraggingFloatingButton(true);
+
+    event.currentTarget.setPointerCapture?.(
+      event.pointerId
+    );
+  }
+
+  function openUploadPanelFromButton() {
+    if (
+      ignoreNextButtonClickRef.current
+    ) {
+      ignoreNextButtonClickRef.current =
+        false;
+      return;
+    }
+
+    setPanelOpen(true);
   }
 
   function handleFileInput(
@@ -1539,11 +1915,33 @@ export default function GlobalTaskDock({
             </section>
           ) : (
             <button
+              ref={floatingButtonRef}
               type="button"
-              onClick={() =>
-                setPanelOpen(true)
+              onPointerDown={
+                beginFloatingButtonDrag
               }
-              className="fixed bottom-5 right-5 z-[90] flex items-center gap-3 rounded-2xl border border-yellow-300/30 bg-[#08111d]/95 px-4 py-3 text-left shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl hover:border-yellow-300/55"
+              onClick={
+                openUploadPanelFromButton
+              }
+              style={
+                floatingButtonPosition
+                  ? {
+                      left:
+                        floatingButtonPosition.x,
+                      top:
+                        floatingButtonPosition.y,
+                      right: "auto",
+                      bottom: "auto",
+                    }
+                  : undefined
+              }
+              className={`fixed bottom-5 right-5 z-[90] flex touch-none select-none items-center gap-3 rounded-2xl border border-yellow-300/30 bg-[#08111d]/95 px-4 py-3 text-left shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl hover:border-yellow-300/55 ${
+                draggingFloatingButton
+                  ? "cursor-grabbing scale-[1.02]"
+                  : "cursor-grab"
+              }`}
+              title="Drag to move. Click to open uploads."
+              aria-label="Uploads. Drag to move or click to open."
             >
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-yellow-300 text-xl text-black">
                 ↑
@@ -1570,6 +1968,13 @@ export default function GlobalTaskDock({
                   {activeCount}
                 </span>
               ) : null}
+
+              <span
+                aria-hidden="true"
+                className="ml-1 text-sm font-black tracking-[-0.2em] text-slate-500"
+              >
+                ⋮⋮
+              </span>
             </button>
           )}
         </>
