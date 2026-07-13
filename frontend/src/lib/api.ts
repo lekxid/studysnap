@@ -1718,3 +1718,104 @@ export async function deleteUniversalMaterial(
     }
   );
 }
+
+
+// =========================================================
+// Study Together shared room messages
+// =========================================================
+
+export type RoomMessageSender = {
+  id: number;
+  full_name: string;
+  email: string;
+};
+
+export type RoomMessage = {
+  id: number;
+  room_id: number;
+  sender_id: number | null;
+  sender: RoomMessageSender | null;
+  message_type: string;
+  content: string;
+  reply_to_message_id: number | null;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+  edited_at: string | null;
+  deleted_at: string | null;
+  is_deleted: boolean;
+};
+
+export async function getRoomMessages(
+  studyRoomId: number,
+  options: {
+    beforeId?: number;
+    limit?: number;
+  } = {}
+): Promise<RoomMessage[]> {
+  const params = new URLSearchParams();
+
+  if (
+    typeof options.beforeId === "number" &&
+    options.beforeId > 0
+  ) {
+    params.set(
+      "before_id",
+      String(options.beforeId)
+    );
+  }
+
+  params.set(
+    "limit",
+    String(options.limit ?? 50)
+  );
+
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}?${params.toString()}`
+  ) as Promise<RoomMessage[]>;
+}
+
+export async function createRoomMessage(
+  studyRoomId: number,
+  content: string,
+  replyToMessageId?: number | null
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        reply_to_message_id:
+          replyToMessageId ?? null,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
+export async function updateRoomMessage(
+  studyRoomId: number,
+  messageId: number,
+  content: string
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/${messageId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        content,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
+export async function deleteRoomMessage(
+  studyRoomId: number,
+  messageId: number
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<RoomMessage>;
+}

@@ -10,12 +10,19 @@ import Link from "next/link";
 import {
   createRoomEmailInvitation,
   createRoomInviteLink,
+  createRoomMessage,
+  deleteRoomMessage,
+  getCurrentUser,
   getRoomInvitations,
+  getRoomMessages,
   revokeRoomEmailInvitation,
   revokeRoomInviteLink,
+  updateRoomMessage,
   type RoomEmailInvitation,
   type RoomInvitationRole,
   type RoomInviteLink,
+  type RoomMessage,
+  type UserProfile,
 } from "@/lib/api";
 
 type PendingInvite = {
@@ -23,12 +30,6 @@ type PendingInvite = {
   email: string;
   role: RoomInvitationRole;
   status: "pending";
-  createdAt: string;
-};
-
-type PreviewMessage = {
-  id: string;
-  content: string;
   createdAt: string;
 };
 
@@ -50,19 +51,6 @@ const starterPrompts = [
   "What is the hardest topic right now?",
   "When should we do a group quiz?",
 ];
-
-function makeId() {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
-}
 
 function formatActivityTime(value: string) {
   const parsed = Date.parse(value);
@@ -132,6 +120,11 @@ export default function StudyTogetherWorkspace({
     normalizedRole === "owner" ||
     normalizedRole === "admin";
 
+  const canSendMessages =
+    normalizedRole === "owner" ||
+    normalizedRole === "admin" ||
+    normalizedRole === "member";
+
   const currentRoleLabel =
     normalizedRole === "ai_tutor"
       ? "AI Tutor"
@@ -143,9 +136,6 @@ export default function StudyTogetherWorkspace({
               part.slice(1)
           )
           .join(" ");
-
-  const messageStorageKey =
-    `studysnap:room:${studyRoomId}:${normalizedRole}:study-together-preview-messages`;
 
   const [inviteEmail, setInviteEmail] =
     useState("");
@@ -200,11 +190,40 @@ export default function StudyTogetherWorkspace({
   const [chatDraft, setChatDraft] =
     useState("");
 
-  const [previewMessages, setPreviewMessages] =
-    useState<PreviewMessage[]>([]);
+  const [currentUser, setCurrentUser] =
+    useState<UserProfile | null>(null);
 
-  const [hydrated, setHydrated] =
+  const [roomMessages, setRoomMessages] =
+    useState<RoomMessage[]>([]);
+
+  const [messageLoading, setMessageLoading] =
+    useState(true);
+
+  const [messageError, setMessageError] =
+    useState("");
+
+  const [messageSending, setMessageSending] =
     useState(false);
+
+  const [
+    editingMessageId,
+    setEditingMessageId,
+  ] = useState<number | null>(null);
+
+  const [
+    editMessageDraft,
+    setEditMessageDraft,
+  ] = useState("");
+
+  const [
+    pendingDeleteMessageId,
+    setPendingDeleteMessageId,
+  ] = useState<number | null>(null);
+
+  const [
+    messageActionId,
+    setMessageActionId,
+  ] = useState<number | null>(null);
 
   const pendingInvites =
     useMemo<PendingInvite[]>(
@@ -239,38 +258,6 @@ export default function StudyTogetherWorkspace({
         ),
       [shareLinks]
     );
-
-  useEffect(() => {
-    try {
-      const savedMessages =
-        window.localStorage.getItem(
-          messageStorageKey
-        );
-
-      if (savedMessages) {
-        const parsed = JSON.parse(
-          savedMessages
-        ) as PreviewMessage[];
-
-        if (Array.isArray(parsed)) {
-          setPreviewMessages(
-            parsed.filter(
-              (item) =>
-                Boolean(item?.id) &&
-                Boolean(item?.content) &&
-                Boolean(item?.createdAt)
-            )
-          );
-        }
-      }
-    } catch {
-      window.localStorage.removeItem(
-        messageStorageKey
-      );
-    } finally {
-      setHydrated(true);
-    }
-  }, [messageStorageKey]);
 
   useEffect(() => {
     if (!canManageInvitations) {
@@ -328,17 +315,83 @@ export default function StudyTogetherWorkspace({
   ]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    let cancelled = false;
 
-    window.localStorage.setItem(
-      messageStorageKey,
-      JSON.stringify(previewMessages)
-    );
-  }, [
-    hydrated,
-    messageStorageKey,
-    previewMessages,
-  ]);
+    async function loadSharedChat() {
+      setMessageLoading(true);
+      setMessageError("");
+
+      try {
+        const [user, messages] =
+          await Promise.all([
+            getCurrentUser(),
+            getRoomMessages(
+              studyRoomId,
+              { limit: 100 }
+            ),
+          ]);
+
+        if (cancelled) return;
+
+        setCurrentUser(user);
+        setRoomMessages(
+          Array.isArray(messages)
+            ? messages
+            : []
+        );
+      } catch (error) {
+        if (cancelled) return;
+
+        setMessageError(
+          error instanceof Error
+            ? error.message
+            : "Could not load the shared chat."
+        );
+      } finally {
+        if (!cancelled) {
+          setMessageLoading(false);
+        }
+      }
+    }
+
+    async function refreshSharedChat() {
+      try {
+        const messages =
+          await getRoomMessages(
+            studyRoomId,
+            { limit: 100 }
+          );
+
+        if (!cancelled) {
+          setRoomMessages(
+            Array.isArray(messages)
+              ? messages
+              : []
+          );
+        }
+      } catch {
+        // Keep the current conversation visible
+        // during a temporary refresh failure.
+      }
+    }
+
+    void loadSharedChat();
+
+    const refreshTimer =
+      window.setInterval(
+        () => {
+          void refreshSharedChat();
+        },
+        4000
+      );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(
+        refreshTimer
+      );
+    };
+  }, [studyRoomId]);
 
   const activityItems = useMemo(() => {
     const items: {
@@ -647,7 +700,7 @@ export default function StudyTogetherWorkspace({
     }
   }
 
-  function addPreviewMessage(
+  async function sendSharedMessage(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
@@ -655,19 +708,170 @@ export default function StudyTogetherWorkspace({
     const cleanMessage =
       chatDraft.trim();
 
-    if (!cleanMessage) return;
+    if (
+      !cleanMessage ||
+      !canSendMessages ||
+      messageSending
+    ) {
+      return;
+    }
 
-    setPreviewMessages((current) => [
-      ...current,
-      {
-        id: makeId(),
-        content: cleanMessage,
-        createdAt:
-          new Date().toISOString(),
-      },
-    ]);
+    setMessageSending(true);
+    setMessageError("");
 
-    setChatDraft("");
+    try {
+      const created =
+        await createRoomMessage(
+          studyRoomId,
+          cleanMessage
+        );
+
+      setRoomMessages((current) => {
+        const next = [
+          ...current.filter(
+            (message) =>
+              message.id !== created.id
+          ),
+          created,
+        ];
+
+        return next.sort(
+          (left, right) =>
+            left.id - right.id
+        );
+      });
+
+      setChatDraft("");
+    } catch (error) {
+      setMessageError(
+        error instanceof Error
+          ? error.message
+          : "Could not send the message."
+      );
+    } finally {
+      setMessageSending(false);
+    }
+  }
+
+  function startEditingMessage(
+    message: RoomMessage
+  ) {
+    if (
+      message.is_deleted ||
+      currentUser?.id !== message.sender_id
+    ) {
+      return;
+    }
+
+    setEditingMessageId(message.id);
+    setEditMessageDraft(message.content);
+    setPendingDeleteMessageId(null);
+    setMessageError("");
+  }
+
+  function cancelEditingMessage() {
+    setEditingMessageId(null);
+    setEditMessageDraft("");
+  }
+
+  function requestDeleteMessage(
+    messageId: number
+  ) {
+    setPendingDeleteMessageId(messageId);
+    setEditingMessageId(null);
+    setEditMessageDraft("");
+    setMessageError("");
+  }
+
+  function cancelDeleteMessage() {
+    setPendingDeleteMessageId(null);
+  }
+
+  async function saveEditedMessage(
+    messageId: number
+  ) {
+    const cleanMessage =
+      editMessageDraft.trim();
+
+    if (
+      !cleanMessage ||
+      messageActionId !== null
+    ) {
+      return;
+    }
+
+    setMessageActionId(messageId);
+    setMessageError("");
+
+    try {
+      const updated =
+        await updateRoomMessage(
+          studyRoomId,
+          messageId,
+          cleanMessage
+        );
+
+      setRoomMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? updated
+            : message
+        )
+      );
+
+      setEditingMessageId(null);
+      setEditMessageDraft("");
+    } catch (error) {
+      setMessageError(
+        error instanceof Error
+          ? error.message
+          : "Could not update the message."
+      );
+    } finally {
+      setMessageActionId(null);
+    }
+  }
+
+  async function removeSharedMessage(
+    messageId: number
+  ) {
+    if (messageActionId !== null) {
+      return;
+    }
+
+    setMessageActionId(messageId);
+    setMessageError("");
+
+    try {
+      const deleted =
+        await deleteRoomMessage(
+          studyRoomId,
+          messageId
+        );
+
+      setRoomMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? deleted
+            : message
+        )
+      );
+
+      setPendingDeleteMessageId(null);
+
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null);
+        setEditMessageDraft("");
+      }
+    } catch (error) {
+      setMessageError(
+        error instanceof Error
+          ? error.message
+          : "Could not delete the message."
+      );
+    } finally {
+      setMessageActionId(null);
+    }
   }
 
   return (
@@ -817,118 +1021,435 @@ export default function StudyTogetherWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-                  Shared study chat
-                </p>
+          <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80">
+            <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-yellow-300 text-lg font-black text-slate-950">
+                  {roomTitle
+                    .trim()
+                    .charAt(0)
+                    .toUpperCase() || "S"}
+                </div>
 
-                <h3 className="mt-2 text-xl font-black text-white">
-                  Give the room a heartbeat
-                </h3>
+                <div>
+                  <p className="font-black text-white">
+                    {roomTitle}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Shared study conversation
+                  </p>
+                </div>
               </div>
 
-              <span className="rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1.5 text-xs font-black text-orange-100">
-                Private preview
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-black text-emerald-100">
+                  Shared chat
+                </span>
+
+                <button
+                  type="button"
+                  onClick={onOpenAiTutor}
+                  className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                >
+                  ✨ Ask AI
+                </button>
+              </div>
             </div>
 
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Preview messages stay on this device for now. Real shared chat will
-              replace this local preview when the collaboration backend is
-              connected.
-            </p>
+            <div className="min-h-[28rem] max-h-[62vh] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.05),transparent_38%)] px-4 py-5 sm:px-5">
+              {messageLoading ? (
+                <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-slate-400">
+                  Opening the shared conversation...
+                </div>
+              ) : roomMessages.length ? (
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Today
+                    </span>
+                  </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {starterPrompts.map(
-                (prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() =>
-                      setChatDraft(prompt)
+                  {roomMessages.map(
+                    (message) => {
+                      const isMine =
+                        currentUser?.id ===
+                        message.sender_id;
+
+                      const senderName =
+                        isMine
+                          ? "You"
+                          : message.sender
+                              ?.full_name ||
+                            "Study Room member";
+
+                      const senderInitial =
+                        senderName
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase() ||
+                        "S";
+
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex items-end gap-2 ${
+                            isMine
+                              ? "justify-end"
+                              : "justify-start"
+                          }`}
+                        >
+                          {!isMine ? (
+                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-300/15 text-xs font-black text-cyan-100">
+                              {senderInitial}
+                            </div>
+                          ) : null}
+
+                          <div
+                            className={`max-w-[86%] rounded-2xl border px-3.5 py-3 sm:max-w-[72%] ${
+                              isMine
+                                ? "rounded-br-md border-yellow-300/20 bg-yellow-300/10"
+                                : "rounded-bl-md border-white/10 bg-white/[0.06]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <p
+                                className={`text-[10px] font-black uppercase tracking-[0.15em] ${
+                                  isMine
+                                    ? "text-yellow-100"
+                                    : "text-cyan-100"
+                                }`}
+                              >
+                                {senderName}
+                              </p>
+
+                              <p className="text-[10px] text-slate-500">
+                                {formatActivityTime(
+                                  message.created_at ||
+                                    ""
+                                )}
+                              </p>
+                            </div>
+
+                            {editingMessageId ===
+                              message.id &&
+                            !message.is_deleted ? (
+                              <div className="mt-2">
+                                <textarea
+                                  autoFocus
+                                  value={
+                                    editMessageDraft
+                                  }
+                                  onChange={(event) =>
+                                    setEditMessageDraft(
+                                      event.target
+                                        .value
+                                    )
+                                  }
+                                  onKeyDown={(
+                                    event
+                                  ) => {
+                                    if (
+                                      event.key ===
+                                      "Escape"
+                                    ) {
+                                      cancelEditingMessage();
+                                    }
+
+                                    if (
+                                      event.key ===
+                                        "Enter" &&
+                                      (event.ctrlKey ||
+                                        event.metaKey)
+                                    ) {
+                                      event.preventDefault();
+
+                                      void saveEditedMessage(
+                                        message.id
+                                      );
+                                    }
+                                  }}
+                                  rows={3}
+                                  disabled={
+                                    messageActionId ===
+                                    message.id
+                                  }
+                                  className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm leading-6 text-white outline-none focus:border-cyan-300/35 disabled:opacity-60"
+                                />
+
+                                <div className="mt-2 flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={
+                                      cancelEditingMessage
+                                    }
+                                    disabled={
+                                      messageActionId ===
+                                      message.id
+                                    }
+                                    className="rounded-lg border border-white/10 px-3 py-1.5 text-[10px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void saveEditedMessage(
+                                        message.id
+                                      )
+                                    }
+                                    disabled={
+                                      !editMessageDraft.trim() ||
+                                      messageActionId ===
+                                        message.id
+                                    }
+                                    className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    {messageActionId ===
+                                    message.id
+                                      ? "Saving..."
+                                      : "Save"}
+                                  </button>
+                                </div>
+
+                                <p className="mt-2 text-right text-[10px] text-slate-500">
+                                  Ctrl or Cmd + Enter
+                                  saves · Esc cancels
+                                </p>
+                              </div>
+                            ) : message.is_deleted ? (
+                              <p className="mt-2 text-sm italic text-slate-500">
+                                This message was
+                                deleted.
+                              </p>
+                            ) : (
+                              <>
+                                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                  {message.content}
+                                </p>
+
+                                <div className="mt-2 flex min-h-5 items-center justify-between gap-3">
+                                  {message.edited_at ? (
+                                    <p className="text-[10px] text-slate-500">
+                                      Edited
+                                    </p>
+                                  ) : (
+                                    <span />
+                                  )}
+
+                                  {isMine ? (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          startEditingMessage(
+                                            message
+                                          )
+                                        }
+                                        disabled={
+                                          messageActionId ===
+                                          message.id
+                                        }
+                                        className="rounded-md px-2 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                                      >
+                                        Edit
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          requestDeleteMessage(
+                                            message.id
+                                          )
+                                        }
+                                        disabled={
+                                          messageActionId ===
+                                          message.id
+                                        }
+                                        className="rounded-md px-2 py-1 text-[10px] font-black text-red-300/80 transition hover:bg-red-300/10 hover:text-red-200 disabled:opacity-50"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                {isMine &&
+                                pendingDeleteMessageId ===
+                                  message.id ? (
+                                  <div className="mt-2 rounded-xl border border-red-300/20 bg-red-300/10 p-3">
+                                    <p className="text-xs font-bold text-red-100">
+                                      Delete this
+                                      message?
+                                    </p>
+
+                                    <p className="mt-1 text-[10px] leading-4 text-red-100/70">
+                                      The conversation
+                                      will show that the
+                                      message was deleted.
+                                    </p>
+
+                                    <div className="mt-2 flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={
+                                          cancelDeleteMessage
+                                        }
+                                        disabled={
+                                          messageActionId ===
+                                          message.id
+                                        }
+                                        className="rounded-lg border border-white/10 px-3 py-1.5 text-[10px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-50"
+                                      >
+                                        Cancel
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void removeSharedMessage(
+                                            message.id
+                                          )
+                                        }
+                                        disabled={
+                                          messageActionId ===
+                                          message.id
+                                        }
+                                        className="rounded-lg border border-red-300/20 bg-red-300/10 px-3 py-1.5 text-[10px] font-black text-red-100 transition hover:bg-red-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {messageActionId ===
+                                        message.id
+                                          ? "Deleting..."
+                                          : "Delete message"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
                     }
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-300 transition hover:border-cyan-300/25 hover:bg-cyan-300/10 hover:text-white"
-                  >
-                    {prompt}
-                  </button>
-                )
-              )}
-            </div>
-
-            <div className="mt-5 min-h-52 space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4">
-              {previewMessages.length ? (
-                previewMessages.map(
-                  (message) => (
-                    <div
-                      key={message.id}
-                      className="ml-auto max-w-[88%] rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-yellow-100">
-                          You · Owner
-                        </p>
-
-                        <p className="text-[10px] text-slate-500">
-                          {formatActivityTime(
-                            message.createdAt
-                          )}
-                        </p>
-                      </div>
-
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-100">
-                        {message.content}
-                      </p>
-                    </div>
-                  )
-                )
+                  )}
+                </div>
               ) : (
-                <div className="flex min-h-44 items-center justify-center text-center">
-                  <div className="max-w-sm">
-                    <p className="text-3xl">💬</p>
-                    <p className="mt-3 text-sm font-black text-white">
-                      No messages yet
+                <div className="flex min-h-72 items-center justify-center text-center">
+                  <div className="max-w-md">
+                    <p className="text-4xl">
+                      💬
                     </p>
-                    <p className="mt-2 text-xs leading-5 text-slate-400">
-                      Start the first study chat with a question, goal, or group
-                      quiz plan.
+
+                    <p className="mt-3 text-base font-black text-white">
+                      Start the group conversation
                     </p>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Ask a classmate a question, choose what to study, or bring StudySnap AI in when the group needs help.
+                    </p>
+
+                    {canSendMessages ? (
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {starterPrompts.map(
+                          (prompt) => (
+                            <button
+                              key={prompt}
+                              type="button"
+                              onClick={() =>
+                                setChatDraft(
+                                  prompt
+                                )
+                              }
+                              className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300 transition hover:border-yellow-300/25 hover:text-white"
+                            >
+                              {prompt}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )}
             </div>
 
-            <form
-              onSubmit={addPreviewMessage}
-              className="mt-4"
-            >
-              <textarea
-                value={chatDraft}
-                onChange={(event) =>
-                  setChatDraft(
-                    event.target.value
-                  )
-                }
-                placeholder="Write a preview study message..."
-                rows={3}
-                className="w-full resize-none rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/30"
-              />
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-slate-500">
-                  This does not send to classmates yet.
+            <div className="border-t border-white/10 bg-slate-950/95 p-3 sm:p-4">
+              {messageError ? (
+                <p className="mb-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
+                  {messageError}
                 </p>
+              ) : null}
+
+              <form
+                onSubmit={sendSharedMessage}
+                className="flex items-end gap-2"
+              >
+                <button
+                  type="button"
+                  title="Shared learning attachments are coming next"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-xl text-slate-300 transition hover:bg-white/[0.09] hover:text-white"
+                >
+                  ＋
+                </button>
+
+                <textarea
+                  value={chatDraft}
+                  onChange={(event) =>
+                    setChatDraft(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey
+                    ) {
+                      event.preventDefault();
+                      event.currentTarget.form
+                        ?.requestSubmit();
+                    }
+                  }}
+                  disabled={
+                    !canSendMessages ||
+                    messageSending
+                  }
+                  placeholder={
+                    canSendMessages
+                      ? "Message the study group..."
+                      : "Your room role can read this conversation."
+                  }
+                  rows={1}
+                  className="min-h-11 flex-1 resize-none rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm leading-5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/30 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+
+                <button
+                  type="button"
+                  onClick={onOpenAiTutor}
+                  title="Bring StudySnap AI into your study"
+                  className="hidden h-11 shrink-0 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15 sm:block"
+                >
+                  ✨ AI
+                </button>
 
                 <button
                   type="submit"
-                  disabled={!chatDraft.trim()}
-                  className="rounded-xl bg-yellow-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={
+                    !canSendMessages ||
+                    !chatDraft.trim() ||
+                    messageSending
+                  }
+                  className="grid h-11 min-w-11 shrink-0 place-items-center rounded-xl bg-yellow-300 px-3 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Add preview message
+                  {messageSending
+                    ? "..."
+                    : "➤"}
                 </button>
-              </div>
-            </form>
+              </form>
+
+              <p className="mt-2 px-1 text-[10px] leading-4 text-slate-500">
+                StudySnap AI stays quiet unless someone chooses Ask AI. Press Shift + Enter for a new line.
+              </p>
+            </div>
           </section>
         </div>
 
@@ -1378,12 +1899,13 @@ export default function StudyTogetherWorkspace({
 
       <section className="rounded-[1.5rem] border border-orange-300/15 bg-orange-300/10 p-5">
         <p className="text-sm font-black text-orange-100">
-          Collaboration backend comes next
+          Shared collaboration is connected
         </p>
 
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          The next focused phase adds real room members, emailed invitations,
-          shared messages, member roles, and a durable group activity log.
+          Secure invitations, room links, member roles, and durable shared
+          messages are now connected. Live member presence, attachments, and
+          the room activity feed are the next collaboration upgrades.
         </p>
       </section>
     </div>
