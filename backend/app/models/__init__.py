@@ -25,3 +25,4 @@ from app.models.room_ai_output import RoomAIOutput
 
 from app.models.room_invitation import RoomInvitation
 from app.models.room_invite_link import RoomInviteLink
+from app.models.room_message import RoomMessage
