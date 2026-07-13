@@ -7,9 +7,22 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import {
+  createRoomEmailInvitation,
+  createRoomInviteLink,
+  getRoomInvitations,
+  revokeRoomEmailInvitation,
+  revokeRoomInviteLink,
+  type RoomEmailInvitation,
+  type RoomInvitationRole,
+  type RoomInviteLink,
+} from "@/lib/api";
 
 type PendingInvite = {
+  id: number;
   email: string;
+  role: RoomInvitationRole;
+  status: "pending";
   createdAt: string;
 };
 
@@ -22,6 +35,7 @@ type PreviewMessage = {
 type StudyTogetherWorkspaceProps = {
   studyRoomId: number;
   roomTitle: string;
+  currentUserRole: string;
   materialsCount: number;
   notesCount: number;
   conceptCardsCount: number;
@@ -63,9 +77,46 @@ function formatActivityTime(value: string) {
   }).format(new Date(parsed));
 }
 
+async function copyTextToClipboard(
+  value: string
+) {
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
+    await navigator.clipboard.writeText(
+      value
+    );
+    return;
+  }
+
+  const textarea =
+    document.createElement("textarea");
+
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied =
+    document.execCommand("copy");
+
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error(
+      "Clipboard copy failed."
+    );
+  }
+}
+
 export default function StudyTogetherWorkspace({
   studyRoomId,
   roomTitle,
+  currentUserRole,
   materialsCount,
   notesCount,
   conceptCardsCount,
@@ -74,11 +125,27 @@ export default function StudyTogetherWorkspace({
   onOpenNotes,
   onOpenAiTutor,
 }: StudyTogetherWorkspaceProps) {
-  const inviteStorageKey =
-    `studysnap:room:${studyRoomId}:study-together-invites`;
+  const normalizedRole =
+    currentUserRole.trim().toLowerCase();
+
+  const canManageInvitations =
+    normalizedRole === "owner" ||
+    normalizedRole === "admin";
+
+  const currentRoleLabel =
+    normalizedRole === "ai_tutor"
+      ? "AI Tutor"
+      : normalizedRole
+          .split("_")
+          .map(
+            (part) =>
+              part.charAt(0).toUpperCase() +
+              part.slice(1)
+          )
+          .join(" ");
 
   const messageStorageKey =
-    `studysnap:room:${studyRoomId}:study-together-preview-messages`;
+    `studysnap:room:${studyRoomId}:${normalizedRole}:study-together-preview-messages`;
 
   const [inviteEmail, setInviteEmail] =
     useState("");
@@ -86,8 +153,49 @@ export default function StudyTogetherWorkspace({
   const [inviteError, setInviteError] =
     useState("");
 
-  const [pendingInvites, setPendingInvites] =
-    useState<PendingInvite[]>([]);
+  const [
+    invitationLoadError,
+    setInvitationLoadError,
+  ] = useState("");
+
+  const [inviteNotice, setInviteNotice] =
+    useState("");
+
+  const [
+    latestEmailInviteUrl,
+    setLatestEmailInviteUrl,
+  ] = useState("");
+
+  const [
+    emailInvitations,
+    setEmailInvitations,
+  ] = useState<RoomEmailInvitation[]>([]);
+
+  const [
+    shareLinks,
+    setShareLinks,
+  ] = useState<RoomInviteLink[]>([]);
+
+  const [
+    latestShareUrl,
+    setLatestShareUrl,
+  ] = useState("");
+
+  const [
+    shareLinkNotice,
+    setShareLinkNotice,
+  ] = useState("");
+
+  const [
+    shareLinkError,
+    setShareLinkError,
+  ] = useState("");
+
+  const [inviteLoading, setInviteLoading] =
+    useState(true);
+
+  const [inviteAction, setInviteAction] =
+    useState<string | null>(null);
 
   const [chatDraft, setChatDraft] =
     useState("");
@@ -98,29 +206,42 @@ export default function StudyTogetherWorkspace({
   const [hydrated, setHydrated] =
     useState(false);
 
+  const pendingInvites =
+    useMemo<PendingInvite[]>(
+      () =>
+        emailInvitations
+          .filter(
+            (
+              invitation
+            ): invitation is RoomEmailInvitation & {
+              status: "pending";
+            } =>
+              invitation.status === "pending"
+          )
+          .map((invitation) => ({
+            id: invitation.id,
+            email: invitation.invited_email,
+            role: invitation.role,
+            status: "pending",
+            createdAt:
+              invitation.created_at ||
+              new Date().toISOString(),
+          })),
+      [emailInvitations]
+    );
+
+  const activeShareLinks =
+    useMemo(
+      () =>
+        shareLinks.filter(
+          (link) =>
+            link.status === "active"
+        ),
+      [shareLinks]
+    );
+
   useEffect(() => {
     try {
-      const savedInvites =
-        window.localStorage.getItem(
-          inviteStorageKey
-        );
-
-      if (savedInvites) {
-        const parsed = JSON.parse(
-          savedInvites
-        ) as PendingInvite[];
-
-        if (Array.isArray(parsed)) {
-          setPendingInvites(
-            parsed.filter(
-              (item) =>
-                Boolean(item?.email) &&
-                Boolean(item?.createdAt)
-            )
-          );
-        }
-      }
-
       const savedMessages =
         window.localStorage.getItem(
           messageStorageKey
@@ -144,31 +265,66 @@ export default function StudyTogetherWorkspace({
       }
     } catch {
       window.localStorage.removeItem(
-        inviteStorageKey
-      );
-
-      window.localStorage.removeItem(
         messageStorageKey
       );
     } finally {
       setHydrated(true);
     }
-  }, [
-    inviteStorageKey,
-    messageStorageKey,
-  ]);
+  }, [messageStorageKey]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!canManageInvitations) {
+      setInviteLoading(false);
+      setInvitationLoadError("");
+      setEmailInvitations([]);
+      setShareLinks([]);
+      return;
+    }
 
-    window.localStorage.setItem(
-      inviteStorageKey,
-      JSON.stringify(pendingInvites)
-    );
+    let cancelled = false;
+
+    async function loadInvitations() {
+      setInviteLoading(true);
+      setInvitationLoadError("");
+
+      try {
+        const result =
+          await getRoomInvitations(
+            studyRoomId
+          );
+
+        if (cancelled) return;
+
+        setEmailInvitations(
+          result.email_invitations
+        );
+
+        setShareLinks(
+          result.share_links
+        );
+      } catch (error) {
+        if (cancelled) return;
+
+        setInvitationLoadError(
+          error instanceof Error
+            ? error.message
+            : "Could not load room invitations."
+        );
+      } finally {
+        if (!cancelled) {
+          setInviteLoading(false);
+        }
+      }
+    }
+
+    void loadInvitations();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    hydrated,
-    inviteStorageKey,
-    pendingInvites,
+    canManageInvitations,
+    studyRoomId,
   ]);
 
   useEffect(() => {
@@ -247,7 +403,7 @@ export default function StudyTogetherWorkspace({
     quizzesCount,
   ]);
 
-  function prepareInvite(
+  async function prepareInvite(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
@@ -273,31 +429,222 @@ export default function StudyTogetherWorkspace({
       )
     ) {
       setInviteError(
-        "This classmate is already in your prepared invite list."
+        "This classmate already has a pending invitation."
       );
       return;
     }
 
-    setPendingInvites((current) => [
-      ...current,
-      {
-        email: cleanEmail,
-        createdAt:
-          new Date().toISOString(),
-      },
-    ]);
-
-    setInviteEmail("");
+    setInviteAction("create-email");
     setInviteError("");
+    setInviteNotice("");
+    setLatestEmailInviteUrl("");
+
+    try {
+      const result =
+        await createRoomEmailInvitation(
+          studyRoomId,
+          cleanEmail,
+          "member",
+          7
+        );
+
+      setEmailInvitations((current) => [
+        result.invitation,
+        ...current.filter(
+          (invitation) =>
+            invitation.id !==
+            result.invitation.id
+        ),
+      ]);
+
+      setInviteEmail("");
+      setLatestEmailInviteUrl(
+        `${window.location.origin}/study-rooms/invite/${encodeURIComponent(
+          result.accept_token
+        )}`
+      );
+      setInviteNotice(
+        "Invitation saved securely. Email delivery is not connected yet, so copy the link and send it to your classmate."
+      );
+    } catch (error) {
+      setInviteError(
+        error instanceof Error
+          ? error.message
+          : "Could not create the invitation."
+      );
+    } finally {
+      setInviteAction(null);
+    }
   }
 
-  function removeInvite(email: string) {
-    setPendingInvites((current) =>
-      current.filter(
-        (invite) =>
-          invite.email !== email
-      )
-    );
+  async function removeInvite(
+    email: string
+  ) {
+    const invitation =
+      emailInvitations.find(
+        (item) =>
+          item.status === "pending" &&
+          item.invited_email === email
+      );
+
+    if (!invitation) return;
+
+    const actionKey =
+      `revoke-email-${invitation.id}`;
+
+    setInviteAction(actionKey);
+    setInviteError("");
+    setInviteNotice("");
+
+    try {
+      const result =
+        await revokeRoomEmailInvitation(
+          studyRoomId,
+          invitation.id
+        );
+
+      setEmailInvitations((current) =>
+        current.map((item) =>
+          item.id === invitation.id
+            ? result.invitation
+            : item
+        )
+      );
+
+      setInviteNotice(
+        "Invitation revoked."
+      );
+    } catch (error) {
+      setInviteError(
+        error instanceof Error
+          ? error.message
+          : "Could not revoke the invitation."
+      );
+    } finally {
+      setInviteAction(null);
+    }
+  }
+
+  async function copyLatestEmailInviteLink() {
+    if (!latestEmailInviteUrl) return;
+
+    try {
+      await copyTextToClipboard(
+        latestEmailInviteUrl
+      );
+
+      setInviteNotice(
+        "Secure invitation link copied."
+      );
+      setInviteError("");
+    } catch {
+      setInviteError(
+        "Could not copy the link. Select and copy it manually."
+      );
+    }
+  }
+
+  async function createShareLink() {
+    setInviteAction("create-share-link");
+    setShareLinkError("");
+    setShareLinkNotice("");
+    setLatestShareUrl("");
+
+    try {
+      const result =
+        await createRoomInviteLink(
+          studyRoomId,
+          "member",
+          7,
+          10
+        );
+
+      setShareLinks((current) => [
+        result.link,
+        ...current.filter(
+          (link) =>
+            link.id !== result.link.id
+        ),
+      ]);
+
+      setLatestShareUrl(
+        `${window.location.origin}/study-rooms/join/${encodeURIComponent(
+          result.share_token
+        )}`
+      );
+
+      setShareLinkNotice(
+        "Secure room link created. Up to 10 classmates can use it before it closes."
+      );
+    } catch (error) {
+      setShareLinkError(
+        error instanceof Error
+          ? error.message
+          : "Could not create the room link."
+      );
+    } finally {
+      setInviteAction(null);
+    }
+  }
+
+  async function revokeShareLink(
+    linkId: number
+  ) {
+    const actionKey =
+      `revoke-link-${linkId}`;
+
+    setInviteAction(actionKey);
+    setShareLinkError("");
+    setShareLinkNotice("");
+
+    try {
+      const result =
+        await revokeRoomInviteLink(
+          studyRoomId,
+          linkId
+        );
+
+      setShareLinks((current) =>
+        current.map((link) =>
+          link.id === linkId
+            ? result.link
+            : link
+        )
+      );
+
+      setShareLinkNotice(
+        "Room link revoked. It can no longer be used."
+      );
+
+      setLatestShareUrl("");
+    } catch (error) {
+      setShareLinkError(
+        error instanceof Error
+          ? error.message
+          : "Could not revoke the room link."
+      );
+    } finally {
+      setInviteAction(null);
+    }
+  }
+
+  async function copyLatestShareLink() {
+    if (!latestShareUrl) return;
+
+    try {
+      await copyTextToClipboard(
+        latestShareUrl
+      );
+
+      setShareLinkNotice(
+        "Room link copied."
+      );
+      setShareLinkError("");
+    } catch {
+      setShareLinkError(
+        "Could not copy the link. Select and copy it manually."
+      );
+    }
   }
 
   function addPreviewMessage(
@@ -348,31 +695,62 @@ export default function StudyTogetherWorkspace({
               </span>
 
               <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1.5 text-xs font-black text-yellow-100">
-                Room owner
+                {currentRoleLabel || "Member"}
               </span>
 
-              <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-slate-300">
-                {pendingInvites.length} prepared invite
-                {pendingInvites.length === 1
-                  ? ""
-                  : "s"}
-              </span>
+              {canManageInvitations ? (
+                <>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-slate-300">
+                    {pendingInvites.length} pending invitation
+                    {pendingInvites.length === 1
+                      ? ""
+                      : "s"}
+                  </span>
+
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-slate-300">
+                    {activeShareLinks.length} active room link
+                    {activeShareLinks.length === 1
+                      ? ""
+                      : "s"}
+                  </span>
+                </>
+              ) : null}
             </div>
           </div>
 
           <div className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4">
-            <p className="text-sm font-black text-yellow-100">
-              You are the first member in this room
-            </p>
+            {canManageInvitations ? (
+              <>
+                <p className="text-sm font-black text-yellow-100">
+                  Grow this focused study group
+                </p>
 
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Invite one or two classmates to start a focused study group.
-            </p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Invite one or two classmates to study from the same room.
+                </p>
 
-            <p className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
-              Live invitations and real-time presence connect in the next backend
-              phase.
-            </p>
+                <p className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
+                  Durable invitations are connected. Email delivery is still
+                  coming, so StudySnap gives you a secure link to share manually.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-black text-yellow-100">
+                  You joined this Study Room
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  You can now learn from the room content and use the tools
+                  available to your role.
+                </p>
+
+                <p className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
+                  Your room role is {currentRoleLabel || "Member"}. Invitation
+                  management stays with the room owner or an admin.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -571,7 +949,7 @@ export default function StudyTogetherWorkspace({
                     You
                   </p>
                   <p className="text-xs text-emerald-100/70">
-                    Room owner · Active now
+                    {currentRoleLabel || "Member"} · Active now
                   </p>
                 </div>
 
@@ -579,12 +957,13 @@ export default function StudyTogetherWorkspace({
               </div>
             </div>
 
-            {pendingInvites.length ? (
+            {canManageInvitations &&
+            pendingInvites.length ? (
               <div className="mt-3 space-y-2">
                 {pendingInvites.map(
                   (invite) => (
                     <div
-                      key={invite.email}
+                      key={invite.id}
                       className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -593,20 +972,31 @@ export default function StudyTogetherWorkspace({
                             {invite.email}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            Prepared locally · Not sent
+                            {invite.role === "ai_tutor"
+                              ? "AI Tutor"
+                              : invite.role.charAt(0).toUpperCase() +
+                                invite.role.slice(1)}{" "}
+                            · Pending
                           </p>
                         </div>
 
                         <button
                           type="button"
                           onClick={() =>
-                            removeInvite(
+                            void removeInvite(
                               invite.email
                             )
                           }
-                          className="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-black text-slate-400 hover:bg-white/[0.08] hover:text-white"
+                          disabled={
+                            inviteAction ===
+                            `revoke-email-${invite.id}`
+                          }
+                          className="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-black text-slate-400 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          Remove
+                          {inviteAction ===
+                          `revoke-email-${invite.id}`
+                            ? "Revoking..."
+                            : "Revoke"}
                         </button>
                       </div>
                     </div>
@@ -616,6 +1006,8 @@ export default function StudyTogetherWorkspace({
             ) : null}
           </section>
 
+          {canManageInvitations ? (
+            <>
           <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
               Invite classmates
@@ -626,8 +1018,8 @@ export default function StudyTogetherWorkspace({
             </h3>
 
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Prepare the classmates you want to invite. Email delivery connects
-              in the next backend phase.
+              Create a durable invitation for a classmate. Until email delivery
+              is connected, copy the secure link and send it yourself.
             </p>
 
             <form
@@ -637,6 +1029,10 @@ export default function StudyTogetherWorkspace({
               <input
                 type="email"
                 value={inviteEmail}
+                disabled={
+                  inviteAction ===
+                  "create-email"
+                }
                 onChange={(event) => {
                   setInviteEmail(
                     event.target.value
@@ -655,12 +1051,231 @@ export default function StudyTogetherWorkspace({
 
               <button
                 type="submit"
-                className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                disabled={
+                  inviteAction ===
+                  "create-email"
+                }
+                className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Prepare invite
+                {inviteAction ===
+                "create-email"
+                  ? "Creating invitation..."
+                  : "Create secure invitation"}
               </button>
             </form>
+
+            {inviteLoading ? (
+              <p className="mt-3 text-xs font-semibold text-slate-500">
+                Loading room invitations...
+              </p>
+            ) : null}
+
+            {invitationLoadError ? (
+              <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
+                {invitationLoadError}
+              </p>
+            ) : null}
+
+            {inviteNotice ? (
+              <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">
+                {inviteNotice}
+              </p>
+            ) : null}
+
+            {latestEmailInviteUrl ? (
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Secure invite link
+                </p>
+
+                <p className="mt-2 break-all text-xs leading-5 text-slate-300">
+                  {latestEmailInviteUrl}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyLatestEmailInviteLink()
+                  }
+                  className="mt-3 w-full rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/15"
+                >
+                  Copy invitation link
+                </button>
+              </div>
+            ) : null}
           </section>
+
+          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
+                  Shareable room link
+                </p>
+
+                <h3 className="mt-2 text-lg font-black text-white">
+                  Invite classmates with one link
+                </h3>
+              </div>
+
+              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black text-emerald-100">
+                Secure
+              </span>
+            </div>
+
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Create a link that up to 10 classmates can use. You can revoke it at any time.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                void createShareLink()
+              }
+              disabled={
+                inviteAction ===
+                "create-share-link"
+              }
+              className="mt-4 w-full rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {inviteAction ===
+              "create-share-link"
+                ? "Creating room link..."
+                : "Create shareable room link"}
+            </button>
+
+            {shareLinkError ? (
+              <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold leading-5 text-red-200">
+                {shareLinkError}
+              </p>
+            ) : null}
+
+            {shareLinkNotice ? (
+              <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">
+                {shareLinkNotice}
+              </p>
+            ) : null}
+
+            {latestShareUrl ? (
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  New room link
+                </p>
+
+                <p className="mt-2 break-all text-xs leading-5 text-slate-300">
+                  {latestShareUrl}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyLatestShareLink()
+                  }
+                  className="mt-3 w-full rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                >
+                  Copy room link
+                </button>
+
+                <p className="mt-2 text-[10px] leading-4 text-slate-500">
+                  Save this link now. For security, StudySnap does not show the full link again after refresh.
+                </p>
+              </div>
+            ) : null}
+
+            {activeShareLinks.length ? (
+              <div className="mt-4 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Active links
+                </p>
+
+                {activeShareLinks.map(
+                  (link) => {
+                    const maximumUses =
+                      link.max_uses;
+
+                    const remainingUses =
+                      maximumUses === null
+                        ? null
+                        : Math.max(
+                            maximumUses -
+                              link.use_count,
+                            0
+                          );
+
+                    return (
+                      <div
+                        key={link.id}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-white">
+                              Member room link
+                            </p>
+
+                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                              Used {link.use_count}
+                              {maximumUses === null
+                                ? " times"
+                                : ` of ${maximumUses} times`}
+                              {remainingUses === null
+                                ? ""
+                                : ` · ${remainingUses} remaining`}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void revokeShareLink(
+                                link.id
+                              )
+                            }
+                            disabled={
+                              inviteAction ===
+                              `revoke-link-${link.id}`
+                            }
+                            className="rounded-lg border border-red-300/15 bg-red-300/5 px-2.5 py-1.5 text-[10px] font-black text-red-200 transition hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {inviteAction ===
+                            `revoke-link-${link.id}`
+                              ? "Revoking..."
+                              : "Revoke"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                No active room links yet.
+              </p>
+            )}
+          </section>
+
+            </>
+          ) : (
+            <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
+                Your room access
+              </p>
+
+              <h3 className="mt-2 text-lg font-black text-white">
+                You are connected as {currentRoleLabel || "Member"}
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                You can use the shared learning tools allowed by your role.
+                Only the room owner or an admin can invite or remove classmates.
+              </p>
+
+              <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-3 text-xs font-semibold leading-5 text-emerald-100">
+                No invitation controls are needed here. Open the shared
+                materials, notes, Concept Cards, quizzes, or room AI to begin.
+              </div>
+            </section>
+          )}
 
           <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">

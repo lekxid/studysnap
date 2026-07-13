@@ -595,6 +595,216 @@ export async function getStudyRooms(): Promise<StudyRoom[]> {
   return apiFetch("/api/study-rooms") as Promise<StudyRoom[]>;
 }
 
+export type RoomInvitationRole =
+  | "member"
+  | "viewer"
+  | "ai_tutor";
+
+export type RoomEmailInvitationStatus =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "revoked"
+  | "expired";
+
+export type RoomInviteLinkStatus =
+  | "active"
+  | "revoked"
+  | "expired"
+  | "exhausted";
+
+export type RoomEmailInvitation = {
+  id: number;
+  room_id: number;
+  invited_by_user_id: number;
+  invited_email: string;
+  role: RoomInvitationRole;
+  status: RoomEmailInvitationStatus;
+  expires_at: string | null;
+  accepted_by_user_id: number | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  revoked_at: string | null;
+  created_at: string | null;
+};
+
+export type RoomInviteLink = {
+  id: number;
+  room_id: number;
+  created_by_user_id: number;
+  role: RoomInvitationRole;
+  status: RoomInviteLinkStatus;
+  expires_at: string | null;
+  max_uses: number | null;
+  use_count: number;
+  revoked_at: string | null;
+  created_at: string | null;
+};
+
+export type RoomInvitationList = {
+  room_id: number;
+  email_invitations: RoomEmailInvitation[];
+  share_links: RoomInviteLink[];
+};
+
+export type CreateRoomEmailInvitationResponse = {
+  invitation: RoomEmailInvitation;
+  delivery: {
+    status: string;
+    message: string;
+  };
+  accept_token: string;
+  accept_api_path: string;
+  frontend_accept_url: string;
+};
+
+export type CreateRoomInviteLinkResponse = {
+  link: RoomInviteLink;
+  share_token: string;
+  join_api_path: string;
+  share_url: string;
+};
+
+export type RoomInvitationMembership = {
+  room_id: number;
+  user_id: number;
+  role: string;
+  status: string;
+};
+
+export type RoomInvitationJoinResponse = {
+  message: string;
+  already_member: boolean;
+  room: {
+    id: number;
+    name: string;
+    subject: string | null;
+  };
+  membership: RoomInvitationMembership;
+  link_status?: RoomInviteLinkStatus;
+};
+
+export async function getRoomInvitations(
+  roomId: number
+): Promise<RoomInvitationList> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}`
+  ) as Promise<RoomInvitationList>;
+}
+
+export async function createRoomEmailInvitation(
+  roomId: number,
+  email: string,
+  role: RoomInvitationRole = "member",
+  expiresInDays = 7
+): Promise<CreateRoomEmailInvitationResponse> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/email`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        role,
+        expires_in_days: expiresInDays,
+      }),
+    }
+  ) as Promise<CreateRoomEmailInvitationResponse>;
+}
+
+export async function revokeRoomEmailInvitation(
+  roomId: number,
+  invitationId: number
+): Promise<{
+  message: string;
+  invitation: RoomEmailInvitation;
+}> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/email/${invitationId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    message: string;
+    invitation: RoomEmailInvitation;
+  }>;
+}
+
+export async function createRoomInviteLink(
+  roomId: number,
+  role: RoomInvitationRole = "member",
+  expiresInDays = 7,
+  maxUses: number | null = null
+): Promise<CreateRoomInviteLinkResponse> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/links`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        role,
+        expires_in_days: expiresInDays,
+        max_uses: maxUses,
+      }),
+    }
+  ) as Promise<CreateRoomInviteLinkResponse>;
+}
+
+export async function revokeRoomInviteLink(
+  roomId: number,
+  linkId: number
+): Promise<{
+  message: string;
+  link: RoomInviteLink;
+}> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/links/${linkId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    message: string;
+    link: RoomInviteLink;
+  }>;
+}
+
+export async function acceptRoomEmailInvitation(
+  token: string
+): Promise<RoomInvitationJoinResponse> {
+  return apiFetch(
+    `/api/room-invitations/email/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomInvitationJoinResponse>;
+}
+
+export async function declineRoomEmailInvitation(
+  token: string
+): Promise<{
+  message: string;
+  invitation: RoomEmailInvitation;
+}> {
+  return apiFetch(
+    `/api/room-invitations/email/${encodeURIComponent(token)}/decline`,
+    {
+      method: "POST",
+    }
+  ) as Promise<{
+    message: string;
+    invitation: RoomEmailInvitation;
+  }>;
+}
+
+export async function joinRoomWithInviteLink(
+  token: string
+): Promise<RoomInvitationJoinResponse> {
+  return apiFetch(
+    `/api/room-invitations/links/${encodeURIComponent(token)}/join`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomInvitationJoinResponse>;
+}
+
 export type RoomFoundationAction = {
   id: string;
   label: string;

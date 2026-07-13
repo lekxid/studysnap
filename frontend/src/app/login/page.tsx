@@ -1,15 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
 
 export default function LoginPage() {
+  const [nextPath, setNextPath] =
+    useState<string | null>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const requestedNext =
+      new URLSearchParams(
+        window.location.search
+      ).get("next");
+
+    if (
+      requestedNext &&
+      requestedNext.startsWith("/") &&
+      !requestedNext.startsWith("//")
+    ) {
+      setNextPath(requestedNext);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +75,8 @@ export default function LoginPage() {
         localStorage.setItem("token", data.access_token);
       }
 
-      window.location.href = "/dashboard";
+      window.location.href =
+        nextPath || "/dashboard";
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
@@ -124,7 +146,13 @@ export default function LoginPage() {
         <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
           New to StudySnap?{" "}
           <Link
-            href="/signup"
+            href={
+              nextPath
+                ? `/signup?next=${encodeURIComponent(
+                    nextPath
+                  )}`
+                : "/signup"
+            }
             className="font-bold text-amber-200 transition hover:text-amber-100"
           >
             Create an account

@@ -1,16 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
 
 export default function SignupPage() {
+  const [nextPath, setNextPath] =
+    useState<string | null>(null);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const requestedNext =
+      new URLSearchParams(
+        window.location.search
+      ).get("next");
+
+    if (
+      requestedNext &&
+      requestedNext.startsWith("/") &&
+      !requestedNext.startsWith("//")
+    ) {
+      setNextPath(requestedNext);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,7 +74,12 @@ export default function SignupPage() {
         throw new Error(data?.detail || data?.message || "Signup failed.");
       }
 
-      window.location.href = "/login";
+      window.location.href =
+        nextPath
+          ? `/login?next=${encodeURIComponent(
+              nextPath
+            )}`
+          : "/login";
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
@@ -129,7 +155,13 @@ export default function SignupPage() {
         <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
           Already have an account?{" "}
           <Link
-            href="/login"
+            href={
+              nextPath
+                ? `/login?next=${encodeURIComponent(
+                    nextPath
+                  )}`
+                : "/login"
+            }
             className="font-bold text-amber-200 transition hover:text-amber-100"
           >
             Log in

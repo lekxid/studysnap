@@ -35,6 +35,7 @@ type StudyRoom = {
   name: string;
   subject: string;
   description?: string | null;
+  role?: string;
 };
 
 type PDFDocument = {
@@ -313,6 +314,9 @@ export default function StudyRoomDetailPage() {
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const studyTogetherSectionRef =
+    useRef<HTMLDivElement | null>(null);
+
   const requestedTab =
     searchParams.get("tab");
 
@@ -377,6 +381,21 @@ export default function StudyRoomDetailPage() {
       requestedMaterialId !== null &&
       Number.isFinite(parsedMaterialId) &&
       parsedMaterialId > 0;
+
+    if (requestedTab === "together") {
+      setActiveRoomTab("together");
+
+      const timer = window.setTimeout(() => {
+        studyTogetherSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 180);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
 
     const shouldOpenAi =
       requestedTab === "ai" ||
@@ -1147,19 +1166,29 @@ export default function StudyRoomDetailPage() {
 
   function renderStudyTogetherTab() {
     return (
-      <StudyTogetherWorkspace
-        studyRoomId={studyRoomId}
-        roomTitle={roomTitle}
-        materialsCount={pdfs.length}
-        notesCount={notes.length}
-        conceptCardsCount={conceptCards.length}
-        quizzesCount={quizzes.length}
-        onOpenMaterials={openMaterials}
-        onOpenNotes={() =>
-          setActiveRoomTab("notes")
-        }
-        onOpenAiTutor={openProjectAi}
-      />
+      <div
+        ref={studyTogetherSectionRef}
+        className="scroll-mt-8"
+      >
+        <StudyTogetherWorkspace
+          studyRoomId={studyRoomId}
+          roomTitle={roomTitle}
+          currentUserRole={
+            roomFoundation?.user_role ||
+            room?.role ||
+            "member"
+          }
+          materialsCount={pdfs.length}
+          notesCount={notes.length}
+          conceptCardsCount={conceptCards.length}
+          quizzesCount={quizzes.length}
+          onOpenMaterials={openMaterials}
+          onOpenNotes={() =>
+            setActiveRoomTab("notes")
+          }
+          onOpenAiTutor={openProjectAi}
+        />
+      </div>
     );
   }
 
