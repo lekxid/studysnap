@@ -26,6 +26,7 @@ from app.routes.integrations import router as integrations_router
 from app.routes.room_foundation import router as room_foundation_router
 from app.routes.materials import router as materials_router
 from app.routes.room_invitations import router as room_invitations_router
+from app.routes.room_messages import router as room_messages_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -62,6 +63,10 @@ app.include_router(materials_router, prefix="/api/materials")
 app.include_router(
     room_invitations_router,
     prefix="/api/room-invitations",
+)
+app.include_router(
+    room_messages_router,
+    prefix="/api/room-messages",
 )
 
 
