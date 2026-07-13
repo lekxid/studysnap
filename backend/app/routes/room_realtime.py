@@ -17,10 +17,12 @@ from app.services.rooms.access import (
 )
 from app.services.rooms.realtime import (
     ROOM_REALTIME_TICKET_SECONDS,
+    broadcast_room_realtime_event,
     build_room_realtime_event,
     consume_room_realtime_ticket,
     create_room_realtime_ticket,
     room_realtime_manager,
+    utc_now,
 )
 from app.utils.deps import get_current_user
 
@@ -132,9 +134,33 @@ async def room_realtime_socket(
         )
         return
 
-    await room_realtime_manager.connect(
-        room_id=room.id,
-        websocket=websocket,
+    current_user = (
+        db.query(User)
+        .filter(
+            User.id == user_id
+        )
+        .first()
+    )
+
+    if current_user is None:
+        await reject_websocket(
+            websocket,
+            code=4401,
+            reason="User account not found.",
+        )
+        return
+
+    display_name = (
+        current_user.full_name
+        or "Study Room member"
+    )
+
+    first_connection = (
+        await room_realtime_manager.connect(
+            room_id=room.id,
+            user_id=user_id,
+            websocket=websocket,
+        )
     )
 
     await websocket.send_json(
@@ -155,14 +181,65 @@ async def room_realtime_socket(
         )
     )
 
+    await websocket.send_json(
+        build_room_realtime_event(
+            event="presence.snapshot",
+            room_id=room.id,
+            actor_user_id=None,
+            data={
+                "online_user_ids": (
+                    room_realtime_manager
+                    .online_user_ids(
+                        room.id
+                    )
+                ),
+                "online_count": (
+                    room_realtime_manager
+                    .online_user_count(
+                        room.id
+                    )
+                ),
+            },
+        )
+    )
+
+    if first_connection:
+        await broadcast_room_realtime_event(
+            event="presence.joined",
+            room_id=room.id,
+            actor_user_id=user_id,
+            data={
+                "user_id": user_id,
+                "full_name": display_name,
+                "online_count": (
+                    room_realtime_manager
+                    .online_user_count(
+                        room.id
+                    )
+                ),
+            },
+        )
+
+    unexpected_error = False
+
     try:
         while True:
             incoming = (
                 await websocket.receive_json()
             )
 
+            if not isinstance(
+                incoming,
+                dict,
+            ):
+                continue
+
+            event_name = incoming.get(
+                "event"
+            )
+
             if (
-                incoming.get("event")
+                event_name
                 == "connection.ping"
             ):
                 await websocket.send_json(
@@ -177,26 +254,110 @@ async def room_realtime_socket(
                         data={},
                     )
                 )
+                continue
 
-    except WebSocketDisconnect:
-        room_realtime_manager.disconnect(
-            room_id=room.id,
-            websocket=websocket,
-        )
+            if event_name not in {
+                "typing.started",
+                "typing.stopped",
+            }:
+                continue
 
-    except Exception:
-        room_realtime_manager.disconnect(
-            room_id=room.id,
-            websocket=websocket,
-        )
+            is_typing = (
+                event_name
+                == "typing.started"
+            )
 
-        try:
-            await websocket.close(
-                code=1011,
-                reason=(
-                    "Room real-time "
-                    "connection failed."
+            changed = (
+                room_realtime_manager
+                .set_typing(
+                    room_id=room.id,
+                    user_id=user_id,
+                    websocket=websocket,
+                    is_typing=is_typing,
+                )
+            )
+
+            if not changed:
+                continue
+
+            await broadcast_room_realtime_event(
+                event=event_name,
+                room_id=room.id,
+                actor_user_id=user_id,
+                data={
+                    "user_id": user_id,
+                    "full_name": (
+                        display_name
+                    ),
+                },
+                exclude_websocket=(
+                    websocket
                 ),
             )
-        except Exception:
-            pass
+
+    except WebSocketDisconnect:
+        pass
+
+    except Exception:
+        unexpected_error = True
+
+    finally:
+        (
+            became_offline,
+            typing_stopped,
+        ) = room_realtime_manager.disconnect(
+            room_id=room.id,
+            user_id=user_id,
+            websocket=websocket,
+        )
+
+        if typing_stopped:
+            await broadcast_room_realtime_event(
+                event="typing.stopped",
+                room_id=room.id,
+                actor_user_id=user_id,
+                data={
+                    "user_id": user_id,
+                    "full_name": (
+                        display_name
+                    ),
+                },
+            )
+
+        if became_offline:
+            last_active_at = (
+                utc_now().isoformat()
+            )
+
+            await broadcast_room_realtime_event(
+                event="presence.left",
+                room_id=room.id,
+                actor_user_id=user_id,
+                data={
+                    "user_id": user_id,
+                    "full_name": (
+                        display_name
+                    ),
+                    "last_active_at": (
+                        last_active_at
+                    ),
+                    "online_count": (
+                        room_realtime_manager
+                        .online_user_count(
+                            room.id
+                        )
+                    ),
+                },
+            )
+
+        if unexpected_error:
+            try:
+                await websocket.close(
+                    code=1011,
+                    reason=(
+                        "Room real-time "
+                        "connection failed."
+                    ),
+                )
+            except Exception:
+                pass

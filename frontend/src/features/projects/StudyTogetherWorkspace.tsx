@@ -4,6 +4,7 @@ import {
   FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import Link from "next/link";
@@ -103,36 +104,52 @@ function formatMemberActivity(
   }
 
   if (!value) {
-    return "Activity not recorded yet";
+    return "Offline";
   }
 
   const parsed = Date.parse(value);
 
   if (!Number.isFinite(parsed)) {
-    return "Activity not recorded yet";
+    return "Offline";
   }
 
-  const difference =
-    Date.now() - parsed;
+  const difference = Math.max(
+    Date.now() - parsed,
+    0
+  );
 
-  if (
-    difference >= 0 &&
-    difference < 5 * 60 * 1000
-  ) {
-    return "Active recently";
+  if (difference < 60 * 1000) {
+    return "Last active just now";
   }
 
   if (
-    difference >= 0 &&
-    difference < 24 * 60 * 60 * 1000
+    difference <
+    60 * 60 * 1000
   ) {
-    return `Last active ${new Intl.DateTimeFormat(
-      undefined,
-      {
-        hour: "numeric",
-        minute: "2-digit",
-      }
-    ).format(new Date(parsed))}`;
+    const minutes = Math.max(
+      1,
+      Math.floor(
+        difference /
+          (60 * 1000)
+      )
+    );
+
+    return `Last active ${minutes} min ago`;
+  }
+
+  if (
+    difference <
+    24 * 60 * 60 * 1000
+  ) {
+    const hours = Math.max(
+      1,
+      Math.floor(
+        difference /
+          (60 * 60 * 1000)
+      )
+    );
+
+    return `Last active ${hours}h ago`;
   }
 
   return `Last active ${new Intl.DateTimeFormat(
@@ -298,6 +315,30 @@ export default function StudyTogetherWorkspace({
     | "offline"
   >("connecting");
 
+  const [
+    onlineUserIds,
+    setOnlineUserIds,
+  ] = useState<number[]>([]);
+
+  const [
+    typingUsers,
+    setTypingUsers,
+  ] = useState<Record<number, string>>(
+    {}
+  );
+
+  const realtimeSocketRef =
+    useRef<WebSocket | null>(null);
+
+  const realtimeUserIdRef =
+    useRef<number | null>(null);
+
+  const typingStopTimerRef =
+    useRef<number | null>(null);
+
+  const typingSentRef =
+    useRef(false);
+
   const [roomMembers, setRoomMembers] =
     useState<RoomMember[]>([]);
 
@@ -370,6 +411,20 @@ export default function StudyTogetherWorkspace({
         ),
       [shareLinks]
     );
+
+  const typingNames = useMemo(
+    () => Object.values(typingUsers),
+    [typingUsers]
+  );
+
+  const typingLabel =
+    typingNames.length === 1
+      ? `${typingNames[0]} is typing…`
+      : typingNames.length === 2
+        ? `${typingNames[0]} and ${typingNames[1]} are typing…`
+        : typingNames.length > 2
+          ? `${typingNames[0]} and ${typingNames.length - 1} others are typing…`
+          : "";
 
   useEffect(() => {
     if (!canManageInvitations) {
@@ -886,6 +941,82 @@ export default function StudyTogetherWorkspace({
     }
   }
 
+  function sendRealtimeClientEvent(
+    eventName: string
+  ): boolean {
+    const socket =
+      realtimeSocketRef.current;
+
+    if (
+      !socket ||
+      socket.readyState !==
+        WebSocket.OPEN
+    ) {
+      return false;
+    }
+
+    socket.send(
+      JSON.stringify({
+        event: eventName,
+      })
+    );
+
+    return true;
+  }
+
+  function clearTypingStopTimer() {
+    if (
+      typingStopTimerRef.current !==
+      null
+    ) {
+      window.clearTimeout(
+        typingStopTimerRef.current
+      );
+
+      typingStopTimerRef.current =
+        null;
+    }
+  }
+
+  function stopRealtimeTyping() {
+    clearTypingStopTimer();
+
+    if (typingSentRef.current) {
+      sendRealtimeClientEvent(
+        "typing.stopped"
+      );
+    }
+
+    typingSentRef.current = false;
+  }
+
+  function updateRealtimeTyping(
+    value: string
+  ) {
+    if (
+      !canSendMessages ||
+      !value.trim()
+    ) {
+      stopRealtimeTyping();
+      return;
+    }
+
+    if (!typingSentRef.current) {
+      typingSentRef.current =
+        sendRealtimeClientEvent(
+          "typing.started"
+        );
+    }
+
+    clearTypingStopTimer();
+
+    typingStopTimerRef.current =
+      window.setTimeout(
+        stopRealtimeTyping,
+        1800
+      );
+  }
+
   useEffect(() => {
     let cancelled = false;
     let socket: WebSocket | null = null;
@@ -963,6 +1094,178 @@ export default function StudyTogetherWorkspace({
       }
 
       if (
+        payload.event ===
+        "presence.snapshot"
+      ) {
+        const rawOnlineUserIds =
+          payload.data.online_user_ids;
+
+        if (
+          Array.isArray(
+            rawOnlineUserIds
+          )
+        ) {
+          const nextOnlineUserIds =
+            rawOnlineUserIds.filter(
+              (
+                userId
+              ): userId is number =>
+                typeof userId ===
+                  "number" &&
+                Number.isFinite(userId)
+            );
+
+          setOnlineUserIds(
+            nextOnlineUserIds
+          );
+        }
+
+        return;
+      }
+
+      if (
+        payload.event ===
+          "presence.joined" ||
+        payload.event ===
+          "presence.left"
+      ) {
+        const eventUserId =
+          typeof payload.data.user_id ===
+          "number"
+            ? payload.data.user_id
+            : payload.actor_user_id;
+
+        if (
+          typeof eventUserId !==
+          "number"
+        ) {
+          return;
+        }
+
+        if (
+          payload.event ===
+          "presence.joined"
+        ) {
+          setOnlineUserIds(
+            (current) =>
+              current.includes(
+                eventUserId
+              )
+                ? current
+                : [
+                    ...current,
+                    eventUserId,
+                  ]
+          );
+        } else {
+          setOnlineUserIds(
+            (current) =>
+              current.filter(
+                (userId) =>
+                  userId !==
+                  eventUserId
+              )
+          );
+
+          setTypingUsers(
+            (current) => {
+              const next = {
+                ...current,
+              };
+
+              delete next[eventUserId];
+
+              return next;
+            }
+          );
+
+          const lastActiveAt =
+            typeof payload.data
+              .last_active_at ===
+            "string"
+              ? payload.data
+                  .last_active_at
+              : null;
+
+          if (lastActiveAt) {
+            setRoomMembers(
+              (current) =>
+                current.map(
+                  (member) =>
+                    member.user_id ===
+                    eventUserId
+                      ? {
+                          ...member,
+                          last_active_at:
+                            lastActiveAt,
+                        }
+                      : member
+                )
+            );
+          }
+        }
+
+        return;
+      }
+
+      if (
+        payload.event ===
+          "typing.started" ||
+        payload.event ===
+          "typing.stopped"
+      ) {
+        const eventUserId =
+          typeof payload.data.user_id ===
+          "number"
+            ? payload.data.user_id
+            : payload.actor_user_id;
+
+        if (
+          typeof eventUserId !==
+            "number" ||
+          eventUserId ===
+            realtimeUserIdRef.current
+        ) {
+          return;
+        }
+
+        if (
+          payload.event ===
+          "typing.started"
+        ) {
+          const fullName =
+            typeof payload.data
+              .full_name ===
+              "string" &&
+            payload.data.full_name.trim()
+              ? payload.data.full_name.trim()
+              : "A classmate";
+
+          setTypingUsers(
+            (current) => ({
+              ...current,
+              [eventUserId]:
+                fullName,
+            })
+          );
+        } else {
+          setTypingUsers(
+            (current) => {
+              const next = {
+                ...current,
+              };
+
+              delete next[eventUserId];
+
+              return next;
+            }
+          );
+        }
+
+        return;
+      }
+
+      if (
         payload.event !==
           "message.created" &&
         payload.event !==
@@ -1006,9 +1309,13 @@ export default function StudyTogetherWorkspace({
       }
 
       clearReconnectTimer();
+
       setRealtimeStatus(
         "reconnecting"
       );
+
+      setOnlineUserIds([]);
+      setTypingUsers({});
 
       const delay = Math.min(
         1000 *
@@ -1062,6 +1369,12 @@ export default function StudyTogetherWorkspace({
           );
 
         socket = nextSocket;
+
+        realtimeSocketRef.current =
+          nextSocket;
+
+        realtimeUserIdRef.current =
+          ticket.user_id;
 
         nextSocket.onopen = () => {
           if (cancelled) {
@@ -1133,6 +1446,17 @@ export default function StudyTogetherWorkspace({
             socket = null;
           }
 
+          if (
+            realtimeSocketRef.current ===
+            nextSocket
+          ) {
+            realtimeSocketRef.current =
+              null;
+          }
+
+          typingSentRef.current = false;
+          clearTypingStopTimer();
+
           if (!cancelled) {
             scheduleReconnect();
           }
@@ -1164,6 +1488,13 @@ export default function StudyTogetherWorkspace({
       }
 
       socket = null;
+      realtimeSocketRef.current = null;
+      realtimeUserIdRef.current = null;
+      typingSentRef.current = false;
+      clearTypingStopTimer();
+
+      setOnlineUserIds([]);
+      setTypingUsers({});
       setRealtimeStatus("offline");
     };
   }, [studyRoomId]);
@@ -1184,6 +1515,7 @@ export default function StudyTogetherWorkspace({
       return;
     }
 
+    stopRealtimeTyping();
     setMessageSending(true);
     setMessageError("");
 
@@ -1842,6 +2174,14 @@ export default function StudyTogetherWorkspace({
                 </p>
               ) : null}
 
+              <div className="mb-2 min-h-5 px-1">
+                {typingLabel ? (
+                  <p className="text-xs font-semibold text-cyan-200">
+                    {typingLabel}
+                  </p>
+                ) : null}
+              </div>
+
               <form
                 onSubmit={sendSharedMessage}
                 className="flex items-end gap-2"
@@ -1856,10 +2196,18 @@ export default function StudyTogetherWorkspace({
 
                 <textarea
                   value={chatDraft}
-                  onChange={(event) =>
-                    setChatDraft(
-                      event.target.value
-                    )
+                  onChange={(event) => {
+                    const value =
+                      event.target.value;
+
+                    setChatDraft(value);
+
+                    updateRealtimeTyping(
+                      value
+                    );
+                  }}
+                  onBlur={
+                    stopRealtimeTyping
                   }
                   onKeyDown={(event) => {
                     if (
@@ -2163,7 +2511,9 @@ export default function StudyTogetherWorkspace({
                 </p>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  {roomMembers.length} accepted member
+                  {onlineUserIds.length} online
+                  {" · "}
+                  {roomMembers.length} member
                   {roomMembers.length === 1
                     ? ""
                     : "s"}
@@ -2217,11 +2567,20 @@ export default function StudyTogetherWorkspace({
                           member.role
                         ) || "Member";
 
-                      const activityLabel =
-                        formatMemberActivity(
-                          member.last_active_at,
-                          member.is_current_user
+                      const isOnline =
+                        onlineUserIds.includes(
+                          member.user_id
                         );
+
+                      const activityLabel =
+                        isOnline
+                          ? "Active now"
+                          : canManageInvitations
+                            ? formatMemberActivity(
+                                member.last_active_at,
+                                false
+                              )
+                            : "Offline";
 
                       return (
                         <div
@@ -2259,9 +2618,7 @@ export default function StudyTogetherWorkspace({
                               </div>
 
                               <p className="mt-1 text-xs text-slate-400">
-                                {member.is_current_user
-                                  ? "Active now"
-                                  : activityLabel}
+                                {activityLabel}
                               </p>
 
                               {canManageInvitations ? (
@@ -2278,12 +2635,12 @@ export default function StudyTogetherWorkspace({
 
                             <span
                               title={
-                                member.is_current_user
-                                  ? "Active now"
-                                  : "Live presence connects next"
+                                isOnline
+                                  ? "Online"
+                                  : "Offline"
                               }
                               className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                                member.is_current_user
+                                isOnline
                                   ? "bg-emerald-300"
                                   : "bg-slate-600"
                               }`}

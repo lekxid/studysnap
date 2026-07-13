@@ -35,8 +35,7 @@ def build_room_realtime_event(
 
 
 # Single-use ticket tracking for the current backend process.
-# This is appropriate for the current single-process development setup.
-# A shared store such as Redis will replace it before multi-worker deployment.
+# Redis can replace this when StudySnap runs multiple workers.
 _used_ticket_ids: dict[str, datetime] = {}
 
 
@@ -170,59 +169,194 @@ class RoomRealtimeManager:
     def __init__(self) -> None:
         self._connections: dict[
             int,
-            set[WebSocket],
+            dict[
+                int,
+                set[WebSocket],
+            ],
+        ] = {}
+
+        self._typing_connections: dict[
+            int,
+            dict[
+                int,
+                set[WebSocket],
+            ],
         ] = {}
 
     async def connect(
         self,
         *,
         room_id: int,
+        user_id: int,
         websocket: WebSocket,
-    ) -> None:
+    ) -> bool:
         await websocket.accept()
 
-        self._connections.setdefault(
-            room_id,
-            set(),
-        ).add(websocket)
+        room_users = (
+            self._connections.setdefault(
+                room_id,
+                {},
+            )
+        )
+
+        user_connections = (
+            room_users.setdefault(
+                user_id,
+                set(),
+            )
+        )
+
+        was_offline = (
+            len(user_connections) == 0
+        )
+
+        user_connections.add(
+            websocket
+        )
+
+        return was_offline
 
     def disconnect(
         self,
         *,
         room_id: int,
+        user_id: int,
         websocket: WebSocket,
-    ) -> None:
-        room_connections = (
-            self._connections.get(room_id)
+    ) -> tuple[bool, bool]:
+        typing_stopped = (
+            self.set_typing(
+                room_id=room_id,
+                user_id=user_id,
+                websocket=websocket,
+                is_typing=False,
+            )
         )
 
-        if room_connections is None:
-            return
+        room_users = (
+            self._connections.get(
+                room_id
+            )
+        )
 
-        room_connections.discard(
+        if room_users is None:
+            return False, typing_stopped
+
+        user_connections = (
+            room_users.get(user_id)
+        )
+
+        if user_connections is None:
+            return False, typing_stopped
+
+        user_connections.discard(
             websocket
         )
 
-        if not room_connections:
+        became_offline = (
+            len(user_connections) == 0
+        )
+
+        if became_offline:
+            room_users.pop(
+                user_id,
+                None,
+            )
+
+        if not room_users:
             self._connections.pop(
                 room_id,
                 None,
             )
+
+        return (
+            became_offline,
+            typing_stopped,
+        )
+
+    def set_typing(
+        self,
+        *,
+        room_id: int,
+        user_id: int,
+        websocket: WebSocket,
+        is_typing: bool,
+    ) -> bool:
+        room_typing = (
+            self._typing_connections
+            .setdefault(
+                room_id,
+                {},
+            )
+        )
+
+        user_typing_connections = (
+            room_typing.setdefault(
+                user_id,
+                set(),
+            )
+        )
+
+        was_typing = bool(
+            user_typing_connections
+        )
+
+        if is_typing:
+            user_typing_connections.add(
+                websocket
+            )
+        else:
+            user_typing_connections.discard(
+                websocket
+            )
+
+        is_now_typing = bool(
+            user_typing_connections
+        )
+
+        if not is_now_typing:
+            room_typing.pop(
+                user_id,
+                None,
+            )
+
+        if not room_typing:
+            self._typing_connections.pop(
+                room_id,
+                None,
+            )
+
+        return (
+            was_typing
+            != is_now_typing
+        )
 
     async def broadcast(
         self,
         *,
         room_id: int,
         payload: dict[str, Any],
+        exclude_websocket: WebSocket | None = None,
     ) -> None:
-        room_connections = list(
+        room_users = (
             self._connections.get(
                 room_id,
-                set(),
+                {},
             )
         )
 
-        disconnected: list[WebSocket] = []
+        room_connections = [
+            websocket
+            for connections
+            in room_users.values()
+            for websocket
+            in connections
+            if websocket
+            is not exclude_websocket
+        ]
+
+        disconnected: list[
+            tuple[int, WebSocket]
+        ] = []
 
         for websocket in room_connections:
             try:
@@ -230,29 +364,81 @@ class RoomRealtimeManager:
                     payload
                 )
             except Exception:
-                disconnected.append(
-                    websocket
-                )
+                for (
+                    connected_user_id,
+                    connections,
+                ) in room_users.items():
+                    if websocket in connections:
+                        disconnected.append(
+                            (
+                                connected_user_id,
+                                websocket,
+                            )
+                        )
+                        break
 
-        for websocket in disconnected:
+        for (
+            connected_user_id,
+            websocket,
+        ) in disconnected:
             self.disconnect(
                 room_id=room_id,
+                user_id=connected_user_id,
                 websocket=websocket,
             )
+
+    def online_user_ids(
+        self,
+        room_id: int,
+    ) -> list[int]:
+        return sorted(
+            self._connections.get(
+                room_id,
+                {},
+            ).keys()
+        )
+
+    def online_user_count(
+        self,
+        room_id: int,
+    ) -> int:
+        return len(
+            self.online_user_ids(
+                room_id
+            )
+        )
 
     def connection_count(
         self,
         room_id: int,
     ) -> int:
+        return sum(
+            len(connections)
+            for connections
+            in self._connections.get(
+                room_id,
+                {},
+            ).values()
+        )
+
+    def user_connection_count(
+        self,
+        room_id: int,
+        user_id: int,
+    ) -> int:
         return len(
             self._connections.get(
                 room_id,
+                {},
+            ).get(
+                user_id,
                 set(),
             )
         )
 
     def reset_for_tests(self) -> None:
         self._connections.clear()
+        self._typing_connections.clear()
 
 
 room_realtime_manager = (
@@ -266,6 +452,7 @@ async def broadcast_room_realtime_event(
     room_id: int,
     actor_user_id: int | None,
     data: dict[str, Any] | None = None,
+    exclude_websocket: WebSocket | None = None,
 ) -> dict[str, Any]:
     payload = build_room_realtime_event(
         event=event,
@@ -277,6 +464,9 @@ async def broadcast_room_realtime_event(
     await room_realtime_manager.broadcast(
         room_id=room_id,
         payload=payload,
+        exclude_websocket=(
+            exclude_websocket
+        ),
     )
 
     return payload
