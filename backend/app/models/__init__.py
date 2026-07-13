@@ -22,3 +22,6 @@ from app.models.room_member import RoomMember
 from app.models.room_event import RoomEvent
 from app.models.room_memory_bucket import RoomMemoryBucket
 from app.models.room_ai_output import RoomAIOutput
+
+from app.models.room_invitation import RoomInvitation
+from app.models.room_invite_link import RoomInviteLink
