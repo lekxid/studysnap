@@ -30,6 +30,7 @@ from app.services.ai_service import (
 )
 from app.services.context.builder import build_study_room_context
 from app.services.context.providers.conversation import build_conversation_context
+from app.services.rooms.access import require_room_ai
 from app.utils.deps import get_current_user
 from app.services.lesson_service import generate_lesson
 from app.schemas.lesson import LessonResponse
@@ -147,14 +148,16 @@ def normalize_conversation_surface(
     return clean_surface
 
 
-def verify_study_room(db: Session, study_room_id: int, owner_id: int):
-    room = db.query(StudyRoom).filter(
-        StudyRoom.id == study_room_id,
-        StudyRoom.owner_id == owner_id,
-    ).first()
-
-    if not room:
-        raise HTTPException(status_code=404, detail="Study room not found")
+def verify_study_room(
+    db: Session,
+    study_room_id: int,
+    user_id: int,
+):
+    room, _role = require_room_ai(
+        db=db,
+        room_id=study_room_id,
+        user_id=user_id,
+    )
 
     return room
 
@@ -200,7 +203,7 @@ def build_conversation_history_context(
     *,
     db: Session,
     conversation: AIConversation,
-    owner_id: int,
+    requesting_user_id: int,
     question: str,
     context_override: str = "",
 ) -> str:
@@ -208,12 +211,18 @@ def build_conversation_history_context(
     override_text = (context_override or "").strip()
 
     if conversation.study_room_id is not None:
+        room = verify_study_room(
+            db,
+            conversation.study_room_id,
+            requesting_user_id,
+        )
+
         room_context = (
             build_study_room_context(
                 db=db,
                 conversation_id=conversation.id,
                 study_room_id=conversation.study_room_id,
-                owner_id=owner_id,
+                owner_id=room.owner_id,
                 question=question,
             )
             or ""
@@ -634,13 +643,13 @@ async def ask_ai_with_image(
             build_conversation_history_context(
                 db=db,
                 conversation=conversation,
-                owner_id=current_user.id,
+                requesting_user_id=current_user.id,
                 question=clean_question,
             )
         )
 
     elif study_room_id is not None:
-        verify_study_room(
+        room = verify_study_room(
             db,
             study_room_id,
             current_user.id,
@@ -650,7 +659,7 @@ async def ask_ai_with_image(
             db=db,
             conversation_id=0,
             study_room_id=study_room_id,
-            owner_id=current_user.id,
+            owner_id=room.owner_id,
             question=clean_question,
         )
 

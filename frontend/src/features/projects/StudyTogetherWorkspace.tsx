@@ -14,6 +14,7 @@ import {
   deleteRoomMessage,
   getCurrentUser,
   getRoomInvitations,
+  getRoomMembers,
   getRoomMessages,
   revokeRoomEmailInvitation,
   revokeRoomInviteLink,
@@ -21,6 +22,7 @@ import {
   type RoomEmailInvitation,
   type RoomInvitationRole,
   type RoomInviteLink,
+  type RoomMember,
   type RoomMessage,
   type UserProfile,
 } from "@/lib/api";
@@ -51,6 +53,93 @@ const starterPrompts = [
   "What is the hardest topic right now?",
   "When should we do a group quiz?",
 ];
+
+function formatRoomRole(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() +
+        part.slice(1)
+    )
+    .join(" ");
+}
+
+function formatMemberDate(
+  value: string | null
+) {
+  if (!value) {
+    return "Joined recently";
+  }
+
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "Joined recently";
+  }
+
+  return `Joined ${new Intl.DateTimeFormat(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }
+  ).format(new Date(parsed))}`;
+}
+
+function formatMemberActivity(
+  value: string | null,
+  isCurrentUser: boolean
+) {
+  if (isCurrentUser) {
+    return "Active now";
+  }
+
+  if (!value) {
+    return "Activity not recorded yet";
+  }
+
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "Activity not recorded yet";
+  }
+
+  const difference =
+    Date.now() - parsed;
+
+  if (
+    difference >= 0 &&
+    difference < 5 * 60 * 1000
+  ) {
+    return "Active recently";
+  }
+
+  if (
+    difference >= 0 &&
+    difference < 24 * 60 * 60 * 1000
+  ) {
+    return `Last active ${new Intl.DateTimeFormat(
+      undefined,
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      }
+    ).format(new Date(parsed))}`;
+  }
+
+  return `Last active ${new Intl.DateTimeFormat(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+    }
+  ).format(new Date(parsed))}`;
+}
 
 function formatActivityTime(value: string) {
   const parsed = Date.parse(value);
@@ -126,16 +215,7 @@ export default function StudyTogetherWorkspace({
     normalizedRole === "member";
 
   const currentRoleLabel =
-    normalizedRole === "ai_tutor"
-      ? "AI Tutor"
-      : normalizedRole
-          .split("_")
-          .map(
-            (part) =>
-              part.charAt(0).toUpperCase() +
-              part.slice(1)
-          )
-          .join(" ");
+    formatRoomRole(normalizedRole);
 
   const [inviteEmail, setInviteEmail] =
     useState("");
@@ -204,6 +284,25 @@ export default function StudyTogetherWorkspace({
 
   const [messageSending, setMessageSending] =
     useState(false);
+
+  const [roomMembers, setRoomMembers] =
+    useState<RoomMember[]>([]);
+
+  const [memberLoading, setMemberLoading] =
+    useState(true);
+
+  const [memberError, setMemberError] =
+    useState("");
+
+  const [
+    membersDrawerOpen,
+    setMembersDrawerOpen,
+  ] = useState(false);
+
+  const [
+    inviteDrawerOpen,
+    setInviteDrawerOpen,
+  ] = useState(false);
 
   const [
     editingMessageId,
@@ -313,6 +412,80 @@ export default function StudyTogetherWorkspace({
     canManageInvitations,
     studyRoomId,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRoomMembers() {
+      setMemberLoading(true);
+      setMemberError("");
+
+      try {
+        const result =
+          await getRoomMembers(
+            studyRoomId
+          );
+
+        if (cancelled) return;
+
+        setRoomMembers(
+          Array.isArray(result.members)
+            ? result.members
+            : []
+        );
+      } catch (error) {
+        if (cancelled) return;
+
+        setMemberError(
+          error instanceof Error
+            ? error.message
+            : "Could not load room members."
+        );
+      } finally {
+        if (!cancelled) {
+          setMemberLoading(false);
+        }
+      }
+    }
+
+    async function refreshRoomMembers() {
+      try {
+        const result =
+          await getRoomMembers(
+            studyRoomId
+          );
+
+        if (!cancelled) {
+          setRoomMembers(
+            Array.isArray(result.members)
+              ? result.members
+              : []
+          );
+        }
+      } catch {
+        // Keep the current member list visible
+        // during a temporary refresh failure.
+      }
+    }
+
+    void loadRoomMembers();
+
+    const memberRefreshTimer =
+      window.setInterval(
+        () => {
+          void refreshRoomMembers();
+        },
+        15000
+      );
+
+    return () => {
+      cancelled = true;
+
+      window.clearInterval(
+        memberRefreshTimer
+      );
+    };
+  }, [studyRoomId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -876,148 +1049,106 @@ export default function StudyTogetherWorkspace({
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-[1.6rem] border border-cyan-300/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(250,204,21,0.06),rgba(2,6,23,0.95))]">
-        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-6">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
-              Study Together
-            </p>
+      <section className="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-yellow-300 text-lg font-black text-slate-950">
+              {roomTitle
+                .trim()
+                .charAt(0)
+                .toUpperCase() || "S"}
+            </div>
 
-            <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">
-              Make {roomTitle} feel alive
-            </h2>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200">
+                Study Together
+              </p>
 
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-              Bring classmates into the same room, study from the same materials,
-              discuss difficult topics, and turn room knowledge into group
-              practice.
-            </p>
+              <h2 className="truncate text-xl font-black text-white">
+                {roomTitle}
+              </h2>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-black text-emerald-100">
-                ● You are here
-              </span>
-
-              <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1.5 text-xs font-black text-yellow-100">
-                {currentRoleLabel || "Member"}
-              </span>
-
-              {canManageInvitations ? (
-                <>
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-slate-300">
-                    {pendingInvites.length} pending invitation
-                    {pendingInvites.length === 1
-                      ? ""
-                      : "s"}
-                  </span>
-
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-bold text-slate-300">
-                    {activeShareLinks.length} active room link
-                    {activeShareLinks.length === 1
-                      ? ""
-                      : "s"}
-                  </span>
-                </>
-              ) : null}
+              <p className="mt-1 text-xs text-slate-400">
+                {roomMembers.length} member
+                {roomMembers.length === 1
+                  ? ""
+                  : "s"}{" "}
+                · {currentRoleLabel || "Member"}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setMembersDrawerOpen(true)
+              }
+              className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-slate-200 transition hover:border-yellow-300/25 hover:bg-white/[0.09] hover:text-white"
+            >
+              👥 {roomMembers.length} member
+              {roomMembers.length === 1
+                ? ""
+                : "s"}
+            </button>
+
             {canManageInvitations ? (
-              <>
-                <p className="text-sm font-black text-yellow-100">
-                  Grow this focused study group
-                </p>
-
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Invite one or two classmates to study from the same room.
-                </p>
-
-                <p className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
-                  Durable invitations are connected. Email delivery is still
-                  coming, so StudySnap gives you a secure link to share manually.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-black text-yellow-100">
-                  You joined this Study Room
-                </p>
-
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  You can now learn from the room content and use the tools
-                  available to your role.
-                </p>
-
-                <p className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
-                  Your room role is {currentRoleLabel || "Member"}. Invitation
-                  management stays with the room owner or an admin.
-                </p>
-              </>
-            )}
+              <button
+                type="button"
+                onClick={() =>
+                  setInviteDrawerOpen(true)
+                }
+                className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+              >
+                ＋ Invite
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+      <section className="block">
         <div className="space-y-5">
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
-                  Group actions
-                </p>
+          <section className="rounded-[1.25rem] border border-white/10 bg-slate-950/70 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onOpenAiTutor}
+                className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+              >
+                ✨ Ask AI
+              </button>
 
-                <h3 className="mt-2 text-xl font-black text-white">
-                  Start something together
-                </h3>
-              </div>
-
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-black text-cyan-100">
-                Uses this room
-              </span>
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <Link
                 href={`/quizzes?roomId=${studyRoomId}`}
-                className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4 transition hover:border-yellow-300/40 hover:bg-yellow-300/15"
+                className="rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/15"
               >
-                <p className="text-2xl">🧾</p>
-                <p className="mt-3 text-sm font-black text-white">
-                  Start room quiz
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Open quizzes connected to this room.
-                </p>
+                🧾 Group quiz
               </Link>
 
               <button
                 type="button"
-                onClick={onOpenAiTutor}
-                className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-left transition hover:border-cyan-300/40 hover:bg-cyan-300/15"
+                onClick={onOpenMaterials}
+                className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/15"
               >
-                <p className="text-2xl">🤖</p>
-                <p className="mt-3 text-sm font-black text-white">
-                  Ask room AI
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Ask from the room’s connected learning context.
-                </p>
+                ＋ Add material
               </button>
+            </div>
 
-              <Link
-                href={`/flashcards?roomId=${studyRoomId}`}
-                className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4 transition hover:border-emerald-300/40 hover:bg-emerald-300/15"
-              >
-                <p className="text-2xl">🧠</p>
-                <p className="mt-3 text-sm font-black text-white">
-                  Review Concept Cards
-                </p>
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Practice the same room concepts.
-                </p>
-              </Link>
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+              <span className="text-sm">
+                {activityItems[0]?.icon || "✨"}
+              </span>
+
+              <p className="min-w-0 truncate text-xs text-slate-400">
+                <span className="font-black text-slate-200">
+                  {activityItems[0]?.title ||
+                    "This room is ready"}
+                </span>
+                {" · "}
+                {activityItems[0]?.text ||
+                  "Start studying together."}
+              </p>
             </div>
           </section>
 
@@ -1043,16 +1174,15 @@ export default function StudyTogetherWorkspace({
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-black text-emerald-100">
-                  Shared chat
+                  Human chat
                 </span>
 
-                <button
-                  type="button"
-                  onClick={onOpenAiTutor}
-                  className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
-                >
-                  ✨ Ask AI
-                </button>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-400">
+                  {roomMessages.length} message
+                  {roomMessages.length === 1
+                    ? ""
+                    : "s"}
+                </span>
               </div>
             </div>
 
@@ -1453,294 +1583,203 @@ export default function StudyTogetherWorkspace({
           </section>
         </div>
 
-        <aside className="space-y-5">
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
-              Room members
-            </p>
 
-            <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-300 text-lg font-black text-slate-950">
-                  Y
-                </div>
+      </section>
 
-                <div className="min-w-0 flex-1">
-                  <p className="font-black text-white">
-                    You
-                  </p>
-                  <p className="text-xs text-emerald-100/70">
-                    {currentRoleLabel || "Member"} · Active now
-                  </p>
-                </div>
+      {inviteDrawerOpen &&
+      canManageInvitations ? (
+        <div className="fixed inset-0 z-[95]">
+          <button
+            type="button"
+            aria-label="Close invitation drawer"
+            onClick={() =>
+              setInviteDrawerOpen(false)
+            }
+            className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm"
+          />
 
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-              </div>
-            </div>
-
-            {canManageInvitations &&
-            pendingInvites.length ? (
-              <div className="mt-3 space-y-2">
-                {pendingInvites.map(
-                  (invite) => (
-                    <div
-                      key={invite.id}
-                      className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-white">
-                            {invite.email}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {invite.role === "ai_tutor"
-                              ? "AI Tutor"
-                              : invite.role.charAt(0).toUpperCase() +
-                                invite.role.slice(1)}{" "}
-                            · Pending
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void removeInvite(
-                              invite.email
-                            )
-                          }
-                          disabled={
-                            inviteAction ===
-                            `revoke-email-${invite.id}`
-                          }
-                          className="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-black text-slate-400 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {inviteAction ===
-                          `revoke-email-${invite.id}`
-                            ? "Revoking..."
-                            : "Revoke"}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            ) : null}
-          </section>
-
-          {canManageInvitations ? (
-            <>
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-              Invite classmates
-            </p>
-
-            <h3 className="mt-2 text-lg font-black text-white">
-              Build a small study group
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Create a durable invitation for a classmate. Until email delivery
-              is connected, copy the secure link and send it yourself.
-            </p>
-
-            <form
-              onSubmit={prepareInvite}
-              className="mt-4"
-            >
-              <input
-                type="email"
-                value={inviteEmail}
-                disabled={
-                  inviteAction ===
-                  "create-email"
-                }
-                onChange={(event) => {
-                  setInviteEmail(
-                    event.target.value
-                  );
-                  setInviteError("");
-                }}
-                placeholder="classmate@email.com"
-                className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/30"
-              />
-
-              {inviteError ? (
-                <p className="mt-2 text-xs font-semibold text-red-300">
-                  {inviteError}
+          <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-white/10 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
+                  Invite classmates
                 </p>
-              ) : null}
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Add people securely to {roomTitle}.
+                </p>
+              </div>
 
               <button
-                type="submit"
-                disabled={
-                  inviteAction ===
-                  "create-email"
+                type="button"
+                onClick={() =>
+                  setInviteDrawerOpen(false)
                 }
-                className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-lg text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
               >
-                {inviteAction ===
-                "create-email"
-                  ? "Creating invitation..."
-                  : "Create secure invitation"}
+                ×
               </button>
-            </form>
+            </div>
 
-            {inviteLoading ? (
-              <p className="mt-3 text-xs font-semibold text-slate-500">
-                Loading room invitations...
-              </p>
-            ) : null}
-
-            {invitationLoadError ? (
-              <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
-                {invitationLoadError}
-              </p>
-            ) : null}
-
-            {inviteNotice ? (
-              <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">
-                {inviteNotice}
-              </p>
-            ) : null}
-
-            {latestEmailInviteUrl ? (
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  Secure invite link
+            <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
+              <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm font-black text-white">
+                  Invite by email
                 </p>
 
-                <p className="mt-2 break-all text-xs leading-5 text-slate-300">
-                  {latestEmailInviteUrl}
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Create a secure invitation and send
+                  the generated link to your classmate.
                 </p>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    void copyLatestEmailInviteLink()
-                  }
-                  className="mt-3 w-full rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-300/15"
+                <form
+                  onSubmit={prepareInvite}
+                  className="mt-4"
                 >
-                  Copy invitation link
-                </button>
-              </div>
-            ) : null}
-          </section>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    disabled={
+                      inviteAction ===
+                      "create-email"
+                    }
+                    onChange={(event) => {
+                      setInviteEmail(
+                        event.target.value
+                      );
+                      setInviteError("");
+                    }}
+                    placeholder="classmate@email.com"
+                    className="w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300/30"
+                  />
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
+                  {inviteError ? (
+                    <p className="mt-2 text-xs font-semibold text-red-300">
+                      {inviteError}
+                    </p>
+                  ) : null}
+
+                  <button
+                    type="submit"
+                    disabled={
+                      inviteAction ===
+                      "create-email"
+                    }
+                    className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-50"
+                  >
+                    {inviteAction ===
+                    "create-email"
+                      ? "Creating invitation..."
+                      : "Create invitation"}
+                  </button>
+                </form>
+
+                {invitationLoadError ? (
+                  <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
+                    {invitationLoadError}
+                  </p>
+                ) : null}
+
+                {inviteNotice ? (
+                  <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">
+                    {inviteNotice}
+                  </p>
+                ) : null}
+
+                {latestEmailInviteUrl ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="break-all text-xs leading-5 text-slate-300">
+                      {latestEmailInviteUrl}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyLatestEmailInviteLink()
+                      }
+                      className="mt-3 w-full rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-black text-emerald-100"
+                    >
+                      Copy invitation link
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm font-black text-white">
                   Shareable room link
                 </p>
 
-                <h3 className="mt-2 text-lg font-black text-white">
-                  Invite classmates with one link
-                </h3>
-              </div>
-
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black text-emerald-100">
-                Secure
-              </span>
-            </div>
-
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Create a link that up to 10 classmates can use. You can revoke it at any time.
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                void createShareLink()
-              }
-              disabled={
-                inviteAction ===
-                "create-share-link"
-              }
-              className="mt-4 w-full rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {inviteAction ===
-              "create-share-link"
-                ? "Creating room link..."
-                : "Create shareable room link"}
-            </button>
-
-            {shareLinkError ? (
-              <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold leading-5 text-red-200">
-                {shareLinkError}
-              </p>
-            ) : null}
-
-            {shareLinkNotice ? (
-              <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100">
-                {shareLinkNotice}
-              </p>
-            ) : null}
-
-            {latestShareUrl ? (
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  New room link
-                </p>
-
-                <p className="mt-2 break-all text-xs leading-5 text-slate-300">
-                  {latestShareUrl}
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Create one secure link for up to
+                  10 classmates.
                 </p>
 
                 <button
                   type="button"
                   onClick={() =>
-                    void copyLatestShareLink()
+                    void createShareLink()
                   }
-                  className="mt-3 w-full rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                  disabled={
+                    inviteAction ===
+                    "create-share-link"
+                  }
+                  className="mt-4 w-full rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300/15 disabled:opacity-50"
                 >
-                  Copy room link
+                  {inviteAction ===
+                  "create-share-link"
+                    ? "Creating room link..."
+                    : "Create room link"}
                 </button>
 
-                <p className="mt-2 text-[10px] leading-4 text-slate-500">
-                  Save this link now. For security, StudySnap does not show the full link again after refresh.
-                </p>
-              </div>
-            ) : null}
+                {shareLinkError ? (
+                  <p className="mt-3 rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
+                    {shareLinkError}
+                  </p>
+                ) : null}
 
-            {activeShareLinks.length ? (
-              <div className="mt-4 space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  Active links
-                </p>
+                {shareLinkNotice ? (
+                  <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100">
+                    {shareLinkNotice}
+                  </p>
+                ) : null}
 
-                {activeShareLinks.map(
-                  (link) => {
-                    const maximumUses =
-                      link.max_uses;
+                {latestShareUrl ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                    <p className="break-all text-xs leading-5 text-slate-300">
+                      {latestShareUrl}
+                    </p>
 
-                    const remainingUses =
-                      maximumUses === null
-                        ? null
-                        : Math.max(
-                            maximumUses -
-                              link.use_count,
-                            0
-                          );
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyLatestShareLink()
+                      }
+                      className="mt-3 w-full rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-xs font-black text-cyan-100"
+                    >
+                      Copy room link
+                    </button>
+                  </div>
+                ) : null}
 
-                    return (
-                      <div
-                        key={link.id}
-                        className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-black text-white">
-                              Member room link
+                {activeShareLinks.length ? (
+                  <div className="mt-4 space-y-2">
+                    {activeShareLinks.map(
+                      (link) => (
+                        <div
+                          key={link.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3"
+                        >
+                          <div>
+                            <p className="text-xs font-black text-white">
+                              Active room link
                             </p>
 
-                            <p className="mt-1 text-xs leading-5 text-slate-400">
+                            <p className="mt-1 text-[10px] text-slate-500">
                               Used {link.use_count}
-                              {maximumUses === null
+                              {link.max_uses === null
                                 ? " times"
-                                : ` of ${maximumUses} times`}
-                              {remainingUses === null
-                                ? ""
-                                : ` · ${remainingUses} remaining`}
+                                : ` of ${link.max_uses}`}
                             </p>
                           </div>
 
@@ -1755,7 +1794,7 @@ export default function StudyTogetherWorkspace({
                               inviteAction ===
                               `revoke-link-${link.id}`
                             }
-                            className="rounded-lg border border-red-300/15 bg-red-300/5 px-2.5 py-1.5 text-[10px] font-black text-red-200 transition hover:bg-red-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-lg border border-red-300/20 bg-red-300/10 px-2.5 py-1.5 text-[10px] font-black text-red-100 disabled:opacity-50"
                           >
                             {inviteAction ===
                             `revoke-link-${link.id}`
@@ -1763,151 +1802,256 @@ export default function StudyTogetherWorkspace({
                               : "Revoke"}
                           </button>
                         </div>
-                      </div>
-                    );
-                  }
-                )}
-              </div>
-            ) : (
-              <p className="mt-3 text-xs leading-5 text-slate-500">
-                No active room links yet.
-              </p>
-            )}
-          </section>
-
-            </>
-          ) : (
-            <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
-                Your room access
-              </p>
-
-              <h3 className="mt-2 text-lg font-black text-white">
-                You are connected as {currentRoleLabel || "Member"}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                You can use the shared learning tools allowed by your role.
-                Only the room owner or an admin can invite or remove classmates.
-              </p>
-
-              <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-3 text-xs font-semibold leading-5 text-emerald-100">
-                No invitation controls are needed here. Open the shared
-                materials, notes, Concept Cards, quizzes, or room AI to begin.
-              </div>
-            </section>
-          )}
-
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
-              Shared room content
-            </p>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={onOpenMaterials}
-                className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-yellow-300/25 hover:bg-yellow-300/10"
-              >
-                <p className="text-2xl font-black text-white">
-                  {materialsCount}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  Materials
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={onOpenNotes}
-                className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-cyan-300/25 hover:bg-cyan-300/10"
-              >
-                <p className="text-2xl font-black text-white">
-                  {notesCount}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  Notes
-                </p>
-              </button>
-
-              <Link
-                href={`/flashcards?roomId=${studyRoomId}`}
-                className="rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-emerald-300/25 hover:bg-emerald-300/10"
-              >
-                <p className="text-2xl font-black text-white">
-                  {conceptCardsCount}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  Concept Cards
-                </p>
-              </Link>
-
-              <Link
-                href={`/quizzes?roomId=${studyRoomId}`}
-                className="rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-yellow-300/25 hover:bg-yellow-300/10"
-              >
-                <p className="text-2xl font-black text-white">
-                  {quizzesCount}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  Quizzes
-                </p>
-              </Link>
+                      )
+                    )}
+                  </div>
+                ) : null}
+              </section>
             </div>
-          </section>
-        </aside>
-      </section>
-
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-              Room activity
-            </p>
-
-            <h3 className="mt-2 text-xl font-black text-white">
-              What is happening in this room
-            </h3>
-          </div>
-
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-400">
-            Live activity log connects next
-          </span>
+          </aside>
         </div>
+      ) : null}
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {activityItems.map(
-            (item) => (
-              <div
-                key={item.title}
-                className="rounded-2xl border border-white/10 bg-black/20 p-4"
-              >
-                <p className="text-2xl">
-                  {item.icon}
+      {membersDrawerOpen ? (
+        <div className="fixed inset-0 z-[90]">
+          <button
+            type="button"
+            aria-label="Close members drawer"
+            onClick={() =>
+              setMembersDrawerOpen(false)
+            }
+            className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm"
+          />
+
+          <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-white/10 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
+                  Room members
                 </p>
-                <p className="mt-3 text-sm font-black text-white">
-                  {item.title}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-slate-400">
-                  {item.text}
+
+                <p className="mt-1 text-sm text-slate-400">
+                  {roomMembers.length} accepted member
+                  {roomMembers.length === 1
+                    ? ""
+                    : "s"}
                 </p>
               </div>
-            )
-          )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setMembersDrawerOpen(false)
+                }
+                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-lg text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              {memberError ? (
+                <p className="rounded-xl border border-red-300/20 bg-red-300/10 px-3 py-2 text-xs font-semibold text-red-200">
+                  {memberError}
+                </p>
+              ) : null}
+
+              {memberLoading ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-slate-400">
+                  Loading room members...
+                </div>
+              ) : roomMembers.length ? (
+                <div className="space-y-2">
+                  {roomMembers.map(
+                    (member) => {
+                      const displayName =
+                        member.is_current_user
+                          ? "You"
+                          : member.full_name ||
+                            "Study Room member";
+
+                      const initial =
+                        (
+                          member.full_name ||
+                          displayName
+                        )
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase() ||
+                        "S";
+
+                      const roleLabel =
+                        formatRoomRole(
+                          member.role
+                        ) || "Member";
+
+                      const activityLabel =
+                        formatMemberActivity(
+                          member.last_active_at,
+                          member.is_current_user
+                        );
+
+                      return (
+                        <div
+                          key={member.id}
+                          className={`rounded-2xl border p-3 ${
+                            member.is_current_user
+                              ? "border-emerald-300/20 bg-emerald-300/10"
+                              : "border-white/10 bg-white/[0.04]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-sm font-black ${
+                                member.is_current_user
+                                  ? "bg-emerald-300 text-slate-950"
+                                  : member.is_owner
+                                    ? "bg-yellow-300/15 text-yellow-100"
+                                    : "bg-cyan-300/15 text-cyan-100"
+                              }`}
+                            >
+                              {initial}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-black text-white">
+                                  {displayName}
+                                </p>
+
+                                {canManageInvitations ? (
+                                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                                    {roleLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <p className="mt-1 text-xs text-slate-400">
+                                {member.is_current_user
+                                  ? "Active now"
+                                  : activityLabel}
+                              </p>
+
+                              {canManageInvitations ? (
+                                <>
+                                  <p className="mt-1 text-[10px] text-slate-500">
+                                    {formatMemberDate(
+                                      member.joined_at
+                                    )}
+                                  </p>
+
+                                </>
+                              ) : null}
+                            </div>
+
+                            <span
+                              title={
+                                member.is_current_user
+                                  ? "Active now"
+                                  : "Live presence connects next"
+                              }
+                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                                member.is_current_user
+                                  ? "bg-emerald-300"
+                                  : "bg-slate-600"
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-400">
+                  No accepted members were found.
+                </div>
+              )}
+
+              {canManageInvitations &&
+              pendingInvites.length ? (
+                <div className="mt-5 border-t border-white/10 pt-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    Pending invitations
+                  </p>
+
+                  <div className="mt-3 space-y-2">
+                    {pendingInvites.map(
+                      (invite) => (
+                        <div
+                          key={invite.id}
+                          className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-black text-white">
+                                {invite.email}
+                              </p>
+
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatRoomRole(
+                                  invite.role
+                                )}{" "}
+                                · Pending
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void removeInvite(
+                                  invite.email
+                                )
+                              }
+                              disabled={
+                                inviteAction ===
+                                `revoke-email-${invite.id}`
+                              }
+                              className="rounded-lg border border-white/10 px-2 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                            >
+                              {inviteAction ===
+                              `revoke-email-${invite.id}`
+                                ? "Revoking..."
+                                : "Revoke"}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {canManageInvitations ? (
+              <div className="grid grid-cols-2 gap-2 border-t border-white/10 p-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMembersDrawerOpen(false);
+                    setInviteDrawerOpen(true);
+                  }}
+                  className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                >
+                  Invite
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMembersDrawerOpen(false)
+                  }
+                  className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-black text-slate-200 transition hover:bg-white/[0.09]"
+                >
+                  Close
+                </button>
+              </div>
+            ) : null}
+          </aside>
         </div>
-      </section>
+      ) : null}
 
-      <section className="rounded-[1.5rem] border border-orange-300/15 bg-orange-300/10 p-5">
-        <p className="text-sm font-black text-orange-100">
-          Shared collaboration is connected
-        </p>
 
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Secure invitations, room links, member roles, and durable shared
-          messages are now connected. Live member presence, attachments, and
-          the room activity feed are the next collaboration upgrades.
-        </p>
-      </section>
     </div>
   );
 }

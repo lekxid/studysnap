@@ -1819,3 +1819,41 @@ export async function deleteRoomMessage(
     }
   ) as Promise<RoomMessage>;
 }
+
+
+
+// =========================================================
+// Study Together real room members
+// =========================================================
+
+export type RoomMember = {
+  id: number;
+  room_id: number;
+  user_id: number;
+  full_name: string;
+  email: string | null;
+  role: string;
+  status: string;
+  joined_at: string | null;
+  last_active_at: string | null;
+  is_current_user: boolean;
+  is_owner: boolean;
+};
+
+export type RoomMemberListResponse = {
+  room_id: number;
+  current_user_role: string;
+  permissions: {
+    can_manage_members: boolean;
+  };
+  total: number;
+  members: RoomMember[];
+};
+
+export async function getRoomMembers(
+  studyRoomId: number
+): Promise<RoomMemberListResponse> {
+  return apiFetch(
+    `/api/room-members/rooms/${studyRoomId}`
+  ) as Promise<RoomMemberListResponse>;
+}
