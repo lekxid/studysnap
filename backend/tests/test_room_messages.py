@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -272,6 +273,154 @@ class RoomMessageAPITests(unittest.TestCase):
             ),
             headers=self.auth_headers(token),
             json=payload,
+        )
+
+    def test_create_update_delete_broadcast_realtime_events(
+        self,
+    ):
+        _owner_email, owner_token = (
+            self.create_user_and_login(
+                "realtime-message-owner",
+                "Realtime Message Owner",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="Realtime Broadcast Room",
+        )
+
+        captured_events = []
+
+        async def capture_event(**kwargs):
+            captured_events.append(kwargs)
+            return kwargs
+
+        with patch(
+            (
+                "app.routes.room_messages."
+                "broadcast_room_realtime_event"
+            ),
+            new=capture_event,
+        ):
+            created_response = self.send_message(
+                room_id,
+                owner_token,
+                "First live message",
+            )
+
+            self.assertEqual(
+                created_response.status_code,
+                200,
+                created_response.text,
+            )
+
+            created_message = (
+                created_response.json()
+            )
+
+            updated_response = (
+                self.client.patch(
+                    (
+                        "/api/room-messages/"
+                        f"rooms/{room_id}/"
+                        f"{created_message['id']}"
+                    ),
+                    headers=self.auth_headers(
+                        owner_token
+                    ),
+                    json={
+                        "content": (
+                            "Updated live message"
+                        ),
+                    },
+                )
+            )
+
+            self.assertEqual(
+                updated_response.status_code,
+                200,
+                updated_response.text,
+            )
+
+            deleted_response = (
+                self.client.delete(
+                    (
+                        "/api/room-messages/"
+                        f"rooms/{room_id}/"
+                        f"{created_message['id']}"
+                    ),
+                    headers=self.auth_headers(
+                        owner_token
+                    ),
+                )
+            )
+
+            self.assertEqual(
+                deleted_response.status_code,
+                200,
+                deleted_response.text,
+            )
+
+        self.assertEqual(
+            [
+                item["event"]
+                for item in captured_events
+            ],
+            [
+                "message.created",
+                "message.updated",
+                "message.deleted",
+            ],
+        )
+
+        for captured in captured_events:
+            self.assertEqual(
+                captured["room_id"],
+                room_id,
+            )
+
+            self.assertIsNotNone(
+                captured["actor_user_id"]
+            )
+
+            self.assertIn(
+                "message",
+                captured["data"],
+            )
+
+            self.assertEqual(
+                captured["data"][
+                    "message"
+                ]["id"],
+                created_message["id"],
+            )
+
+        self.assertEqual(
+            captured_events[0]["data"][
+                "message"
+            ]["content"],
+            "First live message",
+        )
+
+        self.assertEqual(
+            captured_events[1]["data"][
+                "message"
+            ]["content"],
+            "Updated live message",
+        )
+
+        self.assertTrue(
+            captured_events[2]["data"][
+                "message"
+            ]["is_deleted"]
+        )
+
+        self.assertEqual(
+            captured_events[2]["data"][
+                "message"
+            ]["content"],
+            "",
         )
 
     def test_member_can_send_read_and_reply(

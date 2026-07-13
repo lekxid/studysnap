@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     HTTPException,
     Query,
@@ -20,6 +21,9 @@ from app.services.rooms.access import (
     ROOM_MANAGER_ROLES,
     require_room_contributor,
     require_room_view,
+)
+from app.services.rooms.realtime import (
+    broadcast_room_realtime_event,
 )
 from app.utils.deps import get_current_user
 
@@ -280,6 +284,7 @@ def list_room_messages(
 def create_room_message(
     room_id: int,
     data: RoomMessageCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
@@ -318,10 +323,22 @@ def create_room_message(
     db.commit()
     db.refresh(message)
 
-    return serialize_message(
+    serialized_message = serialize_message(
         message,
         current_user,
     )
+
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.created",
+        room_id=room_id,
+        actor_user_id=current_user.id,
+        data={
+            "message": serialized_message,
+        },
+    )
+
+    return serialized_message
 
 
 @router.patch(
@@ -331,6 +348,7 @@ def update_room_message(
     room_id: int,
     message_id: int,
     data: RoomMessageUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
@@ -372,10 +390,22 @@ def update_room_message(
         else None
     )
 
-    return serialize_message(
+    serialized_message = serialize_message(
         message,
         sender,
     )
+
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.updated",
+        room_id=room_id,
+        actor_user_id=current_user.id,
+        data={
+            "message": serialized_message,
+        },
+    )
+
+    return serialized_message
 
 
 @router.delete(
@@ -384,6 +414,7 @@ def update_room_message(
 def delete_room_message(
     room_id: int,
     message_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
@@ -424,7 +455,19 @@ def delete_room_message(
         else None
     )
 
-    return serialize_message(
+    serialized_message = serialize_message(
         message,
         sender,
     )
+
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.deleted",
+        room_id=room_id,
+        actor_user_id=current_user.id,
+        data={
+            "message": serialized_message,
+        },
+    )
+
+    return serialized_message

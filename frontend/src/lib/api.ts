@@ -1823,6 +1823,78 @@ export async function deleteRoomMessage(
 
 
 // =========================================================
+// Study Together real-time room channel
+// =========================================================
+
+export type RoomRealtimeTicket = {
+  ticket: string;
+  expires_in_seconds: number;
+  expires_at: string;
+  websocket_path: string;
+  room_id: number;
+  user_id: number;
+  role: string;
+};
+
+export type RoomRealtimeEvent = {
+  event: string;
+  room_id: number;
+  event_id: string;
+  occurred_at: string;
+  actor_user_id: number | null;
+  data: Record<string, unknown>;
+};
+
+export async function createRoomRealtimeTicket(
+  studyRoomId: number
+): Promise<RoomRealtimeTicket> {
+  return apiFetch(
+    `/api/room-realtime/rooms/${studyRoomId}/ticket`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomRealtimeTicket>;
+}
+
+export function buildRoomRealtimeWebSocketUrl(
+  ticketResponse: RoomRealtimeTicket
+): string {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "The room connection is only available in the browser."
+    );
+  }
+
+  const configuredBackend =
+    process.env.NEXT_PUBLIC_API_BASE_URL
+      ?.trim()
+      .replace(/\/+$/, "");
+
+  const fallbackBackend =
+    `${window.location.protocol}//` +
+    `${window.location.hostname}:8000`;
+
+  const backendBase =
+    configuredBackend || fallbackBackend;
+
+  const websocketBase = backendBase
+    .replace(/^https:/i, "wss:")
+    .replace(/^http:/i, "ws:");
+
+  const params = new URLSearchParams({
+    ticket: ticketResponse.ticket,
+  });
+
+  return (
+    `${websocketBase}` +
+    `${ticketResponse.websocket_path}` +
+    `?${params.toString()}`
+  );
+}
+
+
+
+// =========================================================
 // Study Together real room members
 // =========================================================
 

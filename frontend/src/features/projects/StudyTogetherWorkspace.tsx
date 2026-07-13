@@ -11,6 +11,8 @@ import {
   createRoomEmailInvitation,
   createRoomInviteLink,
   createRoomMessage,
+  createRoomRealtimeTicket,
+  buildRoomRealtimeWebSocketUrl,
   deleteRoomMessage,
   getCurrentUser,
   getRoomInvitations,
@@ -24,6 +26,7 @@ import {
   type RoomInviteLink,
   type RoomMember,
   type RoomMessage,
+  type RoomRealtimeEvent,
   type UserProfile,
 } from "@/lib/api";
 
@@ -284,6 +287,16 @@ export default function StudyTogetherWorkspace({
 
   const [messageSending, setMessageSending] =
     useState(false);
+
+  const [
+    realtimeStatus,
+    setRealtimeStatus,
+  ] = useState<
+    | "connecting"
+    | "live"
+    | "reconnecting"
+    | "offline"
+  >("connecting");
 
   const [roomMembers, setRoomMembers] =
     useState<RoomMember[]>([]);
@@ -873,6 +886,288 @@ export default function StudyTogetherWorkspace({
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null =
+      null;
+    let pingTimer: number | null = null;
+    let reconnectAttempt = 0;
+
+    function clearReconnectTimer() {
+      if (reconnectTimer !== null) {
+        window.clearTimeout(
+          reconnectTimer
+        );
+        reconnectTimer = null;
+      }
+    }
+
+    function clearPingTimer() {
+      if (pingTimer !== null) {
+        window.clearInterval(
+          pingTimer
+        );
+        pingTimer = null;
+      }
+    }
+
+    function reconcileRealtimeMessage(
+      nextMessage: RoomMessage
+    ) {
+      setRoomMessages((current) => {
+        const existingIndex =
+          current.findIndex(
+            (message) =>
+              message.id ===
+              nextMessage.id
+          );
+
+        if (existingIndex === -1) {
+          return [
+            ...current,
+            nextMessage,
+          ].sort(
+            (left, right) =>
+              left.id - right.id
+          );
+        }
+
+        const next = [...current];
+
+        next[existingIndex] =
+          nextMessage;
+
+        return next;
+      });
+
+      setMessageLoading(false);
+    }
+
+    function handleRealtimeEvent(
+      payload: RoomRealtimeEvent
+    ) {
+      if (
+        payload.room_id !== studyRoomId
+      ) {
+        return;
+      }
+
+      if (
+        payload.event ===
+        "connection.ready"
+      ) {
+        reconnectAttempt = 0;
+        setRealtimeStatus("live");
+        return;
+      }
+
+      if (
+        payload.event !==
+          "message.created" &&
+        payload.event !==
+          "message.updated" &&
+        payload.event !==
+          "message.deleted"
+      ) {
+        return;
+      }
+
+      const rawMessage =
+        payload.data.message;
+
+      if (
+        !rawMessage ||
+        typeof rawMessage !== "object"
+      ) {
+        return;
+      }
+
+      const nextMessage =
+        rawMessage as RoomMessage;
+
+      if (
+        typeof nextMessage.id !==
+          "number" ||
+        nextMessage.room_id !==
+          studyRoomId
+      ) {
+        return;
+      }
+
+      reconcileRealtimeMessage(
+        nextMessage
+      );
+    }
+
+    function scheduleReconnect() {
+      if (cancelled) {
+        return;
+      }
+
+      clearReconnectTimer();
+      setRealtimeStatus(
+        "reconnecting"
+      );
+
+      const delay = Math.min(
+        1000 *
+          2 **
+            Math.min(
+              reconnectAttempt,
+              4
+            ),
+        10000
+      );
+
+      reconnectAttempt += 1;
+
+      reconnectTimer =
+        window.setTimeout(
+          () => {
+            void connect();
+          },
+          delay
+        );
+    }
+
+    async function connect() {
+      if (cancelled) {
+        return;
+      }
+
+      clearReconnectTimer();
+
+      setRealtimeStatus(
+        reconnectAttempt > 0
+          ? "reconnecting"
+          : "connecting"
+      );
+
+      try {
+        const ticket =
+          await createRoomRealtimeTicket(
+            studyRoomId
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextSocket =
+          new WebSocket(
+            buildRoomRealtimeWebSocketUrl(
+              ticket
+            )
+          );
+
+        socket = nextSocket;
+
+        nextSocket.onopen = () => {
+          if (cancelled) {
+            nextSocket.close();
+            return;
+          }
+
+          clearPingTimer();
+
+          pingTimer =
+            window.setInterval(
+              () => {
+                if (
+                  nextSocket.readyState ===
+                  WebSocket.OPEN
+                ) {
+                  nextSocket.send(
+                    JSON.stringify({
+                      event:
+                        "connection.ping",
+                    })
+                  );
+                }
+              },
+              25000
+            );
+        };
+
+        nextSocket.onmessage = (
+          event
+        ) => {
+          if (
+            cancelled ||
+            typeof event.data !==
+              "string"
+          ) {
+            return;
+          }
+
+          try {
+            const payload =
+              JSON.parse(
+                event.data
+              ) as RoomRealtimeEvent;
+
+            handleRealtimeEvent(
+              payload
+            );
+          } catch {
+            // Ignore malformed socket events.
+          }
+        };
+
+        nextSocket.onerror = () => {
+          if (
+            nextSocket.readyState !==
+              WebSocket.CLOSED &&
+            nextSocket.readyState !==
+              WebSocket.CLOSING
+          ) {
+            nextSocket.close();
+          }
+        };
+
+        nextSocket.onclose = () => {
+          clearPingTimer();
+
+          if (socket === nextSocket) {
+            socket = null;
+          }
+
+          if (!cancelled) {
+            scheduleReconnect();
+          }
+        };
+      } catch {
+        if (!cancelled) {
+          scheduleReconnect();
+        }
+      }
+    }
+
+    void connect();
+
+    return () => {
+      cancelled = true;
+
+      clearReconnectTimer();
+      clearPingTimer();
+
+      if (
+        socket &&
+        socket.readyState !==
+          WebSocket.CLOSED
+      ) {
+        socket.close(
+          1000,
+          "Leaving Study Together."
+        );
+      }
+
+      socket = null;
+      setRealtimeStatus("offline");
+    };
+  }, [studyRoomId]);
+
   async function sendSharedMessage(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -1175,6 +1470,43 @@ export default function StudyTogetherWorkspace({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-xs font-black text-emerald-100">
                   Human chat
+                </span>
+
+                <span
+                  title={
+                    realtimeStatus === "live"
+                      ? "Messages update instantly"
+                      : "StudySnap is reconnecting while polling remains available"
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${
+                    realtimeStatus === "live"
+                      ? "border-emerald-300/20 bg-emerald-300/10 text-emerald-100"
+                      : realtimeStatus ===
+                          "offline"
+                        ? "border-slate-500/20 bg-slate-500/10 text-slate-400"
+                        : "border-yellow-300/20 bg-yellow-300/10 text-yellow-100"
+                  }`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      realtimeStatus === "live"
+                        ? "bg-emerald-300"
+                        : realtimeStatus ===
+                            "offline"
+                          ? "bg-slate-500"
+                          : "animate-pulse bg-yellow-300"
+                    }`}
+                  />
+
+                  {realtimeStatus === "live"
+                    ? "Live"
+                    : realtimeStatus ===
+                        "connecting"
+                      ? "Connecting"
+                      : realtimeStatus ===
+                          "reconnecting"
+                        ? "Reconnecting"
+                        : "Offline"}
                 </span>
 
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-400">

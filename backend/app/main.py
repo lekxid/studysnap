@@ -28,6 +28,7 @@ from app.routes.materials import router as materials_router
 from app.routes.room_invitations import router as room_invitations_router
 from app.routes.room_messages import router as room_messages_router
 from app.routes.room_members import router as room_members_router
+from app.routes.room_realtime import router as room_realtime_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -61,6 +62,7 @@ app.include_router(sessions_router, prefix="/api/sessions")
 app.include_router(integrations_router, prefix="/api/integrations")
 app.include_router(room_foundation_router, prefix="/api/room-foundation")
 app.include_router(room_members_router, prefix="/api/room-members")
+app.include_router(room_realtime_router, prefix="/api/room-realtime")
 app.include_router(materials_router, prefix="/api/materials")
 app.include_router(
     room_invitations_router,
