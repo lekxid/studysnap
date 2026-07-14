@@ -20,6 +20,7 @@ from app.services.ai_service import (
     generate_studysnap_answer,
 )
 from app.models.room_message import RoomMessage
+from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.services.rooms.access import (
     ROOM_MANAGER_ROLES,
@@ -35,6 +36,8 @@ from app.utils.deps import get_current_user
 router = APIRouter(tags=["Room Messages"])
 
 MAX_MESSAGE_LENGTH = 5000
+MAX_ATTACHMENT_CONTEXT_CHARS = 6000
+MAX_TOTAL_ATTACHMENT_CONTEXT_CHARS = 12000
 
 
 class RoomMessageCreate(BaseModel):
@@ -52,6 +55,20 @@ class RoomMessageUpdate(BaseModel):
     content: str = Field(
         min_length=1,
         max_length=MAX_MESSAGE_LENGTH,
+    )
+
+
+class RoomAttachmentCreate(BaseModel):
+    material_id: int = Field(
+        ge=1,
+    )
+    content: str = Field(
+        default="",
+        max_length=MAX_MESSAGE_LENGTH,
+    )
+    reply_to_message_id: int | None = Field(
+        default=None,
+        ge=1,
     )
 
 
@@ -120,6 +137,108 @@ def extract_studysnap_question(
         )
 
     return normalize_content(question)
+
+
+def attachment_context_for_message(
+    db: Session,
+    room_id: int,
+    message: RoomMessage,
+    remaining_chars: int,
+) -> tuple[str | None, int]:
+    if (
+        message.message_type != "attachment"
+        or remaining_chars <= 0
+    ):
+        return None, 0
+
+    metadata = parse_metadata(
+        message.metadata_json
+    )
+
+    attachment = metadata.get(
+        "attachment"
+    )
+
+    if not isinstance(attachment, dict):
+        return None, 0
+
+    material_id = attachment.get(
+        "material_id"
+    )
+
+    if not isinstance(material_id, int):
+        return None, 0
+
+    material = (
+        db.query(StudyMaterial)
+        .filter(
+            StudyMaterial.id == material_id,
+            StudyMaterial.study_room_id
+            == room_id,
+        )
+        .first()
+    )
+
+    if material is None:
+        return None, 0
+
+    filename = (
+        material.original_filename
+        or "Shared file"
+    ).strip()
+
+    caption = message.content.strip()
+
+    header_parts = [
+        f'Shared file: "{filename}"',
+    ]
+
+    if (
+        caption
+        and caption != filename
+    ):
+        header_parts.append(
+            f"Caption: {caption}"
+        )
+
+    extracted_text = (
+        material.extracted_text
+        or ""
+    ).strip()
+
+    if not extracted_text:
+        header_parts.append(
+            (
+                "File contents are not currently "
+                "available for AI reading."
+            )
+        )
+
+        return (
+            "\n".join(header_parts),
+            0,
+        )
+
+    allowed_chars = min(
+        MAX_ATTACHMENT_CONTEXT_CHARS,
+        remaining_chars,
+    )
+
+    readable_text = extracted_text[
+        :allowed_chars
+    ]
+
+    header_parts.append(
+        "Readable file content:"
+    )
+    header_parts.append(
+        readable_text
+    )
+
+    return (
+        "\n".join(header_parts),
+        len(readable_text),
+    )
 
 
 def parse_metadata(
@@ -388,6 +507,127 @@ def create_room_message(
 
 
 @router.post(
+    "/rooms/{room_id}/attachments"
+)
+def create_room_attachment_message(
+    room_id: int,
+    data: RoomAttachmentCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    require_room_contributor(
+        db=db,
+        room_id=room_id,
+        user_id=current_user.id,
+    )
+
+    validate_reply_target(
+        db=db,
+        room_id=room_id,
+        reply_to_message_id=(
+            data.reply_to_message_id
+        ),
+    )
+
+    material = (
+        db.query(StudyMaterial)
+        .filter(
+            StudyMaterial.id
+            == data.material_id
+        )
+        .first()
+    )
+
+    if material is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Uploaded file not found.",
+        )
+
+    if material.study_room_id != room_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The uploaded file does not "
+                "belong to this Study Room."
+            ),
+        )
+
+    caption = data.content.strip()
+
+    if len(caption) > MAX_MESSAGE_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Messages cannot be longer than "
+                f"{MAX_MESSAGE_LENGTH} characters."
+            ),
+        )
+
+    message = RoomMessage(
+        room_id=room_id,
+        sender_id=current_user.id,
+        message_type="attachment",
+        content=(
+            caption
+            or material.original_filename
+        ),
+        reply_to_message_id=(
+            data.reply_to_message_id
+        ),
+        metadata_json=json.dumps(
+            {
+                "attachment": {
+                    "material_id": material.id,
+                    "filename": (
+                        material.original_filename
+                    ),
+                    "file_size": (
+                        material.file_size
+                    ),
+                    "content_type": (
+                        material.content_type
+                    ),
+                    "material_type": (
+                        material.material_type
+                    ),
+                    "preview_available": bool(
+                        material.extracted_text
+                    ),
+                    "study_room_id": (
+                        material.study_room_id
+                    ),
+                }
+            }
+        ),
+    )
+
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+
+    serialized_message = serialize_message(
+        message,
+        current_user,
+    )
+
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.created",
+        room_id=room_id,
+        actor_user_id=current_user.id,
+        data={
+            "message": serialized_message,
+        },
+    )
+
+    return serialized_message
+
+
+@router.post(
     "/rooms/{room_id}/ask-ai"
 )
 def ask_room_ai(
@@ -477,10 +717,17 @@ def ask_room_ai(
     )
 
     conversation_lines: list[str] = []
+    attachment_context_chars = 0
 
     for room_message, sender in reversed(
         recent_rows
     ):
+        if (
+            room_message.message_type
+            == "ai_invitation"
+        ):
+            continue
+
         if room_message.message_type == "ai":
             speaker = "StudySnap AI"
         elif sender is not None:
@@ -490,6 +737,39 @@ def ask_room_ai(
             )
         else:
             speaker = "Student"
+
+        if (
+            room_message.message_type
+            == "attachment"
+        ):
+            remaining_chars = max(
+                0,
+                (
+                    MAX_TOTAL_ATTACHMENT_CONTEXT_CHARS
+                    - attachment_context_chars
+                ),
+            )
+
+            attachment_context, used_chars = (
+                attachment_context_for_message(
+                    db=db,
+                    room_id=room_id,
+                    message=room_message,
+                    remaining_chars=remaining_chars,
+                )
+            )
+
+            if attachment_context:
+                conversation_lines.append(
+                    f"{speaker} shared an attachment:\n"
+                    f"{attachment_context}"
+                )
+
+                attachment_context_chars += (
+                    used_chars
+                )
+
+            continue
 
         clean_content = (
             room_message.content.strip()
@@ -521,6 +801,14 @@ Use clear, student-friendly language.
 Be accurate, supportive, and practical.
 Keep the answer focused enough for group chat.
 Do not pretend to be a human classmate.
+Files shared in this conversation may include
+readable extracted content. Use that content when it
+is relevant to the student's question.
+
+When a file is listed as unreadable, say clearly that
+you can see it was shared but cannot read its contents
+yet. Never invent or assume missing file contents.
+
 Do not claim that you saw materials that are not
 included in the conversation.
 

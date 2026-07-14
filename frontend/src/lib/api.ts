@@ -1792,6 +1792,76 @@ export async function createRoomMessage(
   ) as Promise<RoomMessage>;
 }
 
+export async function downloadUniversalMaterial(
+  materialId: number,
+  filename: string
+): Promise<void> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    let body: unknown = null;
+
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    throw new Error(
+      getErrorMessage(body) ||
+        "The file could not be downloaded."
+    );
+  }
+
+  const blob = await response.blob();
+  const objectUrl =
+    window.URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(
+    objectUrl
+  );
+}
+
+export async function createRoomAttachmentMessage(
+  studyRoomId: number,
+  materialId: number,
+  content = "",
+  replyToMessageId?: number | null
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/attachments`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        material_id: materialId,
+        content,
+        reply_to_message_id:
+          replyToMessageId ?? null,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
 export type RoomAIMessageResult = {
   invitation_message: RoomMessage;
   ai_message: RoomMessage;

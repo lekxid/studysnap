@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 import app.models
 from app.database import Base, get_db
 from app.models.room_member import RoomMember
+from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routes.auth import router as auth_router
 from app.routes.room_messages import (
@@ -273,6 +274,326 @@ class RoomMessageAPITests(unittest.TestCase):
             ),
             headers=self.auth_headers(token),
             json=payload,
+        )
+
+    def test_room_ai_context_reads_shared_attachment(
+        self,
+    ):
+        owner_email, owner_token = (
+            self.create_user_and_login(
+                "attachment-ai-owner",
+                "Attachment AI Owner",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="Attachment AI Room",
+        )
+
+        db = TestingSessionLocal()
+
+        try:
+            owner = (
+                db.query(User)
+                .filter(
+                    User.email == owner_email
+                )
+                .one()
+            )
+
+            material = StudyMaterial(
+                original_filename=(
+                    "active-listening.txt"
+                ),
+                stored_filename=(
+                    f"{uuid.uuid4().hex}.txt"
+                ),
+                file_path=(
+                    "uploads/materials/"
+                    "active-listening.txt"
+                ),
+                file_size=120,
+                content_type="text/plain",
+                material_type="text",
+                extracted_text=(
+                    "Active listening means fully "
+                    "focusing on the speaker, "
+                    "reflecting their meaning, and "
+                    "asking clarifying questions."
+                ),
+                study_room_id=room_id,
+                owner_id=owner.id,
+            )
+
+            db.add(material)
+            db.commit()
+            db.refresh(material)
+
+            material_id = material.id
+        finally:
+            db.close()
+
+        attachment_response = (
+            self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/"
+                    "attachments"
+                ),
+                headers=self.auth_headers(
+                    owner_token
+                ),
+                json={
+                    "material_id": material_id,
+                    "content": (
+                        "Read this study note."
+                    ),
+                },
+            )
+        )
+
+        self.assertEqual(
+            attachment_response.status_code,
+            200,
+            attachment_response.text,
+        )
+
+        question_response = (
+            self.send_message(
+                room_id,
+                owner_token,
+                (
+                    "What does the uploaded "
+                    "file say?"
+                ),
+            )
+        )
+
+        self.assertEqual(
+            question_response.status_code,
+            200,
+            question_response.text,
+        )
+
+        captured_context = {}
+
+        def fake_generate(
+            question,
+            context,
+        ):
+            captured_context[
+                "question"
+            ] = question
+
+            captured_context[
+                "context"
+            ] = context
+
+            return (
+                "The file explains active "
+                "listening."
+            )
+
+        with patch(
+            "app.routes.room_messages."
+            "generate_studysnap_answer",
+            side_effect=fake_generate,
+        ):
+            ai_response = self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/ask-ai"
+                ),
+                headers=self.auth_headers(
+                    owner_token
+                ),
+                json={
+                    "source_message_id": (
+                        question_response.json()[
+                            "id"
+                        ]
+                    ),
+                    "invocation_type": (
+                        "ask_ai"
+                    ),
+                },
+            )
+
+        self.assertEqual(
+            ai_response.status_code,
+            200,
+            ai_response.text,
+        )
+
+        context = captured_context[
+            "context"
+        ]
+
+        self.assertIn(
+            'Shared file: "active-listening.txt"',
+            context,
+        )
+
+        self.assertIn(
+            "Read this study note.",
+            context,
+        )
+
+        self.assertIn(
+            (
+                "Active listening means fully "
+                "focusing on the speaker"
+            ),
+            context,
+        )
+
+        self.assertEqual(
+            captured_context["question"],
+            (
+                "What does the uploaded "
+                "file say?"
+            ),
+        )
+
+    def test_create_attachment_message(
+        self,
+    ):
+        owner_email, owner_token = (
+            self.create_user_and_login(
+                "attachment-owner",
+                "Attachment Owner",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="Attachment Test Room",
+        )
+
+        db = TestingSessionLocal()
+
+        try:
+            owner = (
+                db.query(User)
+                .filter(
+                    User.email == owner_email
+                )
+                .one()
+            )
+
+            material = StudyMaterial(
+                original_filename=(
+                    "active-listening-notes.pdf"
+                ),
+                stored_filename=(
+                    f"{uuid.uuid4().hex}.pdf"
+                ),
+                file_path=(
+                    "uploads/materials/test.pdf"
+                ),
+                file_size=2048,
+                content_type=(
+                    "application/pdf"
+                ),
+                material_type="pdf",
+                extracted_text=(
+                    "Active listening notes"
+                ),
+                study_room_id=room_id,
+                owner_id=owner.id,
+            )
+
+            db.add(material)
+            db.commit()
+            db.refresh(material)
+
+            material_id = material.id
+        finally:
+            db.close()
+
+        with patch(
+            "app.routes.room_messages."
+            "broadcast_room_realtime_event"
+        ) as broadcast:
+            response = self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/"
+                    "attachments"
+                ),
+                headers=self.auth_headers(
+                    owner_token
+                ),
+                json={
+                    "material_id": material_id,
+                    "content": (
+                        "Use this for our review."
+                    ),
+                },
+            )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+            response.text,
+        )
+
+        message = response.json()
+
+        self.assertEqual(
+            message["message_type"],
+            "attachment",
+        )
+
+        self.assertEqual(
+            message["content"],
+            "Use this for our review.",
+        )
+
+        attachment = (
+            message["metadata"][
+                "attachment"
+            ]
+        )
+
+        self.assertEqual(
+            attachment["material_id"],
+            material_id,
+        )
+
+        self.assertEqual(
+            attachment["filename"],
+            "active-listening-notes.pdf",
+        )
+
+        self.assertEqual(
+            attachment["file_size"],
+            2048,
+        )
+
+        self.assertTrue(
+            attachment[
+                "preview_available"
+            ]
+        )
+
+        broadcast.assert_called_once()
+
+        event_data = (
+            broadcast.call_args.kwargs[
+                "data"
+            ]["message"]
+        )
+
+        self.assertEqual(
+            event_data["id"],
+            message["id"],
+        )
+
+        self.assertEqual(
+            event_data["message_type"],
+            "attachment",
         )
 
     def test_create_update_delete_broadcast_realtime_events(

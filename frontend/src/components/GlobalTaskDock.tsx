@@ -856,6 +856,47 @@ export default function GlobalTaskDock({
   }, []);
 
   useEffect(() => {
+    function handleOpenUniversalUpload(
+      event: Event
+    ) {
+      const uploadEvent =
+        event as CustomEvent<{
+          roomId?: number;
+        }>;
+
+      const requestedRoomId =
+        uploadEvent.detail?.roomId;
+
+      if (
+        typeof requestedRoomId === "number" &&
+        requestedRoomId > 0
+      ) {
+        setSelectedRoomId(
+          requestedRoomId
+        );
+      }
+
+      setPanelOpen(true);
+
+      window.requestAnimationFrame(() => {
+        fileInputRef.current?.click();
+      });
+    }
+
+    window.addEventListener(
+      "studysnap:open-universal-upload",
+      handleOpenUniversalUpload
+    );
+
+    return () => {
+      window.removeEventListener(
+        "studysnap:open-universal-upload",
+        handleOpenUniversalUpload
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     function handleOnline() {
       setQueueTick(
         (current) => current + 1

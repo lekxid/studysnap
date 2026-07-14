@@ -9,9 +9,15 @@ import {
 } from "react";
 import Link from "next/link";
 import {
+  PROJECT_ROOM_CHANGED_EVENT,
+} from "./projectRoomContext";
+import {
   createRoomEmailInvitation,
   createRoomInviteLink,
   createRoomMessage,
+  createRoomAttachmentMessage,
+  downloadUniversalMaterial,
+  uploadUniversalMaterial,
   askRoomAI,
   createRoomRealtimeTicket,
   buildRoomRealtimeWebSocketUrl,
@@ -58,6 +64,32 @@ const starterPrompts = [
   "What is the hardest topic right now?",
   "When should we do a group quiz?",
 ];
+
+function formatFileSize(
+  value: number
+) {
+  if (
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return "Unknown size";
+  }
+
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(
+      value / 1024
+    ).toFixed(1)} KB`;
+  }
+
+  return `${(
+    value /
+    (1024 * 1024)
+  ).toFixed(1)} MB`;
+}
 
 function formatRoomRole(value: string) {
   return value
@@ -291,6 +323,18 @@ export default function StudyTogetherWorkspace({
   const [chatDraft, setChatDraft] =
     useState("");
 
+  const [
+    replyingToMessage,
+    setReplyingToMessage,
+  ] = useState<RoomMessage | null>(null);
+
+  const [
+    expandedReplyMessageIds,
+    setExpandedReplyMessageIds,
+  ] = useState<Set<number>>(
+    () => new Set()
+  );
+
   const [currentUser, setCurrentUser] =
     useState<UserProfile | null>(null);
 
@@ -305,6 +349,21 @@ export default function StudyTogetherWorkspace({
 
   const [messageSending, setMessageSending] =
     useState(false);
+
+  const [
+    selectedChatFile,
+    setSelectedChatFile,
+  ] = useState<File | null>(null);
+
+  const [
+    attachmentUploading,
+    setAttachmentUploading,
+  ] = useState(false);
+
+  const [
+    attachmentProgress,
+    setAttachmentProgress,
+  ] = useState(0);
 
   const [aiSending, setAiSending] =
     useState(false);
@@ -330,6 +389,20 @@ export default function StudyTogetherWorkspace({
   ] = useState<Record<number, string>>(
     {}
   );
+
+  const chatComposerRef =
+    useRef<HTMLTextAreaElement | null>(null);
+
+  const chatFileInputRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const messageElementRefs =
+    useRef<Map<number, HTMLDivElement>>(
+      new Map()
+    );
+
+  const chatScrollContainerRef =
+    useRef<HTMLDivElement | null>(null);
 
   const realtimeSocketRef =
     useRef<WebSocket | null>(null);
@@ -1503,6 +1576,19 @@ export default function StudyTogetherWorkspace({
     };
   }, [studyRoomId]);
 
+  function chooseChatAttachment() {
+    chatFileInputRef.current?.click();
+  }
+
+  function clearChatAttachment() {
+    setSelectedChatFile(null);
+    setAttachmentProgress(0);
+
+    if (chatFileInputRef.current) {
+      chatFileInputRef.current.value = "";
+    }
+  }
+
   async function sendSharedMessage(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -1512,9 +1598,10 @@ export default function StudyTogetherWorkspace({
       chatDraft.trim();
 
     if (
-      !cleanMessage ||
+      (!cleanMessage && !selectedChatFile) ||
       !canSendMessages ||
       messageSending ||
+      attachmentUploading ||
       aiSending
     ) {
       return;
@@ -1525,10 +1612,53 @@ export default function StudyTogetherWorkspace({
     setMessageError("");
 
     try {
+      if (selectedChatFile) {
+        setAttachmentUploading(true);
+        setAttachmentProgress(0);
+
+        const uploaded =
+          await uploadUniversalMaterial({
+            file: selectedChatFile,
+            studyRoomId,
+            onProgress:
+              setAttachmentProgress,
+          });
+
+        const createdAttachment =
+          await createRoomAttachmentMessage(
+            studyRoomId,
+            uploaded.id,
+            cleanMessage,
+            replyingToMessage?.id ?? null
+          );
+
+        setRoomMessages((current) => {
+          const next = [
+            ...current.filter(
+              (message) =>
+                message.id !==
+                createdAttachment.id
+            ),
+            createdAttachment,
+          ];
+
+          return next.sort(
+            (left, right) =>
+              left.id - right.id
+          );
+        });
+
+        setChatDraft("");
+        setReplyingToMessage(null);
+        clearChatAttachment();
+        return;
+      }
+
       const created =
         await createRoomMessage(
           studyRoomId,
-          cleanMessage
+          cleanMessage,
+          replyingToMessage?.id ?? null
         );
 
       setRoomMessages((current) => {
@@ -1547,6 +1677,7 @@ export default function StudyTogetherWorkspace({
       });
 
       setChatDraft("");
+      setReplyingToMessage(null);
 
       const invitedStudySnap =
         /@studysnap\b/i.test(cleanMessage);
@@ -1595,6 +1726,7 @@ export default function StudyTogetherWorkspace({
           : "Could not send the message."
       );
     } finally {
+      setAttachmentUploading(false);
       setMessageSending(false);
     }
   }
@@ -1620,7 +1752,8 @@ export default function StudyTogetherWorkspace({
       const created =
         await createRoomMessage(
           studyRoomId,
-          cleanMessage
+          cleanMessage,
+          replyingToMessage?.id ?? null
         );
 
       setRoomMessages((current) => {
@@ -1639,6 +1772,7 @@ export default function StudyTogetherWorkspace({
       });
 
       setChatDraft("");
+      setReplyingToMessage(null);
 
       const result = await askRoomAI(
         studyRoomId,
@@ -1682,6 +1816,114 @@ export default function StudyTogetherWorkspace({
     }
   }
 
+
+  function startReplyingToMessage(
+    message: RoomMessage
+  ) {
+    if (
+      message.is_deleted ||
+      message.message_type ===
+        "ai_invitation"
+    ) {
+      return;
+    }
+
+    setReplyingToMessage(message);
+    setEditingMessageId(null);
+    setEditMessageDraft("");
+    setPendingDeleteMessageId(null);
+    setMessageError("");
+
+    window.requestAnimationFrame(() => {
+      chatComposerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      chatComposerRef.current?.focus();
+    });
+  }
+
+  function cancelReplyingToMessage() {
+    setReplyingToMessage(null);
+  }
+
+  function jumpToMessage(
+    messageId: number
+  ) {
+    const target =
+      messageElementRefs.current.get(
+        messageId
+      );
+
+    if (!target) {
+      setMessageError(
+        "That original message is not currently loaded."
+      );
+      return;
+    }
+
+    const scrollContainer =
+      chatScrollContainerRef.current;
+
+    if (scrollContainer) {
+      const containerRect =
+        scrollContainer.getBoundingClientRect();
+
+      const targetRect =
+        target.getBoundingClientRect();
+
+      const targetCenterOffset =
+        targetRect.top -
+        containerRect.top +
+        targetRect.height / 2;
+
+      const nextScrollTop =
+        scrollContainer.scrollTop +
+        targetCenterOffset -
+        scrollContainer.clientHeight / 2;
+
+      scrollContainer.scrollTo({
+        top: Math.max(0, nextScrollTop),
+        behavior: "smooth",
+      });
+    } else {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+
+    target.classList.add(
+      "ring-2",
+      "ring-cyan-300/40"
+    );
+
+    window.setTimeout(() => {
+      target.classList.remove(
+        "ring-2",
+        "ring-cyan-300/40"
+      );
+    }, 1600);
+  }
+
+  function toggleReplyChain(
+    messageId: number
+  ) {
+    setExpandedReplyMessageIds(
+      (current) => {
+        const next = new Set(current);
+
+        if (next.has(messageId)) {
+          next.delete(messageId);
+        } else {
+          next.add(messageId);
+        }
+
+        return next;
+      }
+    );
+  }
 
   function startEditingMessage(
     message: RoomMessage
@@ -1980,7 +2222,10 @@ export default function StudyTogetherWorkspace({
               </div>
             </div>
 
-            <div className="min-h-[28rem] max-h-[62vh] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.05),transparent_38%)] px-4 py-5 sm:px-5">
+            <div
+              ref={chatScrollContainerRef}
+              className="min-h-[28rem] max-h-[62vh] overflow-y-auto scroll-smooth bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.05),transparent_38%)] px-4 py-5 sm:px-5"
+            >
               {messageLoading ? (
                 <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-slate-400">
                   Opening the shared conversation...
@@ -2023,6 +2268,84 @@ export default function StudyTogetherWorkspace({
                           !isAiInvitation &&
                         currentUser?.id ===
                           message.sender_id;
+
+                      const rawAttachment =
+                        message.metadata[
+                          "attachment"
+                        ];
+
+                      const attachment =
+                        rawAttachment &&
+                        typeof rawAttachment ===
+                          "object"
+                          ? rawAttachment as Record<
+                              string,
+                              unknown
+                            >
+                          : null;
+
+                      const attachmentMaterialId =
+                        typeof attachment?.[
+                          "material_id"
+                        ] === "number"
+                          ? attachment[
+                              "material_id"
+                            ] as number
+                          : null;
+
+                      const attachmentFilename =
+                        typeof attachment?.[
+                          "filename"
+                        ] === "string"
+                          ? attachment[
+                              "filename"
+                            ] as string
+                          : "Shared file";
+
+                      const attachmentFileSize =
+                        typeof attachment?.[
+                          "file_size"
+                        ] === "number"
+                          ? attachment[
+                              "file_size"
+                            ] as number
+                          : 0;
+
+                      const attachmentMaterialType =
+                        typeof attachment?.[
+                          "material_type"
+                        ] === "string"
+                          ? attachment[
+                              "material_type"
+                            ] as string
+                          : "file";
+
+                      const repliedToMessage =
+                        message.reply_to_message_id
+                          ? roomMessages.find(
+                              (candidate) =>
+                                candidate.id ===
+                                message.reply_to_message_id
+                            ) ?? null
+                          : null;
+
+                      const isSelectedReplyTarget =
+                        replyingToMessage?.id ===
+                        message.id;
+
+                      const directReplies =
+                        roomMessages.filter(
+                          (candidate) =>
+                            candidate.reply_to_message_id ===
+                              message.id &&
+                            candidate.message_type !==
+                              "ai_invitation"
+                        );
+
+                      const replyChainExpanded =
+                        expandedReplyMessageIds.has(
+                          message.id
+                        );
 
                       const senderName =
                         isAiMessage
@@ -2071,7 +2394,19 @@ export default function StudyTogetherWorkspace({
                       return (
                         <div
                           key={message.id}
-                          className={`flex items-end gap-2 ${
+                          ref={(element) => {
+                            if (element) {
+                              messageElementRefs.current.set(
+                                message.id,
+                                element
+                              );
+                            } else {
+                              messageElementRefs.current.delete(
+                                message.id
+                              );
+                            }
+                          }}
+                          className={`flex items-end gap-2 transition ${
                             isMine
                               ? "justify-end"
                               : "justify-start"
@@ -2090,7 +2425,11 @@ export default function StudyTogetherWorkspace({
                           ) : null}
 
                           <div
-                            className={`max-w-[86%] rounded-2xl border px-3.5 py-3 sm:max-w-[72%] ${
+                            className={`max-w-[86%] rounded-2xl border px-3.5 py-3 transition sm:max-w-[72%] ${
+                              isSelectedReplyTarget
+                                ? "ring-2 ring-cyan-300/25 shadow-[0_0_24px_rgba(34,211,238,0.10)] "
+                                : ""
+                            }${
                               isMine
                                 ? "rounded-br-md border-yellow-300/20 bg-yellow-300/10"
                                 : isAiMessage
@@ -2130,6 +2469,37 @@ export default function StudyTogetherWorkspace({
                                   </span>
                                 </div>
                               ) : null}
+
+                            {repliedToMessage ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  jumpToMessage(
+                                    repliedToMessage.id
+                                  )
+                                }
+                                className="mt-2 block w-full rounded-xl border-l-2 border-cyan-300/40 bg-black/20 px-3 py-2 text-left transition hover:bg-white/[0.04]"
+                              >
+                                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                                  Replying to{" "}
+                                  {repliedToMessage.message_type ===
+                                  "ai"
+                                    ? "StudySnap AI"
+                                    : repliedToMessage.sender_id ===
+                                        currentUser?.id
+                                      ? "You"
+                                      : repliedToMessage.sender
+                                          ?.full_name ||
+                                        "a room member"}
+                                </p>
+
+                                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-400">
+                                  {repliedToMessage.is_deleted
+                                    ? "This message was deleted."
+                                    : repliedToMessage.content}
+                                </p>
+                              </button>
+                            ) : null}
 
                             {editingMessageId ===
                               message.id &&
@@ -2225,9 +2595,75 @@ export default function StudyTogetherWorkspace({
                               </p>
                             ) : (
                               <>
-                                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
-                                  {message.content}
-                                </p>
+                                {message.message_type ===
+                                  "attachment" &&
+                                attachment ? (
+                                  <div className="mt-2 rounded-xl border border-cyan-300/15 bg-black/25 p-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-300/10 text-lg">
+                                        📎
+                                      </div>
+
+                                      <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-black text-slate-100">
+                                          {
+                                            attachmentFilename
+                                          }
+                                        </p>
+
+                                        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                                          {
+                                            attachmentMaterialType
+                                          }{" "}
+                                          ·{" "}
+                                          {formatFileSize(
+                                            attachmentFileSize
+                                          )}
+                                        </p>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (
+                                            attachmentMaterialId
+                                          ) {
+                                            void downloadUniversalMaterial(
+                                              attachmentMaterialId,
+                                              attachmentFilename
+                                            ).catch(
+                                              (
+                                                error
+                                              ) => {
+                                                setMessageError(
+                                                  error instanceof
+                                                    Error
+                                                    ? error.message
+                                                    : "The file could not be downloaded."
+                                                );
+                                              }
+                                            );
+                                          }
+                                        }}
+                                        disabled={
+                                          !attachmentMaterialId
+                                        }
+                                        className="shrink-0 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[10px] font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:opacity-40"
+                                      >
+                                        Download
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {message.message_type !==
+                                  "attachment" ||
+                                message.content !==
+                                  attachmentFilename ? (
+                                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                    {message.content}
+                                  </p>
+                                ) : null}
 
                                 <div className="mt-2 flex min-h-5 items-center justify-between gap-3">
                                   {message.edited_at ? (
@@ -2238,8 +2674,25 @@ export default function StudyTogetherWorkspace({
                                     <span />
                                   )}
 
-                                  {isMine ? (
-                                    <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        startReplyingToMessage(
+                                          message
+                                        )
+                                      }
+                                      disabled={
+                                        messageActionId ===
+                                        message.id
+                                      }
+                                      className="rounded-md px-2 py-1 text-[10px] font-black text-cyan-200/80 transition hover:bg-cyan-300/10 hover:text-cyan-100 disabled:opacity-50"
+                                    >
+                                      Reply
+                                    </button>
+
+                                    {isMine ? (
+                                      <>
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -2271,9 +2724,98 @@ export default function StudyTogetherWorkspace({
                                       >
                                         Delete
                                       </button>
-                                    </div>
-                                  ) : null}
+                                      </>
+                                    ) : null}
+                                  </div>
                                 </div>
+
+                                {directReplies.length >
+                                0 ? (
+                                  <div className="mt-2 border-t border-white/[0.07] pt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleReplyChain(
+                                          message.id
+                                        )
+                                      }
+                                      className="rounded-md px-1 py-1 text-[10px] font-black text-cyan-200/80 transition hover:text-cyan-100"
+                                    >
+                                      ↳{" "}
+                                      {directReplies.length}{" "}
+                                      {directReplies.length ===
+                                      1
+                                        ? "reply"
+                                        : "replies"}
+                                      <span className="ml-1 text-slate-500">
+                                        {replyChainExpanded
+                                          ? "Hide"
+                                          : "View"}
+                                      </span>
+                                    </button>
+
+                                    {replyChainExpanded ? (
+                                      <div className="mt-2 space-y-2 border-l border-cyan-300/20 pl-3">
+                                        {directReplies.map(
+                                          (reply) => {
+                                            const replyIsAi =
+                                              reply.message_type ===
+                                              "ai";
+
+                                            const replySender =
+                                              replyIsAi
+                                                ? "StudySnap AI"
+                                                : reply.sender_id ===
+                                                    currentUser?.id
+                                                  ? "You"
+                                                  : reply.sender
+                                                      ?.full_name ||
+                                                    "Room member";
+
+                                            return (
+                                              <button
+                                                key={
+                                                  reply.id
+                                                }
+                                                type="button"
+                                                onClick={() =>
+                                                  jumpToMessage(
+                                                    reply.id
+                                                  )
+                                                }
+                                                disabled={
+                                                  reply.is_deleted
+                                                }
+                                                className="block w-full rounded-xl border border-white/[0.07] bg-black/20 px-3 py-2 text-left transition hover:border-cyan-300/20 hover:bg-white/[0.04] disabled:cursor-default"
+                                              >
+                                                <div className="flex items-center justify-between gap-3">
+                                                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                                                    {
+                                                      replySender
+                                                    }
+                                                  </p>
+
+                                                  <p className="text-[9px] text-slate-500">
+                                                    {formatActivityTime(
+                                                      reply.created_at ||
+                                                        ""
+                                                    )}
+                                                  </p>
+                                                </div>
+
+                                                <p className="mt-1 line-clamp-3 text-[11px] leading-4 text-slate-400">
+                                                  {reply.is_deleted
+                                                    ? "This message was deleted."
+                                                    : reply.content}
+                                                </p>
+                                              </button>
+                                            );
+                                          }
+                                        )}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
 
                                 {isMine &&
                                 pendingDeleteMessageId ===
@@ -2389,19 +2931,132 @@ export default function StudyTogetherWorkspace({
                 ) : null}
               </div>
 
+              {replyingToMessage ? (
+                <div className="mb-2 flex items-start justify-between gap-3 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200">
+                      Replying to{" "}
+                      {replyingToMessage.message_type ===
+                      "ai"
+                        ? "StudySnap AI"
+                        : replyingToMessage.sender_id ===
+                            currentUser?.id
+                          ? "You"
+                          : replyingToMessage.sender
+                              ?.full_name ||
+                            "a room member"}
+                    </p>
+
+                    <p className="mt-1 truncate text-xs text-slate-400">
+                      {replyingToMessage.content}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      cancelReplyingToMessage
+                    }
+                    className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+
+              {selectedChatFile ? (
+                <div className="mb-2 rounded-xl border border-yellow-300/20 bg-yellow-300/[0.07] px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-yellow-300/10">
+                      📎
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-black text-slate-100">
+                        {selectedChatFile.name}
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        {attachmentUploading
+                          ? `Uploading ${attachmentProgress}%`
+                          : formatFileSize(
+                              selectedChatFile.size
+                            )}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={
+                        clearChatAttachment
+                      }
+                      disabled={
+                        attachmentUploading
+                      }
+                      className="shrink-0 rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {attachmentUploading ? (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/30">
+                      <div
+                        className="h-full rounded-full bg-yellow-300 transition-all"
+                        style={{
+                          width: `${attachmentProgress}%`,
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <input
+                ref={chatFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => {
+                  const file =
+                    event.target.files?.[0] ??
+                    null;
+
+                  setSelectedChatFile(file);
+                  setAttachmentProgress(0);
+                  setMessageError("");
+
+                  window.requestAnimationFrame(
+                    () => {
+                      chatComposerRef.current?.focus();
+                    }
+                  );
+                }}
+              />
+
               <form
                 onSubmit={sendSharedMessage}
                 className="flex items-end gap-2"
               >
                 <button
                   type="button"
-                  title="Shared learning attachments are coming next"
+                  onClick={
+                    chooseChatAttachment
+                  }
+                  disabled={
+                    !canSendMessages ||
+                    messageSending ||
+                    attachmentUploading ||
+                    aiSending
+                  }
+                  title="Attach a file to this message"
+                  aria-label="Attach a file to this message"
                   className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-xl text-slate-300 transition hover:bg-white/[0.09] hover:text-white"
                 >
                   ＋
                 </button>
 
                 <textarea
+                  ref={chatComposerRef}
                   value={chatDraft}
                   onChange={(event) => {
                     const value =
@@ -2463,15 +3118,19 @@ export default function StudyTogetherWorkspace({
                   type="submit"
                   disabled={
                     !canSendMessages ||
-                    !chatDraft.trim() ||
+                    (!chatDraft.trim() &&
+                      !selectedChatFile) ||
                     messageSending ||
+                    attachmentUploading ||
                     aiSending
                   }
                   className="grid h-11 min-w-11 shrink-0 place-items-center rounded-xl bg-yellow-300 px-3 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {messageSending
-                    ? "..."
-                    : "➤"}
+                  {attachmentUploading
+                    ? `${attachmentProgress}%`
+                    : messageSending
+                      ? "..."
+                      : "➤"}
                 </button>
               </form>
 
