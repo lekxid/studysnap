@@ -14,6 +14,7 @@ from app.models.room_memory_bucket import RoomMemoryBucket
 from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.services.rooms.access import (
+    ROOM_ROLES,
     get_room_for_user,
     get_user_room_role,
 )

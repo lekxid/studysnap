@@ -1005,7 +1005,7 @@ def create_message(
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
-        owner_id=current_user.id,
+        requesting_user_id=current_user.id,
         question=data.content,
         context_override=data.context,
     )
@@ -1161,7 +1161,7 @@ def create_message_stream(
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
-        owner_id=current_user.id,
+        requesting_user_id=current_user.id,
         question=data.content,
         context_override=data.context,
     )
