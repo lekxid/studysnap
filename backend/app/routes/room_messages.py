@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services.ai_service import (
+    generate_studysnap_answer,
+)
 from app.models.room_message import RoomMessage
 from app.models.user import User
 from app.services.rooms.access import (
@@ -48,6 +51,12 @@ class RoomMessageUpdate(BaseModel):
     content: str = Field(
         min_length=1,
         max_length=MAX_MESSAGE_LENGTH,
+    )
+
+
+class RoomAIAskRequest(BaseModel):
+    source_message_id: int = Field(
+        ge=1,
     )
 
 
@@ -339,6 +348,215 @@ def create_room_message(
     )
 
     return serialized_message
+
+
+@router.post(
+    "/rooms/{room_id}/ask-ai"
+)
+def ask_room_ai(
+    room_id: int,
+    data: RoomAIAskRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    """
+    Bring StudySnap AI into a shared room only
+    after a student explicitly chooses Ask AI.
+
+    The student's normal room message is created
+    through the existing message endpoint first.
+    This endpoint creates only the AI reply.
+    """
+
+    require_room_contributor(
+        db=db,
+        room_id=room_id,
+        user_id=current_user.id,
+    )
+
+    source_message = get_message_or_404(
+        db=db,
+        room_id=room_id,
+        message_id=data.source_message_id,
+    )
+
+    if source_message.deleted_at is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "StudySnap AI cannot answer a "
+                "deleted message."
+            ),
+        )
+
+    if source_message.message_type != "message":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "StudySnap AI can only answer a "
+                "student message."
+            ),
+        )
+
+    if source_message.sender_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You can only bring StudySnap AI "
+                "in for a message you sent."
+            ),
+        )
+
+    question = normalize_content(
+        source_message.content
+    )
+
+    recent_rows = (
+        db.query(RoomMessage, User)
+        .outerjoin(
+            User,
+            RoomMessage.sender_id == User.id,
+        )
+        .filter(
+            RoomMessage.room_id == room_id,
+            RoomMessage.deleted_at.is_(None),
+            RoomMessage.id
+            != source_message.id,
+        )
+        .order_by(
+            RoomMessage.id.desc()
+        )
+        .limit(12)
+        .all()
+    )
+
+    conversation_lines: list[str] = []
+
+    for room_message, sender in reversed(
+        recent_rows
+    ):
+        if room_message.message_type == "ai":
+            speaker = "StudySnap AI"
+        elif sender is not None:
+            speaker = (
+                sender.full_name
+                or "Student"
+            )
+        else:
+            speaker = "Student"
+
+        clean_content = (
+            room_message.content.strip()
+        )
+
+        if not clean_content:
+            continue
+
+        conversation_lines.append(
+            f"{speaker}: "
+            f"{clean_content[:1200]}"
+        )
+
+    conversation_context = (
+        "\n".join(conversation_lines)
+        if conversation_lines
+        else "No earlier group messages."
+    )
+
+    ai_context = f"""
+You are StudySnap AI participating in a shared
+student study-room conversation.
+
+You are replying only because a student explicitly
+chose Ask AI. Do not interrupt ordinary human chat.
+
+Help the whole group understand the topic.
+Use clear, student-friendly language.
+Be accurate, supportive, and practical.
+Keep the answer focused enough for group chat.
+Do not pretend to be a human classmate.
+Do not claim that you saw materials that are not
+included in the conversation.
+
+Recent group conversation:
+{conversation_context}
+""".strip()
+
+    try:
+        answer = generate_studysnap_answer(
+            question,
+            ai_context,
+        ).strip()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "StudySnap AI could not reply "
+                "right now."
+            ),
+        ) from exc
+
+    if not answer:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "StudySnap AI returned an empty "
+                "reply."
+            ),
+        )
+
+    ai_message = RoomMessage(
+        room_id=room_id,
+        sender_id=None,
+        message_type="ai",
+        content=answer,
+        reply_to_message_id=(
+            source_message.id
+        ),
+        metadata_json=json.dumps(
+            {
+                "source": "study_together",
+                "requested_by_user_id": (
+                    current_user.id
+                ),
+                "source_message_id": (
+                    source_message.id
+                ),
+            }
+        ),
+    )
+
+    db.add(ai_message)
+    db.commit()
+    db.refresh(ai_message)
+
+    serialized_ai_message = (
+        serialize_message(
+            ai_message,
+            None,
+        )
+    )
+
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.created",
+        room_id=room_id,
+        actor_user_id=None,
+        data={
+            "message": (
+                serialized_ai_message
+            ),
+        },
+    )
+
+    return {
+        "ai_message": (
+            serialized_ai_message
+        ),
+    }
 
 
 @router.patch(

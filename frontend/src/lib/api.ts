@@ -1792,6 +1792,25 @@ export async function createRoomMessage(
   ) as Promise<RoomMessage>;
 }
 
+export type RoomAIMessageResult = {
+  ai_message: RoomMessage;
+};
+
+export async function askRoomAI(
+  studyRoomId: number,
+  sourceMessageId: number
+): Promise<RoomAIMessageResult> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/ask-ai`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source_message_id: sourceMessageId,
+      }),
+    }
+  ) as Promise<RoomAIMessageResult>;
+}
+
 export async function updateRoomMessage(
   studyRoomId: number,
   messageId: number,

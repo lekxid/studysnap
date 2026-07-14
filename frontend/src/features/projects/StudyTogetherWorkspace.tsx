@@ -12,6 +12,7 @@ import {
   createRoomEmailInvitation,
   createRoomInviteLink,
   createRoomMessage,
+  askRoomAI,
   createRoomRealtimeTicket,
   buildRoomRealtimeWebSocketUrl,
   deleteRoomMessage,
@@ -303,6 +304,9 @@ export default function StudyTogetherWorkspace({
     useState("");
 
   const [messageSending, setMessageSending] =
+    useState(false);
+
+  const [aiSending, setAiSending] =
     useState(false);
 
   const [
@@ -1510,7 +1514,8 @@ export default function StudyTogetherWorkspace({
     if (
       !cleanMessage ||
       !canSendMessages ||
-      messageSending
+      messageSending ||
+      aiSending
     ) {
       return;
     }
@@ -1552,6 +1557,82 @@ export default function StudyTogetherWorkspace({
       setMessageSending(false);
     }
   }
+
+  async function askSharedAI() {
+    const cleanMessage =
+      chatDraft.trim();
+
+    if (
+      !cleanMessage ||
+      !canSendMessages ||
+      messageSending ||
+      aiSending
+    ) {
+      return;
+    }
+
+    stopRealtimeTyping();
+    setAiSending(true);
+    setMessageError("");
+
+    try {
+      const created =
+        await createRoomMessage(
+          studyRoomId,
+          cleanMessage
+        );
+
+      setRoomMessages((current) => {
+        const next = [
+          ...current.filter(
+            (message) =>
+              message.id !== created.id
+          ),
+          created,
+        ];
+
+        return next.sort(
+          (left, right) =>
+            left.id - right.id
+        );
+      });
+
+      setChatDraft("");
+
+      const result = await askRoomAI(
+        studyRoomId,
+        created.id
+      );
+
+      setRoomMessages((current) => {
+        const next = [
+          ...current.filter(
+            (message) =>
+              message.id !==
+              result.ai_message.id
+          ),
+          result.ai_message,
+        ];
+
+        return next.sort(
+          (left, right) =>
+            left.id - right.id
+        );
+      });
+    } catch (error) {
+      setMessageError(
+        error instanceof Error
+          ? error.message
+          : (
+              "StudySnap AI could not "
+              + "reply right now."
+            )
+      );
+    } finally {
+      setAiSending(false);
+    }
+  }
+
 
   function startEditingMessage(
     message: RoomMessage
@@ -1865,23 +1946,32 @@ export default function StudyTogetherWorkspace({
 
                   {roomMessages.map(
                     (message) => {
+                      const isAiMessage =
+                        message.message_type ===
+                        "ai";
+
                       const isMine =
+                        !isAiMessage &&
                         currentUser?.id ===
-                        message.sender_id;
+                          message.sender_id;
 
                       const senderName =
-                        isMine
-                          ? "You"
-                          : message.sender
-                              ?.full_name ||
-                            "Study Room member";
+                        isAiMessage
+                          ? "StudySnap AI"
+                          : isMine
+                            ? "You"
+                            : message.sender
+                                ?.full_name ||
+                              "Study Room member";
 
                       const senderInitial =
-                        senderName
-                          .trim()
-                          .charAt(0)
-                          .toUpperCase() ||
-                        "S";
+                        isAiMessage
+                          ? "AI"
+                          : senderName
+                              .trim()
+                              .charAt(0)
+                              .toUpperCase() ||
+                            "S";
 
                       return (
                         <div
@@ -1893,7 +1983,13 @@ export default function StudyTogetherWorkspace({
                           }`}
                         >
                           {!isMine ? (
-                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-cyan-300/15 text-xs font-black text-cyan-100">
+                            <div
+                              className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black ${
+                                isAiMessage
+                                  ? "bg-violet-300/15 text-violet-100"
+                                  : "bg-cyan-300/15 text-cyan-100"
+                              }`}
+                            >
                               {senderInitial}
                             </div>
                           ) : null}
@@ -1902,7 +1998,9 @@ export default function StudyTogetherWorkspace({
                             className={`max-w-[86%] rounded-2xl border px-3.5 py-3 sm:max-w-[72%] ${
                               isMine
                                 ? "rounded-br-md border-yellow-300/20 bg-yellow-300/10"
-                                : "rounded-bl-md border-white/10 bg-white/[0.06]"
+                                : isAiMessage
+                                  ? "rounded-bl-md border-violet-300/20 bg-violet-300/[0.08]"
+                                  : "rounded-bl-md border-white/10 bg-white/[0.06]"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-4">
@@ -1910,7 +2008,9 @@ export default function StudyTogetherWorkspace({
                                 className={`text-[10px] font-black uppercase tracking-[0.15em] ${
                                   isMine
                                     ? "text-yellow-100"
-                                    : "text-cyan-100"
+                                    : isAiMessage
+                                      ? "text-violet-100"
+                                      : "text-cyan-100"
                                 }`}
                               >
                                 {senderName}
@@ -2221,7 +2321,8 @@ export default function StudyTogetherWorkspace({
                   }}
                   disabled={
                     !canSendMessages ||
-                    messageSending
+                    messageSending ||
+                    aiSending
                   }
                   placeholder={
                     canSendMessages
@@ -2234,11 +2335,21 @@ export default function StudyTogetherWorkspace({
 
                 <button
                   type="button"
-                  onClick={onOpenAiTutor}
-                  title="Bring StudySnap AI into your study"
-                  className="hidden h-11 shrink-0 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-300/15 sm:block"
+                  onClick={() =>
+                    void askSharedAI()
+                  }
+                  disabled={
+                    !canSendMessages ||
+                    !chatDraft.trim() ||
+                    messageSending ||
+                    aiSending
+                  }
+                  title="Ask StudySnap AI in this group conversation"
+                  className="h-11 shrink-0 rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 transition hover:bg-violet-300/15 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ✨ AI
+                  {aiSending
+                    ? "Thinking..."
+                    : "✨ AI"}
                 </button>
 
                 <button
@@ -2246,7 +2357,8 @@ export default function StudyTogetherWorkspace({
                   disabled={
                     !canSendMessages ||
                     !chatDraft.trim() ||
-                    messageSending
+                    messageSending ||
+                    aiSending
                   }
                   className="grid h-11 min-w-11 shrink-0 place-items-center rounded-xl bg-yellow-300 px-3 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40"
                 >

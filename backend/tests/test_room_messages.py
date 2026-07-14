@@ -947,6 +947,290 @@ class RoomMessageAPITests(unittest.TestCase):
             edit_deleted.text,
         )
 
+    def test_explicit_ask_ai_creates_shared_ai_reply(
+        self,
+    ):
+        owner_email, owner_token = (
+            self.create_user_and_login(
+                "ai-room-owner",
+                "AI Room Owner",
+            )
+        )
+
+        member_email, member_token = (
+            self.create_user_and_login(
+                "ai-room-member",
+                "AI Room Member",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="Explicit AI Room",
+        )
+
+        self.add_member(
+            room_id,
+            member_email,
+            role="member",
+        )
+
+        source_response = self.send_message(
+            room_id,
+            owner_token,
+            "Explain orthostatic hypotension "
+            "in simple words.",
+        )
+
+        self.assertEqual(
+            source_response.status_code,
+            200,
+            source_response.text,
+        )
+
+        source_message = (
+            source_response.json()
+        )
+
+        self.assertEqual(
+            source_message["message_type"],
+            "message",
+        )
+
+        self.assertIsNotNone(
+            source_message["sender_id"]
+        )
+
+        # A normal human message must not
+        # automatically create an AI reply.
+        before_ai_listing = self.client.get(
+            (
+                "/api/room-messages/"
+                f"rooms/{room_id}"
+            ),
+            headers=self.auth_headers(
+                member_token
+            ),
+        )
+
+        self.assertEqual(
+            before_ai_listing.status_code,
+            200,
+            before_ai_listing.text,
+        )
+
+        before_ai_messages = (
+            before_ai_listing.json()
+        )
+
+        self.assertEqual(
+            len(before_ai_messages),
+            1,
+        )
+
+        self.assertFalse(
+            any(
+                message["message_type"]
+                == "ai"
+                for message
+                in before_ai_messages
+            )
+        )
+
+        captured_events = []
+
+        async def capture_event(**kwargs):
+            captured_events.append(kwargs)
+            return kwargs
+
+        with (
+            patch(
+                (
+                    "app.routes.room_messages."
+                    "generate_studysnap_answer"
+                ),
+                return_value=(
+                    "Orthostatic hypotension is "
+                    "a sudden drop in blood "
+                    "pressure when a person "
+                    "stands up, which may cause "
+                    "dizziness or fainting."
+                ),
+            ) as mocked_ai,
+            patch(
+                (
+                    "app.routes.room_messages."
+                    "broadcast_room_realtime_event"
+                ),
+                new=capture_event,
+            ),
+        ):
+            ai_response = self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/ask-ai"
+                ),
+                headers=self.auth_headers(
+                    owner_token
+                ),
+                json={
+                    "source_message_id": (
+                        source_message["id"]
+                    ),
+                },
+            )
+
+        self.assertEqual(
+            ai_response.status_code,
+            200,
+            ai_response.text,
+        )
+
+        mocked_ai.assert_called_once()
+
+        ai_message = (
+            ai_response.json()[
+                "ai_message"
+            ]
+        )
+
+        self.assertEqual(
+            ai_message["room_id"],
+            room_id,
+        )
+
+        self.assertEqual(
+            ai_message["message_type"],
+            "ai",
+        )
+
+        self.assertIsNone(
+            ai_message["sender_id"]
+        )
+
+        self.assertIsNone(
+            ai_message["sender"]
+        )
+
+        self.assertEqual(
+            ai_message[
+                "reply_to_message_id"
+            ],
+            source_message["id"],
+        )
+
+        self.assertIn(
+            "Orthostatic hypotension",
+            ai_message["content"],
+        )
+
+        self.assertEqual(
+            ai_message["metadata"][
+                "source"
+            ],
+            "study_together",
+        )
+
+        self.assertEqual(
+            ai_message["metadata"][
+                "source_message_id"
+            ],
+            source_message["id"],
+        )
+
+        self.assertEqual(
+            len(captured_events),
+            1,
+        )
+
+        ai_event = captured_events[0]
+
+        self.assertEqual(
+            ai_event["event"],
+            "message.created",
+        )
+
+        self.assertEqual(
+            ai_event["room_id"],
+            room_id,
+        )
+
+        self.assertIsNone(
+            ai_event["actor_user_id"]
+        )
+
+        self.assertEqual(
+            ai_event["data"]["message"][
+                "id"
+            ],
+            ai_message["id"],
+        )
+
+        # Every active room member should
+        # see the persisted AI reply.
+        member_listing = self.client.get(
+            (
+                "/api/room-messages/"
+                f"rooms/{room_id}"
+            ),
+            headers=self.auth_headers(
+                member_token
+            ),
+        )
+
+        self.assertEqual(
+            member_listing.status_code,
+            200,
+            member_listing.text,
+        )
+
+        member_messages = (
+            member_listing.json()
+        )
+
+        self.assertEqual(
+            len(member_messages),
+            2,
+        )
+
+        self.assertEqual(
+            member_messages[-1][
+                "message_type"
+            ],
+            "ai",
+        )
+
+        self.assertEqual(
+            member_messages[-1]["id"],
+            ai_message["id"],
+        )
+
+        # A different student cannot use
+        # someone else's message to invoke AI.
+        forbidden_response = (
+            self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/ask-ai"
+                ),
+                headers=self.auth_headers(
+                    member_token
+                ),
+                json={
+                    "source_message_id": (
+                        source_message["id"]
+                    ),
+                },
+            )
+        )
+
+        self.assertEqual(
+            forbidden_response.status_code,
+            403,
+            forbidden_response.text,
+        )
+
+
     def test_reply_and_content_guards(
         self,
     ):
