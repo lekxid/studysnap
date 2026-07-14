@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -58,6 +59,10 @@ class RoomAIAskRequest(BaseModel):
     source_message_id: int = Field(
         ge=1,
     )
+    invocation_type: str = Field(
+        default="ask_ai",
+        pattern="^(ask_ai|mention)$",
+    )
 
 
 def utc_now() -> datetime:
@@ -83,6 +88,38 @@ def normalize_content(value: str) -> str:
         )
 
     return content
+
+
+def extract_studysnap_question(
+    content: str,
+    invocation_type: str,
+) -> str:
+    if invocation_type != "mention":
+        return normalize_content(content)
+
+    question = re.sub(
+        r"@studysnap\b",
+        " ",
+        content,
+        flags=re.IGNORECASE,
+    )
+
+    question = re.sub(
+        r"\s+",
+        " ",
+        question,
+    ).strip(" ,:;-")
+
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Add a question after mentioning "
+                "@StudySnap."
+            ),
+        )
+
+    return normalize_content(question)
 
 
 def parse_metadata(
@@ -364,11 +401,12 @@ def ask_room_ai(
 ):
     """
     Bring StudySnap AI into a shared room only
-    after a student explicitly chooses Ask AI.
+    after an explicit Ask AI action or mention.
 
-    The student's normal room message is created
-    through the existing message endpoint first.
-    This endpoint creates only the AI reply.
+    The student's original room message must already
+    exist. This endpoint durably creates the compact
+    invitation message and the AI reply as one saved
+    interaction.
     """
 
     require_room_contributor(
@@ -410,8 +448,13 @@ def ask_room_ai(
             ),
         )
 
-    question = normalize_content(
+    original_prompt = normalize_content(
         source_message.content
+    )
+
+    question = extract_studysnap_question(
+        original_prompt,
+        data.invocation_type,
     )
 
     recent_rows = (
@@ -508,22 +551,53 @@ Recent group conversation:
             ),
         )
 
+    inviter_name = (
+        current_user.full_name
+        or current_user.email.split("@", 1)[0]
+        or "A student"
+    ).strip()
+
+    interaction_metadata = {
+        "source": "study_together",
+        "requested_by_user_id": current_user.id,
+        "requested_by_name": inviter_name,
+        "source_message_id": source_message.id,
+        "original_prompt": original_prompt,
+        "extracted_prompt": question,
+        "invocation_type": data.invocation_type,
+    }
+
+    invitation_message = RoomMessage(
+        room_id=room_id,
+        sender_id=None,
+        message_type="ai_invitation",
+        content=(
+            f"{inviter_name} invited StudySnap AI."
+        ),
+        reply_to_message_id=source_message.id,
+        metadata_json=json.dumps(
+            {
+                **interaction_metadata,
+                "interaction_role": "invitation",
+            }
+        ),
+    )
+
+    db.add(invitation_message)
+    db.flush()
+
     ai_message = RoomMessage(
         room_id=room_id,
         sender_id=None,
         message_type="ai",
         content=answer,
-        reply_to_message_id=(
-            source_message.id
-        ),
+        reply_to_message_id=source_message.id,
         metadata_json=json.dumps(
             {
-                "source": "study_together",
-                "requested_by_user_id": (
-                    current_user.id
-                ),
-                "source_message_id": (
-                    source_message.id
+                **interaction_metadata,
+                "interaction_role": "reply",
+                "invitation_message_id": (
+                    invitation_message.id
                 ),
             }
         ),
@@ -531,7 +605,16 @@ Recent group conversation:
 
     db.add(ai_message)
     db.commit()
+
+    db.refresh(invitation_message)
     db.refresh(ai_message)
+
+    serialized_invitation_message = (
+        serialize_message(
+            invitation_message,
+            None,
+        )
+    )
 
     serialized_ai_message = (
         serialize_message(
@@ -544,18 +627,29 @@ Recent group conversation:
         broadcast_room_realtime_event,
         event="message.created",
         room_id=room_id,
-        actor_user_id=None,
+        actor_user_id=current_user.id,
         data={
             "message": (
-                serialized_ai_message
+                serialized_invitation_message
             ),
         },
     )
 
+    background_tasks.add_task(
+        broadcast_room_realtime_event,
+        event="message.created",
+        room_id=room_id,
+        actor_user_id=None,
+        data={
+            "message": serialized_ai_message,
+        },
+    )
+
     return {
-        "ai_message": (
-            serialized_ai_message
+        "invitation_message": (
+            serialized_invitation_message
         ),
+        "ai_message": serialized_ai_message,
     }
 
 

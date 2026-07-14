@@ -1547,6 +1547,47 @@ export default function StudyTogetherWorkspace({
       });
 
       setChatDraft("");
+
+      const invitedStudySnap =
+        /@studysnap\b/i.test(cleanMessage);
+
+      if (invitedStudySnap) {
+        setAiSending(true);
+
+        try {
+          const result = await askRoomAI(
+            studyRoomId,
+            created.id,
+            "mention"
+          );
+
+          setRoomMessages((current) => {
+            const incoming = [
+              result.invitation_message,
+              result.ai_message,
+            ];
+
+            const incomingIds = new Set(
+              incoming.map(
+                (message) => message.id
+              )
+            );
+
+            return [
+              ...current.filter(
+                (message) =>
+                  !incomingIds.has(message.id)
+              ),
+              ...incoming,
+            ].sort(
+              (left, right) =>
+                left.id - right.id
+            );
+          });
+        } finally {
+          setAiSending(false);
+        }
+      }
     } catch (error) {
       setMessageError(
         error instanceof Error
@@ -1605,16 +1646,24 @@ export default function StudyTogetherWorkspace({
       );
 
       setRoomMessages((current) => {
-        const next = [
-          ...current.filter(
-            (message) =>
-              message.id !==
-              result.ai_message.id
-          ),
+        const incoming = [
+          result.invitation_message,
           result.ai_message,
         ];
 
-        return next.sort(
+        const incomingIds = new Set(
+          incoming.map(
+            (message) => message.id
+          )
+        );
+
+        return [
+          ...current.filter(
+            (message) =>
+              !incomingIds.has(message.id)
+          ),
+          ...incoming,
+        ].sort(
           (left, right) =>
             left.id - right.id
         );
@@ -1950,8 +1999,28 @@ export default function StudyTogetherWorkspace({
                         message.message_type ===
                         "ai";
 
+                        const isAiInvitation =
+                          message.message_type ===
+                          "ai_invitation";
+
+                        const requestedByName =
+                          typeof message.metadata[
+                            "requested_by_name"
+                          ] === "string"
+                            ? String(
+                                message.metadata[
+                                  "requested_by_name"
+                                ]
+                              ).trim()
+                            : "";
+
+                        const inviterLabel =
+                          requestedByName ||
+                          "a student";
+
                       const isMine =
                         !isAiMessage &&
+                          !isAiInvitation &&
                         currentUser?.id ===
                           message.sender_id;
 
@@ -1972,6 +2041,32 @@ export default function StudyTogetherWorkspace({
                               .charAt(0)
                               .toUpperCase() ||
                             "S";
+
+                        if (isAiInvitation) {
+                          return (
+                            <div
+                              key={message.id}
+                              className="flex justify-center py-1"
+                            >
+                              <div className="inline-flex max-w-[92%] items-center gap-2 rounded-full border border-violet-300/15 bg-violet-300/[0.07] px-3 py-1.5">
+                                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-violet-300/15 text-[9px] font-black text-violet-100">
+                                  ✨
+                                </span>
+
+                                <p className="text-[11px] font-semibold text-slate-300">
+                                  {message.content}
+                                </p>
+
+                                <span className="shrink-0 text-[9px] text-slate-500">
+                                  {formatActivityTime(
+                                    message.created_at ||
+                                      ""
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
 
                       return (
                         <div
@@ -2023,6 +2118,18 @@ export default function StudyTogetherWorkspace({
                                 )}
                               </p>
                             </div>
+
+                              {isAiMessage ? (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-bold text-slate-300">
+                                    Replying to {inviterLabel}
+                                  </span>
+
+                                  <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-2 py-1 text-[10px] font-black text-violet-100">
+                                    Invited by {inviterLabel}
+                                  </span>
+                                </div>
+                              ) : null}
 
                             {editingMessageId ===
                               message.id &&
@@ -2326,7 +2433,7 @@ export default function StudyTogetherWorkspace({
                   }
                   placeholder={
                     canSendMessages
-                      ? "Message the study group..."
+                      ? "Message the group or mention @StudySnap..."
                       : "Your room role can read this conversation."
                   }
                   rows={1}
@@ -2369,7 +2476,7 @@ export default function StudyTogetherWorkspace({
               </form>
 
               <p className="mt-2 px-1 text-[10px] leading-4 text-slate-500">
-                StudySnap AI stays quiet unless someone chooses Ask AI. Press Shift + Enter for a new line.
+                StudySnap AI stays quiet unless someone chooses Ask AI or mentions @StudySnap. Press Shift + Enter for a new line.
               </p>
             </div>
           </section>

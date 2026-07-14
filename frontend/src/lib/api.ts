@@ -1793,12 +1793,15 @@ export async function createRoomMessage(
 }
 
 export type RoomAIMessageResult = {
+  invitation_message: RoomMessage;
   ai_message: RoomMessage;
 };
 
 export async function askRoomAI(
   studyRoomId: number,
-  sourceMessageId: number
+  sourceMessageId: number,
+  invocationType: "ask_ai" | "mention" =
+    "ask_ai"
 ): Promise<RoomAIMessageResult> {
   return apiFetch(
     `/api/room-messages/rooms/${studyRoomId}/ask-ai`,
@@ -1806,6 +1809,7 @@ export async function askRoomAI(
       method: "POST",
       body: JSON.stringify({
         source_message_id: sourceMessageId,
+        invocation_type: invocationType,
       }),
     }
   ) as Promise<RoomAIMessageResult>;

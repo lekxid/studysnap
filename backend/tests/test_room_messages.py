@@ -1140,10 +1140,112 @@ class RoomMessageAPITests(unittest.TestCase):
 
         self.assertEqual(
             len(captured_events),
-            1,
+            2,
         )
 
-        ai_event = captured_events[0]
+        invitation_message = (
+            ai_response.json()[
+                "invitation_message"
+            ]
+        )
+
+        self.assertEqual(
+            invitation_message["room_id"],
+            room_id,
+        )
+
+        self.assertEqual(
+            invitation_message[
+                "message_type"
+            ],
+            "ai_invitation",
+        )
+
+        self.assertIsNone(
+            invitation_message["sender_id"]
+        )
+
+        self.assertEqual(
+            invitation_message[
+                "reply_to_message_id"
+            ],
+            source_message["id"],
+        )
+
+        self.assertEqual(
+            invitation_message["content"],
+            (
+                "AI Room Owner invited "
+                "StudySnap AI."
+            ),
+        )
+
+        self.assertEqual(
+            invitation_message["metadata"][
+                "requested_by_user_id"
+            ],
+            source_message["sender_id"],
+        )
+
+        self.assertEqual(
+            invitation_message["metadata"][
+                "source_message_id"
+            ],
+            source_message["id"],
+        )
+
+        self.assertEqual(
+            invitation_message["metadata"][
+                "original_prompt"
+            ],
+            source_message["content"],
+        )
+
+        self.assertEqual(
+            ai_message["metadata"][
+                "invitation_message_id"
+            ],
+            invitation_message["id"],
+        )
+
+        self.assertEqual(
+            captured_events[0]["data"][
+                "message"
+            ]["message_type"],
+            "ai_invitation",
+        )
+
+        self.assertEqual(
+            captured_events[1]["data"][
+                "message"
+            ]["message_type"],
+            "ai",
+        )
+
+        invitation_event = captured_events[0]
+        ai_event = captured_events[1]
+
+        self.assertEqual(
+            invitation_event["event"],
+            "message.created",
+        )
+
+        self.assertEqual(
+            invitation_event["room_id"],
+            room_id,
+        )
+
+        self.assertEqual(
+            invitation_event["actor_user_id"],
+            source_message["sender_id"],
+        )
+
+        self.assertEqual(
+            invitation_event["data"][
+                "message"
+            ]["id"],
+            invitation_message["id"],
+        )
 
         self.assertEqual(
             ai_event["event"],
@@ -1190,7 +1292,19 @@ class RoomMessageAPITests(unittest.TestCase):
 
         self.assertEqual(
             len(member_messages),
-            2,
+            3,
+        )
+
+        self.assertEqual(
+            [
+                message["message_type"]
+                for message in member_messages
+            ],
+            [
+                "message",
+                "ai_invitation",
+                "ai",
+            ],
         )
 
         self.assertEqual(
