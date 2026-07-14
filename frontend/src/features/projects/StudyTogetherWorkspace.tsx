@@ -66,6 +66,34 @@ const starterPrompts = [
   "When should we do a group quiz?",
 ];
 
+const studySnapGroupCommands = [
+  {
+    label: "Summarize",
+    prompt:
+      "@StudySnap summarize the recent group discussion in clear key points.",
+  },
+  {
+    label: "Explain confusion",
+    prompt:
+      "@StudySnap explain what the group seems confused about and make it easier to understand.",
+  },
+  {
+    label: "Practice questions",
+    prompt:
+      "@StudySnap create 5 practice questions based on our recent discussion and shared materials.",
+  },
+  {
+    label: "Key points",
+    prompt:
+      "@StudySnap list the most important points the group should remember.",
+  },
+  {
+    label: "Next step",
+    prompt:
+      "@StudySnap suggest the best next study step for this group.",
+  },
+];
+
 function formatFileSize(
   value: number
 ) {
@@ -3134,10 +3162,49 @@ export default function StudyTogetherWorkspace({
                 }}
               />
 
-              <form
-                onSubmit={sendSharedMessage}
-                className="flex items-end gap-2"
-              >
+              {canSendMessages ? (
+                  <div className="mb-2">
+                    <p className="mb-2 px-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      StudySnap commands
+                    </p>
+
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {studySnapGroupCommands.map(
+                        (command) => (
+                          <button
+                            key={command.label}
+                            type="button"
+                            onClick={() => {
+                              setChatDraft(
+                                command.prompt
+                              );
+                              setMessageError("");
+
+                              window.requestAnimationFrame(
+                                () => {
+                                  chatComposerRef.current?.focus();
+                                }
+                              );
+                            }}
+                            disabled={
+                              messageSending ||
+                              attachmentUploading ||
+                              aiSending
+                            }
+                            className="shrink-0 rounded-full border border-violet-300/15 bg-violet-300/[0.07] px-3 py-1.5 text-[11px] font-black text-violet-100 transition hover:border-violet-300/30 hover:bg-violet-300/[0.12] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {command.label}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                <form
+                  onSubmit={sendSharedMessage}
+                  className="flex items-end gap-2"
+                >
                 <button
                   type="button"
                   onClick={
