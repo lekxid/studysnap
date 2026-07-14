@@ -941,6 +941,176 @@ Recent group conversation:
     }
 
 
+@router.delete(
+    "/rooms/{room_id}/ai-interactions/{message_id}"
+)
+def delete_room_ai_interaction(
+    room_id: int,
+    message_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    _, role = require_room_contributor(
+        db=db,
+        room_id=room_id,
+        user_id=current_user.id,
+    )
+
+    selected_message = get_message_or_404(
+        db=db,
+        room_id=room_id,
+        message_id=message_id,
+    )
+
+    if selected_message.message_type not in {
+        "ai",
+        "ai_invitation",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This message is not part of a "
+                "StudySnap AI interaction."
+            ),
+        )
+
+    selected_metadata = parse_metadata(
+        selected_message.metadata_json
+    )
+
+    requested_by_user_id = (
+        selected_metadata.get(
+            "requested_by_user_id"
+        )
+    )
+
+    if (
+        role not in ROOM_MANAGER_ROLES
+        and requested_by_user_id
+        != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the student who invited "
+                "StudySnap AI or a room manager "
+                "can delete this interaction."
+            ),
+        )
+
+    source_message_id = (
+        selected_metadata.get(
+            "source_message_id"
+        )
+    )
+
+    if not isinstance(
+        source_message_id,
+        int,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This AI interaction is missing "
+                "its source-message information."
+            ),
+        )
+
+    interaction_rows = (
+        db.query(RoomMessage)
+        .filter(
+            RoomMessage.room_id == room_id,
+            RoomMessage.message_type.in_(
+                [
+                    "ai_invitation",
+                    "ai",
+                ]
+            ),
+            RoomMessage.reply_to_message_id
+            == source_message_id,
+        )
+        .order_by(RoomMessage.id.asc())
+        .all()
+    )
+
+    interaction_messages = []
+
+    for interaction_message in interaction_rows:
+        metadata = parse_metadata(
+            interaction_message.metadata_json
+        )
+
+        if (
+            metadata.get(
+                "requested_by_user_id"
+            )
+            != requested_by_user_id
+            or metadata.get(
+                "source_message_id"
+            )
+            != source_message_id
+        ):
+            continue
+
+        if (
+            interaction_message.deleted_at
+            is None
+        ):
+            interaction_message.content = ""
+            interaction_message.metadata_json = None
+            interaction_message.deleted_at = (
+                utc_now()
+            )
+
+        interaction_messages.append(
+            interaction_message
+        )
+
+    if not interaction_messages:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The AI interaction could not "
+                "be found."
+            ),
+        )
+
+    db.commit()
+
+    serialized_messages = []
+
+    for interaction_message in (
+        interaction_messages
+    ):
+        db.refresh(interaction_message)
+
+        serialized = serialize_message(
+            interaction_message,
+            None,
+        )
+
+        serialized_messages.append(
+            serialized
+        )
+
+        background_tasks.add_task(
+            broadcast_room_realtime_event,
+            event="message.deleted",
+            room_id=room_id,
+            actor_user_id=current_user.id,
+            data={
+                "message": serialized,
+            },
+        )
+
+    return {
+        "messages": serialized_messages,
+    }
+
+
 @router.patch(
     "/rooms/{room_id}/{message_id}"
 )

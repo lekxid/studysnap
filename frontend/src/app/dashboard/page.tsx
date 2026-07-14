@@ -121,17 +121,31 @@ type ContinueItem = {
 
 function parseJwt(token: string): TokenPayload | null {
   try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`)
-        .join("")
+    const parts = token.split(".");
+
+    if (parts.length !== 3 || !parts[1]) {
+      return null;
+    }
+
+    const base64Url = parts[1];
+    const base64 = base64Url
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(
+        base64Url.length + ((4 - (base64Url.length % 4)) % 4),
+        "="
+      );
+
+    const bytes = Uint8Array.from(
+      atob(base64),
+      (char) => char.charCodeAt(0)
     );
 
-    return JSON.parse(jsonPayload);
-  } catch {
+    const jsonPayload = new TextDecoder().decode(bytes);
+
+    return JSON.parse(jsonPayload) as TokenPayload;
+  } catch (error) {
+    console.error("Could not decode login token.", error);
     return null;
   }
 }

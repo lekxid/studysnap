@@ -22,6 +22,7 @@ import {
   createRoomRealtimeTicket,
   buildRoomRealtimeWebSocketUrl,
   deleteRoomMessage,
+  deleteRoomAIInteraction,
   getCurrentUser,
   getRoomInvitations,
   getRoomMembers,
@@ -2004,6 +2005,56 @@ export default function StudyTogetherWorkspace({
     }
   }
 
+  async function removeAIInteraction(
+    messageId: number
+  ) {
+    if (messageActionId !== null) {
+      return;
+    }
+
+    setMessageActionId(messageId);
+    setMessageError("");
+
+    try {
+      const result =
+        await deleteRoomAIInteraction(
+          studyRoomId,
+          messageId
+        );
+
+      const deletedById = new Map(
+        result.messages.map(
+          (message) => [
+            message.id,
+            message,
+          ]
+        )
+      );
+
+      setRoomMessages((current) =>
+        current.map(
+          (message) =>
+            deletedById.get(
+              message.id
+            ) ?? message
+        )
+      );
+
+      setPendingDeleteMessageId(null);
+    } catch (error) {
+      setMessageError(
+        error instanceof Error
+          ? error.message
+          : (
+              "Could not delete the "
+              + "StudySnap AI interaction."
+            )
+      );
+    } finally {
+      setMessageActionId(null);
+    }
+  }
+
   async function removeSharedMessage(
     messageId: number
   ) {
@@ -2262,6 +2313,30 @@ export default function StudyTogetherWorkspace({
                         const inviterLabel =
                           requestedByName ||
                           "a student";
+
+                      const requestedByUserId =
+                        typeof message.metadata[
+                          "requested_by_user_id"
+                        ] === "number"
+                          ? message.metadata[
+                              "requested_by_user_id"
+                            ] as number
+                          : null;
+
+                      const canManageRoom =
+                        ["owner", "admin"].includes(
+                          currentUserRole
+                            .trim()
+                            .toLowerCase()
+                        );
+
+                      const canDeleteAIInteraction =
+                        isAiMessage &&
+                        (
+                          canManageRoom ||
+                          requestedByUserId ===
+                            currentUser?.id
+                        );
 
                       const isMine =
                         !isAiMessage &&
@@ -2691,6 +2766,24 @@ export default function StudyTogetherWorkspace({
                                       Reply
                                     </button>
 
+                                    {canDeleteAIInteraction ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          requestDeleteMessage(
+                                            message.id
+                                          )
+                                        }
+                                        disabled={
+                                          messageActionId ===
+                                          message.id
+                                        }
+                                        className="rounded-md px-2 py-1 text-[10px] font-black text-red-300/80 transition hover:bg-red-300/10 hover:text-red-200 disabled:opacity-50"
+                                      >
+                                        Delete AI
+                                      </button>
+                                    ) : null}
+
                                     {isMine ? (
                                       <>
                                       <button
@@ -2817,19 +2910,21 @@ export default function StudyTogetherWorkspace({
                                   </div>
                                 ) : null}
 
-                                {isMine &&
+                                {(isMine ||
+                                  canDeleteAIInteraction) &&
                                 pendingDeleteMessageId ===
                                   message.id ? (
                                   <div className="mt-2 rounded-xl border border-red-300/20 bg-red-300/10 p-3">
                                     <p className="text-xs font-bold text-red-100">
-                                      Delete this
-                                      message?
+                                      {canDeleteAIInteraction
+                                        ? "Delete this AI interaction?"
+                                        : "Delete this message?"}
                                     </p>
 
                                     <p className="mt-1 text-[10px] leading-4 text-red-100/70">
-                                      The conversation
-                                      will show that the
-                                      message was deleted.
+                                      {canDeleteAIInteraction
+                                        ? "The invitation and StudySnap AI reply will both be removed."
+                                        : "The conversation will show that the message was deleted."}
                                     </p>
 
                                     <div className="mt-2 flex justify-end gap-2">
@@ -2850,9 +2945,13 @@ export default function StudyTogetherWorkspace({
                                       <button
                                         type="button"
                                         onClick={() =>
-                                          void removeSharedMessage(
-                                            message.id
-                                          )
+                                          canDeleteAIInteraction
+                                            ? void removeAIInteraction(
+                                                message.id
+                                              )
+                                            : void removeSharedMessage(
+                                                message.id
+                                              )
                                         }
                                         disabled={
                                           messageActionId ===
@@ -2863,7 +2962,9 @@ export default function StudyTogetherWorkspace({
                                         {messageActionId ===
                                         message.id
                                           ? "Deleting..."
-                                          : "Delete message"}
+                                          : canDeleteAIInteraction
+                                            ? "Delete AI interaction"
+                                            : "Delete message"}
                                       </button>
                                     </div>
                                   </div>

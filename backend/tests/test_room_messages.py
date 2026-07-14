@@ -1268,6 +1268,244 @@ class RoomMessageAPITests(unittest.TestCase):
             edit_deleted.text,
         )
 
+    def test_inviter_can_delete_complete_ai_interaction(
+        self,
+    ):
+        owner_email, owner_token = (
+            self.create_user_and_login(
+                "ai-delete-owner",
+                "AI Delete Owner",
+            )
+        )
+
+        member_email, member_token = (
+            self.create_user_and_login(
+                "ai-delete-member",
+                "AI Delete Member",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="AI Delete Room",
+        )
+
+        self.add_member(
+            room_id,
+            member_email,
+            role="member",
+        )
+
+        source_response = self.send_message(
+            room_id,
+            member_token,
+            "Explain active listening.",
+        )
+
+        self.assertEqual(
+            source_response.status_code,
+            200,
+            source_response.text,
+        )
+
+        with patch(
+            "app.routes.room_messages."
+            "generate_studysnap_answer",
+            return_value=(
+                "Active listening means giving "
+                "full attention."
+            ),
+        ):
+            ai_response = self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/ask-ai"
+                ),
+                headers=self.auth_headers(
+                    member_token
+                ),
+                json={
+                    "source_message_id": (
+                        source_response.json()[
+                            "id"
+                        ]
+                    ),
+                    "invocation_type": (
+                        "ask_ai"
+                    ),
+                },
+            )
+
+        self.assertEqual(
+            ai_response.status_code,
+            200,
+            ai_response.text,
+        )
+
+        ai_message = (
+            ai_response.json()[
+                "ai_message"
+            ]
+        )
+
+        delete_response = self.client.delete(
+            (
+                "/api/room-messages/"
+                f"rooms/{room_id}/"
+                "ai-interactions/"
+                f"{ai_message['id']}"
+            ),
+            headers=self.auth_headers(
+                member_token
+            ),
+        )
+
+        self.assertEqual(
+            delete_response.status_code,
+            200,
+            delete_response.text,
+        )
+
+        deleted_messages = (
+            delete_response.json()[
+                "messages"
+            ]
+        )
+
+        self.assertEqual(
+            len(deleted_messages),
+            2,
+        )
+
+        self.assertEqual(
+            {
+                message["message_type"]
+                for message in deleted_messages
+            },
+            {
+                "ai_invitation",
+                "ai",
+            },
+        )
+
+        self.assertTrue(
+            all(
+                message["is_deleted"]
+                for message
+                in deleted_messages
+            )
+        )
+
+        listing = self.client.get(
+            (
+                "/api/room-messages/"
+                f"rooms/{room_id}"
+            ),
+            headers=self.auth_headers(
+                member_token
+            ),
+        )
+
+        self.assertEqual(
+            listing.status_code,
+            200,
+            listing.text,
+        )
+
+        listed_by_id = {
+            message["id"]: message
+            for message in listing.json()
+        }
+
+        for deleted in deleted_messages:
+            self.assertTrue(
+                listed_by_id[
+                    deleted["id"]
+                ]["is_deleted"]
+            )
+
+    def test_member_cannot_delete_another_users_ai_interaction(
+        self,
+    ):
+        owner_email, owner_token = (
+            self.create_user_and_login(
+                "ai-delete-owner-two",
+                "AI Delete Owner Two",
+            )
+        )
+
+        member_email, member_token = (
+            self.create_user_and_login(
+                "ai-delete-member-two",
+                "AI Delete Member Two",
+            )
+        )
+
+        room_id = self.create_room(
+            owner_token,
+            name="AI Delete Authorization Room",
+        )
+
+        self.add_member(
+            room_id,
+            member_email,
+            role="member",
+        )
+
+        source_response = self.send_message(
+            room_id,
+            owner_token,
+            "Explain teamwork.",
+        )
+
+        with patch(
+            "app.routes.room_messages."
+            "generate_studysnap_answer",
+            return_value=(
+                "Teamwork means cooperating."
+            ),
+        ):
+            ai_response = self.client.post(
+                (
+                    "/api/room-messages/"
+                    f"rooms/{room_id}/ask-ai"
+                ),
+                headers=self.auth_headers(
+                    owner_token
+                ),
+                json={
+                    "source_message_id": (
+                        source_response.json()[
+                            "id"
+                        ]
+                    ),
+                },
+            )
+
+        ai_message = (
+            ai_response.json()[
+                "ai_message"
+            ]
+        )
+
+        denied = self.client.delete(
+            (
+                "/api/room-messages/"
+                f"rooms/{room_id}/"
+                "ai-interactions/"
+                f"{ai_message['id']}"
+            ),
+            headers=self.auth_headers(
+                member_token
+            ),
+        )
+
+        self.assertEqual(
+            denied.status_code,
+            403,
+            denied.text,
+        )
+
     def test_explicit_ask_ai_creates_shared_ai_reply(
         self,
     ):

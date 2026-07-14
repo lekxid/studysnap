@@ -38,16 +38,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-        process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-        "";
-
-      if (!apiBase) {
-        throw new Error("API base URL is not set.");
-      }
-
-      const response = await fetch(`${apiBase}/api/auth/login`, {
+      const response = await fetch("/backend/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

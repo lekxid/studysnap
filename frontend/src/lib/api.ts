@@ -1901,6 +1901,22 @@ export async function updateRoomMessage(
   ) as Promise<RoomMessage>;
 }
 
+export async function deleteRoomAIInteraction(
+  studyRoomId: number,
+  messageId: number
+): Promise<{
+  messages: RoomMessage[];
+}> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/ai-interactions/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    messages: RoomMessage[];
+  }>;
+}
+
 export async function deleteRoomMessage(
   studyRoomId: number,
   messageId: number
