@@ -9,7 +9,6 @@ services:
     dockerContext: ./backend
     healthCheckPath: /health
     autoDeployTrigger: off
-    maxShutdownDelaySeconds: 60
 
     envVars:
       - key: APP_NAME
