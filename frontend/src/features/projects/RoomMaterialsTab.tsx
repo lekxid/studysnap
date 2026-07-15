@@ -5,6 +5,7 @@ import Link from "next/link";
 
 type MaterialFilter =
   | "all"
+  | "file"
   | "pdf"
   | "note"
   | "concept-card"
@@ -15,6 +16,32 @@ type PDFDocument = {
   original_filename: string;
   file_size: number;
   created_at: string;
+};
+
+type StudyMaterialItem = {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string | null;
+  material_type: string;
+  processing_status: string;
+  preview_available: boolean;
+  purpose_category: string | null;
+  content_category: string | null;
+  detected_topic: string | null;
+  intelligence_summary: string | null;
+  classification_confidence: number | null;
+  intelligence_status:
+    | "pending"
+    | "processing"
+    | "ready"
+    | "failed";
+  intelligence_error: string | null;
+  analyzed_at: string | null;
+  study_room_id: number;
+  created_by_user_id: number;
+  created_at: string;
+  last_opened_at: string | null;
 };
 
 type NoteItem = {
@@ -46,17 +73,31 @@ type Props = {
   studyRoomId: number;
 
   pdfs: PDFDocument[];
+  studyMaterials: StudyMaterialItem[];
   notes: NoteItem[];
   conceptCards: ConceptCardItem[];
   quizzes: QuizItem[];
 
   loadingPdfs: boolean;
+  loadingStudyMaterials: boolean;
   loadingNotes: boolean;
   loadingPractice: boolean;
 
   selectedPdfId: number | null;
   selectedPdfTitle: string;
+  selectedStudyMaterialId: number | null;
 
+  onOpenStudyMaterial: (
+    materialId: number,
+    filename: string
+  ) => void;
+  onDownloadStudyMaterial: (
+    materialId: number,
+    filename: string
+  ) => void;
+  onDeleteStudyMaterial: (
+    materialId: number
+  ) => void;
   onSelectPdf: (pdfId: number, title: string) => void;
   onSummarizePdf: (pdfId: number) => void;
   onDeletePdf: (pdfId: number) => void;
@@ -129,23 +170,89 @@ function getQuizTitle(quiz: QuizItem, index: number) {
 
 function filterLabel(filter: MaterialFilter) {
   if (filter === "all") return "All";
+  if (filter === "file") return "Files";
   if (filter === "pdf") return "PDFs";
   if (filter === "note") return "Notes";
   if (filter === "concept-card") return "Concept Cards";
   return "Quizzes";
 }
 
+function titleCase(value?: string | null) {
+  return (value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(
+      /\b\w/g,
+      (letter) => letter.toUpperCase()
+    )
+    .trim();
+}
+
+function buildMaterialIntelligenceDescription(
+  material: StudyMaterialItem,
+  fallbackType: string
+) {
+  if (
+    material.intelligence_status === "pending" ||
+    material.intelligence_status === "processing"
+  ) {
+    return `Analyzing ${fallbackType.toLowerCase()}...`;
+  }
+
+  const labels = [
+    titleCase(material.purpose_category),
+    titleCase(material.content_category),
+    titleCase(material.detected_topic),
+  ].filter(Boolean);
+
+  const summary =
+    material.intelligence_summary?.trim();
+
+  const confidence =
+    material.classification_confidence;
+
+  const confidenceLabel =
+    typeof confidence === "number"
+      ? ` • ${confidence}% confidence`
+      : "";
+
+  if (labels.length && summary) {
+    return (
+      `${labels.join(" • ")} — ${summary}` +
+      confidenceLabel
+    );
+  }
+
+  if (summary) {
+    return summary + confidenceLabel;
+  }
+
+  if (labels.length) {
+    return labels.join(" • ") + confidenceLabel;
+  }
+
+  return `${fallbackType} • ${formatFileSize(
+    material.file_size
+  )}`;
+}
+
+
 export default function RoomMaterialsTab({
   studyRoomId,
   pdfs,
+  studyMaterials,
   notes,
   conceptCards,
   quizzes,
   loadingPdfs,
+  loadingStudyMaterials,
   loadingNotes,
   loadingPractice,
   selectedPdfId,
   selectedPdfTitle,
+  selectedStudyMaterialId,
+  onOpenStudyMaterial,
+  onDownloadStudyMaterial,
+  onDeleteStudyMaterial,
   onSelectPdf,
   onSummarizePdf,
   onDeletePdf,
@@ -157,6 +264,45 @@ export default function RoomMaterialsTab({
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
 
   const materials = useMemo<UnifiedMaterial[]>(() => {
+    const studyMaterialItems: UnifiedMaterial[] =
+      studyMaterials.map((material) => {
+        const typeLabel =
+          material.material_type === "image"
+            ? "Image"
+            : material.material_type === "word"
+              ? "Word document"
+              : material.material_type === "slides"
+                ? "Presentation"
+                : material.material_type === "spreadsheet"
+                  ? "Spreadsheet"
+                  : "Uploaded file";
+
+        const icon =
+          material.material_type === "image"
+            ? "🖼️"
+            : material.material_type === "word"
+              ? "📘"
+              : material.material_type === "slides"
+                ? "📊"
+                : material.material_type === "spreadsheet"
+                  ? "📗"
+                  : "📎";
+
+        return {
+          key: `study-material-${material.id}`,
+          id: material.id,
+          type: "file",
+          title: material.original_filename,
+          description:
+            buildMaterialIntelligenceDescription(
+              material,
+              typeLabel
+            ),
+          createdAt: material.created_at,
+          icon,
+        };
+      });
+
     const pdfItems: UnifiedMaterial[] = pdfs.map((pdf) => ({
       key: `pdf-${pdf.id}`,
       id: pdf.id,
@@ -201,6 +347,7 @@ export default function RoomMaterialsTab({
     }));
 
     return [
+      ...studyMaterialItems,
       ...pdfItems,
       ...noteItems,
       ...conceptCardItems,
@@ -215,7 +362,13 @@ export default function RoomMaterialsTab({
 
       return secondTime - firstTime;
     });
-  }, [conceptCards, notes, pdfs, quizzes]);
+  }, [
+    conceptCards,
+    notes,
+    pdfs,
+    quizzes,
+    studyMaterials,
+  ]);
 
   const visibleMaterials = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -243,6 +396,10 @@ export default function RoomMaterialsTab({
       count: materials.length,
     },
     {
+      key: "file",
+      count: studyMaterials.length,
+    },
+    {
       key: "pdf",
       count: pdfs.length,
     },
@@ -260,11 +417,70 @@ export default function RoomMaterialsTab({
     },
   ];
 
-  const loading = loadingPdfs || loadingNotes || loadingPractice;
+  const loading =
+    loadingPdfs ||
+    loadingStudyMaterials ||
+    loadingNotes ||
+    loadingPractice;
 
   function renderPrimaryAction(material: UnifiedMaterial) {
     const buttonClass =
       "inline-flex min-w-[92px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100";
+
+    if (material.type === "file") {
+      const selected =
+        material.id === selectedStudyMaterialId;
+
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              onOpenStudyMaterial(
+                material.id,
+                material.title
+              );
+              setOpenMenuKey(null);
+            }}
+            className={[
+              buttonClass,
+              selected
+                ? "border-yellow-300/40 bg-yellow-300/15 text-yellow-100"
+                : "",
+            ].join(" ")}
+          >
+            {selected ? "Open again" : "Open"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onDownloadStudyMaterial(
+                material.id,
+                material.title
+              );
+              setOpenMenuKey(null);
+            }}
+            className={buttonClass}
+          >
+            Download
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onDeleteStudyMaterial(
+                material.id
+              );
+            }}
+            className="inline-flex min-w-[82px] items-center justify-center rounded-xl border border-red-300/25 bg-red-400/[0.08] px-4 py-2.5 text-xs font-black text-red-200 transition hover:border-red-300/50 hover:bg-red-400/15"
+          >
+            Delete
+          </button>
+        </div>
+      );
+    }
 
     if (material.type === "pdf") {
       const selected = material.id === selectedPdfId;
@@ -323,6 +539,42 @@ export default function RoomMaterialsTab({
   function renderMaterialMenu(material: UnifiedMaterial) {
     const menuItemClass =
       "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08] hover:text-white";
+
+    if (material.type === "file") {
+      return (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onOpenAiTutor();
+            }}
+            className={menuItemClass}
+          >
+            <span aria-hidden="true">🤖</span>
+            Ask AI Tutor
+          </button>
+
+          <div className="my-1 border-t border-white/10" />
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onDeleteStudyMaterial(
+                material.id
+              );
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
+          >
+            <span aria-hidden="true">🗑️</span>
+            Delete
+          </button>
+        </>
+      );
+    }
 
     if (material.type === "pdf") {
       return (
@@ -404,7 +656,7 @@ export default function RoomMaterialsTab({
             </h2>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              PDFs, notes, concept cards, and quizzes stay connected here.
+              Files, PDFs, notes, concept cards, and quizzes stay connected here.
               StudySnap can use them to support AI Tutor, practice, and progress.
             </p>
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.note import Note
 from app.models.user import User
+from app.services.legacy_material_notes import is_legacy_material_note
 from app.services.export.pdf import (
     build_note_pdf_bytes,
     build_studysnap_pdf_bytes,
@@ -155,7 +156,7 @@ def get_notes(
         user_id=current_user.id,
     )
 
-    return (
+    notes = (
         db.query(Note)
         .filter(
             Note.study_room_id == study_room_id
@@ -163,6 +164,12 @@ def get_notes(
         .order_by(Note.id.desc())
         .all()
     )
+
+    return [
+        note
+        for note in notes
+        if not is_legacy_material_note(note)
+    ]
 
 
 @router.post("")

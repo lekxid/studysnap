@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -26,6 +27,7 @@ from app.models.study_plan import StudyPlan
 from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.models.user_resume_state import UserResumeState
+from app.services.legacy_material_notes import is_legacy_material_note
 
 
 FEED_SOURCE_LIMIT = 150
@@ -100,6 +102,25 @@ def room_href(
         return f"{base}?tab={tab}"
 
     return base
+
+
+def material_href(
+    room_id: int,
+    material_id: int,
+    filename: str | None = None,
+) -> str:
+    href = (
+        f"{room_href(room_id, 'materials')}"
+        f"&materialId={material_id}"
+    )
+
+    if filename:
+        href += (
+            "&materialName="
+            f"{quote(filename, safe='')}"
+        )
+
+    return href
 
 
 def make_feed_item(
@@ -774,9 +795,10 @@ def build_material_items(
                     f"{room.name if room else 'a Study Room'}"
                 ),
                 action_label="Open file",
-                action_href=room_href(
+                action_href=material_href(
                     material.study_room_id,
-                    "materials",
+                    material.id,
+                    material.original_filename,
                 ),
                 room_id=material.study_room_id,
                 room_name=room.name if room else None,
@@ -825,10 +847,11 @@ def build_material_items(
                         f"{room.name if room else 'a Study Room'}"
                     ),
                     action_label="Open again",
-                    action_href=room_href(
-                        material.study_room_id,
-                        "materials",
-                    ),
+                    action_href=material_href(
+                    material.study_room_id,
+                    material.id,
+                    material.original_filename,
+                ),
                     room_id=material.study_room_id,
                     room_name=room.name if room else None,
                     entity_type="study_material",
@@ -922,7 +945,7 @@ def build_note_items(
     user_id: int,
     rooms_by_id: dict[int, StudyRoom],
 ) -> tuple[list[dict[str, Any]], list[Note]]:
-    notes = (
+    all_notes = (
         db.query(Note)
         .filter(Note.owner_id == user_id)
         .order_by(
@@ -932,6 +955,12 @@ def build_note_items(
         .limit(FEED_SOURCE_LIMIT)
         .all()
     )
+
+    notes = [
+        note
+        for note in all_notes
+        if not is_legacy_material_note(note)
+    ]
 
     items: list[dict[str, Any]] = []
 
@@ -1829,11 +1858,10 @@ def build_continue_learning(
             "entity_type": "study_material",
             "entity_id": material.id,
             "action_label": "Open again",
-            "action_href": (
-                f"{room_href(
-                    material.study_room_id,
-                    'materials',
-                )}&materialId={material.id}"
+            "action_href": material_href(
+                material.study_room_id,
+                material.id,
+                material.original_filename,
             ),
             "progress_percent": None,
             "last_active_at": iso_timestamp(
@@ -2115,11 +2143,10 @@ def build_needs_attention(
             "reason": "New material not reviewed",
             "room_id": material.study_room_id,
             "action_label": "Review now",
-            "action_href": (
-                f"{room_href(
-                    material.study_room_id,
-                    'materials',
-                )}&materialId={material.id}"
+            "action_href": material_href(
+                material.study_room_id,
+                material.id,
+                material.original_filename,
             ),
             "created_at": iso_timestamp(
                 material.created_at

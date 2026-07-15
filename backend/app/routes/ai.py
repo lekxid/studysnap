@@ -222,6 +222,19 @@ def build_conversation_history_context(
             requesting_user_id,
         )
 
+        focused_material_id = (
+            conversation.context_id
+            if (
+                conversation.context_type
+                == "study_material"
+                and isinstance(
+                    conversation.context_id,
+                    int,
+                )
+            )
+            else None
+        )
+
         room_context = (
             build_study_room_context(
                 db=db,
@@ -229,6 +242,7 @@ def build_conversation_history_context(
                 study_room_id=conversation.study_room_id,
                 owner_id=room.owner_id,
                 question=question,
+                focused_material_id=focused_material_id,
             )
             or ""
         ).strip()

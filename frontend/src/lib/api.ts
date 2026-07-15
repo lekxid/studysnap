@@ -1219,6 +1219,158 @@ export async function getPDFs(studyRoomId: number) {
   return apiFetch(`/api/pdfs/${studyRoomId}`);
 }
 
+export type StudyMaterialItem = {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string | null;
+  material_type: string;
+  processing_status: string;
+  preview_available: boolean;
+  purpose_category: string | null;
+  content_category: string | null;
+  detected_topic: string | null;
+  intelligence_summary: string | null;
+  classification_confidence: number | null;
+  intelligence_status:
+    | "pending"
+    | "processing"
+    | "ready"
+    | "failed";
+  intelligence_error: string | null;
+  analyzed_at: string | null;
+  study_room_id: number;
+  created_by_user_id: number;
+  created_at: string;
+  last_opened_at: string | null;
+};
+
+export type StudyMaterialListResponse = {
+  study_room_id: number;
+  materials: StudyMaterialItem[];
+};
+
+export async function getStudyMaterials(
+  studyRoomId: number
+): Promise<StudyMaterialListResponse> {
+  return apiFetch(
+    `/api/materials/room/${studyRoomId}`
+  ) as Promise<StudyMaterialListResponse>;
+}
+
+export async function openStudyMaterial(
+  materialId: number,
+  fallbackFilename: string
+) {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+  }
+
+  const previewWindow = window.open(
+    "about:blank",
+    "_blank"
+  );
+
+  if (previewWindow) {
+    previewWindow.opener = null;
+    previewWindow.document.title =
+      `Opening ${fallbackFilename}`;
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  if (!response.ok) {
+    previewWindow?.close();
+
+    const message = await readResponseError(
+      response,
+      "The material could not be opened."
+    );
+
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const objectUrl =
+    window.URL.createObjectURL(blob);
+
+  if (previewWindow) {
+    previewWindow.location.replace(objectUrl);
+  } else {
+    const link = document.createElement("a");
+
+    link.href = objectUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(objectUrl);
+  }, 5 * 60 * 1000);
+}
+
+
+export async function downloadStudyMaterial(
+  materialId: number,
+  fallbackFilename: string
+) {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  await downloadPdfResponse(
+    response,
+    fallbackFilename || `studysnap-material-${materialId}`
+  );
+}
+
+export async function analyzeStudyMaterial(
+  materialId: number
+): Promise<StudyMaterialItem> {
+  return apiFetch(
+    `/api/materials/${materialId}/analyze`,
+    {
+      method: "POST",
+    }
+  ) as Promise<StudyMaterialItem>;
+}
+
+
+export async function deleteStudyMaterial(
+  materialId: number
+) {
+  return apiFetch(`/api/materials/${materialId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function deletePDF(pdfId: number) {
   return apiFetch(`/api/pdfs/${pdfId}`, {
     method: "DELETE",

@@ -15,6 +15,7 @@ from app.models.quiz_question import QuizQuestion
 from app.models.pdf_document import PDFDocument
 from app.models.study_material import StudyMaterial
 from app.models.study_room import StudyRoom
+from app.services.material_intelligence import analyze_material
 from app.services.ai_service import generate_basic_flashcards, generate_basic_quiz
 
 
@@ -427,21 +428,8 @@ def save_generic_material(
     db.commit()
     db.refresh(material)
 
-    note = Note(
-        title=f"Uploaded {candidate.material_type}: {Path(candidate.filename).stem[:80]}",
-        content=(
-            f"StudySnap saved this {candidate.material_type} inside this room.\n\n"
-            f"File name: {candidate.filename}\n"
-            f"File type: {candidate.content_type or 'Unknown'}\n"
-            f"File size: {candidate.size} bytes\n\n"
-            "Next upgrade: show these materials directly inside the room and extract text from screenshots/images."
-        ),
-        study_room_id=room_id,
-        owner_id=owner_id,
-    )
-
-    db.add(note)
-    db.commit()
+    analyze_material(db, material)
+    db.refresh(material)
 
     return material
 

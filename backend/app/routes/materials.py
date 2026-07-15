@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import (
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.study_material import StudyMaterial
 from app.models.user import User
+from app.services.material_intelligence import analyze_material
 from app.services.rooms.access import (
     require_room_contributor,
     require_room_item_change,
@@ -334,6 +336,16 @@ def serialize_material(material: StudyMaterial) -> dict:
         "material_type": material.material_type,
         "processing_status": status,
         "preview_available": bool(material.extracted_text),
+        "purpose_category": material.purpose_category,
+        "content_category": material.content_category,
+        "detected_topic": material.detected_topic,
+        "intelligence_summary": material.intelligence_summary,
+        "classification_confidence": (
+            material.classification_confidence
+        ),
+        "intelligence_status": material.intelligence_status,
+        "intelligence_error": material.intelligence_error,
+        "analyzed_at": material.analyzed_at,
         "study_room_id": material.study_room_id,
         "created_by_user_id": material.owner_id,
         "created_at": material.created_at,
@@ -482,6 +494,10 @@ async def upload_material(
         db.commit()
         db.refresh(material)
 
+        if material.material_type != "quarantined":
+            analyze_material(db, material)
+            db.refresh(material)
+
         response = serialize_material(material)
         response.update(
             {
@@ -564,6 +580,34 @@ def list_room_materials(
     }
 
 
+@router.post("/{material_id}/analyze")
+def analyze_existing_material(
+    material_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    material = get_material_or_404(
+        db=db,
+        material_id=material_id,
+    )
+
+    require_room_contributor(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+    )
+
+    if material.material_type == "quarantined":
+        raise HTTPException(
+            status_code=403,
+            detail="Quarantined files cannot be analyzed.",
+        )
+
+    analyze_material(db, material)
+
+    return serialize_material(material)
+
+
 @router.get("/{material_id}/preview")
 def preview_material(
     material_id: int,
@@ -635,10 +679,16 @@ def download_material(
             detail="Stored file was not found.",
         )
 
+    material.last_opened_at = datetime.now(timezone.utc)
+    db.commit()
+
     return FileResponse(
         path=file_path,
         filename=material.original_filename,
-        media_type="application/octet-stream",
+        media_type=(
+            material.content_type
+            or "application/octet-stream"
+        ),
         content_disposition_type="attachment",
     )
 

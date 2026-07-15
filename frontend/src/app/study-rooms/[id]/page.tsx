@@ -18,16 +18,22 @@ import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
+  analyzeStudyMaterial,
+  deleteStudyMaterial,
+  downloadStudyMaterial,
+  openStudyMaterial,
   getFlashcards,
   getNotes,
   getPDFs,
   getQuizzes,
+  getStudyMaterials,
   getRoomFoundation,
   getStudyRooms,
   retrieveBrain,
   summarizePDF,
   type BrainSource,
   type RoomFoundation,
+  type StudyMaterialItem,
 } from "@/lib/api";
 
 type StudyRoom = {
@@ -286,12 +292,18 @@ export default function StudyRoomDetailPage() {
   }, [activeRoomTab, resumeRoomId, studyRoomId]);
 
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
+  const [studyMaterials, setStudyMaterials] =
+    useState<StudyMaterialItem[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [conceptCards, setConceptCards] = useState<ConceptCardItem[]>([]);
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
 
   const [loadingRoom, setLoadingRoom] = useState(true);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
+  const [
+    loadingStudyMaterials,
+    setLoadingStudyMaterials,
+  ] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [loadingPractice, setLoadingPractice] = useState(false);
   const [loadingFoundation, setLoadingFoundation] = useState(false);
@@ -750,13 +762,99 @@ export default function StudyRoomDetailPage() {
     }
   }
 
+  async function loadStudyMaterials() {
+    if (!studyRoomId || Number.isNaN(studyRoomId)) {
+      return;
+    }
+
+    try {
+      setLoadingStudyMaterials(true);
+
+      const data = await getStudyMaterials(
+        studyRoomId
+      );
+
+      const loadedMaterials =
+        Array.isArray(data.materials)
+          ? data.materials
+          : [];
+
+      setStudyMaterials(loadedMaterials);
+
+      const pendingMaterials =
+        loadedMaterials
+          .filter(
+            (material) =>
+              material.intelligence_status ===
+              "pending"
+          )
+          .slice(0, 8);
+
+      void (async () => {
+        for (const material of pendingMaterials) {
+          try {
+            const analyzed =
+              await analyzeStudyMaterial(
+                material.id
+              );
+
+            setStudyMaterials((current) =>
+              current.map((item) =>
+                item.id === analyzed.id
+                  ? analyzed
+                  : item
+              )
+            );
+          } catch {
+            // Keep the original file available when
+            // intelligence analysis is unavailable.
+          }
+        }
+      })();
+    } catch {
+      setStudyMaterials([]);
+    } finally {
+      setLoadingStudyMaterials(false);
+    }
+  }
+
   async function loadNotes() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) return;
 
     try {
       setLoadingNotes(true);
       const data = await getNotes(studyRoomId);
-      setNotes(Array.isArray(data) ? data : []);
+      const loadedNotes: NoteItem[] =
+        Array.isArray(data) ? data : [];
+
+      const realNotes = loadedNotes.filter(
+        (note) => {
+          const title = (
+            note.title || ""
+          ).trim();
+
+          const content = (
+            note.content || ""
+          ).trim();
+
+          const generatedTitle =
+            /^Uploaded (image|word|slides|spreadsheet|file):/i.test(
+              title
+            );
+
+          const generatedContent =
+            content.startsWith(
+              "StudySnap saved this "
+            );
+
+          return !(
+            generatedTitle &&
+            generatedContent
+          );
+        }
+      );
+
+      setNotes(realNotes);
     } catch {
       setNotes([]);
     } finally {
@@ -818,6 +916,72 @@ export default function StudyRoomDetailPage() {
     }
   }
 
+  async function handleOpenStudyMaterial(
+    materialId: number,
+    filename: string
+  ) {
+    try {
+      await openStudyMaterial(
+        materialId,
+        filename
+      );
+
+      await loadStudyMaterials();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be opened."
+      );
+    }
+  }
+
+  async function handleDownloadStudyMaterial(
+    materialId: number,
+    filename: string
+  ) {
+    try {
+      await downloadStudyMaterial(
+        materialId,
+        filename
+      );
+
+      await loadStudyMaterials();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be downloaded."
+      );
+    }
+  }
+
+  async function handleDeleteStudyMaterial(
+    materialId: number
+  ) {
+    if (!confirm("Delete this material?")) {
+      return;
+    }
+
+    try {
+      await deleteStudyMaterial(materialId);
+      await loadStudyMaterials();
+
+      if (
+        selectedUniversalMaterial?.id ===
+        materialId
+      ) {
+        setSelectedUniversalMaterial(null);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be deleted."
+      );
+    }
+  }
+
   async function handleSummarize(pdfId: number) {
     try {
       setSummarizingId(pdfId);
@@ -840,6 +1004,7 @@ export default function StudyRoomDetailPage() {
     saveProjectRoomId(studyRoomId);
     loadRoom();
     loadPdfs();
+    loadStudyMaterials();
     loadNotes();
     loadPractice();
     loadRoomFoundation();
@@ -992,12 +1157,29 @@ export default function StudyRoomDetailPage() {
         <RoomMaterialsTab
           studyRoomId={studyRoomId}
           pdfs={pdfs}
+          studyMaterials={studyMaterials}
           notes={notes}
           conceptCards={conceptCards}
           quizzes={quizzes}
           loadingPdfs={loadingPdfs}
+          loadingStudyMaterials={
+            loadingStudyMaterials
+          }
           loadingNotes={loadingNotes}
           loadingPractice={loadingPractice}
+          selectedStudyMaterialId={
+            selectedUniversalMaterial?.id ??
+            null
+          }
+          onOpenStudyMaterial={
+            handleOpenStudyMaterial
+          }
+          onDownloadStudyMaterial={
+            handleDownloadStudyMaterial
+          }
+          onDeleteStudyMaterial={
+            handleDeleteStudyMaterial
+          }
           selectedPdfId={selectedPdfId}
           selectedPdfTitle={selectedPdfTitle}
           onSelectPdf={(pdfId, title) => {
