@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -8,6 +8,7 @@ from app.models.flashcard import Flashcard
 from app.models.quiz import Quiz
 from app.models.user import User
 from app.schemas.dashboard import DashboardStatsResponse
+from app.services.dashboard.intelligence import build_dashboard_intelligence
 from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Dashboard"])
@@ -29,3 +30,35 @@ def get_dashboard_stats(
         "total_flashcards": total_flashcards,
         "total_quizzes": total_quizzes
     }
+
+
+@router.get("/smart")
+def get_smart_dashboard(
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=50,
+    ),
+    cursor: str | None = Query(
+        default=None,
+        max_length=1000,
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    """
+    Return the student's unified intelligent dashboard.
+
+    The response includes one recommended next step, needs-attention
+    items, resumable work, unread group activity and a cursor-paginated
+    newest-to-oldest learning feed.
+    """
+
+    return build_dashboard_intelligence(
+        db,
+        user_id=current_user.id,
+        limit=limit,
+        cursor=cursor,
+    )
