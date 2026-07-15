@@ -8,8 +8,17 @@ import {
   useState,
 } from "react";
 
+import { useRouter } from "next/navigation";
+
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
+
+import {
+  resolveStudyCommand,
+} from "@/lib/studyCommandRouter";
+import {
+  takePendingAIAttachment,
+} from "@/lib/aiAttachmentHandoff";
 import {
   askAiWithImage,
   createAIConversation,
@@ -121,7 +130,14 @@ async function copyTextWithFallback(text: string) {
   }
 }
 
-export default function GeneralAIChat() {
+export default function GeneralAIChat({
+  initialPrompt = "",
+}: {
+  initialPrompt?: string;
+}) {
+  const router = useRouter();
+  const initialPromptHandledRef = useRef(false);
+
   const [trails, setTrails] = useState<
     AIConversation[]
   >([]);
@@ -152,6 +168,23 @@ export default function GeneralAIChat() {
     selectedImagePreview,
     setSelectedImagePreview,
   ] = useState("");
+
+  const [
+    imageUploadProgress,
+    setImageUploadProgress,
+  ] = useState(0);
+
+  const [
+    imageUploadStatus,
+    setImageUploadStatus,
+  ] = useState<
+    | "idle"
+    | "converting"
+    | "reading"
+    | "ready"
+    | "uploading"
+    | "analyzing"
+  >("idle");
 
   const [historyOpen, setHistoryOpen] =
     useState(false);
@@ -214,7 +247,6 @@ export default function GeneralAIChat() {
       setMessages(
         storedMessages.map(mapStoredMessage)
       );
-      scrollToBottom();
     } catch (err) {
       setMessages([]);
       setError(
@@ -323,44 +355,240 @@ export default function GeneralAIChat() {
   }, [activeConversationId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading, error]);
+    const pendingFile =
+      takePendingAIAttachment();
 
-  function handleImageChange(
-    file: File | undefined
+    if (!pendingFile) {
+      return;
+    }
+
+    void handleImageChange(pendingFile);
+
+    window.history.replaceState(
+      {},
+      "",
+      "/general-ai",
+    );
+  }, []);
+
+  useEffect(() => {
+    const prompt = initialPrompt.trim();
+
+    if (
+      !prompt ||
+      initialPromptHandledRef.current ||
+      loadingTrails ||
+      loading
+    ) {
+      return;
+    }
+
+    initialPromptHandledRef.current = true;
+
+    window.history.replaceState(
+      {},
+      "",
+      "/general-ai",
+    );
+
+    void sendMessage(prompt);
+  }, [
+    initialPrompt,
+    loading,
+    loadingTrails,
+  ]);
+
+  async function handleImageChange(
+    selectedFile: File | undefined
   ) {
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file.");
+    if (!selectedFile) {
       return;
     }
 
-    const maxSize = 8 * 1024 * 1024;
+    setError("");
+    setImageUploadProgress(0);
 
-    if (file.size > maxSize) {
-      setError("Image must be 8MB or smaller.");
+    const originalExtension =
+      selectedFile.name
+        .split(".")
+        .pop()
+        ?.toLowerCase() || "";
+
+    const isHeic =
+      originalExtension === "heic" ||
+      originalExtension === "heif" ||
+      selectedFile.type === "image/heic" ||
+      selectedFile.type === "image/heif";
+
+    const supportedExtensions = new Set([
+      "png",
+      "jpg",
+      "jpeg",
+      "webp",
+      "gif",
+      "heic",
+      "heif",
+    ]);
+
+    const isImage =
+      selectedFile.type.startsWith("image/") ||
+      supportedExtensions.has(originalExtension);
+
+    if (!isImage) {
+      setError(
+        "Please choose a PNG, JPG, JPEG, WEBP, GIF, HEIC, or HEIF image."
+      );
       return;
     }
 
-    const reader = new FileReader();
+    // Allow a larger HEIC source because JPEG conversion often reduces it.
+    const maximumSourceSize =
+      isHeic
+        ? 25 * 1024 * 1024
+        : 8 * 1024 * 1024;
 
-    reader.onload = () => {
+    if (selectedFile.size > maximumSourceSize) {
+      setError(
+        isHeic
+          ? "This HEIC image is too large. Please choose one smaller than 25 MB."
+          : "This image is too large. Please choose one smaller than 8 MB."
+      );
+      return;
+    }
+
+    let file = selectedFile;
+
+    try {
+      if (isHeic) {
+        setImageUploadStatus("converting");
+        setImageUploadProgress(15);
+
+        const heicModule =
+          await import("heic2any");
+
+        const heic2any =
+          heicModule.default;
+
+        const convertedResult =
+          await heic2any({
+            blob: selectedFile,
+            toType: "image/jpeg",
+            quality: 0.88,
+          });
+
+        const convertedBlob = Array.isArray(
+          convertedResult
+        )
+          ? convertedResult[0]
+          : convertedResult;
+
+        const jpegName =
+          selectedFile.name.replace(
+            /\.(heic|heif)$/i,
+            ""
+          ) + ".jpg";
+
+        file = new File(
+          [convertedBlob],
+          jpegName,
+          {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          }
+        );
+
+        setImageUploadProgress(45);
+      }
+
+      if (file.size > 8 * 1024 * 1024) {
+        setImageUploadStatus("idle");
+        setImageUploadProgress(0);
+        setError(
+          "The prepared image is still larger than 8 MB. Please choose a smaller image."
+        );
+        return;
+      }
+
       setCreateImageMode(false);
       setSelectedImage(file);
-      setSelectedImagePreview(
-        String(reader.result || "")
+      setSelectedImagePreview("");
+      setImageUploadStatus("reading");
+      setImageUploadProgress(
+        isHeic ? 50 : 0
       );
+
+      const reader = new FileReader();
+
+      reader.onprogress = (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        const readPercent =
+          (event.loaded / event.total) * 100;
+
+        const progress = isHeic
+          ? Math.round(50 + readPercent * 0.5)
+          : Math.round(readPercent);
+
+        setImageUploadProgress(progress);
+      };
+
+      reader.onload = () => {
+        setSelectedImagePreview(
+          String(reader.result || "")
+        );
+        setImageUploadProgress(100);
+        setImageUploadStatus("ready");
+        setError("");
+        inputRef.current?.focus();
+      };
+
+      reader.onerror = () => {
+        setSelectedImage(null);
+        setSelectedImagePreview("");
+        setImageUploadProgress(0);
+        setImageUploadStatus("idle");
+        setError(
+          "StudySnap could not prepare this image. Please try another image."
+        );
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.warn(
+        "Browser HEIC conversion failed; using backend fallback:",
+        error
+      );
+
+      if (!isHeic) {
+        setSelectedImage(null);
+        setSelectedImagePreview("");
+        setImageUploadProgress(0);
+        setImageUploadStatus("idle");
+        setError(
+          "StudySnap could not prepare this image. Please try another image."
+        );
+        return;
+      }
+
+      // Some HEIC variants cannot be decoded in the browser.
+      // Keep the original file so the backend can convert it.
+      setCreateImageMode(false);
+      setSelectedImage(selectedFile);
+      setSelectedImagePreview("");
+      setImageUploadProgress(100);
+      setImageUploadStatus("ready");
       setError("");
       inputRef.current?.focus();
-    };
-
-    reader.readAsDataURL(file);
+    }
   }
 
   function removeSelectedImage() {
     setSelectedImage(null);
     setSelectedImagePreview("");
+    setImageUploadProgress(0);
+    setImageUploadStatus("idle");
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -495,6 +723,7 @@ export default function GeneralAIChat() {
       );
 
       setError(message);
+
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -524,16 +753,45 @@ export default function GeneralAIChat() {
     const finalQuestion =
       question || "Describe this image clearly.";
 
+    if (!imageToSend && question) {
+      const commandResult =
+        await resolveStudyCommand(question);
+
+      if (commandResult.handled) {
+        setInput("");
+        setError("");
+        router.push(commandResult.href);
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
     setInput("");
-    removeSelectedImage();
+
+    // Keep an attached image visible until the request succeeds.
+    if (!imageToSend) {
+      removeSelectedImage();
+    }
 
     const pendingAssistantId = makeId();
 
     try {
       const conversationId =
         await ensureConversation();
+
+      setTrails((current) =>
+        current.map((trail) =>
+          trail.id === conversationId
+            ? {
+                ...trail,
+                title:
+                  finalQuestion.slice(0, 60) ||
+                  "New Conversation",
+              }
+            : trail,
+        ),
+      );
 
       setMessages((current) => [
         ...current,
@@ -557,13 +815,32 @@ export default function GeneralAIChat() {
       scrollToBottom();
 
       if (imageToSend) {
-        const data = await askAiWithImage(
-          finalQuestion,
-          imageToSend,
-          {
-            conversationId,
-          }
-        );
+        setImageUploadStatus("uploading");
+        setImageUploadProgress(35);
+
+        const analyzingTimer =
+          window.setTimeout(() => {
+            setImageUploadStatus("analyzing");
+            setImageUploadProgress(75);
+          }, 800);
+
+        let data;
+
+        try {
+          data = await askAiWithImage(
+            finalQuestion,
+            imageToSend,
+            {
+              conversationId,
+            }
+          );
+        } finally {
+          window.clearTimeout(
+            analyzingTimer
+          );
+        }
+
+        setImageUploadProgress(100);
 
         const answer = extractAIText(data);
 
@@ -619,6 +896,10 @@ export default function GeneralAIChat() {
       }
 
       await refreshTrails(conversationId);
+
+      if (imageToSend) {
+        removeSelectedImage();
+      }
     } catch (err) {
       const message =
         err instanceof Error
@@ -842,13 +1123,13 @@ export default function GeneralAIChat() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
+          accept="image/*,.heic,.heif"
           className="hidden"
-          onChange={(event) =>
+          onChange={(event) => {
             handleImageChange(
-              event.target.files?.[0]
-            )
-          }
+              event.currentTarget.files?.[0]
+            );
+          }}
         />
 
         {createImageMode ? (
@@ -895,27 +1176,79 @@ export default function GeneralAIChat() {
           </div>
         ) : null}
 
-        {selectedImagePreview ? (
+        {selectedImage ? (
           <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
-            <img
-              src={selectedImagePreview}
-              alt="Selected upload"
-              className="h-16 w-16 rounded-xl object-cover"
-            />
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-black/30">
+              {selectedImagePreview ? (
+                <img
+                  src={selectedImagePreview}
+                  alt="Selected upload"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="grid h-full w-full place-items-center">
+                  <div
+                    className="grid h-11 w-11 place-items-center rounded-full"
+                    style={{
+                      background: `conic-gradient(#fde047 ${
+                        imageUploadProgress * 3.6
+                      }deg, rgba(255,255,255,0.12) 0deg)`,
+                    }}
+                  >
+                    <div className="grid h-8 w-8 place-items-center rounded-full bg-[#08111d] text-[10px] font-black text-yellow-200">
+                      {imageUploadStatus === "ready"
+                        ? "HEIC"
+                        : `${imageUploadProgress}%`}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {imageUploadStatus === "uploading" ||
+              imageUploadStatus === "analyzing" ? (
+                <div className="absolute inset-0 grid place-items-center bg-black/65">
+                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-yellow-300" />
+                </div>
+              ) : null}
+            </div>
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-black text-white">
-                {selectedImage?.name}
+                {selectedImage.name}
               </p>
-              <p className="text-xs text-slate-400">
-                This image will stay connected to the current trail.
+
+              <p className="mt-1 text-xs text-slate-400">
+                {(selectedImage.size / 1024 / 1024).toFixed(2)} MB
+                {" · "}
+                {imageUploadStatus === "converting"
+                  ? `Converting HEIC ${imageUploadProgress}%`
+                  : imageUploadStatus === "reading"
+                    ? `Preparing image ${imageUploadProgress}%`
+                    : imageUploadStatus === "uploading"
+                      ? `Uploading ${imageUploadProgress}%`
+                      : imageUploadStatus === "analyzing"
+                        ? "StudySnap AI is analyzing..."
+                        : "Ready to send"}
               </p>
+
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-yellow-300 transition-all duration-200"
+                  style={{
+                    width: `${imageUploadProgress}%`,
+                  }}
+                />
+              </div>
             </div>
 
             <button
               type="button"
               onClick={removeSelectedImage}
-              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08]"
+              disabled={
+                imageUploadStatus === "uploading" ||
+                imageUploadStatus === "analyzing"
+              }
+              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
             >
               Remove
             </button>
@@ -963,12 +1296,23 @@ export default function GeneralAIChat() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() =>
-                fileInputRef.current?.click()
-              }
-              disabled={createImageMode}
+              onClick={() => {
+                const attachmentInput =
+                  fileInputRef.current;
+
+                if (!attachmentInput) {
+                  setError(
+                    "The attachment picker could not open. Please refresh and try again.",
+                  );
+                  return;
+                }
+
+                attachmentInput.value = "";
+                attachmentInput.click();
+              }}
+              disabled={createImageMode || loading}
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-300 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
-              title="Upload image"
+              title="Attach image"
             >
               ＋
             </button>

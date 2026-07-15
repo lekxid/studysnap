@@ -48,3 +48,4 @@ uvloop==0.22.1
 watchfiles==1.2.0
 websockets==16.0
 reportlab==5.0.0
+pillow==12.1.1

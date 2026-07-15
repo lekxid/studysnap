@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 from datetime import datetime, timezone
@@ -10,6 +11,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from openai import OpenAI
+from PIL import Image
+from pillow_heif import register_heif_opener
 from app.config import settings
 from app.services.intent_understanding import get_intent_understanding_instructions
 
@@ -34,6 +37,8 @@ from app.services.rooms.access import require_room_ai
 from app.utils.deps import get_current_user
 from app.services.lesson_service import generate_lesson
 from app.schemas.lesson import LessonResponse
+
+register_heif_opener()
 
 router = APIRouter(tags=["AI"])
 
@@ -604,23 +609,112 @@ async def ask_ai_with_image(
 
     _ = current_user
 
-    content_type = image.content_type or ""
+    content_type = (
+        image.content_type or ""
+    ).lower()
 
-    if not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Please upload an image file.")
+    filename = (
+        image.filename or ""
+    ).lower()
+
+    extension = os.path.splitext(
+        filename
+    )[1]
+
+    is_heic = (
+        extension in {".heic", ".heif"}
+        or content_type
+        in {
+            "image/heic",
+            "image/heif",
+            "image/heic-sequence",
+            "image/heif-sequence",
+        }
+    )
+
+    is_supported_image = (
+        content_type.startswith("image/")
+        or is_heic
+    )
+
+    if not is_supported_image:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload an image file.",
+        )
 
     image_bytes = await image.read()
 
-    max_size = 8 * 1024 * 1024
-
-    if len(image_bytes) > max_size:
-        raise HTTPException(status_code=400, detail="Image must be 8MB or smaller.")
-
     if not image_bytes:
-        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded image is empty.",
+        )
 
-    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
-    image_url = f"data:{content_type};base64,{encoded_image}"
+    source_max_size = (
+        25 * 1024 * 1024
+        if is_heic
+        else 8 * 1024 * 1024
+    )
+
+    if len(image_bytes) > source_max_size:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "HEIC image must be 25MB or smaller."
+                if is_heic
+                else "Image must be 8MB or smaller."
+            ),
+        )
+
+    if is_heic:
+        try:
+            with Image.open(
+                io.BytesIO(image_bytes)
+            ) as source_image:
+                converted_image = (
+                    source_image.convert("RGB")
+                )
+
+                output = io.BytesIO()
+
+                converted_image.save(
+                    output,
+                    format="JPEG",
+                    quality=88,
+                    optimize=True,
+                )
+
+                image_bytes = output.getvalue()
+                content_type = "image/jpeg"
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "StudySnap could not convert "
+                    "this HEIC image. Try another "
+                    "image or export it as JPG."
+                ),
+            ) from exc
+
+    if len(image_bytes) > 8 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The prepared image is larger "
+                "than 8MB. Please choose a "
+                "smaller image."
+            ),
+        )
+
+    encoded_image = base64.b64encode(
+        image_bytes
+    ).decode("utf-8")
+
+    image_url = (
+        f"data:{content_type};base64,"
+        f"{encoded_image}"
+    )
 
     clean_question = question.strip() or "Describe this image clearly."
 
