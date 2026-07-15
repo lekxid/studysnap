@@ -161,13 +161,13 @@ export default function StudyTogetherPage() {
     return (
       <article
         key={room.id}
-        className="group rounded-2xl border border-white/10 bg-[#070d1b] p-4 transition hover:border-yellow-300/35 hover:bg-[#0a1223]"
+        className="group rounded-2xl border border-white/10 bg-[#12181e] p-4 transition hover:border-[#c9ad50]/[0.18] hover:bg-[#151c23]"
       >
         <div className="flex items-start gap-3">
           <button
             type="button"
             onClick={() => openGroup(room.id)}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-yellow-300 text-lg font-black text-black transition group-hover:scale-[1.03]"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#c9ad50] text-lg font-black text-black transition group-hover:scale-[1.03]"
             aria-label={`Open ${room.name}`}
           >
             {getRoomInitial(room)}
@@ -179,12 +179,12 @@ export default function StudyTogetherPage() {
                 <button
                   type="button"
                   onClick={() => openGroup(room.id)}
-                  className="block max-w-full truncate text-left text-base font-black text-white hover:text-yellow-200"
+                  className="block max-w-full truncate text-left text-base font-black text-white hover:text-[#cec18d]"
                 >
                   {room.name}
                 </button>
 
-                <p className="mt-0.5 truncate text-xs font-semibold text-cyan-100/70">
+                <p className="mt-0.5 truncate text-xs font-semibold text-slate-400">
                   {room.subject || "Study group"}
                 </p>
               </div>
@@ -194,7 +194,7 @@ export default function StudyTogetherPage() {
                 onClick={() => togglePinnedGroup(room.id)}
                 className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold transition ${
                   isPinned
-                    ? "border-yellow-300/40 bg-yellow-300/10 text-yellow-200"
+                    ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] text-[#cec18d]"
                     : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white"
                 }`}
                 aria-label={
@@ -221,7 +221,7 @@ export default function StudyTogetherPage() {
               <button
                 type="button"
                 onClick={() => openGroup(room.id)}
-                className="shrink-0 rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-white transition hover:bg-yellow-300 hover:text-black"
+                className="shrink-0 rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-black text-white transition hover:bg-[#c9ad50] hover:text-black"
               >
                 Open group →
               </button>
@@ -234,7 +234,7 @@ export default function StudyTogetherPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-[#020611] p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -246,10 +246,10 @@ export default function StudyTogetherPage() {
       subtitle="Start a study group or continue learning with classmates."
     >
       <div className="mx-auto w-full max-w-7xl space-y-6 pb-12">
-        <section className="overflow-hidden rounded-[28px] border border-yellow-300/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,0.13),transparent_34%),linear-gradient(135deg,#0b1325,#060b16)]">
+        <section className="overflow-hidden rounded-[28px] border border-white/[0.07] bg-[#12181e]">
           <div className="grid gap-6 p-6 lg:grid-cols-[1.35fr_0.65fr] lg:p-8">
             <div className="max-w-2xl">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c9ad50]">
                 Study Together
               </p>
 
@@ -266,7 +266,7 @@ export default function StudyTogetherPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/study-rooms"
-                  className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
+                  className="rounded-2xl bg-[#c9ad50] px-5 py-3 text-sm font-black text-black transition hover:bg-[#d5bb63]"
                 >
                   ＋ Start a new group
                 </Link>
@@ -275,7 +275,7 @@ export default function StudyTogetherPage() {
                   <button
                     type="button"
                     onClick={() => openGroup(continueGroup.id)}
-                    className="rounded-2xl border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:border-cyan-300/30 hover:bg-white/[0.08]"
+                    className="rounded-2xl border border-white/12 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.08]"
                   >
                     Continue {continueGroup.name} →
                   </button>
@@ -283,7 +283,7 @@ export default function StudyTogetherPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-white/45">
                 Your study space
               </p>
@@ -299,7 +299,7 @@ export default function StudyTogetherPage() {
                 </div>
 
                 <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
-                  <p className="text-2xl font-black text-yellow-300">
+                  <p className="text-2xl font-black text-[#c9ad50]">
                     {pinnedGroupIds.length}
                   </p>
                   <p className="mt-1 text-xs text-white/50">
@@ -315,7 +315,7 @@ export default function StudyTogetherPage() {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-white/10 bg-[#050a16] p-4 sm:p-5">
+        <section className="rounded-[24px] border border-white/10 bg-[#12181e] p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-black text-white">
@@ -334,7 +334,7 @@ export default function StudyTogetherPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search your study groups..."
-                className="w-full rounded-2xl border border-white/10 bg-[#080f1e] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-yellow-300/40"
+                className="w-full rounded-2xl border border-white/10 bg-[#151c23] py-3 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-[#c9ad50]/[0.18]"
               />
             </div>
           </div>
@@ -361,7 +361,7 @@ export default function StudyTogetherPage() {
           <section>
             <div className="mb-4 flex items-end justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9ad50]">
                   Pinned
                 </p>
                 <h2 className="mt-1 text-xl font-black text-white">
@@ -384,7 +384,7 @@ export default function StudyTogetherPage() {
           <section>
             <div className="mb-4 flex items-end justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200/70">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                   Continue studying
                 </p>
                 <h2 className="mt-1 text-xl font-black text-white">
@@ -403,8 +403,8 @@ export default function StudyTogetherPage() {
                 {unpinnedGroups.map(renderGroupCard)}
               </div>
             ) : (
-              <div className="rounded-[24px] border border-dashed border-white/12 bg-[#050a16] px-6 py-12 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-300 text-2xl text-black">
+              <div className="rounded-[24px] border border-dashed border-white/12 bg-[#12181e] px-6 py-12 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#c9ad50] text-2xl text-black">
                   👥
                 </div>
 
@@ -423,7 +423,7 @@ export default function StudyTogetherPage() {
                 {!query ? (
                   <Link
                     href="/study-rooms"
-                    className="mt-5 inline-flex rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black"
+                    className="mt-5 inline-flex rounded-2xl bg-[#c9ad50] px-5 py-3 text-sm font-black text-black"
                   >
                     ＋ Create a group
                   </Link>

@@ -1116,8 +1116,8 @@ export default function GeneralAIChat({
         onSubmit={handleSubmit}
         className={
           large
-            ? "rounded-[1.6rem] border border-yellow-300/15 bg-[#08111d]/95 p-4 shadow-[0_0_60px_rgba(250,204,21,0.05)]"
-            : "rounded-[1.4rem] border border-white/10 bg-[#08111d]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.42)]"
+            ? "rounded-[1.6rem] border border-[#c9ad50]/[0.18] bg-[#12181e] p-4"
+            : "rounded-[1.4rem] border border-white/10 bg-[#12181e] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.42)]"
         }
       >
         <input
@@ -1133,9 +1133,9 @@ export default function GeneralAIChat({
         />
 
         {createImageMode ? (
-          <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd]">
                 Image creator
               </p>
               <p className="mt-1 text-xs leading-5 text-slate-400">
@@ -1156,19 +1156,19 @@ export default function GeneralAIChat({
             >
               <option
                 value="1024x1024"
-                className="bg-[#101826]"
+                className="bg-[#151c23]"
               >
                 Square
               </option>
               <option
                 value="1536x1024"
-                className="bg-[#101826]"
+                className="bg-[#151c23]"
               >
                 Landscape
               </option>
               <option
                 value="1024x1536"
-                className="bg-[#101826]"
+                className="bg-[#151c23]"
               >
                 Portrait
               </option>
@@ -1177,7 +1177,7 @@ export default function GeneralAIChat({
         ) : null}
 
         {selectedImage ? (
-          <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
+          <div className="mb-3 flex items-center gap-3 rounded-2xl border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] p-3">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-black/30">
               {selectedImagePreview ? (
                 <img
@@ -1195,7 +1195,7 @@ export default function GeneralAIChat({
                       }deg, rgba(255,255,255,0.12) 0deg)`,
                     }}
                   >
-                    <div className="grid h-8 w-8 place-items-center rounded-full bg-[#08111d] text-[10px] font-black text-yellow-200">
+                    <div className="grid h-8 w-8 place-items-center rounded-full bg-[#0d1218] text-[10px] font-black text-[#cec18d]">
                       {imageUploadStatus === "ready"
                         ? "HEIC"
                         : `${imageUploadProgress}%`}
@@ -1233,7 +1233,7 @@ export default function GeneralAIChat({
 
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-full rounded-full bg-yellow-300 transition-all duration-200"
+                  className="h-full rounded-full bg-[#c9ad50] transition-all duration-200"
                   style={{
                     width: `${imageUploadProgress}%`,
                   }}
@@ -1330,7 +1330,7 @@ export default function GeneralAIChat({
               }}
               className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
                 createImageMode
-                  ? "border-cyan-300/35 bg-cyan-300/15 text-cyan-100"
+                  ? "border-[#c9ad50]/[0.20] bg-[#c9ad50]/[0.09] text-[#ece8da]"
                   : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.1] hover:text-white"
               }`}
             >
@@ -1359,7 +1359,7 @@ export default function GeneralAIChat({
             <button
               type="submit"
               disabled={!canSend}
-              className={`grid h-10 place-items-center rounded-xl bg-yellow-300 font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`grid h-10 place-items-center rounded-xl bg-[#c9ad50] font-black text-[#111317] transition hover:bg-[#d5bb63] disabled:cursor-not-allowed disabled:opacity-40 ${
                 createImageMode
                   ? "min-w-24 px-4 text-xs"
                   : "w-10 text-lg"
@@ -1386,7 +1386,7 @@ export default function GeneralAIChat({
     <section className="space-y-4">
       <div className="flex flex-col gap-3 rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9ad50]">
             AI workspace
           </p>
 
@@ -1413,7 +1413,7 @@ export default function GeneralAIChat({
             }}
             className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
               historyOpen
-                ? "border-yellow-300/30 bg-yellow-300/15 text-yellow-100"
+                ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
             }`}
           >
@@ -1439,7 +1439,7 @@ export default function GeneralAIChat({
             }}
             className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
               studyToolsOpen
-                ? "border-yellow-300/30 bg-yellow-300/15 text-yellow-100"
+                ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
             }`}
           >
@@ -1490,7 +1490,7 @@ export default function GeneralAIChat({
           <header className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.11),rgba(8,17,29,0.94))] p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c9ad50]">
                   StudySnap General AI
                 </p>
 
@@ -1507,7 +1507,7 @@ export default function GeneralAIChat({
               <button
                 type="button"
                 onClick={startNewTrail}
-                className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+                className="rounded-2xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.075] px-5 py-3 text-sm font-black text-[#ece8da] transition hover:bg-[#c9ad50]/[0.11]"
               >
                 New Trail
               </button>
@@ -1516,9 +1516,9 @@ export default function GeneralAIChat({
 
           {!hasMessages &&
           !loadingMessages ? (
-            <div className="rounded-[1.7rem] border border-white/10 bg-[#08111d]/88 p-5">
+            <div className="rounded-[1.7rem] border border-white/10 bg-[#12181e] p-5">
               <div className="mx-auto max-w-4xl py-6 text-center">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-yellow-300/20 bg-yellow-300/10 text-3xl">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] text-3xl">
                   ✦
                 </div>
 
@@ -1542,7 +1542,7 @@ export default function GeneralAIChat({
                       void sendMessage(suggestion)
                     }
                     disabled={loading}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-white disabled:opacity-50"
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-[#c9ad50]/[0.18] hover:bg-[#c9ad50]/[0.07] hover:text-white disabled:opacity-50"
                   >
                     {suggestion}
                   </button>
@@ -1551,7 +1551,7 @@ export default function GeneralAIChat({
             </div>
           ) : (
             <>
-              <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#08111d]/90 p-4">
+              <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#0f151b] p-4">
                 {loadingMessages ? (
                   <p className="py-12 text-center text-sm font-bold text-slate-400">
                     Opening Study Trail...
@@ -1563,8 +1563,8 @@ export default function GeneralAIChat({
                     key={message.id}
                     className={
                       message.role === "user"
-                        ? "ml-auto max-w-[84%] rounded-[1.35rem] bg-yellow-300 px-4 py-3 text-slate-950"
-                        : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/10 bg-white/[0.055] px-4 py-3 text-slate-100"
+                        ? "ml-auto max-w-[84%] rounded-[1.35rem] border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.10] px-4 py-3 text-[#ece8da]"
+                        : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/[0.07] bg-[#12181e] px-4 py-3 text-slate-100"
                     }
                   >
                     {message.imagePreview ? (
@@ -1652,8 +1652,8 @@ export default function GeneralAIChat({
 
         {studyToolsOpen ? (
           <aside className="space-y-4 xl:col-start-2 2xl:col-start-auto">
-            <div className="rounded-[1.4rem] border border-yellow-300/15 bg-yellow-300/10 p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+            <div className="rounded-[1.4rem] border border-white/[0.07] bg-[#12181e] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
                 Continue the flow
               </p>
 
@@ -1668,7 +1668,7 @@ export default function GeneralAIChat({
                       )
                     }
                     disabled={loading}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-yellow-300/10 disabled:opacity-50"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-[#c9ad50]/[0.07] disabled:opacity-50"
                   >
                     {suggestion}
                   </button>
@@ -1676,8 +1676,8 @@ export default function GeneralAIChat({
               </div>
             </div>
 
-            <div className="rounded-[1.4rem] border border-cyan-300/15 bg-cyan-300/5 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+            <div className="rounded-[1.4rem] border border-white/[0.07] bg-[#12181e] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a8b5bd]">
                 General AI boundary
               </p>
 

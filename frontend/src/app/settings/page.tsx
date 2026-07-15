@@ -1089,7 +1089,7 @@ export default function SettingsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -1101,7 +1101,7 @@ export default function SettingsPage() {
       subtitle="Manage your synced learning profile, AI memory, future app connections, privacy, and StudySnap setup."
     >
       <div className="content-grid">
-        <section className="sticky top-4 z-20 rounded-[1.6rem] border border-white/10 bg-[#07111e]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur">
+        <section className="sticky top-4 z-20 rounded-[1.6rem] border border-white/10 bg-[#0d1218]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur">
           <div className="grid gap-2 md:grid-cols-4">
             {settingsTabs.map((tab) => {
               const active = activeSettingsTab === tab.id;
@@ -1113,14 +1113,14 @@ export default function SettingsPage() {
                   onClick={() => setActiveSettingsTab(tab.id)}
                   className={`rounded-[1.2rem] border px-4 py-3 text-left transition ${
                     active
-                      ? "border-yellow-300/35 bg-yellow-300/15 text-yellow-50"
+                      ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] text-[#ece8da]"
                       : "border-white/8 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
                   }`}
                 >
                   <p className="text-sm font-black">{tab.label}</p>
                   <p
                     className={`mt-1 text-xs leading-5 ${
-                      active ? "text-yellow-50/80" : "text-slate-500"
+                      active ? "text-[#cec18d]" : "text-slate-500"
                     }`}
                   >
                     {tab.description}
@@ -1146,35 +1146,35 @@ export default function SettingsPage() {
                   and StudySnap identity from one clean place.
                 </p>
 
-                <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+                <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-white/[0.025] px-4 py-3 text-sm font-bold text-slate-200">
                   {isSaving ? "Saving to account..." : syncStatus}
                 </div>
 
                 <div className="mt-7 grid gap-4 sm:grid-cols-4">
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Style</p>
-                    <p className="mt-3 text-lg font-black text-cyan-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.style}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Level</p>
-                    <p className="mt-3 text-lg font-black text-amber-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.level}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Subjects</p>
-                    <p className="mt-3 text-lg font-black text-violet-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.subjects}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Favorite</p>
-                    <p className="mt-3 text-lg font-black text-emerald-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.favorite}
                     </p>
                   </div>
@@ -1316,7 +1316,7 @@ export default function SettingsPage() {
 
                       <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
                         <p className="kpi-label">AI mode</p>
-                        <p className="mt-2 text-sm font-black text-cyan-200">
+                        <p className="mt-2 text-sm font-black text-slate-200">
                           {accountSummary.learningMode}
                         </p>
                       </div>
@@ -1329,7 +1329,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-[1.1rem] border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
+                    <div className="mt-4 rounded-[1.1rem] border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-bold text-slate-200">
                       {accountStatus}
                     </div>
                   </div>
@@ -1899,7 +1899,7 @@ export default function SettingsPage() {
                     Only PDF files show the import button for now. Google Docs import as notes comes next.
                   </p>
 
-                  <div className="mt-3 rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-xs font-bold text-slate-300">
+                  <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] px-4 py-3 text-xs font-bold text-slate-300">
                     Destination:{" "}
                     <span className="text-cyan-100">
                       {getDriveImportRoomLabel(selectedDriveImportRoomId)}
@@ -2163,7 +2163,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+              <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-white/[0.025] px-4 py-3 text-sm font-bold text-slate-200">
                 {sessionsStatus}
               </div>
 

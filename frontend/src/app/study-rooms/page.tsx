@@ -244,7 +244,7 @@ export default function StudyRoomsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -293,23 +293,23 @@ export default function StudyRoomsPage() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
+              <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.025] p-4">
                 <p className="kpi-label">Rooms</p>
-                <p className="mt-2 text-2xl font-black text-cyan-300">
+                <p className="mt-2 text-2xl font-black text-[#ece8da]">
                   {rooms.length}
                 </p>
               </div>
 
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
+              <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.025] p-4">
                 <p className="kpi-label">Selected</p>
-                <p className="mt-2 line-clamp-1 text-lg font-black text-yellow-200">
+                <p className="mt-2 line-clamp-1 text-lg font-black text-[#cec18d]">
                   {selectedRoom?.name || "None"}
                 </p>
               </div>
 
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
+              <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.025] p-4">
                 <p className="kpi-label">Subject</p>
-                <p className="mt-2 line-clamp-1 text-lg font-black text-violet-200">
+                <p className="mt-2 line-clamp-1 text-lg font-black text-slate-200">
                   {selectedRoom?.subject || "Not set"}
                 </p>
               </div>
@@ -332,7 +332,7 @@ export default function StudyRoomsPage() {
               </div>
             ) : (
               <div className="mt-5 space-y-4">
-                <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+                <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.025] p-4">
                   <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                     Choose from all rooms
                   </label>
@@ -353,16 +353,16 @@ export default function StudyRoomsPage() {
                     ))}
                   </select>
 
-                  <div className="mt-4 rounded-[1.2rem] border border-yellow-300/20 bg-yellow-300/10 p-4">
+                  <div className="mt-4 rounded-[1.2rem] border border-[#c9ad50]/[0.16] bg-[#12181e] p-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-yellow-200">
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#cec18d]">
                           Selected room
                         </p>
                         <h3 className="mt-2 text-xl font-black text-white">
                           {selectedRoom?.name || "No room selected"}
                         </h3>
-                        <p className="mt-1 text-sm font-bold text-yellow-100">
+                        <p className="mt-1 text-sm font-bold text-[#ece8da]">
                           {selectedRoom?.subject || "Choose a subject"}
                         </p>
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
@@ -374,7 +374,7 @@ export default function StudyRoomsPage() {
                         type="button"
                         onClick={() => selectedRoom && openRoom(selectedRoom.id)}
                         disabled={!selectedRoom}
-                        className="rounded-xl border border-yellow-300/25 bg-yellow-300/15 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] px-5 py-3 text-sm font-black text-[#ece8da] transition hover:bg-[#c9ad50]/[0.10] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Open workspace →
                       </button>
@@ -400,8 +400,8 @@ export default function StudyRoomsPage() {
                           key={room.id}
                           className={`rounded-[1.25rem] border p-4 transition ${
                             active
-                              ? "border-yellow-300/35 bg-yellow-300/10"
-                              : "border-white/10 bg-white/[0.03] hover:border-yellow-300/25 hover:bg-white/[0.05]"
+                              ? "border-[#c9ad50]/[0.20] bg-[#12181e]"
+                              : "border-white/10 bg-white/[0.03] hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.05]"
                           }`}
                         >
                           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -411,12 +411,12 @@ export default function StudyRoomsPage() {
                               className="min-w-0 text-left"
                             >
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1 text-xs font-black text-yellow-100">
+                                <span className="rounded-full border border-[#c9ad50]/[0.16] bg-[#12181e] px-3 py-1 text-xs font-black text-[#ece8da]">
                                   {room.subject || "No subject"}
                                 </span>
 
                                 {active ? (
-                                  <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
+                                  <span className="rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1 text-xs font-black text-slate-200">
                                     Selected
                                   </span>
                                 ) : null}
@@ -443,7 +443,7 @@ export default function StudyRoomsPage() {
                               <button
                                 type="button"
                                 onClick={() => openRoom(room.id)}
-                                className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-2 text-sm font-black text-yellow-100"
+                                className="rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.07] px-4 py-2 text-sm font-black text-[#ece8da]"
                               >
                                 Open →
                               </button>
@@ -464,7 +464,7 @@ export default function StudyRoomsPage() {
               <h3 className="line-clamp-2 text-2xl font-black text-white">
                 {selectedRoom?.name || "No room selected"}
               </h3>
-              <p className="mt-2 text-sm font-bold text-yellow-200">
+              <p className="mt-2 text-sm font-bold text-[#cec18d]">
                 {selectedRoom?.subject || "Choose or create a subject"}
               </p>
               <p className="mt-3 text-sm leading-6 text-slate-400">

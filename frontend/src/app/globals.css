@@ -832,3 +832,117 @@ main a[href]:hover h3,
 main a[href]:hover h4 {
   color: rgb(254, 249, 195);
 }
+
+/* =========================================================
+   Unified StudySnap colour system
+   Dashboard palette shared across the entire application
+   ========================================================= */
+
+.premium-bg {
+  background: #0b0f14;
+}
+
+.premium-card,
+.premium-card-strong,
+.gold-card,
+.stat-card {
+  background: #12181e;
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 14px 38px rgba(0, 0, 0, 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.premium-card::before,
+.premium-card-strong::before,
+.gold-card::before,
+.stat-card::before {
+  background: none;
+  opacity: 0;
+}
+
+.premium-button {
+  background: #c9ad50;
+  color: #111317;
+  border-color: rgba(201, 173, 80, 0.2);
+  box-shadow: none;
+}
+
+.premium-button:hover {
+  background: #d5bb63;
+  box-shadow: none;
+}
+
+.premium-button-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f3f5;
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
+}
+
+.premium-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(201, 173, 80, 0.2);
+}
+
+.gold-chip {
+  color: #cec18d;
+  background: rgba(201, 173, 80, 0.08);
+  border-color: rgba(201, 173, 80, 0.18);
+  box-shadow: none;
+}
+
+.gold-border {
+  border-color: rgba(255, 255, 255, 0.075);
+}
+
+.gold-glow {
+  box-shadow: none;
+}
+
+.tag-chip {
+  color: #cec18d;
+  background: rgba(201, 173, 80, 0.08);
+  border-color: rgba(201, 173, 80, 0.18);
+  box-shadow: none;
+}
+
+.mode-pill {
+  border-color: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mode-pill-active {
+  border-color: rgba(201, 173, 80, 0.2);
+  background: rgba(201, 173, 80, 0.12);
+  color: #ece8da;
+  box-shadow: none;
+}
+
+.room-progress > span {
+  background: #c9ad50;
+}
+
+.subtle-dot {
+  background: #c9ad50;
+  box-shadow: none;
+}
+
+.topbar-glass {
+  background: rgba(9, 13, 18, 0.96);
+}
+
+.brand-mark {
+  border-color: rgba(201, 173, 80, 0.18);
+  background: rgba(201, 173, 80, 0.08);
+}
+
+.glow-title {
+  text-shadow: none;
+}
+
+.fire-icon {
+  filter: none;
+}
