@@ -1966,7 +1966,7 @@ export default function GlobalTaskDock({
                 )}
               </div>
             </section>
-          ) : (
+          ) : activeCount > 0 ? (
             <button
               ref={floatingButtonRef}
               type="button"
@@ -2029,7 +2029,7 @@ export default function GlobalTaskDock({
                 ⋮⋮
               </span>
             </button>
-          )}
+          ) : null}
         </>
       ) : null}
     </>

@@ -771,6 +771,19 @@ export default function SettingsPage() {
     }
   }
 
+  function openUniversalUpload() {
+    window.dispatchEvent(
+      new CustomEvent(
+        "studysnap:open-universal-upload",
+        {
+          detail: {
+            openPanel: true,
+          },
+        }
+      )
+    );
+  }
+
   async function handleSaveProfileName() {
     const fullName = profileNameDraft.trim();
 
@@ -1652,7 +1665,34 @@ export default function SettingsPage() {
 
         {activeSettingsTab === "integrations" ? (
           <>
-            <section className="rounded-[1.6rem] border border-emerald-300/15 bg-emerald-400/10 p-5">
+            <section className="rounded-[1.6rem] border border-white/[0.07] bg-[#12181e] p-5">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="mb-3 inline-flex rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] px-3 py-1.5 text-[11px] font-black text-[#cec18d]">
+                    Files & uploads
+                  </div>
+
+                  <h3 className="panel-title text-white">
+                    Add files to StudySnap
+                  </h3>
+
+                  <p className="panel-muted mt-2 max-w-2xl">
+                    Upload a document, image, audio file, video, code file, or
+                    other study material and choose the Study Room where it belongs.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openUniversalUpload}
+                  className="shrink-0 rounded-xl bg-[#c9ad50] px-5 py-3 text-sm font-black text-[#111317] transition hover:bg-[#d5bb63]"
+                >
+                  Upload a file
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-[1.6rem] border border-white/[0.07] bg-[#12181e] p-5">
               <div className="gold-chip mb-3">Connected apps workspace</div>
               <h3 className="panel-title text-white">
                 Manage files, Drive, and future imports.
