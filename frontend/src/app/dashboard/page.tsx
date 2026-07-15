@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import AppShell from "@/components/AppShell";
+import SmartDashboardCenter from "@/components/dashboard/SmartDashboardCenter";
 
 import {
   getCurrentUser,
@@ -13,7 +21,9 @@ import {
   getNotes,
   getPDFs,
   getQuizzes,
+  getSmartDashboard,
   getStudyRooms,
+  type SmartDashboardResponse,
 } from "@/lib/api";
 import {
   getSavedProjectRoomId,
@@ -731,6 +741,17 @@ export default function DashboardPage() {
     useState<LearningInsights | null>(null);
   const [learningInsightsError, setLearningInsightsError] = useState("");
 
+  const [smartDashboard, setSmartDashboard] =
+    useState<SmartDashboardResponse | null>(null);
+  const [smartDashboardLoading, setSmartDashboardLoading] =
+    useState(true);
+  const [
+    smartDashboardLoadingMore,
+    setSmartDashboardLoadingMore,
+  ] = useState(false);
+  const [smartDashboardError, setSmartDashboardError] =
+    useState("");
+
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
@@ -745,6 +766,138 @@ export default function DashboardPage() {
     rooms: 0,
   });
   const [insights, setInsights] = useState<LearningInsights | null>(null);
+
+  const loadSmartDashboard = useCallback(
+    async () => {
+      setSmartDashboardLoading(true);
+      setSmartDashboardError("");
+
+      try {
+        const data = await getSmartDashboard({
+          limit: 20,
+        });
+
+        setSmartDashboard(data);
+      } catch (error) {
+        console.error(
+          "Could not load smart dashboard.",
+          error,
+        );
+
+        setSmartDashboardError(
+          "Live dashboard updates are temporarily unavailable.",
+        );
+      } finally {
+        setSmartDashboardLoading(false);
+      }
+    },
+    [],
+  );
+
+  const loadMoreSmartDashboard = useCallback(
+    async () => {
+      const cursor = smartDashboard?.next_cursor;
+
+      if (
+        !cursor ||
+        smartDashboardLoadingMore
+      ) {
+        return;
+      }
+
+      setSmartDashboardLoadingMore(true);
+      setSmartDashboardError("");
+
+      try {
+        const nextPage = await getSmartDashboard({
+          limit: 20,
+          cursor,
+        });
+
+        setSmartDashboard((current) => {
+          if (!current) {
+            return nextPage;
+          }
+
+          const existingIds = new Set(
+            current.feed.map((item) => item.id),
+          );
+
+          const newItems = nextPage.feed.filter(
+            (item) => !existingIds.has(item.id),
+          );
+
+          return {
+            ...current,
+            generated_at: nextPage.generated_at,
+            feed: [
+              ...current.feed,
+              ...newItems,
+            ],
+            next_cursor: nextPage.next_cursor,
+            has_more: nextPage.has_more,
+          };
+        });
+      } catch (error) {
+        console.error(
+          "Could not load older dashboard activity.",
+          error,
+        );
+
+        setSmartDashboardError(
+          "Older learning activity could not be loaded.",
+        );
+      } finally {
+        setSmartDashboardLoadingMore(false);
+      }
+    },
+    [
+      smartDashboard?.next_cursor,
+      smartDashboardLoadingMore,
+    ],
+  );
+
+  useEffect(() => {
+    if (!checked) {
+      return;
+    }
+
+    function refreshDashboard() {
+      void loadSmartDashboard();
+    }
+
+    function refreshWhenVisible() {
+      if (
+        document.visibilityState === "visible"
+      ) {
+        void loadSmartDashboard();
+      }
+    }
+
+    void loadSmartDashboard();
+
+    window.addEventListener(
+      "studysnap:dashboard-refresh",
+      refreshDashboard,
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "studysnap:dashboard-refresh",
+        refreshDashboard,
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible,
+      );
+    };
+  }, [checked, loadSmartDashboard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1170,9 +1323,18 @@ export default function DashboardPage() {
           activeRoomId={activeRoomId}
         />
 
-        <ContinueLearningCard items={continueItems} />
-
-        <RecentActivityCard items={recentActivityItems} />
+        <SmartDashboardCenter
+          data={smartDashboard}
+          loading={smartDashboardLoading}
+          loadingMore={smartDashboardLoadingMore}
+          error={smartDashboardError}
+          onRetry={() => {
+            void loadSmartDashboard();
+          }}
+          onLoadMore={() => {
+            void loadMoreSmartDashboard();
+          }}
+        />
 
         <div className="xl:hidden">{dashboardRightPanel}</div>
       </div>

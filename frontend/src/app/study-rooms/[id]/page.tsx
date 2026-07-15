@@ -314,6 +314,9 @@ export default function StudyRoomDetailPage() {
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const materialSectionRef =
+    useRef<HTMLDivElement | null>(null);
+
   const studyTogetherSectionRef =
     useRef<HTMLDivElement | null>(null);
 
@@ -397,21 +400,35 @@ export default function StudyRoomDetailPage() {
       };
     }
 
-    const shouldOpenAi =
-      requestedTab === "ai" ||
-      hasRequestedMaterial;
-
-    if (!shouldOpenAi) {
-      return;
-    }
-
     if (hasRequestedMaterial) {
       setSelectedUniversalMaterial({
         id: parsedMaterialId,
         name:
           requestedMaterialName?.trim() ||
-          "Selected material",
+          `Material ${parsedMaterialId}`,
       });
+
+      setActiveRoomTab("materials");
+
+      const timer = window.setTimeout(() => {
+        materialSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 180);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    if (requestedTab === "materials") {
+      setActiveRoomTab("materials");
+      return;
+    }
+
+    if (requestedTab !== "ai") {
+      return;
     }
 
     setActiveRoomTab("ai");
@@ -937,6 +954,41 @@ export default function StudyRoomDetailPage() {
   function renderMaterialsTab() {
     return (
       <div className="space-y-5">
+        {selectedUniversalMaterial ? (
+          <section
+            ref={materialSectionRef}
+            className="scroll-mt-24 rounded-2xl border border-yellow-300/35 bg-black p-4 shadow-[0_14px_45px_rgba(0,0,0,0.35)] sm:p-5"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-yellow-300/30 bg-yellow-300/10 text-2xl">
+                📄
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                  Selected for review
+                </p>
+
+                <h2 className="mt-1 break-words text-lg font-black text-yellow-100">
+                  {selectedUniversalMaterial.name}
+                </h2>
+
+                <p className="mt-1 text-sm leading-6 text-yellow-100/60">
+                  StudySnap opened this exact upload from your dashboard.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openProjectAi}
+                className="shrink-0 rounded-xl bg-yellow-300 px-4 py-2.5 text-sm font-black text-black transition hover:bg-yellow-200"
+              >
+                Study with AI
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <RoomMaterialsTab
           studyRoomId={studyRoomId}
           pdfs={pdfs}

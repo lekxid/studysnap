@@ -1647,8 +1647,20 @@ def group_and_dedupe_items(
                     count,
                 )
 
+                base_description = str(
+                    existing["metadata"].get(
+                        "base_description",
+                        existing["description"],
+                    )
+                )
+
+                existing["metadata"].setdefault(
+                    "base_description",
+                    base_description,
+                )
+
                 existing["description"] = (
-                    f"{existing['description']} "
+                    f"{base_description} "
                     f"· {count} related actions"
                 ).strip()
 
@@ -1817,9 +1829,11 @@ def build_continue_learning(
             "entity_type": "study_material",
             "entity_id": material.id,
             "action_label": "Open again",
-            "action_href": room_href(
-                material.study_room_id,
-                "materials",
+            "action_href": (
+                f"{room_href(
+                    material.study_room_id,
+                    'materials',
+                )}&materialId={material.id}"
             ),
             "progress_percent": None,
             "last_active_at": iso_timestamp(
@@ -2101,9 +2115,11 @@ def build_needs_attention(
             "reason": "New material not reviewed",
             "room_id": material.study_room_id,
             "action_label": "Review now",
-            "action_href": room_href(
-                material.study_room_id,
-                "materials",
+            "action_href": (
+                f"{room_href(
+                    material.study_room_id,
+                    'materials',
+                )}&materialId={material.id}"
             ),
             "created_at": iso_timestamp(
                 material.created_at
