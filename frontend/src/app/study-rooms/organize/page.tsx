@@ -6,11 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { getToken } from "@/lib/api";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-  "http://192.168.133.130:8000";
+import { API_BASE } from "@/lib/apiBase";
 
 type PreviewFile = {
   file_index: number;

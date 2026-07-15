@@ -1,9 +1,24 @@
 import json
+from functools import lru_cache
+
 from openai import OpenAI
 from app.config import settings
 from app.services.intent_understanding import get_intent_understanding_instructions
 
-client = OpenAI(api_key=settings.openai_api_key, timeout=30.0)
+@lru_cache(maxsize=1)
+def get_openai_client() -> OpenAI:
+    api_key = settings.openai_api_key.strip()
+
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not configured. "
+            "Configure it before using StudySnap AI features."
+        )
+
+    return OpenAI(
+        api_key=api_key,
+        timeout=30.0,
+    )
 
 
 def detect_mode(question: str):
@@ -98,7 +113,7 @@ def build_studysnap_user_prompt(
 def generate_studysnap_answer(question: str, context: str = "") -> str:
     mode, clean_question = detect_mode(question)
 
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
@@ -124,7 +139,7 @@ def generate_studysnap_answer(question: str, context: str = "") -> str:
 def stream_studysnap_answer(question: str, context: str = ""):
     mode, clean_question = detect_mode(question)
 
-    stream = client.chat.completions.create(
+    stream = get_openai_client().chat.completions.create(
         model="gpt-4.1-mini",
         stream=True,
         messages=[
@@ -159,7 +174,7 @@ def generate_basic_flashcards(content: str) -> list[dict]:
     if not content.strip():
         return []
 
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
@@ -319,7 +334,7 @@ def generate_basic_quiz(content: str) -> list[dict]:
     limited_text = text[:12000]
 
     try:
-        response = client.chat.completions.create(
+        response = get_openai_client().chat.completions.create(
             model="gpt-4.1-mini",
             response_format={"type": "json_object"},
             messages=[

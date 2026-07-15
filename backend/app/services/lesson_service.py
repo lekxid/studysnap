@@ -1,8 +1,23 @@
 import json
+from functools import lru_cache
+
 from openai import OpenAI
 from app.config import settings
 
-client = OpenAI(api_key=settings.openai_api_key)
+@lru_cache(maxsize=1)
+def get_openai_client() -> OpenAI:
+    api_key = settings.openai_api_key.strip()
+
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not configured. "
+            "Configure it before using StudySnap AI features."
+        )
+
+    return OpenAI(
+        api_key=api_key,
+        timeout=30.0,
+    )
 
 
 def generate_lesson(question: str, context: str = ""):
@@ -22,7 +37,7 @@ Rules:
 - No markdown.
 """
 
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": system_prompt},

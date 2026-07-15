@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
+import { API_BASE } from "@/lib/apiBase";
 
 export default function SignupPage() {
   const [nextPath, setNextPath] =
@@ -39,16 +40,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-        process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-        "";
-
-      if (!apiBase) {
-        throw new Error("API base URL is not set.");
-      }
-
-      const response = await fetch(`${apiBase}/api/auth/signup`, {
+      const response = await fetch(`${API_BASE}/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

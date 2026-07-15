@@ -1,4 +1,4 @@
-const API_BASE = "/backend";
+import { API_BASE, getWebSocketBaseUrl } from "./apiBase";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -2338,21 +2338,7 @@ export function buildRoomRealtimeWebSocketUrl(
     );
   }
 
-  const configuredBackend =
-    process.env.NEXT_PUBLIC_API_BASE_URL
-      ?.trim()
-      .replace(/\/+$/, "");
-
-  const fallbackBackend =
-    `${window.location.protocol}//` +
-    `${window.location.hostname}:8000`;
-
-  const backendBase =
-    configuredBackend || fallbackBackend;
-
-  const websocketBase = backendBase
-    .replace(/^https:/i, "wss:")
-    .replace(/^http:/i, "ws:");
+  const websocketBase = getWebSocketBaseUrl();
 
   const params = new URLSearchParams({
     ticket: ticketResponse.ticket,
