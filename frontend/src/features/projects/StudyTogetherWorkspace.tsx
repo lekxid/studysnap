@@ -433,6 +433,18 @@ export default function StudyTogetherWorkspace({
   const chatScrollContainerRef =
     useRef<HTMLDivElement | null>(null);
 
+  const [showJumpToLatest, setShowJumpToLatest] =
+    useState(false);
+
+  const isNearChatBottomRef =
+    useRef(true);
+
+  const initialChatScrollPendingRef =
+    useRef(true);
+
+  const lastVisibleMessageIdRef =
+    useRef<number | null>(null);
+
   const realtimeSocketRef =
     useRef<WebSocket | null>(null);
 
@@ -444,6 +456,108 @@ export default function StudyTogetherWorkspace({
 
   const typingSentRef =
     useRef(false);
+
+  function scrollChatToLatest(
+    behavior: ScrollBehavior = "auto"
+  ) {
+    const container =
+      chatScrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+
+    isNearChatBottomRef.current = true;
+    setShowJumpToLatest(false);
+  }
+
+  function handleChatScroll() {
+    const container =
+      chatScrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const distanceFromBottom =
+      container.scrollHeight -
+      container.scrollTop -
+      container.clientHeight;
+
+    const isNearBottom =
+      distanceFromBottom <= 120;
+
+    isNearChatBottomRef.current =
+      isNearBottom;
+
+    setShowJumpToLatest(
+      !isNearBottom
+    );
+  }
+
+  useEffect(() => {
+    initialChatScrollPendingRef.current =
+      true;
+
+    lastVisibleMessageIdRef.current =
+      null;
+
+    isNearChatBottomRef.current = true;
+    setShowJumpToLatest(false);
+  }, [studyRoomId]);
+
+  useEffect(() => {
+    if (messageLoading) {
+      return;
+    }
+
+    const latestMessageId =
+      roomMessages.length > 0
+        ? roomMessages[
+            roomMessages.length - 1
+          ]?.id ?? null
+        : null;
+
+    const isInitialScroll =
+      initialChatScrollPendingRef.current;
+
+    const hasNewLatestMessage =
+      latestMessageId !== null &&
+      latestMessageId !==
+        lastVisibleMessageIdRef.current;
+
+    if (isInitialScroll) {
+      initialChatScrollPendingRef.current =
+        false;
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          scrollChatToLatest("auto");
+        });
+      });
+    } else if (
+      hasNewLatestMessage &&
+      isNearChatBottomRef.current
+    ) {
+      window.requestAnimationFrame(() => {
+        scrollChatToLatest("smooth");
+      });
+    } else if (hasNewLatestMessage) {
+      setShowJumpToLatest(true);
+    }
+
+    lastVisibleMessageIdRef.current =
+      latestMessageId;
+  }, [
+    messageLoading,
+    roomMessages,
+    studyRoomId,
+  ]);
 
   const [roomMembers, setRoomMembers] =
     useState<RoomMember[]>([]);
@@ -2130,6 +2244,15 @@ export default function StudyTogetherWorkspace({
       <section className="rounded-[1.4rem] border border-white/10 bg-slate-950/80 p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
+            <Link
+              href="/study-together"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm font-black text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100"
+              aria-label="Back to study groups"
+              title="Back to study groups"
+            >
+              ←
+            </Link>
+
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-yellow-300 text-lg font-black text-slate-950">
               {roomTitle
                 .trim()
@@ -2303,14 +2426,15 @@ export default function StudyTogetherWorkspace({
 
             <div
               ref={chatScrollContainerRef}
-              className="min-h-[28rem] max-h-[62vh] overflow-y-auto scroll-smooth bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.05),transparent_38%)] px-4 py-5 sm:px-5"
+              onScroll={handleChatScroll}
+              className="min-h-[24rem] max-h-[62vh] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.05),transparent_38%)] px-3 py-3 sm:px-4"
             >
               {messageLoading ? (
                 <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-slate-400">
                   Opening the shared conversation...
                 </div>
               ) : roomMessages.length ? (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <div className="flex justify-center">
                     <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                       Today
@@ -2318,7 +2442,14 @@ export default function StudyTogetherWorkspace({
                   </div>
 
                   {roomMessages.map(
-                    (message) => {
+                    (message, messageIndex) => {
+                      const previousMessage =
+                        messageIndex > 0
+                          ? roomMessages[
+                              messageIndex - 1
+                            ]
+                          : null;
+
                       const isAiMessage =
                         message.message_type ===
                         "ai";
@@ -2371,6 +2502,22 @@ export default function StudyTogetherWorkspace({
                           !isAiInvitation &&
                         currentUser?.id ===
                           message.sender_id;
+
+                      const isGroupedWithPrevious =
+                        Boolean(
+                          previousMessage &&
+                          !isAiMessage &&
+                          !isAiInvitation &&
+                          previousMessage.message_type !==
+                            "ai" &&
+                          previousMessage.message_type !==
+                            "ai_invitation" &&
+                          previousMessage.sender_id ===
+                            message.sender_id &&
+                          !previousMessage.is_deleted &&
+                          !message.is_deleted &&
+                          !message.reply_to_message_id
+                        );
 
                       const rawAttachment =
                         message.metadata[
@@ -2513,22 +2660,33 @@ export default function StudyTogetherWorkspace({
                             isMine
                               ? "justify-end"
                               : "justify-start"
+                          } ${
+                            isGroupedWithPrevious
+                              ? "-mt-1"
+                              : ""
                           }`}
                         >
                           {!isMine ? (
-                            <div
-                              className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black ${
-                                isAiMessage
-                                  ? "bg-violet-300/15 text-violet-100"
-                                  : "bg-cyan-300/15 text-cyan-100"
-                              }`}
-                            >
-                              {senderInitial}
-                            </div>
+                            isGroupedWithPrevious ? (
+                              <div
+                                className="h-8 w-8 shrink-0"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <div
+                                className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-black ${
+                                  isAiMessage
+                                    ? "bg-violet-300/15 text-violet-100"
+                                    : "bg-cyan-300/15 text-cyan-100"
+                                }`}
+                              >
+                                {senderInitial}
+                              </div>
+                            )
                           ) : null}
 
                           <div
-                            className={`max-w-[86%] rounded-2xl border px-3.5 py-3 transition sm:max-w-[72%] ${
+                            className={`max-w-[86%] rounded-2xl border px-3 py-2.5 transition sm:max-w-[72%] ${
                               isSelectedReplyTarget
                                 ? "ring-2 ring-cyan-300/25 shadow-[0_0_24px_rgba(34,211,238,0.10)] "
                                 : ""
@@ -2543,6 +2701,10 @@ export default function StudyTogetherWorkspace({
                             <div className="flex items-center justify-between gap-4">
                               <p
                                 className={`text-[10px] font-black uppercase tracking-[0.15em] ${
+                                  isGroupedWithPrevious
+                                    ? "sr-only "
+                                    : ""
+                                }${
                                   isMine
                                     ? "text-yellow-100"
                                     : isAiMessage
@@ -2763,7 +2925,7 @@ export default function StudyTogetherWorkspace({
                                   "attachment" ||
                                 message.content !==
                                   attachmentFilename ? (
-                                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                  <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-5 text-slate-100">
                                     {message.content}
                                   </p>
                                 ) : null}
@@ -3201,9 +3363,23 @@ export default function StudyTogetherWorkspace({
                   </div>
                 ) : null}
 
+                {showJumpToLatest ? (
+                  <div className="pointer-events-none sticky bottom-3 z-30 mb-3 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        scrollChatToLatest("smooth")
+                      }
+                      className="pointer-events-auto rounded-full border border-yellow-300/30 bg-slate-950/95 px-4 py-2 text-xs font-black text-yellow-100 shadow-[0_12px_35px_rgba(0,0,0,0.45)] backdrop-blur-xl transition hover:bg-yellow-300 hover:text-slate-950"
+                    >
+                      Jump to latest ↓
+                    </button>
+                  </div>
+                ) : null}
+
                 <form
                   onSubmit={sendSharedMessage}
-                  className="flex items-end gap-2"
+                  className="sticky bottom-0 z-20 flex items-end gap-2 border-t border-white/[0.06] bg-slate-950/95 pt-3 backdrop-blur-xl"
                 >
                 <button
                   type="button"

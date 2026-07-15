@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import CommandBar from "@/components/CommandBar";
@@ -105,7 +108,7 @@ const topNavItems: NavItem[] = [
     icon: "▣",
   },
   {
-    href: "/groups",
+    href: "/study-together",
     label: "Study Together",
     icon: "👥",
   },
@@ -134,7 +137,7 @@ function isNavItemActive(
   search?: string,
 ) {
   if (
-    href === "/groups" &&
+    href === "/study-together" &&
     /^\/study-rooms\/\d+/.test(pathname) &&
     search === "together"
   ) {
@@ -142,7 +145,17 @@ function isNavItemActive(
   }
 
   if (href === "/study-rooms") {
-    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
+    if (
+      /^\/study-rooms\/\d+/.test(pathname) &&
+      search === "together"
+    ) {
+      return false;
+    }
+
+    return (
+      pathname === "/study-rooms" ||
+      /^\/study-rooms\/\d+/.test(pathname)
+    );
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -189,7 +202,10 @@ function getPageKicker(pathname: string) {
     return "AI Memory";
   }
 
-  if (pathname.startsWith("/groups")) {
+  if (
+    pathname.startsWith("/study-together") ||
+    pathname.startsWith("/groups")
+  ) {
     return "Study Together";
   }
 
@@ -277,6 +293,9 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
+  const [activeQueryTab, setActiveQueryTab] =
+    useState<string | undefined>(undefined);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
@@ -354,6 +373,17 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
+    const tab =
+      typeof window !== "undefined"
+        ? new URLSearchParams(
+            window.location.search
+          ).get("tab") ?? undefined
+        : undefined;
+
+    setActiveQueryTab(tab);
+  }, [pathname]);
+
+  useEffect(() => {
     const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
 
     if (roomIdFromPath !== null) {
@@ -407,9 +437,7 @@ export default function AppShell({
     item: NavItem,
   ) {
     if (item.label === "Study Together") {
-      return activeProjectRoomId !== null
-        ? `/study-rooms/${activeProjectRoomId}?tab=together`
-        : "/study-rooms";
+      return "/study-together";
     }
 
     return item.href;
@@ -578,7 +606,8 @@ export default function AppShell({
     return topNavItems.map((item) => {
       const active = isNavItemActive(
         pathname,
-        item.href
+        item.href,
+        activeQueryTab
       );
 
       return (
