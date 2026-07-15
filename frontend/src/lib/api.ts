@@ -144,6 +144,146 @@ export async function getDashboard() {
   return apiFetch("/api/dashboard");
 }
 
+export type DashboardActivityType =
+  | "file"
+  | "room"
+  | "note"
+  | "quiz"
+  | "concept"
+  | "ai"
+  | "group"
+  | "progress"
+  | "plan";
+
+export type DashboardMetadata = Record<
+  string,
+  unknown
+>;
+
+export type DashboardNextStep = {
+  id: string;
+  type: DashboardActivityType;
+  title: string;
+  description: string;
+  icon: string;
+  reason: string;
+  action_label: string;
+  action_href: string;
+  room_id: number | null;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardAttentionItem = {
+  id: string;
+  type: DashboardActivityType;
+  priority: number;
+  title: string;
+  description: string;
+  icon: string;
+  reason: string;
+  room_id: number | null;
+  action_label: string;
+  action_href: string;
+  created_at: string;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardContinueItem = {
+  id: string;
+  type: DashboardActivityType;
+  title: string;
+  description: string;
+  icon: string;
+  room_id: number | null;
+  room_name: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  action_label: string;
+  action_href: string;
+  progress_percent: number | null;
+  last_active_at: string;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardFeedItem = {
+  id: string;
+  type: DashboardActivityType;
+  event: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  icon: string;
+  room_id: number | null;
+  room_name: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  actor_name: string | null;
+  action_label: string;
+  action_href: string;
+  priority: number;
+  session_id: string | null;
+  dedupe_key: string | null;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardEmptyState = {
+  is_empty: boolean;
+  title: string;
+  description: string;
+};
+
+export type SmartDashboardResponse = {
+  generated_at: string;
+  next_step: DashboardNextStep;
+  needs_attention: DashboardAttentionItem[];
+  continue_learning: DashboardContinueItem[];
+  group_activity: DashboardFeedItem[];
+  feed: DashboardFeedItem[];
+  unread_group_count: number;
+  next_cursor: string | null;
+  has_more: boolean;
+  empty_states: {
+    needs_attention: DashboardEmptyState;
+    continue_learning: DashboardEmptyState;
+    group_activity: DashboardEmptyState;
+    feed: DashboardEmptyState;
+  };
+  summary: {
+    accessible_rooms: number;
+    materials: number;
+    notes: number;
+    quizzes: number;
+    quiz_attempts: number;
+    ai_conversations: number;
+    weak_topics: number;
+    unread_group_messages: number;
+  };
+};
+
+export type SmartDashboardOptions = {
+  limit?: number;
+  cursor?: string | null;
+};
+
+export async function getSmartDashboard(
+  options: SmartDashboardOptions = {}
+): Promise<SmartDashboardResponse> {
+  const params = new URLSearchParams();
+
+  params.set(
+    "limit",
+    String(options.limit || 20)
+  );
+
+  if (options.cursor) {
+    params.set("cursor", options.cursor);
+  }
+
+  return apiFetch(
+    `/api/dashboard/smart?${params.toString()}`
+  ) as Promise<SmartDashboardResponse>;
+}
+
 export async function getLearningInsights() {
   const params = new URLSearchParams();
 
