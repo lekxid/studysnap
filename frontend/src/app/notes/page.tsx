@@ -913,7 +913,7 @@ Answer clearly in a helpful student-friendly way.`;
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -1023,7 +1023,7 @@ Answer clearly in a helpful student-friendly way.`;
             role="dialog"
             aria-modal="true"
             aria-labelledby="ai-delete-title"
-            className="w-full max-w-md rounded-[1.5rem] border border-red-400/20 bg-[#0a1422] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+            className="w-full max-w-md rounded-[1.5rem] border border-red-400/20 bg-[#12181e] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
           >
             <div className="grid h-12 w-12 place-items-center rounded-2xl border border-red-400/20 bg-red-500/10 text-xl">
               🗑️

@@ -236,7 +236,7 @@ export default function FlashcardsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -254,19 +254,19 @@ export default function FlashcardsPage() {
         description="Your flashcards are opened inside this project context, so review progress and weak concepts can connect back to the correct study room."
       />
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-5">
           <p className="text-sm text-white/50">Flashcards</p>
           <p className="mt-2 text-3xl font-bold text-white">{cards.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-5">
           <p className="text-sm text-white/50">Current Room</p>
-          <p className="mt-2 text-xl font-bold text-cyan-300">
+          <p className="mt-2 text-xl font-bold text-[#ece8da]">
             {selectedRoom ? selectedRoom.name : "No room selected"}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-5">
           <p className="text-sm text-white/50">Today Reviewed</p>
           <p className="mt-2 text-3xl font-bold text-white">{sessionReviewed}</p>
           <p className="mt-1 text-sm text-white/50">
@@ -276,8 +276,8 @@ export default function FlashcardsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-          <h3 className="text-xl font-semibold text-cyan-300">
+        <div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-6">
+          <h3 className="text-xl font-semibold text-[#ece8da]">
             Create Flashcard
           </h3>
 
@@ -288,7 +288,7 @@ export default function FlashcardsPage() {
               </span>
 
               <select
-                className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition focus:border-cyan-300"
+                className="w-full rounded-xl border border-white/[0.08] bg-[#0f151b] px-4 py-3 text-white outline-none transition focus:border-[#c9ad50]/[0.24]"
                 value={selectedRoomId ?? ""}
                 onChange={(event) => setSelectedRoomId(Number(event.target.value))}
                 disabled={loadingRooms || rooms.length === 0}
@@ -306,14 +306,14 @@ export default function FlashcardsPage() {
             </label>
 
             <textarea
-              className="min-h-[110px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-cyan-300"
+              className="min-h-[110px] w-full rounded-xl border border-white/[0.08] bg-[#0f151b] px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-[#c9ad50]/[0.24]"
               placeholder="Question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
             />
 
             <textarea
-              className="min-h-[110px] w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-cyan-300"
+              className="min-h-[110px] w-full rounded-xl border border-white/[0.08] bg-[#0f151b] px-4 py-3 text-white outline-none placeholder:text-white/30 focus:border-[#c9ad50]/[0.24]"
               placeholder="Answer"
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
@@ -323,7 +323,7 @@ export default function FlashcardsPage() {
               type="button"
               onClick={addCard}
               disabled={saving || selectedRoomId === null}
-              className="w-full rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-[#c9ad50] px-4 py-3 font-semibold text-[#111317] transition hover:bg-[#d5bb63] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Saving..." : "Save Flashcard"}
             </button>
@@ -339,12 +339,12 @@ export default function FlashcardsPage() {
         <div className="space-y-6 lg:col-span-2">
   <div
     ref={reviewSectionRef}
-    className="rounded-2xl border border-white/10 bg-[#0a1022] p-6"
+    className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-6"
   >
     <div className="flex flex-wrap items-center justify-between gap-3"></div>
   <div className="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h3 className="text-xl font-semibold text-cyan-300">Smart Review</h3>
+      <h3 className="text-xl font-semibold text-[#ece8da]">Smart Review</h3>
       <p className="mt-1 text-sm text-white/50">
         Answer first, reveal the answer, then tell StudySnap how well you knew it.
       </p>
@@ -353,14 +353,14 @@ export default function FlashcardsPage() {
     <button
       type="button"
       onClick={shuffleCards}
-      className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+      className="rounded-xl border border-white/[0.08] px-4 py-2 font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
       disabled={cards.length < 2}
     >
       Shuffle
     </button>
   </div>
 
-  <div className="mt-6 rounded-2xl border border-white/10 bg-black p-8">
+  <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#0f151b] p-8">
     {loadingCards ? (
       <p className="text-white/70">Loading flashcards...</p>
     ) : !activeCard ? (
@@ -379,13 +379,13 @@ export default function FlashcardsPage() {
           <button
             type="button"
             onClick={() => setShowAnswer(true)}
-            className="mt-6 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-black transition hover:bg-cyan-300"
+            className="mt-6 rounded-xl bg-[#c9ad50] px-5 py-3 font-semibold text-[#111317] transition hover:bg-[#d5bb63]"
           >
             Show Answer
           </button>
         ) : (
           <div className="mt-6 space-y-5">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <div className="rounded-xl border border-white/[0.07] bg-white/5 p-5">
               <p className="text-sm text-white/50">Answer</p>
               <p className="mt-3 whitespace-pre-wrap text-lg font-semibold text-white">
                 {activeCard.answer}
@@ -411,7 +411,7 @@ export default function FlashcardsPage() {
                   type="button"
                   onClick={() => recordFlashcardReview("partial", 60)}
                   disabled={reviewing}
-                  className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3 text-sm font-semibold text-yellow-300 hover:bg-yellow-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] px-4 py-3 text-sm font-semibold text-[#cec18d] hover:bg-[#c9ad50]/[0.12] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   🟡 Almost
                 </button>
@@ -427,7 +427,7 @@ export default function FlashcardsPage() {
               </div>
 
               {reviewing ? (
-                <p className="mt-3 text-sm text-cyan-300">
+                <p className="mt-3 text-sm text-[#ece8da]">
                   Recording review...
                 </p>
               ) : null}
@@ -439,8 +439,8 @@ export default function FlashcardsPage() {
   </div>
 </div>
 
-<div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-  <h3 className="text-xl font-semibold text-cyan-300">Saved Flashcards</h3>
+<div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-6">
+  <h3 className="text-xl font-semibold text-[#ece8da]">Saved Flashcards</h3>
 
   {loadingCards ? (
     <div className="mt-6 rounded-xl bg-white/5 p-6 text-white/70">
@@ -455,9 +455,9 @@ export default function FlashcardsPage() {
       {cards.map((card) => (
         <div
           key={card.id}
-          className="rounded-2xl border border-white/10 bg-black p-5"
+          className="rounded-2xl border border-white/[0.07] bg-[#0f151b] p-5"
         >
-          <h4 className="line-clamp-2 text-base font-semibold text-cyan-300">
+          <h4 className="line-clamp-2 text-base font-semibold text-[#ece8da]">
             {card.question}
           </h4>
 
@@ -479,7 +479,7 @@ export default function FlashcardsPage() {
                   });
                 }, 100);
               }}
-              className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300"
+              className="rounded-xl bg-[#c9ad50] px-4 py-2 text-sm font-semibold text-[#111317] transition hover:bg-[#d5bb63]"
             >
               Study
             </button>
