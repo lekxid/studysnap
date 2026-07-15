@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
+  announceProfileUpdated,
   getCurrentUser,
+  getCurrentUserAvatarBlob,
   getGoogleDriveConnectUrl,
   getGoogleDriveFiles,
   importGoogleDrivePDF,
@@ -16,9 +18,11 @@ import {
   getUserSettings,
   logoutAllSessions,
   logoutOtherSessions,
+  removeCurrentUserAvatar,
   revokeUserSession,
   updateCurrentUserProfile,
   updateUserSettings,
+  uploadCurrentUserAvatar,
   type GoogleDriveFile,
   type GoogleDriveIntegrationStatus,
   type StudyRoom,
@@ -396,6 +400,10 @@ export default function SettingsPage() {
   const [accountStatus, setAccountStatus] = useState("Loading account...");
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] =
+    useState<string | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] =
     useState<GoogleDriveIntegrationStatus | null>(null);
   const [integrationMessage, setIntegrationMessage] = useState("");
@@ -637,6 +645,132 @@ export default function SettingsPage() {
     );
   }
 
+  async function loadAvatarPreview(
+    profile: UserProfile | null
+  ) {
+    if (!profile?.avatar_url) {
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      return;
+    }
+
+    try {
+      const blob = await getCurrentUserAvatarBlob();
+
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return blob ? URL.createObjectURL(blob) : null;
+      });
+    } catch (error) {
+      console.error("Could not load profile picture.", error);
+      setAvatarPreviewUrl(null);
+    }
+  }
+
+  function openAvatarPicker() {
+    if (avatarSaving) return;
+
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
+      avatarInputRef.current.click();
+    }
+  }
+
+  async function handleAvatarSelected(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setAccountStatus("Use a JPG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAccountStatus("Profile pictures must be 5 MB or smaller.");
+      return;
+    }
+
+    const temporaryPreview = URL.createObjectURL(file);
+
+    setAvatarPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return temporaryPreview;
+    });
+
+    setAvatarSaving(true);
+    setAccountStatus("Uploading profile picture...");
+
+    try {
+      const updatedProfile =
+        await uploadCurrentUserAvatar(file);
+
+      setAccount(updatedProfile);
+      announceProfileUpdated(updatedProfile);
+      await loadAvatarPreview(updatedProfile);
+
+      setAccountStatus("Profile picture updated.");
+      setSavedMessage("Profile picture updated.");
+    } catch (error) {
+      console.error(error);
+      setAccountStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not update profile picture."
+      );
+
+      await loadAvatarPreview(account);
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (avatarSaving || !account?.avatar_url) return;
+
+    setAvatarSaving(true);
+    setAccountStatus("Removing profile picture...");
+
+    try {
+      await removeCurrentUserAvatar();
+
+      const updatedProfile = {
+        ...account,
+        avatar_url: null,
+      };
+
+      setAccount(updatedProfile);
+      announceProfileUpdated(updatedProfile);
+
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+
+      setAccountStatus("Profile picture removed.");
+      setSavedMessage("Profile picture removed.");
+    } catch (error) {
+      console.error(error);
+      setAccountStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not remove profile picture."
+      );
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
   async function handleSaveProfileName() {
     const fullName = profileNameDraft.trim();
 
@@ -858,9 +992,10 @@ export default function SettingsPage() {
       setAccount(profile);
       setProfileNameDraft(profile.full_name || "");
       setAccountStatus("Account verified and synced.");
+      await loadAvatarPreview(profile);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("studysnap_user", JSON.stringify(profile));
+        announceProfileUpdated(profile);
       }
     } catch (error) {
       console.error(error);
@@ -1065,8 +1200,64 @@ export default function SettingsPage() {
                 <div className="gold-chip mb-4">Account</div>
 
                 <div className="flex flex-wrap items-start gap-5">
-                  <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.6rem] border border-yellow-300/25 bg-yellow-300/15 text-2xl font-black text-yellow-100">
-                    {accountSummary.initials}
+                  <div className="shrink-0">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleAvatarSelected}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={openAvatarPicker}
+                      disabled={avatarSaving}
+                      className="relative grid h-20 w-20 overflow-hidden rounded-[1.6rem] border border-[#c9ad50]/[0.22] bg-[#c9ad50]/[0.12] text-2xl font-black text-[#ece8da] disabled:cursor-wait disabled:opacity-70"
+                      title={
+                        account?.avatar_url
+                          ? "Change profile picture"
+                          : "Upload profile picture"
+                      }
+                    >
+                      {avatarPreviewUrl ? (
+                        <img
+                          src={avatarPreviewUrl}
+                          alt={`${accountSummary.name} profile`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="place-self-center">
+                          {accountSummary.initials}
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="mt-2 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={openAvatarPicker}
+                        disabled={avatarSaving}
+                        className="text-xs font-black text-[#c9ad50] disabled:opacity-60"
+                      >
+                        {avatarSaving
+                          ? "Saving..."
+                          : account?.avatar_url
+                            ? "Change picture"
+                            : "Upload picture"}
+                      </button>
+
+                      {account?.avatar_url ? (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          disabled={avatarSaving}
+                          className="text-xs font-bold text-slate-500 transition hover:text-red-200 disabled:opacity-60"
+                        >
+                          Remove picture
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="min-w-0 flex-1">

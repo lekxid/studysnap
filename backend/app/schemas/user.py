@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     full_name: str
     learning_mode: str
+    avatar_url: str | None = None
 
     class Config:
         from_attributes = True

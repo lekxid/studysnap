@@ -125,7 +125,11 @@ export type UserProfile = {
   email: string;
   full_name: string;
   learning_mode: string;
+  avatar_url?: string | null;
 };
+
+export const PROFILE_UPDATED_EVENT =
+  "studysnap:profile-updated";
 
 export async function getCurrentUser(): Promise<UserProfile> {
   return apiFetch("/api/auth/me");
@@ -138,6 +142,74 @@ export async function updateCurrentUserProfile(
     method: "PUT",
     body: JSON.stringify({ full_name: fullName }),
   });
+}
+
+export async function uploadCurrentUserAvatar(
+  file: File
+): Promise<UserProfile> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiFetch("/api/users/me/avatar", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function removeCurrentUserAvatar(): Promise<void> {
+  await apiFetch("/api/users/me/avatar", {
+    method: "DELETE",
+  });
+}
+
+export async function getCurrentUserAvatarBlob(): Promise<Blob | null> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/users/me/avatar`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+      cache: "no-store",
+    }
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await readResponseError(
+      response,
+      "Could not load profile picture."
+    );
+
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
+export function announceProfileUpdated(
+  profile?: UserProfile
+) {
+  if (typeof window === "undefined") return;
+
+  if (profile) {
+    localStorage.setItem(
+      "studysnap_user",
+      JSON.stringify(profile)
+    );
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(PROFILE_UPDATED_EVENT, {
+      detail: profile,
+    })
+  );
 }
 
 export async function getDashboard() {

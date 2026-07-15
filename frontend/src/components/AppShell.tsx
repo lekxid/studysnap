@@ -14,7 +14,14 @@ import {
   PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-import { getStudyRooms, signOutCurrentSession } from "@/lib/api";
+import {
+  getCurrentUser,
+  getCurrentUserAvatarBlob,
+  getStudyRooms,
+  PROFILE_UPDATED_EVENT,
+  signOutCurrentSession,
+  type UserProfile,
+} from "@/lib/api";
 
 type NavItem = {
   href: string;
@@ -321,6 +328,8 @@ export default function AppShell({
   const [roomsError, setRoomsError] = useState("");
 
   const [learnerName, setLearnerName] = useState("StudySnap Learner");
+  const [learnerAvatarUrl, setLearnerAvatarUrl] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const savedSidebarState = window.localStorage.getItem(
@@ -333,7 +342,84 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
-    setLearnerName(getStoredUserName());
+    let cancelled = false;
+    let activeObjectUrl: string | null = null;
+
+    async function loadProfile(
+      suppliedProfile?: UserProfile
+    ) {
+      try {
+        const profile =
+          suppliedProfile ?? await getCurrentUser();
+
+        if (cancelled) return;
+
+        setLearnerName(
+          profile.full_name?.trim() ||
+            getStoredUserName()
+        );
+
+        if (!profile.avatar_url) {
+          setLearnerAvatarUrl((current) => {
+            if (current) URL.revokeObjectURL(current);
+            return null;
+          });
+          return;
+        }
+
+        const avatarBlob =
+          await getCurrentUserAvatarBlob();
+
+        if (cancelled) return;
+
+        const nextObjectUrl = avatarBlob
+          ? URL.createObjectURL(avatarBlob)
+          : null;
+
+        activeObjectUrl = nextObjectUrl;
+
+        setLearnerAvatarUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return nextObjectUrl;
+        });
+      } catch (error) {
+        console.error(
+          "Could not load shell profile.",
+          error
+        );
+
+        if (!cancelled) {
+          setLearnerName(getStoredUserName());
+        }
+      }
+    }
+
+    function handleProfileUpdated(event: Event) {
+      const profileEvent =
+        event as CustomEvent<UserProfile | undefined>;
+
+      void loadProfile(profileEvent.detail);
+    }
+
+    void loadProfile();
+
+    window.addEventListener(
+      PROFILE_UPDATED_EVENT,
+      handleProfileUpdated
+    );
+
+    return () => {
+      cancelled = true;
+
+      window.removeEventListener(
+        PROFILE_UPDATED_EVENT,
+        handleProfileUpdated
+      );
+
+      if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -827,8 +913,18 @@ export default function AppShell({
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-sm font-black text-[#111317]">
-                {learnerInitials}
+              <div className="grid h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-[#c9ad50] text-sm font-black text-[#111317]">
+                {learnerAvatarUrl ? (
+                  <img
+                    src={learnerAvatarUrl}
+                    alt={`${learnerName} profile`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="place-self-center">
+                    {learnerInitials}
+                  </span>
+                )}
               </div>
 
               <div className="min-w-0 flex-1">
@@ -921,9 +1017,19 @@ export default function AppShell({
               <Link
                 href="/settings"
                 title="Profile and settings"
-                className="grid h-11 w-11 place-items-center rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63]"
+                className="grid h-11 w-11 overflow-hidden rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63]"
               >
-                {learnerInitials}
+                {learnerAvatarUrl ? (
+                  <img
+                    src={learnerAvatarUrl}
+                    alt={`${learnerName} profile`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="place-self-center">
+                    {learnerInitials}
+                  </span>
+                )}
               </Link>
             </div>
           </div>
