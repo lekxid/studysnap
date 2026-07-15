@@ -128,7 +128,19 @@ const projectAwareNavHrefs = new Set([
   "/planner",
 ]);
 
-function isNavItemActive(pathname: string, href: string) {
+function isNavItemActive(
+  pathname: string,
+  href: string,
+  search?: string,
+) {
+  if (
+    href === "/groups" &&
+    /^\/study-rooms\/\d+/.test(pathname) &&
+    search === "together"
+  ) {
+    return true;
+  }
+
   if (href === "/study-rooms") {
     return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
   }
@@ -391,6 +403,18 @@ export default function AppShell({
     return getInitials(learnerName);
   }, [learnerName]);
 
+  function resolveTopNavHref(
+    item: NavItem,
+  ) {
+    if (item.label === "Study Together") {
+      return activeProjectRoomId !== null
+        ? `/study-rooms/${activeProjectRoomId}?tab=together`
+        : "/study-rooms";
+    }
+
+    return item.href;
+  }
+
   const activeRoom = useMemo(() => {
     if (activeProjectRoomId === null) {
       return null;
@@ -560,7 +584,7 @@ export default function AppShell({
       return (
         <Link
           key={item.href}
-          href={item.href}
+          href={resolveTopNavHref(item)}
           title={item.label}
           aria-current={
             active ? "page" : undefined
