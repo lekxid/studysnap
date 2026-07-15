@@ -1,16 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import {
-  usePathname,
-  useRouter,
-} from "next/navigation";
-import {
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
@@ -19,10 +11,7 @@ import {
   PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-import {
-  getStudyRooms,
-  signOutCurrentSession,
-} from "@/lib/api";
+import { getStudyRooms, signOutCurrentSession } from "@/lib/api";
 
 type NavItem = {
   href: string;
@@ -104,6 +93,34 @@ const moreNavItems: NavItem[] = [
   },
 ];
 
+const topNavItems: NavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: "⌂",
+  },
+  {
+    href: "/study-rooms",
+    label: "Study Rooms",
+    icon: "▣",
+  },
+  {
+    href: "/groups",
+    label: "Study Together",
+    icon: "👥",
+  },
+  {
+    href: "/ai-tutor",
+    label: "AI Tutor",
+    icon: "✦",
+  },
+  {
+    href: "/progress",
+    label: "Progress",
+    icon: "▲",
+  },
+];
+
 const projectAwareNavHrefs = new Set([
   "/notes",
   "/flashcards",
@@ -111,45 +128,24 @@ const projectAwareNavHrefs = new Set([
   "/planner",
 ]);
 
-function isNavItemActive(
-  pathname: string,
-  href: string
-) {
+function isNavItemActive(pathname: string, href: string) {
   if (href === "/study-rooms") {
-    return (
-      pathname === "/study-rooms" ||
-      /^\/study-rooms\/\d+/.test(pathname)
-    );
+    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
   }
 
-  return (
-    pathname === href ||
-    pathname.startsWith(`${href}/`)
-  );
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function isAnyNavItemActive(
-  pathname: string,
-  items: NavItem[]
-) {
-  return items.some((item) =>
-    isNavItemActive(pathname, item.href)
-  );
+function isAnyNavItemActive(pathname: string, items: NavItem[]) {
+  return items.some((item) => isNavItemActive(pathname, item.href));
 }
 
-function getRoomIdFromStudyRoomPath(
-  pathname: string
-) {
-  const match = pathname.match(
-    /^\/study-rooms\/(\d+)/
-  );
+function getRoomIdFromStudyRoomPath(pathname: string) {
+  const match = pathname.match(/^\/study-rooms\/(\d+)/);
 
   const roomId = Number(match?.[1]);
 
-  return Number.isFinite(roomId) &&
-    roomId > 0
-    ? roomId
-    : null;
+  return Number.isFinite(roomId) && roomId > 0 ? roomId : null;
 }
 
 function getPageKicker(pathname: string) {
@@ -214,34 +210,21 @@ function getStoredUserName() {
     ];
 
     for (const key of possibleKeys) {
-      const raw =
-        localStorage.getItem(key);
+      const raw = localStorage.getItem(key);
 
       if (!raw) continue;
 
       const parsed = JSON.parse(raw);
 
-      if (
-        typeof parsed?.full_name ===
-          "string" &&
-        parsed.full_name.trim()
-      ) {
+      if (typeof parsed?.full_name === "string" && parsed.full_name.trim()) {
         return parsed.full_name.trim();
       }
 
-      if (
-        typeof parsed?.name ===
-          "string" &&
-        parsed.name.trim()
-      ) {
+      if (typeof parsed?.name === "string" && parsed.name.trim()) {
         return parsed.name.trim();
       }
 
-      if (
-        typeof parsed?.email ===
-          "string" &&
-        parsed.email.trim()
-      ) {
+      if (typeof parsed?.email === "string" && parsed.email.trim()) {
         return parsed.email.trim();
       }
     }
@@ -264,9 +247,7 @@ function getInitials(name: string) {
 
   return parts
     .slice(0, 2)
-    .map((part) =>
-      part[0]?.toUpperCase()
-    )
+    .map((part) => part[0]?.toUpperCase())
     .join("");
 }
 
@@ -274,91 +255,54 @@ export default function AppShell({
   title,
   subtitle,
   children,
+  rightPanel,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  rightPanel?: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [
-    mobileMenuOpen,
-    setMobileMenuOpen,
-  ] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [
-    desktopSidebarOpen,
-    setDesktopSidebarOpen,
-  ] = useState(true);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
-  const [
-    roomMenuOpen,
-    setRoomMenuOpen,
-  ] = useState(false);
+  const [roomMenuOpen, setRoomMenuOpen] = useState(false);
 
-  const [
-    studyToolsOpen,
-    setStudyToolsOpen,
-  ] = useState(() =>
-    isAnyNavItemActive(
-      pathname,
-      studyToolNavItems
-    )
+  const [studyToolsOpen, setStudyToolsOpen] = useState(() =>
+    isAnyNavItemActive(pathname, studyToolNavItems),
   );
 
-  const [moreOpen, setMoreOpen] =
-    useState(() =>
-      isAnyNavItemActive(
-        pathname,
-        moreNavItems
-      )
-    );
-
-  const [
-    activeProjectRoomId,
-    setActiveProjectRoomId,
-  ] = useState<number | null>(null);
-
-  const [
-    studyRooms,
-    setStudyRooms,
-  ] = useState<RoomSummary[]>([]);
-
-  const [
-    roomsLoading,
-    setRoomsLoading,
-  ] = useState(true);
-
-  const [roomsError, setRoomsError] =
-    useState("");
-
-  const [
-    learnerName,
-    setLearnerName,
-  ] = useState(
-    "StudySnap Learner"
+  const [moreOpen, setMoreOpen] = useState(() =>
+    isAnyNavItemActive(pathname, moreNavItems),
   );
+
+  const [activeProjectRoomId, setActiveProjectRoomId] = useState<number | null>(
+    null,
+  );
+
+  const [studyRooms, setStudyRooms] = useState<RoomSummary[]>([]);
+
+  const [roomsLoading, setRoomsLoading] = useState(true);
+
+  const [roomsError, setRoomsError] = useState("");
+
+  const [learnerName, setLearnerName] = useState("StudySnap Learner");
 
   useEffect(() => {
-    const savedSidebarState =
-      window.localStorage.getItem(
-        "studysnap:desktop-sidebar-open"
-      );
+    const savedSidebarState = window.localStorage.getItem(
+      "studysnap:desktop-sidebar-open",
+    );
 
-    if (
-      savedSidebarState !== null
-    ) {
-      setDesktopSidebarOpen(
-        savedSidebarState !== "false"
-      );
+    if (savedSidebarState !== null) {
+      setDesktopSidebarOpen(savedSidebarState !== "false");
     }
   }, []);
 
   useEffect(() => {
-    setLearnerName(
-      getStoredUserName()
-    );
+    setLearnerName(getStoredUserName());
   }, []);
 
   useEffect(() => {
@@ -369,24 +313,19 @@ export default function AppShell({
         setRoomsLoading(true);
         setRoomsError("");
 
-        const rooms =
-          await getStudyRooms();
+        const rooms = await getStudyRooms();
 
         if (cancelled) return;
 
         setStudyRooms(
           rooms.map((room) => ({
             id: room.id,
-            name:
-              room.name?.trim() ||
-              `Room #${room.id}`,
-          }))
+            name: room.name?.trim() || `Room #${room.id}`,
+          })),
         );
       } catch {
         if (!cancelled) {
-          setRoomsError(
-            "Rooms could not be loaded."
-          );
+          setRoomsError("Rooms could not be loaded.");
         }
       } finally {
         if (!cancelled) {
@@ -403,43 +342,21 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
-    const roomIdFromPath =
-      getRoomIdFromStudyRoomPath(
-        pathname
-      );
+    const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
 
-    if (
-      roomIdFromPath !== null
-    ) {
-      const savedRoomId =
-        saveProjectRoomId(
-          roomIdFromPath
-        );
+    if (roomIdFromPath !== null) {
+      const savedRoomId = saveProjectRoomId(roomIdFromPath);
 
-      setActiveProjectRoomId(
-        savedRoomId
-      );
+      setActiveProjectRoomId(savedRoomId);
     } else {
-      setActiveProjectRoomId(
-        getSavedProjectRoomId()
-      );
+      setActiveProjectRoomId(getSavedProjectRoomId());
     }
 
-    if (
-      isAnyNavItemActive(
-        pathname,
-        studyToolNavItems
-      )
-    ) {
+    if (isAnyNavItemActive(pathname, studyToolNavItems)) {
       setStudyToolsOpen(true);
     }
 
-    if (
-      isAnyNavItemActive(
-        pathname,
-        moreNavItems
-      )
-    ) {
+    if (isAnyNavItemActive(pathname, moreNavItems)) {
       setMoreOpen(true);
     }
 
@@ -447,87 +364,52 @@ export default function AppShell({
   }, [pathname]);
 
   useEffect(() => {
-    function handleProjectRoomChanged(
-      event: Event
-    ) {
-      const roomEvent =
-        event as CustomEvent<{
-          roomId?: number;
-        }>;
+    function handleProjectRoomChanged(event: Event) {
+      const roomEvent = event as CustomEvent<{
+        roomId?: number;
+      }>;
 
-      const nextRoomId =
-        roomEvent.detail?.roomId ??
-        getSavedProjectRoomId();
+      const nextRoomId = roomEvent.detail?.roomId ?? getSavedProjectRoomId();
 
-      setActiveProjectRoomId(
-        nextRoomId
-      );
+      setActiveProjectRoomId(nextRoomId);
     }
 
     window.addEventListener(
       PROJECT_ROOM_CHANGED_EVENT,
-      handleProjectRoomChanged
+      handleProjectRoomChanged,
     );
 
     return () => {
       window.removeEventListener(
         PROJECT_ROOM_CHANGED_EVENT,
-        handleProjectRoomChanged
+        handleProjectRoomChanged,
       );
     };
   }, []);
 
-  const learnerInitials =
-    useMemo(() => {
-      return getInitials(
-        learnerName
-      );
-    }, [learnerName]);
+  const learnerInitials = useMemo(() => {
+    return getInitials(learnerName);
+  }, [learnerName]);
 
   const activeRoom = useMemo(() => {
-    if (
-      activeProjectRoomId === null
-    ) {
+    if (activeProjectRoomId === null) {
       return null;
     }
 
-    return (
-      studyRooms.find(
-        (room) =>
-          room.id ===
-          activeProjectRoomId
-      ) ?? null
-    );
-  }, [
-    activeProjectRoomId,
-    studyRooms,
-  ]);
+    return studyRooms.find((room) => room.id === activeProjectRoomId) ?? null;
+  }, [activeProjectRoomId, studyRooms]);
 
   const recentRooms = useMemo(() => {
-    const currentRoom =
-      studyRooms.find(
-        (room) =>
-          room.id ===
-          activeProjectRoomId
-      );
+    const currentRoom = studyRooms.find(
+      (room) => room.id === activeProjectRoomId,
+    );
 
-    const otherRooms =
-      studyRooms.filter(
-        (room) =>
-          room.id !==
-          activeProjectRoomId
-      );
+    const otherRooms = studyRooms.filter(
+      (room) => room.id !== activeProjectRoomId,
+    );
 
-    return [
-      ...(currentRoom
-        ? [currentRoom]
-        : []),
-      ...otherRooms,
-    ].slice(0, 6);
-  }, [
-    activeProjectRoomId,
-    studyRooms,
-  ]);
+    return [...(currentRoom ? [currentRoom] : []), ...otherRooms].slice(0, 6);
+  }, [activeProjectRoomId, studyRooms]);
 
   const currentRoomLabel =
     activeRoom?.name ||
@@ -535,37 +417,23 @@ export default function AppShell({
       ? `Room #${activeProjectRoomId}`
       : "Choose a study room");
 
-  function getConnectedHref(
-    href: string
-  ) {
-    if (
-      !projectAwareNavHrefs.has(
-        href
-      ) ||
-      activeProjectRoomId === null
-    ) {
+  function getConnectedHref(href: string) {
+    if (!projectAwareNavHrefs.has(href) || activeProjectRoomId === null) {
       return href;
     }
 
     return `${href}?roomId=${activeProjectRoomId}`;
   }
 
-  function handleChooseRoom(
-    room: RoomSummary
-  ) {
-    const savedRoomId =
-      saveProjectRoomId(room.id);
+  function handleChooseRoom(room: RoomSummary) {
+    const savedRoomId = saveProjectRoomId(room.id);
 
-    setActiveProjectRoomId(
-      savedRoomId
-    );
+    setActiveProjectRoomId(savedRoomId);
 
     setRoomMenuOpen(false);
     setMobileMenuOpen(false);
 
-    router.push(
-      `/study-rooms/${room.id}`
-    );
+    router.push(`/study-rooms/${room.id}`);
   }
 
   async function handleLogout() {
@@ -575,64 +443,46 @@ export default function AppShell({
   }
 
   function toggleDesktopSidebar() {
-    setDesktopSidebarOpen(
-      (current) => {
-        const next = !current;
+    setDesktopSidebarOpen((current) => {
+      const next = !current;
 
-        window.localStorage.setItem(
-          "studysnap:desktop-sidebar-open",
-          String(next)
-        );
+      window.localStorage.setItem(
+        "studysnap:desktop-sidebar-open",
+        String(next),
+      );
 
-        if (!next) {
-          setRoomMenuOpen(false);
-        }
-
-        return next;
+      if (!next) {
+        setRoomMenuOpen(false);
       }
-    );
+
+      return next;
+    });
   }
 
-  function renderNavItems(
-    items: NavItem[],
-    closeMobile = false
-  ) {
+  function renderNavItems(items: NavItem[], closeMobile = false) {
     return items.map((item) => {
-      const active =
-        isNavItemActive(
-          pathname,
-          item.href
-        );
+      const active = isNavItemActive(pathname, item.href);
 
-      const connectedHref =
-        getConnectedHref(
-          item.href
-        );
+      const connectedHref = getConnectedHref(item.href);
 
       return (
         <Link
           key={item.href}
           href={connectedHref}
-          aria-current={
-            active
-              ? "page"
-              : undefined
-          }
+          aria-current={active ? "page" : undefined}
           onClick={() => {
             if (closeMobile) {
-              setMobileMenuOpen(
-                false
-              );
+              setMobileMenuOpen(false);
             }
           }}
-          className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+          className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold transition ${
             active
-              ? "border border-yellow-300/50 bg-yellow-300/20 text-yellow-100 shadow-[0_0_32px_rgba(250,204,21,0.18)]"
+              ? "border border-yellow-300/30 bg-yellow-300/12 text-yellow-100 shadow-[0_10px_28px_rgba(250,204,21,0.08)]"
               : "text-slate-200 hover:bg-white/[0.06] hover:text-white"
           }`}
         >
           <span
-            className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg ${
+            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${
               active
                 ? "bg-yellow-300 text-black"
                 : "bg-white/[0.06] text-slate-200"
@@ -641,9 +491,7 @@ export default function AppShell({
             {item.icon}
           </span>
 
-          <span className="min-w-0 flex-1 truncate">
-            {item.label}
-          </span>
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
         </Link>
       );
     });
@@ -664,14 +512,10 @@ export default function AppShell({
     onToggle: () => void;
     closeMobile?: boolean;
   }) {
-    const sectionActive =
-      isAnyNavItemActive(
-        pathname,
-        items
-      );
+    const sectionActive = isAnyNavItemActive(pathname, items);
 
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-1.5">
+      <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-1">
         <button
           type="button"
           onClick={onToggle}
@@ -686,15 +530,11 @@ export default function AppShell({
             {icon}
           </span>
 
-          <span className="min-w-0 flex-1">
-            {sectionTitle}
-          </span>
+          <span className="min-w-0 flex-1">{sectionTitle}</span>
 
           <span
             className={`text-xs transition-transform ${
-              open
-                ? "rotate-180"
-                : ""
+              open ? "rotate-180" : ""
             }`}
           >
             ▾
@@ -703,50 +543,80 @@ export default function AppShell({
 
         {open ? (
           <div className="mt-1 space-y-1">
-            {renderNavItems(
-              items,
-              closeMobile
-            )}
+            {renderNavItems(items, closeMobile)}
           </div>
         ) : null}
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen overflow-x-hidden bg-[#05080d] text-white">
-      <aside
-        className={`fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-hidden border-r border-white/10 bg-[#061018] px-4 py-5 transition-transform duration-300 lg:flex lg:flex-col ${
-          desktopSidebarOpen
-            ? "lg:translate-x-0"
-            : "lg:-translate-x-full"
-        }`}
-        aria-hidden={
-          !desktopSidebarOpen
-        }
-      >
-        <div className="flex shrink-0 items-center justify-between gap-3">
-          <Link
-            href="/dashboard"
-            className="flex min-w-0 items-center gap-3"
-          >
-            <span className="text-4xl text-yellow-300">
-              ★
-            </span>
+  function renderTopNavigation() {
+    return topNavItems.map((item) => {
+      const active = isNavItemActive(
+        pathname,
+        item.href
+      );
 
-            <span className="truncate text-2xl font-black tracking-tight text-white">
-              StudySnap{" "}
-              <span className="text-yellow-300">
-                AI
-              </span>
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          title={item.label}
+          aria-current={
+            active ? "page" : undefined
+          }
+          className={`group relative flex h-[72px] min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition ${
+            active
+              ? "text-yellow-200"
+              : "text-slate-400 hover:bg-white/[0.035] hover:text-white"
+          }`}
+        >
+          <span
+            className={`grid h-9 w-9 place-items-center rounded-xl text-base transition ${
+              active
+                ? "bg-yellow-300 text-black shadow-[0_8px_24px_rgba(250,204,21,0.18)]"
+                : "bg-white/[0.04] group-hover:bg-white/[0.08]"
+            }`}
+          >
+            {item.icon}
+          </span>
+
+          <span className="hidden text-[10px] font-black xl:block">
+            {item.label}
+          </span>
+
+          <span
+            className={`absolute bottom-0 left-3 right-3 h-[3px] rounded-full ${
+              active
+                ? "bg-yellow-300"
+                : "bg-transparent"
+            }`}
+          />
+        </Link>
+      );
+    });
+  }
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-[#07111d] text-white">
+      <aside
+        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.08] bg-[#07131f] px-3 py-4 shadow-[12px_0_40px_rgba(0,0,0,0.18)] transition-transform duration-300 lg:flex lg:flex-col ${
+          desktopSidebarOpen ? "lg:translate-x-0" : "lg:-translate-x-full"
+        }`}
+        aria-hidden={!desktopSidebarOpen}
+      >
+        <div className="hidden">
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
+            <span className="text-3xl text-yellow-300">★</span>
+
+            <span className="truncate text-xl font-black tracking-tight text-white">
+              StudySnap <span className="text-yellow-300">AI</span>
             </span>
           </Link>
 
           <button
             type="button"
-            onClick={
-              toggleDesktopSidebar
-            }
+            onClick={toggleDesktopSidebar}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm font-black text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
             aria-label="Close sidebar"
             title="Close sidebar"
@@ -755,20 +625,13 @@ export default function AppShell({
           </button>
         </div>
 
-        <div className="relative mt-5 shrink-0">
+        <div className="relative mt-1 shrink-0">
           <button
             type="button"
-            aria-expanded={
-              roomMenuOpen
-            }
+            aria-expanded={roomMenuOpen}
             aria-haspopup="menu"
-            onClick={() =>
-              setRoomMenuOpen(
-                (current) =>
-                  !current
-              )
-            }
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-yellow-300/25 hover:bg-white/[0.06]"
+            onClick={() => setRoomMenuOpen((current) => !current)}
+            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.035] p-3 text-left transition hover:border-yellow-300/25 hover:bg-white/[0.06]"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -789,9 +652,7 @@ export default function AppShell({
 
               <span
                 className={`shrink-0 text-sm text-slate-400 transition-transform ${
-                  roomMenuOpen
-                    ? "rotate-180"
-                    : ""
+                  roomMenuOpen ? "rotate-180" : ""
                 }`}
               >
                 ▾
@@ -810,8 +671,7 @@ export default function AppShell({
 
               {roomsLoading ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
-                  Loading your
-                  rooms...
+                  Loading your rooms...
                 </p>
               ) : roomsError ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-red-200">
@@ -819,55 +679,37 @@ export default function AppShell({
                 </p>
               ) : recentRooms.length ? (
                 <div className="space-y-1">
-                  {recentRooms.map(
-                    (room) => {
-                      const selected =
-                        room.id ===
-                        activeProjectRoomId;
+                  {recentRooms.map((room) => {
+                    const selected = room.id === activeProjectRoomId;
 
-                      return (
-                        <button
-                          key={
-                            room.id
-                          }
-                          type="button"
-                          role="menuitem"
-                          onClick={() =>
-                            handleChooseRoom(
-                              room
-                            )
-                          }
-                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
-                            selected
-                              ? "bg-yellow-300 text-black"
-                              : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleChooseRoom(room)}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
+                          selected
+                            ? "bg-yellow-300 text-black"
+                            : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                        }`}
+                      >
+                        <span
+                          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                            selected ? "bg-black/15" : "bg-white/[0.06]"
                           }`}
                         >
-                          <span
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
-                              selected
-                                ? "bg-black/15"
-                                : "bg-white/[0.06]"
-                            }`}
-                          >
-                            📚
-                          </span>
+                          📚
+                        </span>
 
-                          <span className="min-w-0 flex-1 truncate">
-                            {
-                              room.name
-                            }
-                          </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {room.name}
+                        </span>
 
-                          {selected ? (
-                            <span>
-                              ✓
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    }
-                  )}
+                        {selected ? <span>✓</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
@@ -878,15 +720,10 @@ export default function AppShell({
               <div className="mt-2 border-t border-white/10 pt-2">
                 <Link
                   href="/study-rooms"
-                  onClick={() =>
-                    setRoomMenuOpen(
-                      false
-                    )
-                  }
+                  onClick={() => setRoomMenuOpen(false)}
                   className="flex items-center justify-center rounded-xl bg-white/[0.06] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.1]"
                 >
-                  View all study
-                  rooms →
+                  View all study rooms →
                 </Link>
               </div>
             </div>
@@ -894,24 +731,15 @@ export default function AppShell({
         </div>
 
         <nav className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="space-y-1.5">
-            {renderNavItems(
-              primaryNavItems
-            )}
-          </div>
+          <div className="space-y-1.5">{renderNavItems(primaryNavItems)}</div>
 
           <div className="mt-3">
             {renderExpandableNav({
               title: "Study Tools",
               icon: "✦",
-              items:
-                studyToolNavItems,
+              items: studyToolNavItems,
               open: studyToolsOpen,
-              onToggle: () =>
-                setStudyToolsOpen(
-                  (current) =>
-                    !current
-                ),
+              onToggle: () => setStudyToolsOpen((current) => !current),
             })}
           </div>
 
@@ -921,11 +749,7 @@ export default function AppShell({
               icon: "•••",
               items: moreNavItems,
               open: moreOpen,
-              onToggle: () =>
-                setMoreOpen(
-                  (current) =>
-                    !current
-                ),
+              onToggle: () => setMoreOpen((current) => !current),
             })}
           </div>
         </nav>
@@ -941,14 +765,11 @@ export default function AppShell({
               </span>
 
               <span className="mt-0.5 block text-[10px] text-slate-400">
-                More AI and study
-                tools
+                More AI and study tools
               </span>
             </span>
 
-            <span className="text-yellow-200">
-              →
-            </span>
+            <span className="text-yellow-200">→</span>
           </button>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -972,9 +793,7 @@ export default function AppShell({
               <Link
                 href="/settings"
                 className={`rounded-xl px-3 py-2 text-center text-xs font-black transition ${
-                  pathname.startsWith(
-                    "/settings"
-                  )
+                  pathname.startsWith("/settings")
                     ? "bg-yellow-300 text-black"
                     : "bg-white/[0.06] text-slate-200 hover:bg-white/[0.09]"
                 }`}
@@ -995,187 +814,144 @@ export default function AppShell({
       </aside>
 
       <div
-        className={`min-w-0 transition-[margin] duration-300 ${
-          desktopSidebarOpen
-            ? "lg:ml-[280px]"
-            : "lg:ml-0"
+        className={`min-w-0 pt-[72px] transition-[margin] duration-300 ${
+          desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05080d]/86 backdrop-blur-xl">
-          <div className="mx-auto max-w-[1380px] px-5 py-4">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div className="min-w-0">
-                {!desktopSidebarOpen ? (
-                  <button
-                    type="button"
-                    onClick={
-                      toggleDesktopSidebar
-                    }
-                    className="mb-3 hidden items-center gap-2 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20 lg:inline-flex"
-                    aria-label="Open sidebar"
-                    title="Open sidebar"
-                  >
-                    ☰ Navigation
-                  </button>
-                ) : null}
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.08] bg-[#05090f]/96 backdrop-blur-xl">
+          <div className="flex h-[72px] items-center gap-3 px-3 sm:px-4">
+            <div className="flex min-w-0 items-center gap-3 lg:w-[390px]">
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileMenuOpen(
+                    (current) => !current
+                  )
+                }
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-white lg:hidden"
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMobileMenuOpen(
-                      (current) =>
-                        !current
-                    )
-                  }
-                  className="mb-3 inline-flex rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white lg:hidden"
-                >
-                  ☰ Menu
-                </button>
+              <Link
+                href="/dashboard"
+                title="Go to Dashboard"
+                className="flex shrink-0 items-center gap-2"
+              >
+                <span className="text-2xl text-yellow-300">
+                  ★
+                </span>
 
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
-                  {getPageKicker(
-                    pathname
-                  )}
-                </p>
+                <span className="hidden text-lg font-black tracking-tight text-white sm:block">
+                  StudySnap{" "}
+                  <span className="text-yellow-300">
+                    AI
+                  </span>
+                </span>
+              </Link>
 
-                <h1 className="mt-2 text-[2.35rem] font-black leading-none tracking-tight text-white">
-                  {title}
-                </h1>
-
-                {subtitle ? (
-                  <p className="mt-2 max-w-4xl text-base leading-7 text-slate-400">
-                    {subtitle}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <div className="min-w-0 flex-1">
                 <CommandBar />
-
-                <div className="grid h-12 min-w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.04] px-3">
-                  <NotificationBell />
-                </div>
-
-                <Link
-                  href="/settings"
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
-                >
-                  Settings
-                </Link>
               </div>
+            </div>
+
+            <nav className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+              {renderTopNavigation()}
+            </nav>
+
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="grid h-11 min-w-11 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] px-2">
+                <NotificationBell />
+              </div>
+
+              <Link
+                href="/settings"
+                title="Profile and settings"
+                className="grid h-11 w-11 place-items-center rounded-full border border-yellow-300/20 bg-yellow-300 text-xs font-black text-black transition hover:bg-yellow-200"
+              >
+                {learnerInitials}
+              </Link>
             </div>
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[72vh] overflow-y-auto border-t border-white/10 bg-[#061018] px-4 py-4 lg:hidden">
-              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  Current room
-                </p>
+            <div className="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-white/[0.08] bg-[#07111d] px-4 py-4 lg:hidden">
+              <p className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                Main navigation
+              </p>
 
-                <p className="mt-1 text-sm font-black text-white">
-                  {currentRoomLabel}
-                </p>
-
-                <Link
-                  href={
-                    activeProjectRoomId
-                      ? `/study-rooms/${activeProjectRoomId}`
-                      : "/study-rooms"
-                  }
-                  onClick={() =>
-                    setMobileMenuOpen(
-                      false
-                    )
-                  }
-                  className="mt-3 inline-flex rounded-xl bg-yellow-300 px-3 py-2 text-xs font-black text-black"
-                >
-                  {activeProjectRoomId
-                    ? "Open room"
-                    : "Choose a room"}
-                </Link>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {renderNavItems(
+                  topNavItems,
+                  true
+                )}
               </div>
 
-              <nav className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {renderNavItems(
-                    primaryNavItems,
-                    true
-                  )}
-                </div>
+              <p className="mt-5 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                Study tools
+              </p>
 
+              <div className="mt-2">
                 {renderExpandableNav({
-                  title:
-                    "Study Tools",
+                  title: "Study Tools",
                   icon: "✦",
-                  items:
-                    studyToolNavItems,
-                  open:
-                    studyToolsOpen,
+                  items: studyToolNavItems,
+                  open: studyToolsOpen,
                   onToggle: () =>
                     setStudyToolsOpen(
-                      (current) =>
-                        !current
+                      (current) => !current
                     ),
                   closeMobile: true,
                 })}
+              </div>
 
+              <div className="mt-2">
                 {renderExpandableNav({
                   title: "More",
                   icon: "•••",
-                  items:
-                    moreNavItems,
+                  items: moreNavItems,
                   open: moreOpen,
                   onToggle: () =>
                     setMoreOpen(
-                      (current) =>
-                        !current
+                      (current) => !current
                     ),
                   closeMobile: true,
                 })}
-
-                <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                  <Link
-                    href="/settings"
-                    onClick={() =>
-                      setMobileMenuOpen(
-                        false
-                      )
-                    }
-                    className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-black ${
-                      pathname.startsWith(
-                        "/settings"
-                      )
-                        ? "bg-yellow-300 text-black"
-                        : "bg-white/[0.05] text-white"
-                    }`}
-                  >
-                    <span>⚙</span>
-                    <span>
-                      Settings
-                    </span>
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={
-                      handleLogout
-                    }
-                    className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-3 py-3 text-left text-sm font-black text-white"
-                  >
-                    <span>↪</span>
-                    <span>
-                      Logout
-                    </span>
-                  </button>
-                </div>
-              </nav>
+              </div>
             </div>
           ) : null}
         </header>
 
-        <main className="mx-auto max-w-[1380px] px-5 py-5">
-          {children}
+        <main className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 sm:py-5">
+          {pathname !== "/dashboard" ? (
+            <div className="mb-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                {getPageKicker(pathname)}
+              </p>
+
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-white">
+                {title}
+              </h1>
+
+              {subtitle ? (
+                <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-400">
+                  {subtitle}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {rightPanel ? (
+            <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0">{children}</div>
+
+              <aside className="hidden min-w-0 xl:block">
+                <div className="sticky top-[5.75rem]">{rightPanel}</div>
+              </aside>
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

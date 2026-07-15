@@ -862,6 +862,7 @@ export default function GlobalTaskDock({
       const uploadEvent =
         event as CustomEvent<{
           roomId?: number;
+          openPanel?: boolean;
         }>;
 
       const requestedRoomId =
@@ -876,11 +877,23 @@ export default function GlobalTaskDock({
         );
       }
 
-      setPanelOpen(true);
+      if (uploadEvent.detail?.openPanel !== false) {
+        setPanelOpen(true);
+      }
 
-      window.requestAnimationFrame(() => {
-        fileInputRef.current?.click();
-      });
+      const fileInput =
+        fileInputRef.current;
+
+      if (!fileInput) {
+        setError(
+          "The file picker could not open. Please refresh and try again."
+        );
+        return;
+      }
+
+      // Open synchronously so the browser keeps the user's click permission.
+      fileInput.value = "";
+      fileInput.click();
     }
 
     window.addEventListener(
@@ -1603,7 +1616,6 @@ export default function GlobalTaskDock({
           <input
             ref={fileInputRef}
             type="file"
-            multiple
             onChange={handleFileInput}
             className="hidden"
           />

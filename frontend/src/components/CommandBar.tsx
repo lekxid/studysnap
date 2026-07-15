@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  universalSearch,
-  type UniversalSearchResult,
-} from "@/lib/api";
+import { universalSearch, type UniversalSearchResult } from "@/lib/api";
 
 type CommandItem = {
   kind: "command";
@@ -136,7 +133,7 @@ export default function CommandBar() {
         if (!cancelled) {
           setLiveResults([]);
           setSearchError(
-            error instanceof Error ? error.message : "Search failed"
+            error instanceof Error ? error.message : "Search failed",
           );
         }
       } finally {
@@ -193,7 +190,7 @@ export default function CommandBar() {
       if (event.key === "ArrowDown") {
         event.preventDefault();
         setSelectedIndex((current) =>
-          Math.min(current + 1, displayItems.length - 1)
+          Math.min(current + 1, displayItems.length - 1),
         );
         return;
       }
@@ -343,7 +340,9 @@ export default function CommandBar() {
                 </div>
               ) : (
                 <div className="px-5 py-10 text-center">
-                  <p className="text-sm font-bold text-white">No result found</p>
+                  <p className="text-sm font-bold text-white">
+                    No result found
+                  </p>
                   <p className="mt-2 text-sm text-slate-400">
                     Try searching a project, note, PDF, flashcard, or command.
                   </p>
