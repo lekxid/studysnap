@@ -822,13 +822,16 @@ export default function DashboardPage() {
 
     const payload = parseJwt(token);
 
-    if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-      return;
+    if (payload) {
+      setFullName(
+        payload.full_name ||
+          payload.sub?.split("@")[0] ||
+          "Student"
+      );
+    } else {
+      setFullName("Student");
     }
 
-    setFullName(payload.full_name || payload.sub?.split("@")[0] || "Student");
     setChecked(true);
 
     async function loadCurrentProfile() {

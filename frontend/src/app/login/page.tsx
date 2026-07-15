@@ -62,12 +62,44 @@ export default function LoginPage() {
         throw new Error(data?.detail || data?.message || "Login failed.");
       }
 
-      if (data?.access_token) {
-        localStorage.setItem("token", data.access_token);
+      const accessTokenCandidates = [
+        data?.access_token,
+        data?.token,
+        data?.accessToken,
+      ];
+
+      const accessToken =
+        accessTokenCandidates.find(
+          (value) =>
+            typeof value === "string" &&
+            value.trim().length > 0
+        )?.trim() || "";
+
+      if (!accessToken) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Login response did not include an access token."
+        );
       }
 
-      window.location.href =
-        nextPath || "/dashboard";
+      localStorage.setItem(
+        "token",
+        accessToken
+      );
+
+      const savedToken =
+        localStorage.getItem("token");
+
+      if (!savedToken) {
+        throw new Error(
+          "StudySnap could not save your login session."
+        );
+      }
+
+      window.location.replace(
+        nextPath || "/dashboard"
+      );
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
