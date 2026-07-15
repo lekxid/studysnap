@@ -529,14 +529,14 @@ export default function AppShell({
           }}
           className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold transition ${
             active
-              ? "border border-yellow-300/30 bg-yellow-300/12 text-yellow-100 shadow-[0_10px_28px_rgba(250,204,21,0.08)]"
+              ? "border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
               : "text-slate-200 hover:bg-white/[0.06] hover:text-white"
           }`}
         >
           <span
             className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${
               active
-                ? "bg-yellow-300 text-black"
+                ? "bg-[#c9ad50] text-[#111317]"
                 : "bg-white/[0.06] text-slate-200"
             }`}
           >
@@ -574,7 +574,7 @@ export default function AppShell({
           aria-expanded={open}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-black transition ${
             sectionActive
-              ? "bg-yellow-300/10 text-yellow-100"
+              ? "bg-[#c9ad50]/[0.09] text-[#ece8da]"
               : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
           }`}
         >
@@ -620,14 +620,14 @@ export default function AppShell({
           }
           className={`group relative flex h-[72px] min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition ${
             active
-              ? "text-yellow-200"
+              ? "text-[#cec18d]"
               : "text-slate-400 hover:bg-white/[0.035] hover:text-white"
           }`}
         >
           <span
             className={`grid h-9 w-9 place-items-center rounded-xl text-base transition ${
               active
-                ? "bg-yellow-300 text-black shadow-[0_8px_24px_rgba(250,204,21,0.18)]"
+                ? "bg-[#c9ad50] text-[#111317] shadow-[0_8px_22px_rgba(0,0,0,0.18)]"
                 : "bg-white/[0.04] group-hover:bg-white/[0.08]"
             }`}
           >
@@ -641,7 +641,7 @@ export default function AppShell({
           <span
             className={`absolute bottom-0 left-3 right-3 h-[3px] rounded-full ${
               active
-                ? "bg-yellow-300"
+                ? "bg-[#c9ad50]"
                 : "bg-transparent"
             }`}
           />
@@ -651,19 +651,19 @@ export default function AppShell({
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#07111d] text-white">
+    <div className="min-h-screen overflow-x-hidden bg-[#0b0f14] text-white">
       <aside
-        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.08] bg-[#07131f] px-3 py-4 shadow-[12px_0_40px_rgba(0,0,0,0.18)] transition-transform duration-300 lg:flex lg:flex-col ${
+        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.07] bg-[#0d1218] px-3 py-4 shadow-[12px_0_40px_rgba(0,0,0,0.18)] transition-transform duration-300 lg:flex lg:flex-col ${
           desktopSidebarOpen ? "lg:translate-x-0" : "lg:-translate-x-full"
         }`}
         aria-hidden={!desktopSidebarOpen}
       >
         <div className="hidden">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
-            <span className="text-3xl text-yellow-300">★</span>
+            <span className="text-3xl text-[#c9ad50]">★</span>
 
             <span className="truncate text-xl font-black tracking-tight text-white">
-              StudySnap <span className="text-yellow-300">AI</span>
+              StudySnap <span className="text-[#c9ad50]">AI</span>
             </span>
           </Link>
 
@@ -684,7 +684,7 @@ export default function AppShell({
             aria-expanded={roomMenuOpen}
             aria-haspopup="menu"
             onClick={() => setRoomMenuOpen((current) => !current)}
-            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.035] p-3 text-left transition hover:border-yellow-300/25 hover:bg-white/[0.06]"
+            className="w-full rounded-xl border border-white/[0.07] bg-white/[0.035] p-3 text-left transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.06]"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -716,7 +716,7 @@ export default function AppShell({
           {roomMenuOpen ? (
             <div
               role="menu"
-              className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#08131d] p-2 shadow-2xl shadow-black/60"
+              className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#12181e] p-2 shadow-2xl shadow-black/60"
             >
               <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                 Switch study room
@@ -743,7 +743,7 @@ export default function AppShell({
                         onClick={() => handleChooseRoom(room)}
                         className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
                           selected
-                            ? "bg-yellow-300 text-black"
+                            ? "bg-[#c9ad50] text-[#111317]"
                             : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
                         }`}
                       >
@@ -810,10 +810,10 @@ export default function AppShell({
         <div className="shrink-0 border-t border-white/10 pt-3">
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded-xl border border-yellow-300/15 bg-yellow-300/10 px-3 py-2.5 text-left transition hover:bg-yellow-300/15"
+            className="flex w-full items-center justify-between rounded-xl border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] px-3 py-2.5 text-left transition hover:bg-[#c9ad50]/[0.11]"
           >
             <span>
-              <span className="block text-xs font-black text-yellow-100">
+              <span className="block text-xs font-black text-[#ece8da]">
                 StudySnap Premium
               </span>
 
@@ -822,12 +822,12 @@ export default function AppShell({
               </span>
             </span>
 
-            <span className="text-yellow-200">→</span>
+            <span className="text-[#cec18d]">→</span>
           </button>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-yellow-300 text-sm font-black text-black">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-sm font-black text-[#111317]">
                 {learnerInitials}
               </div>
 
@@ -847,7 +847,7 @@ export default function AppShell({
                 href="/settings"
                 className={`rounded-xl px-3 py-2 text-center text-xs font-black transition ${
                   pathname.startsWith("/settings")
-                    ? "bg-yellow-300 text-black"
+                    ? "bg-[#c9ad50] text-[#111317]"
                     : "bg-white/[0.06] text-slate-200 hover:bg-white/[0.09]"
                 }`}
               >
@@ -871,7 +871,7 @@ export default function AppShell({
           desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.08] bg-[#05090f]/96 backdrop-blur-xl">
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#090d12]/96 backdrop-blur-xl">
           <div className="flex h-[72px] items-center gap-3 px-3 sm:px-4">
             <div className="flex min-w-0 items-center gap-3 lg:w-[390px]">
               <button
@@ -892,13 +892,13 @@ export default function AppShell({
                 title="Go to Dashboard"
                 className="flex shrink-0 items-center gap-2"
               >
-                <span className="text-2xl text-yellow-300">
+                <span className="text-2xl text-[#c9ad50]">
                   ★
                 </span>
 
                 <span className="hidden text-lg font-black tracking-tight text-white sm:block">
                   StudySnap{" "}
-                  <span className="text-yellow-300">
+                  <span className="text-[#c9ad50]">
                     AI
                   </span>
                 </span>
@@ -914,14 +914,14 @@ export default function AppShell({
             </nav>
 
             <div className="ml-auto flex shrink-0 items-center gap-2">
-              <div className="grid h-11 min-w-11 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] px-2">
+              <div className="grid h-11 min-w-11 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] px-2">
                 <NotificationBell />
               </div>
 
               <Link
                 href="/settings"
                 title="Profile and settings"
-                className="grid h-11 w-11 place-items-center rounded-full border border-yellow-300/20 bg-yellow-300 text-xs font-black text-black transition hover:bg-yellow-200"
+                className="grid h-11 w-11 place-items-center rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63]"
               >
                 {learnerInitials}
               </Link>
@@ -929,7 +929,7 @@ export default function AppShell({
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-white/[0.08] bg-[#07111d] px-4 py-4 lg:hidden">
+            <div className="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-white/[0.07] bg-[#0b0f14] px-4 py-4 lg:hidden">
               <p className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                 Main navigation
               </p>
@@ -979,7 +979,7 @@ export default function AppShell({
         <main className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 sm:py-5">
           {pathname !== "/dashboard" ? (
             <div className="mb-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
                 {getPageKicker(pathname)}
               </p>
 

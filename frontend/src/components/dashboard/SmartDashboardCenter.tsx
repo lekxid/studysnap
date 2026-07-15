@@ -83,12 +83,12 @@ function EmptySection({
   actionLabel?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-yellow-400/20 bg-black px-4 py-6 text-center">
-      <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/10 text-xl">
+    <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#12181e] px-4 py-6 text-center">
+      <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-xl">
         {icon}
       </span>
 
-      <p className="mt-3 text-sm font-black text-yellow-100">
+      <p className="mt-3 text-sm font-black text-[#f0ead3]">
         {title}
       </p>
 
@@ -99,7 +99,7 @@ function EmptySection({
       {actionHref && actionLabel ? (
         <Link
           href={actionHref}
-          className="mt-4 inline-flex rounded-lg border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-200 transition hover:bg-yellow-300/15"
+          className="mt-4 inline-flex rounded-lg border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 px-3 py-2 text-xs font-black text-[#dfce8c] transition hover:bg-[#c9ad50]/[0.14]"
         >
           {actionLabel}
         </Link>
@@ -119,7 +119,7 @@ function LoadingDashboardFeed() {
       {[0, 1, 2].map((item) => (
         <section
           key={item}
-          className="animate-pulse rounded-2xl border border-white/[0.08] bg-[#090d13] p-4 sm:p-5"
+          className="animate-pulse rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5"
         >
           <div className="h-3 w-28 rounded bg-white/[0.07]" />
           <div className="mt-3 h-6 w-2/3 rounded bg-white/[0.07]" />
@@ -139,27 +139,27 @@ function NextStepCard({
   item: DashboardNextStep;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-yellow-400/35 bg-black shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
-      <div className="h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-transparent" />
+    <section className="overflow-hidden rounded-2xl border border-[#c9ad50]/[0.24] bg-[#12181e] shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
+      <div className="h-1 bg-gradient-to-r from-[#c9ad50] via-[#c8ad4c] to-transparent" />
 
       <div className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-yellow-400/35 bg-yellow-400/10 text-2xl">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.24] bg-[#c9ad50]/10 text-2xl">
             {item.icon}
           </span>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-400">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#c9ad50]">
                 Best next step
               </p>
 
-              <span className="rounded-full border border-yellow-400/20 bg-yellow-400/[0.06] px-2 py-1 text-[9px] font-black text-yellow-200/70">
+              <span className="rounded-full border border-white/[0.07] bg-[#c9ad50]/[0.06] px-2 py-1 text-[9px] font-black text-[#dfce8c]/70">
                 {item.reason}
               </span>
             </div>
 
-            <h2 className="mt-2 text-xl font-black text-yellow-100">
+            <h2 className="mt-2 text-xl font-black text-[#f0ead3]">
               {item.title}
             </h2>
 
@@ -170,7 +170,7 @@ function NextStepCard({
 
           <Link
             href={item.action_href}
-            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-black transition hover:bg-yellow-300"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#c9ad50] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#d5bb63]"
           >
             {item.action_label}
             <span className="ml-2">→</span>
@@ -190,29 +190,29 @@ function AttentionRow({
   return (
     <Link
       href={item.action_href}
-      className="group flex items-start gap-3 rounded-xl border border-yellow-400/15 bg-black p-3 transition hover:border-yellow-400/40 hover:bg-yellow-400/[0.04]"
+      className="group flex items-start gap-3 rounded-xl border border-white/[0.07] bg-[#12181e] p-3 transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04]"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/10 text-lg">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-lg">
         {item.icon}
       </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-black text-yellow-100">
+          <p className="min-w-0 flex-1 truncate text-sm font-black text-[#f0ead3]">
             {item.title}
           </p>
 
-          <span className="rounded-full border border-yellow-400/15 bg-yellow-400/[0.05] px-2 py-1 text-[9px] font-black text-yellow-200/60">
+          <span className="rounded-full border border-white/[0.07] bg-[#c9ad50]/[0.05] px-2 py-1 text-[9px] font-black text-[#dfce8c]/60">
             {item.reason}
           </span>
         </div>
 
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-yellow-100/45">
+        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#f0ead3]/45">
           {item.description}
         </p>
       </div>
 
-      <span className="shrink-0 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-2.5 py-1.5 text-[10px] font-black text-yellow-200 transition group-hover:bg-yellow-400 group-hover:text-black">
+      <span className="shrink-0 rounded-lg border border-[#c9ad50]/[0.22] bg-[#c9ad50]/10 px-2.5 py-1.5 text-[10px] font-black text-[#dfce8c] transition group-hover:bg-[#c9ad50] group-hover:text-black">
         {item.action_label}
       </span>
     </Link>
@@ -229,10 +229,10 @@ function NeedsAttentionSection({
     data.empty_states.needs_attention;
 
   return (
-    <section className="rounded-2xl border border-yellow-400/20 bg-black p-4 sm:p-5">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-yellow-300">
+          <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
             <span>⚠️</span>
             Needs Attention
           </h2>
@@ -243,7 +243,7 @@ function NeedsAttentionSection({
         </div>
 
         {data.needs_attention.length ? (
-          <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-2.5 py-1 text-[10px] font-black text-yellow-200">
+          <span className="rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 px-2.5 py-1 text-[10px] font-black text-[#dfce8c]">
             {data.needs_attention.length}
           </span>
         ) : null}
@@ -281,15 +281,15 @@ function ContinueRow({
   return (
     <Link
       href={item.action_href}
-      className="group grid gap-3 rounded-xl border border-yellow-400/15 bg-black p-3 transition hover:border-yellow-400/40 hover:bg-yellow-400/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      className="group grid gap-3 rounded-xl border border-white/[0.07] bg-[#12181e] p-3 transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/10 text-lg">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-lg">
           {item.icon}
         </span>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-black text-yellow-100">
+          <p className="truncate text-sm font-black text-[#f0ead3]">
             {item.title}
           </p>
 
@@ -316,7 +316,7 @@ function ContinueRow({
           <>
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-yellow-400"
+                className="h-full rounded-full bg-[#c9ad50]"
                 style={{
                   width: `${Math.max(
                     0,
@@ -329,13 +329,13 @@ function ContinueRow({
               />
             </div>
 
-            <span className="w-9 text-right text-[10px] font-black text-yellow-300">
+            <span className="w-9 text-right text-[10px] font-black text-[#c9ad50]">
               {item.progress_percent}%
             </span>
           </>
         ) : null}
 
-        <span className="rounded-lg border border-white/[0.08] px-3 py-1.5 text-[10px] font-black text-slate-300 transition group-hover:border-yellow-400/40 group-hover:text-yellow-200">
+        <span className="rounded-lg border border-white/[0.07] px-3 py-1.5 text-[10px] font-black text-slate-300 transition group-hover:border-[#c9ad50]/[0.28] group-hover:text-[#dfce8c]">
           {item.action_label}
         </span>
       </div>
@@ -353,9 +353,9 @@ function ContinueLearningSection({
     data.empty_states.continue_learning;
 
   return (
-    <section className="rounded-2xl border border-yellow-400/20 bg-black p-4 sm:p-5">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
       <div>
-        <h2 className="flex items-center gap-2 text-lg font-black text-yellow-300">
+        <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
           <span>📖</span>
           Continue Learning
         </h2>
@@ -401,15 +401,15 @@ function GroupActivityRow({
   return (
     <Link
       href={item.action_href}
-      className="group flex items-start gap-3 rounded-xl border border-violet-300/10 bg-violet-300/[0.035] p-3 transition hover:border-violet-300/20 hover:bg-violet-300/[0.055]"
+      className="group flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045]"
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-300/10 text-lg">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-lg">
         {item.icon}
       </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-black text-yellow-100">
+          <p className="min-w-0 flex-1 truncate text-sm font-black text-[#f0ead3]">
             {item.title}
           </p>
 
@@ -429,7 +429,7 @@ function GroupActivityRow({
         </p>
       </div>
 
-      <span className="shrink-0 rounded-lg border border-violet-300/15 px-2.5 py-1.5 text-[10px] font-black text-violet-200">
+      <span className="shrink-0 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[10px] font-black text-slate-300">
         Open
       </span>
     </Link>
@@ -446,10 +446,10 @@ function GroupActivitySection({
     data.empty_states.group_activity;
 
   return (
-    <section className="rounded-2xl border border-yellow-400/20 bg-black p-4 sm:p-5">
+    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-yellow-300">
+          <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
             <span>💬</span>
             New Group Activity
           </h2>
@@ -541,7 +541,7 @@ function FeedItem({
 
           <Link
             href={item.action_href}
-            className="mt-3 inline-flex items-center rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 text-[10px] font-black text-slate-300 transition hover:border-yellow-300/20 hover:text-yellow-200"
+            className="mt-3 inline-flex items-center rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 text-[10px] font-black text-slate-300 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c]"
           >
             {item.action_label}
             <span className="ml-1.5">→</span>
@@ -566,7 +566,7 @@ function LearningFeedSection({
     data.empty_states.feed;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[0.09] bg-[#090d13]">
+    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e]">
       <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] p-4 sm:p-5">
         <div>
           <h2 className="text-lg font-black text-white">
@@ -611,7 +611,7 @@ function LearningFeedSection({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-yellow-300/20 hover:text-yellow-200 disabled:cursor-wait disabled:opacity-50"
+              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
             >
               {loadingMore
                 ? "Loading older activity..."
@@ -619,7 +619,7 @@ function LearningFeedSection({
             </button>
           ) : (
             <>
-              <p className="text-sm font-black text-yellow-100">
+              <p className="text-sm font-black text-[#f0ead3]">
                 You’re all caught up
               </p>
 
@@ -650,7 +650,7 @@ export default function SmartDashboardCenter({
   if (!data) {
     return (
       <section className="rounded-2xl border border-red-400/15 bg-red-400/[0.04] p-5 text-center">
-        <p className="text-sm font-black text-yellow-100">
+        <p className="text-sm font-black text-[#f0ead3]">
           StudySnap could not load your learning feed
         </p>
 
@@ -662,7 +662,7 @@ export default function SmartDashboardCenter({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-4 rounded-lg bg-yellow-300 px-4 py-2 text-xs font-black text-black"
+          className="mt-4 rounded-lg bg-[#c9ad50]0 px-4 py-2 text-xs font-black text-black"
         >
           Try again
         </button>
@@ -684,7 +684,7 @@ export default function SmartDashboardCenter({
           <button
             type="button"
             onClick={onRetry}
-            className="shrink-0 text-[10px] font-black text-yellow-300"
+            className="shrink-0 text-[10px] font-black text-[#c9ad50]"
           >
             Refresh
           </button>

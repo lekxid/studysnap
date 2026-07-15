@@ -268,12 +268,12 @@ function GeneralAIStartCard({
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[0.09] bg-[#090d13] shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
-      <div className="h-1 bg-gradient-to-r from-violet-500 via-yellow-300 to-transparent" />
+    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e] shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
+      <div className="h-px bg-white/[0.08]" />
 
       <div className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-violet-300/20 bg-violet-300/10 text-xl">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.075] bg-white/[0.045] text-xl">
             ✦
           </div>
 
@@ -302,7 +302,7 @@ function GeneralAIStartCard({
 
         <form
           onSubmit={onSubmit}
-          className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition focus-within:border-yellow-300/35"
+          className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition focus-within:border-[#c9ad50]/[0.24]"
         >
           <input
             value={prompt}
@@ -316,7 +316,7 @@ function GeneralAIStartCard({
             onClick={openChatAttachmentPicker}
             aria-label="Attach image to StudySnap AI"
             title="Attach image to StudySnap AI"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-yellow-300/35 hover:bg-yellow-300/10 hover:text-yellow-200"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-[#c9ad50]/[0.22] hover:bg-[#c9ad50]/[0.08] hover:text-[#cec18d]"
           >
             +
           </button>
@@ -324,7 +324,7 @@ function GeneralAIStartCard({
           <button
             type="submit"
             aria-label="Ask StudySnap"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-yellow-300 text-base font-black text-black transition hover:bg-yellow-200"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#c9ad50] text-base font-black text-[#111317] transition hover:bg-[#d5bb63]"
           >
             ➤
           </button>
@@ -333,7 +333,7 @@ function GeneralAIStartCard({
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/general-ai"
-            className="flex items-center justify-center gap-2 rounded-xl border border-violet-300/15 bg-violet-300/[0.07] px-3 py-2.5 text-sm font-bold text-violet-100 transition hover:bg-violet-300/10"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/[0.06]"
           >
             <span>✦</span>
             Ask StudySnap
@@ -341,7 +341,7 @@ function GeneralAIStartCard({
 
           <Link
             href={getRoomAwareHref("/notes", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
           >
             <span className="text-emerald-300">▣</span>
             Create note
@@ -349,7 +349,7 @@ function GeneralAIStartCard({
 
           <Link
             href={getRoomAwareHref("/quizzes", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
           >
             <span className="text-orange-300">▤</span>
             Start quiz
@@ -357,9 +357,9 @@ function GeneralAIStartCard({
 
           <Link
             href={getRoomAwareHref("/flashcards", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
           >
-            <span className="text-cyan-300">◫</span>
+            <span className="text-[#79aeb5]">◫</span>
             Concept Cards
           </Link>
         </div>
@@ -370,11 +370,11 @@ function GeneralAIStartCard({
 
 function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4 sm:p-5">
+    <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-black text-white">
-            <span className="text-cyan-300">📖</span>
+            <span className="text-[#79aeb5]">📖</span>
             Continue Learning
           </h2>
 
@@ -385,7 +385,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
 
         <Link
           href="/progress"
-          className="text-xs font-black text-yellow-300 hover:text-yellow-200"
+          className="text-xs font-black text-[#c9ad50] hover:text-[#cec18d]"
         >
           View all
         </Link>
@@ -397,7 +397,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
             <Link
               key={item.id}
               href={item.href}
-              className="group grid gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-yellow-300/20 hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center"
+              className="group grid gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-lg">
@@ -418,7 +418,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
               <div className="flex items-center gap-3">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-yellow-300"
+                    className="h-full rounded-full bg-[#c9ad50]"
                     style={{
                       width: `${item.percent}%`,
                     }}
@@ -429,7 +429,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
                   {item.percent}%
                 </span>
 
-                <span className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-slate-200 group-hover:border-yellow-300/25 group-hover:text-yellow-200">
+                <span className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-slate-200 group-hover:border-[#c9ad50]/[0.20] group-hover:text-[#cec18d]">
                   Continue
                 </span>
               </div>
@@ -453,7 +453,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
 
 function RecentActivityCard({ items }: { items: ActivityItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4 sm:p-5">
+    <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-white">Recent Activity</h2>
@@ -465,7 +465,7 @@ function RecentActivityCard({ items }: { items: ActivityItem[] }) {
 
         <Link
           href="/study-rooms"
-          className="text-xs font-black text-yellow-300 hover:text-yellow-200"
+          className="text-xs font-black text-[#c9ad50] hover:text-[#cec18d]"
         >
           View rooms
         </Link>
@@ -493,7 +493,7 @@ function RecentActivityCard({ items }: { items: ActivityItem[] }) {
                 </p>
               </div>
 
-              <span className="shrink-0 rounded-lg border border-white/[0.08] px-2 py-1 text-[10px] font-black text-slate-400">
+              <span className="shrink-0 rounded-lg border border-white/[0.07] px-2 py-1 text-[10px] font-black text-slate-400">
                 {item.label}
               </span>
             </Link>
@@ -594,11 +594,11 @@ function DashboardRightPanel({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4">
+      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Today&apos;s Focus</h2>
 
-          <span className="text-xs font-black text-yellow-300">
+          <span className="text-xs font-black text-[#c9ad50]">
             {focusItems.length} steps
           </span>
         </div>
@@ -622,11 +622,11 @@ function DashboardRightPanel({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4">
+      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">🔥 Study Streak</h2>
 
-          <Link href="/progress" className="text-xs font-black text-yellow-300">
+          <Link href="/progress" className="text-xs font-black text-[#c9ad50]">
             Progress
           </Link>
         </div>
@@ -646,11 +646,11 @@ function DashboardRightPanel({
         </p>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4">
+      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Progress Overview</h2>
 
-          <span className="text-xs font-black text-yellow-300">
+          <span className="text-xs font-black text-[#c9ad50]">
             {displayScore}%
           </span>
         </div>
@@ -666,7 +666,7 @@ function DashboardRightPanel({
 
               <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-full rounded-full bg-yellow-300"
+                  className="h-full rounded-full bg-[#c9ad50]"
                   style={{
                     width: `${row.percent}%`,
                   }}
@@ -676,8 +676,8 @@ function DashboardRightPanel({
           ))}
         </div>
 
-        <div className="mt-4 rounded-xl border border-violet-300/15 bg-violet-300/[0.06] p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-200">
+        <div className="mt-4 rounded-xl border border-white/[0.07] bg-[#151a24] p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#b8a8cf]">
             AI Insight
           </p>
 
@@ -687,11 +687,11 @@ function DashboardRightPanel({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.09] bg-[#090d13] p-4">
+      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Recent PDFs</h2>
 
-          <Link href={roomHref} className="text-xs font-black text-yellow-300">
+          <Link href={roomHref} className="text-xs font-black text-[#c9ad50]">
             View room
           </Link>
         </div>
@@ -1279,7 +1279,7 @@ export default function DashboardPage() {
 
   if (!checked) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#05080d] text-white">
+      <main className="grid min-h-screen place-items-center bg-[#0b0f14] text-white">
         Checking dashboard...
       </main>
     );

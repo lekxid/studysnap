@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #071018;
-  --background-soft: #0d1724;
-  --background-deep: #050b12;
-  --foreground: #f7fafc;
-  --muted: #94a3b8;
+  --background: #080d12;
+  --background-soft: #0e151c;
+  --background-deep: #060a0e;
+  --foreground: #f1f3f5;
+  --muted: #8f9aa7;
 
-  --card: rgba(10, 18, 30, 0.8);
-  --card-strong: rgba(8, 14, 24, 0.94);
-  --card-soft: rgba(255, 255, 255, 0.03);
+  --card: rgba(15, 22, 29, 0.92);
+  --card-strong: rgba(10, 16, 22, 0.97);
+  --card-soft: rgba(255, 255, 255, 0.025);
 
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(244, 185, 66, 0.2);
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(210, 177, 63, 0.18);
 
-  --accent: #6d5efc;
-  --accent-strong: #5448f3;
-  --accent-soft: #a8b0ff;
+  --accent: #8277b8;
+  --accent-strong: #6e649d;
+  --accent-soft: #aaa7c4;
 
-  --electric: #5ce1ff;
-  --cyan-soft: rgba(92, 225, 255, 0.14);
+  --electric: #77aeb8;
+  --cyan-soft: rgba(119, 174, 184, 0.09);
 
-  --gold: #f4b942;
-  --gold-strong: #d89a1c;
-  --gold-soft: #fff0bf;
-  --gold-fade: rgba(244, 185, 66, 0.12);
+  --gold: #d6b84a;
+  --gold-strong: #b99a31;
+  --gold-soft: #eee3b8;
+  --gold-fade: rgba(214, 184, 74, 0.10);
 
   --success: #34d399;
   --danger: #fb7185;
@@ -57,11 +57,11 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   background:
-    radial-gradient(circle at 8% 12%, rgba(92, 225, 255, 0.08), transparent 20%),
-    radial-gradient(circle at 82% 10%, rgba(109, 94, 252, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 20%, rgba(244, 185, 66, 0.13), transparent 18%),
+    radial-gradient(circle at 8% 12%, rgba(119, 174, 184, 0.035), transparent 22%),
+    radial-gradient(circle at 82% 10%, rgba(130, 119, 184, 0.055), transparent 26%),
+    radial-gradient(circle at 88% 20%, rgba(214, 184, 74, 0.055), transparent 22%),
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, #071018 0%, #09111c 36%, #081019 72%, #050b12 100%);
+    linear-gradient(180deg, #080d12 0%, #0b1117 38%, #090f14 72%, #060a0e 100%);
 }
 
 a {
@@ -89,7 +89,7 @@ canvas {
 }
 
 ::selection {
-  background: rgba(244, 185, 66, 0.26);
+  background: rgba(214, 184, 74, 0.22);
   color: white;
 }
 
@@ -105,8 +105,8 @@ canvas {
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(
     180deg,
-    rgba(244, 185, 66, 0.45),
-    rgba(109, 94, 252, 0.45)
+    rgba(214, 184, 74, 0.34),
+    rgba(130, 119, 184, 0.24)
   );
   border-radius: 999px;
 }
@@ -114,8 +114,8 @@ canvas {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     180deg,
-    rgba(244, 185, 66, 0.65),
-    rgba(109, 94, 252, 0.6)
+    rgba(214, 184, 74, 0.48),
+    rgba(130, 119, 184, 0.36)
   );
 }
 
@@ -150,9 +150,9 @@ textarea::placeholder {
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: rgba(244, 185, 66, 0.5);
+  border-color: rgba(214, 184, 74, 0.38);
   box-shadow:
-    0 0 0 4px rgba(244, 185, 66, 0.12),
+    0 0 0 4px rgba(214, 184, 74, 0.09),
     0 10px 30px rgba(0, 0, 0, 0.18);
   background: linear-gradient(
     180deg,
@@ -180,11 +180,11 @@ button:active {
 
 .premium-bg {
   background:
-    radial-gradient(circle at 8% 12%, rgba(92, 225, 255, 0.08), transparent 20%),
-    radial-gradient(circle at 82% 10%, rgba(109, 94, 252, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 20%, rgba(244, 185, 66, 0.13), transparent 18%),
+    radial-gradient(circle at 8% 12%, rgba(119, 174, 184, 0.035), transparent 22%),
+    radial-gradient(circle at 82% 10%, rgba(130, 119, 184, 0.055), transparent 26%),
+    radial-gradient(circle at 88% 20%, rgba(214, 184, 74, 0.055), transparent 22%),
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, #071018 0%, #09111c 36%, #081019 72%, #050b12 100%);
+    linear-gradient(180deg, #080d12 0%, #0b1117 38%, #090f14 72%, #060a0e 100%);
 }
 
 .premium-card {
@@ -450,7 +450,7 @@ button:active {
     rgba(244, 185, 66, 0.16),
     rgba(109, 94, 252, 0.12)
   );
-  border: 1px solid rgba(244, 185, 66, 0.26);
+  border: 1px solid rgba(214, 184, 74, 0.22);
   color: #fff3cf;
   font-size: 0.82rem;
   font-weight: 700;
