@@ -1,0 +1,87 @@
+services:
+  - type: web
+    name: studysnap-beta-api
+    runtime: docker
+    region: ohio
+    plan: starter
+    branch: feature/public-beta-deployment-v1
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    maxShutdownDelaySeconds: 60
+
+    envVars:
+      - key: APP_NAME
+        value: StudySnap AI
+
+      - key: APP_ENV
+        value: beta
+
+      - key: SECRET_KEY
+        generateValue: true
+
+      - key: ALGORITHM
+        value: HS256
+
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: studysnap-beta-db
+          property: connectionString
+
+      - key: FRONTEND_APP_URL
+        value: studysnap-beta-web.onrender.com
+
+      - key: CORS_ORIGINS
+        value: studysnap-beta-web.onrender.com
+
+      - key: OPENAI_API_KEY
+        sync: false
+
+      - key: OPENAI_VISION_MODEL
+        value: gpt-4o-mini
+
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+    disk:
+      name: studysnap-uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+
+  - type: web
+    name: studysnap-beta-web
+    runtime: node
+    region: ohio
+    plan: free
+    branch: feature/public-beta-deployment-v1
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+
+    envVars:
+      - key: BACKEND_INTERNAL_URL
+        fromService:
+          name: studysnap-beta-api
+          type: web
+          property: hostport
+
+      - key: NEXT_PUBLIC_WS_BASE_URL
+        value: studysnap-beta-api.onrender.com
+
+databases:
+  - name: studysnap-beta-db
+    region: ohio
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+    databaseName: studysnap
+    user: studysnap
+    ipAllowList: []

@@ -1,5 +1,21 @@
 function normalizeBaseUrl(value: string | undefined): string {
-  return value?.trim().replace(/\/+$/, "") || "";
+  const normalized = value?.trim().replace(/\/+$/, "") || "";
+
+  if (!normalized || normalized.startsWith("/")) {
+    return normalized;
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  const isLocalHost =
+    /^localhost(?::\d+)?$/i.test(normalized) ||
+    /^127\.0\.0\.1(?::\d+)?$/.test(normalized) ||
+    /^192\.168\.\d+\.\d+(?::\d+)?$/.test(normalized) ||
+    /^10\.\d+\.\d+\.\d+(?::\d+)?$/.test(normalized);
+
+  return `${isLocalHost ? "http" : "https"}://${normalized}`;
 }
 
 /**

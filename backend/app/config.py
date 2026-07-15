@@ -2,11 +2,24 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def normalize_public_url(value: str) -> str:
+    normalized = (value or "").strip().rstrip("/")
+
+    if not normalized:
+        return ""
+
+    if normalized.startswith(("http://", "https://")):
+        return normalized
+
+    return f"https://{normalized}"
+
+
 class Settings(BaseSettings):
     app_name: str = "StudySnap AI"
     app_env: str = "development"
     app_host: str = "0.0.0.0"
     app_port: int = 8000
+    render_external_hostname: str = ""
 
     DATABASE_URL: str = "sqlite:///./test.db"
 
@@ -33,13 +46,31 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [
-            origin.strip().rstrip("/")
+            normalize_public_url(origin)
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
 
     @model_validator(mode="after")
     def validate_production_security(self):
+        self.frontend_app_url = normalize_public_url(
+            self.frontend_app_url
+        )
+
+        render_backend_url = normalize_public_url(
+            self.render_external_hostname
+        )
+
+        if render_backend_url:
+            self.google_redirect_uri = (
+                f"{render_backend_url}/"
+                "api/integrations/google/callback"
+            )
+        else:
+            self.google_redirect_uri = normalize_public_url(
+                self.google_redirect_uri
+            )
+
         protected_environments = {
             "beta",
             "staging",
