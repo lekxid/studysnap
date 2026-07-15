@@ -26,3 +26,6 @@ from app.models.room_ai_output import RoomAIOutput
 from app.models.room_invitation import RoomInvitation
 from app.models.room_invite_link import RoomInviteLink
 from app.models.room_message import RoomMessage
+from app.models.dashboard_activity import DashboardActivity
+from app.models.user_resume_state import UserResumeState
+from app.models.room_read_state import RoomReadState
