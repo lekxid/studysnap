@@ -230,11 +230,18 @@ export default function PlannerPage() {
 
   function addNotification(text: string) {
     const current = loadJSON<any[]>(NOTICE_KEY, []);
+    const now = new Date();
+
     saveJSON(NOTICE_KEY, [
       {
-        id: Date.now(),
+        id: now.getTime(),
         text,
-        createdAt: new Date().toLocaleString(),
+        createdAt: now.toLocaleString(),
+        createdAtIso: now.toISOString(),
+        href: "/planner",
+        actionLabel: "Open planner",
+        kind: "planner",
+        read: false,
       },
       ...current,
     ]);
