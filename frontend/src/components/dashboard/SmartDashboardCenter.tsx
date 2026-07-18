@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import type {
-  DashboardAttentionItem,
   DashboardContinueItem,
   DashboardFeedItem,
   DashboardNextStep,
@@ -182,94 +182,6 @@ function NextStepCard({
 }
 
 
-function AttentionRow({
-  item,
-}: {
-  item: DashboardAttentionItem;
-}) {
-  return (
-    <Link
-      href={item.action_href}
-      className="group flex items-start gap-3 rounded-xl border border-white/[0.07] bg-[#12181e] p-3 transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04]"
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-lg">
-        {item.icon}
-      </span>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-black text-[#f0ead3]">
-            {item.title}
-          </p>
-
-          <span className="rounded-full border border-white/[0.07] bg-[#c9ad50]/[0.05] px-2 py-1 text-[9px] font-black text-[#dfce8c]/60">
-            {item.reason}
-          </span>
-        </div>
-
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#f0ead3]/45">
-          {item.description}
-        </p>
-      </div>
-
-      <span className="shrink-0 rounded-lg border border-[#c9ad50]/[0.22] bg-[#c9ad50]/10 px-2.5 py-1.5 text-[10px] font-black text-[#dfce8c] transition group-hover:bg-[#c9ad50] group-hover:text-black">
-        {item.action_label}
-      </span>
-    </Link>
-  );
-}
-
-
-function NeedsAttentionSection({
-  data,
-}: {
-  data: SmartDashboardResponse;
-}) {
-  const emptyState =
-    data.empty_states.needs_attention;
-
-  return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
-            <span>⚠️</span>
-            Needs Attention
-          </h2>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Important unfinished work and learning signals.
-          </p>
-        </div>
-
-        {data.needs_attention.length ? (
-          <span className="rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 px-2.5 py-1 text-[10px] font-black text-[#dfce8c]">
-            {data.needs_attention.length}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {data.needs_attention.length ? (
-          data.needs_attention.map((item) => (
-            <AttentionRow
-              key={item.id}
-              item={item}
-            />
-          ))
-        ) : (
-          <EmptySection
-            icon="✓"
-            title={emptyState.title}
-            description={emptyState.description}
-          />
-        )}
-      </div>
-    </section>
-  );
-}
-
-
 function ContinueRow({
   item,
 }: {
@@ -345,149 +257,73 @@ function ContinueRow({
 
 
 function ContinueLearningSection({
-  data,
-}: {
-  data: SmartDashboardResponse;
-}) {
-  const emptyState =
-    data.empty_states.continue_learning;
+    data,
+  }: {
+    data: SmartDashboardResponse;
+  }) {
+    const [expanded, setExpanded] =
+      useState(false);
 
-  return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
-          <span>📖</span>
-          Continue Learning
-        </h2>
+    const emptyState =
+      data.empty_states.continue_learning;
 
-        <p className="mt-1 text-xs text-slate-500">
-          Resume your most recent meaningful work.
-        </p>
-      </div>
+    const visibleItems = expanded
+      ? data.continue_learning
+      : data.continue_learning.slice(0, 3);
 
-      <div className="mt-4 space-y-2">
-        {data.continue_learning.length ? (
-          data.continue_learning.map((item) => (
-            <ContinueRow
-              key={item.id}
-              item={item}
-            />
-          ))
-        ) : (
-          <EmptySection
-            icon="📖"
-            title={emptyState.title}
-            description={emptyState.description}
-            actionHref="/study-rooms"
-            actionLabel="Open Study Rooms"
-          />
-        )}
-      </div>
-    </section>
-  );
-}
+    const hasMore =
+      data.continue_learning.length > 3;
 
-
-function GroupActivityRow({
-  item,
-}: {
-  item: DashboardFeedItem;
-}) {
-  const unreadCount =
-    typeof item.metadata.unread_count === "number"
-      ? item.metadata.unread_count
-      : null;
-
-  return (
-    <Link
-      href={item.action_href}
-      className="group flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045]"
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-lg">
-        {item.icon}
-      </span>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-black text-[#f0ead3]">
-            {item.title}
-          </p>
-
-          {unreadCount ? (
-            <span className="grid min-w-5 place-items-center rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white">
-              {unreadCount}
-            </span>
-          ) : null}
-        </div>
-
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-          {item.description}
-        </p>
-
-        <p className="mt-1 text-[10px] font-bold text-slate-600">
-          {formatRelativeTime(item.timestamp)}
-        </p>
-      </div>
-
-      <span className="shrink-0 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-[10px] font-black text-slate-300">
-        Open
-      </span>
-    </Link>
-  );
-}
-
-
-function GroupActivitySection({
-  data,
-}: {
-  data: SmartDashboardResponse;
-}) {
-  const emptyState =
-    data.empty_states.group_activity;
-
-  return (
-    <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
+    return (
+      <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
-            <span>💬</span>
-            New Group Activity
+            <span>📖</span>
+            Continue Learning
           </h2>
 
           <p className="mt-1 text-xs text-slate-500">
-            Messages and updates from Study Together.
+            Resume your most recent meaningful work.
           </p>
         </div>
 
-        {data.unread_group_count > 0 ? (
-          <span className="rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-black text-white">
-            {data.unread_group_count} unread
-          </span>
-        ) : null}
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {data.group_activity.length ? (
-          data.group_activity.map((item) => (
-            <GroupActivityRow
-              key={item.id}
-              item={item}
+        <div className="mt-4 space-y-2">
+          {visibleItems.length ? (
+            visibleItems.map((item) => (
+              <ContinueRow
+                key={item.id}
+                item={item}
+              />
+            ))
+          ) : (
+            <EmptySection
+              icon="📖"
+              title={emptyState.title}
+              description={emptyState.description}
+              actionHref="/study-rooms"
+              actionLabel="Open Study Rooms"
             />
-          ))
-        ) : (
-          <EmptySection
-            icon="💬"
-            title={emptyState.title}
-            description={emptyState.description}
-            actionHref="/study-together"
-            actionLabel="Open Study Together"
-          />
-        )}
-      </div>
-    </section>
-  );
-}
+          )}
+        </div>
 
+        {hasMore ? (
+          <div className="mt-4 border-t border-white/[0.07] pt-4 text-center">
+            <button
+              type="button"
+              onClick={() =>
+                setExpanded((current) => !current)
+              }
+              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c]"
+            >
+              {expanded
+                ? "Show less"
+                : `View all (${data.continue_learning.length})`}
+            </button>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
 function FeedItem({
   item,
@@ -562,8 +398,34 @@ function LearningFeedSection({
   loadingMore: boolean;
   onLoadMore: () => void;
 }) {
+  const [expanded, setExpanded] =
+    useState(false);
+
   const emptyState =
     data.empty_states.feed;
+
+  const visibleItems = expanded
+    ? data.feed
+    : data.feed.slice(0, 3);
+
+  const hasMoreActivity =
+    data.feed.length > 3 ||
+    Boolean(
+      data.has_more &&
+      data.next_cursor
+    );
+
+  function handleViewAll() {
+    setExpanded(true);
+
+    if (
+      data.has_more &&
+      data.next_cursor &&
+      !loadingMore
+    ) {
+      onLoadMore();
+    }
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e]">
@@ -574,7 +436,7 @@ function LearningFeedSection({
           </h2>
 
           <p className="mt-1 text-xs text-slate-500">
-            Your newest learning activity first.
+            Your newest meaningful study activity first.
           </p>
         </div>
 
@@ -585,7 +447,7 @@ function LearningFeedSection({
 
       {data.feed.length ? (
         <div>
-          {data.feed.map((item) => (
+          {visibleItems.map((item) => (
             <FeedItem
               key={item.id}
               item={item}
@@ -606,31 +468,79 @@ function LearningFeedSection({
 
       {data.feed.length ? (
         <div className="border-t border-white/[0.07] p-4 text-center">
-          {data.has_more && data.next_cursor ? (
+          {!expanded && hasMoreActivity ? (
             <button
               type="button"
-              onClick={onLoadMore}
+              onClick={handleViewAll}
               disabled={loadingMore}
               className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
             >
               {loadingMore
-                ? "Loading older activity..."
-                : "Load older activity"}
+                ? "Loading activity..."
+                : "View all activity"}
             </button>
-          ) : (
-            <>
-              <p className="text-sm font-black text-[#f0ead3]">
-                You’re all caught up
-              </p>
+          ) : expanded ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setExpanded(false)
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.025] px-4 py-2.5 text-xs font-black text-slate-300 transition hover:text-white"
+              >
+                Show less
+              </button>
 
-              <p className="mt-1 text-xs text-slate-500">
-                That is everything in your learning history so far.
-              </p>
-            </>
+              {data.has_more &&
+              data.next_cursor ? (
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
+                >
+                  {loadingMore
+                    ? "Loading older activity..."
+                    : "Load older activity"}
+                </button>
+              ) : (
+                <span className="px-2 text-xs font-bold text-slate-500">
+                  You’re all caught up
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs font-bold text-slate-500">
+              You’re all caught up
+            </p>
           )}
         </div>
       ) : null}
     </section>
+  );
+}
+
+function isNotificationOnlyNextStep(
+  reason: unknown
+) {
+  const normalized =
+    typeof reason === "string"
+      ? reason.trim().toLowerCase()
+      : "";
+
+  return (
+    normalized.includes(
+      "unread group"
+    ) ||
+    normalized.includes(
+      "new material not reviewed"
+    ) ||
+    normalized.includes(
+      "group activity"
+    ) ||
+    normalized.includes(
+      "notification"
+    )
   );
 }
 
@@ -670,6 +580,12 @@ export default function SmartDashboardCenter({
     );
   }
 
+  const showBestNextStep =
+    Boolean(data.next_step) &&
+    !isNotificationOnlyNextStep(
+      data.next_step?.reason
+    );
+
   return (
     <div className="space-y-5">
       {error ? (
@@ -691,13 +607,13 @@ export default function SmartDashboardCenter({
         </div>
       ) : null}
 
-      <NextStepCard item={data.next_step} />
-
-      <NeedsAttentionSection data={data} />
+      {showBestNextStep ? (
+        <NextStepCard
+          item={data.next_step}
+        />
+      ) : null}
 
       <ContinueLearningSection data={data} />
-
-      <GroupActivitySection data={data} />
 
       <LearningFeedSection
         data={data}

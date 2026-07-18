@@ -13,12 +13,13 @@ import {
 } from "@/features/projects/projectRoomContext";
 import {
   getLearningInsights,
+  getSmartDashboard,
   getUserSettings,
 } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type Notice = {
-  id: number;
+  id: number | string;
   text: string;
   createdAt: string;
   createdAtIso?: string;
@@ -28,7 +29,9 @@ type Notice = {
     | "planner"
     | "study-reminder"
     | "daily-summary"
+    | "dashboard"
     | "general";
+  source?: "dashboard" | "local";
   dedupeKey?: string;
   read?: boolean;
 };
@@ -43,6 +46,8 @@ const REMINDER_SNOOZED_UNTIL_KEY =
   "studysnap:study-reminder-snoozed-until";
 const LAST_DAILY_SUMMARY_DAY_KEY =
   "studysnap:last-daily-summary-day";
+const DISMISSED_DASHBOARD_NOTICES_KEY =
+  "studysnap:dismissed-dashboard-notifications";
 
 const REMINDER_AFTER_HOURS = 24;
 const MAX_NOTIFICATIONS = 30;
@@ -132,7 +137,8 @@ function normalizeNotices(value: Notice[]) {
     .filter(
       (item) =>
         item &&
-        typeof item.id === "number" &&
+        (typeof item.id === "number" ||
+          typeof item.id === "string") &&
         typeof item.text === "string"
     )
     .slice(0, MAX_NOTIFICATIONS);
@@ -468,6 +474,79 @@ export default function NotificationBell() {
         }
       }
 
+      try {
+        const dashboard = await getSmartDashboard({
+          limit: 1,
+        });
+
+        const dismissedKeys = new Set(
+          loadJSON<string[]>(
+            DISMISSED_DASHBOARD_NOTICES_KEY,
+            []
+          )
+        );
+
+        const existingByDedupeKey = new Map(
+          nextItems
+            .filter(
+              (item) =>
+                typeof item.dedupeKey === "string"
+            )
+            .map((item) => [
+              item.dedupeKey as string,
+              item,
+            ])
+        );
+
+        const dashboardNotices: Notice[] =
+          dashboard.needs_attention
+            .map((signal) => {
+              const dedupeKey = [
+                "dashboard",
+                signal.id,
+                signal.created_at,
+              ].join(":");
+
+              const existing =
+                existingByDedupeKey.get(dedupeKey);
+
+              return {
+                id: dedupeKey,
+                kind: "dashboard" as const,
+                source: "dashboard" as const,
+                dedupeKey,
+                read: existing?.read === true,
+                text: signal.description
+                  ? `${signal.title}: ${signal.description}`
+                  : signal.title,
+                createdAt: signal.created_at,
+                createdAtIso: signal.created_at,
+                href: signal.action_href,
+                actionLabel: signal.action_label,
+              };
+            })
+            .filter(
+              (item) =>
+                !dismissedKeys.has(
+                  item.dedupeKey as string
+                )
+            );
+
+        const localNotices = nextItems.filter(
+          (item) => item.source !== "dashboard"
+        );
+
+        nextItems = [
+          ...dashboardNotices,
+          ...localNotices,
+        ].slice(0, MAX_NOTIFICATIONS);
+
+        saveJSON(STORAGE_KEY, nextItems);
+      } catch {
+        // Keep previously loaded notifications if dashboard
+        // intelligence is temporarily unavailable.
+      }
+
       setItems(nextItems);
 
       window.localStorage.setItem(
@@ -567,11 +646,43 @@ export default function NotificationBell() {
     setOpen(false);
   }
 
+  function rememberDismissedDashboardNotices(
+    notices: Notice[]
+  ) {
+    const newKeys = notices
+      .filter(
+        (item) =>
+          item.source === "dashboard" &&
+          typeof item.dedupeKey === "string"
+      )
+      .map((item) => item.dedupeKey as string);
+
+    if (!newKeys.length) {
+      return;
+    }
+
+    const existing = loadJSON<string[]>(
+      DISMISSED_DASHBOARD_NOTICES_KEY,
+      []
+    );
+
+    saveJSON(
+      DISMISSED_DASHBOARD_NOTICES_KEY,
+      Array.from(
+        new Set([
+          ...existing,
+          ...newKeys,
+        ])
+      ).slice(-200)
+    );
+  }
+
   function clearAll() {
+    rememberDismissedDashboardNotices(items);
     persist([]);
   }
 
-  function snoozeReminder(id: number) {
+  function snoozeReminder(id: Notice["id"]) {
     const tomorrow = new Date(
       Date.now() + 24 * 60 * 60 * 1000
     );
@@ -586,7 +697,17 @@ export default function NotificationBell() {
     );
   }
 
-  function dismissNotice(id: number) {
+  function dismissNotice(id: Notice["id"]) {
+    const notice = items.find(
+      (item) => item.id === id
+    );
+
+    if (notice) {
+      rememberDismissedDashboardNotices([
+        notice,
+      ]);
+    }
+
     persist(items.filter((item) => item.id !== id));
   }
 

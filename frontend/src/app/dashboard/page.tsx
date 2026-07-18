@@ -774,7 +774,7 @@ export default function DashboardPage() {
 
       try {
         const data = await getSmartDashboard({
-          limit: 20,
+          limit: 3,
         });
 
         setSmartDashboard(data);
