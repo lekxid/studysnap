@@ -20,6 +20,8 @@ import {
   getToken,
   type StudyRoom,
   type UniversalMaterialUploadResponse,
+  cancelResumableMaterialUpload,
+  uploadResumableMaterial,
   uploadUniversalMaterial,
 } from "@/lib/api";
 
@@ -57,6 +59,7 @@ type UploadTask = {
   materialId?: number;
   materialType?: string;
   previewAvailable?: boolean;
+  resumableUploadId?: string;
   createdAt: string;
   completedAt?: string;
 };
@@ -84,11 +87,15 @@ const FLOATING_BUTTON_POSITION_KEY =
 const FLOATING_BUTTON_MARGIN = 12;
 
 const MAX_VISIBLE_HISTORY = 100;
-const MAX_FILES_PER_BATCH = 50;
+const MAX_FILES_PER_BATCH = 20;
 const MAX_CONCURRENT_UPLOADS = 3;
-const MAX_UPLOAD_MB = 100;
+
+const NORMAL_UPLOAD_BYTES =
+  100 * 1024 * 1024;
+
+const MAX_UPLOAD_GB = 2;
 const MAX_UPLOAD_BYTES =
-  MAX_UPLOAD_MB * 1024 * 1024;
+  MAX_UPLOAD_GB * 1024 * 1024 * 1024;
 
 const HIDDEN_PATHS = new Set([
   "/",
@@ -1072,16 +1079,37 @@ export default function GlobalTaskDock({
 
     try {
       const result =
-        await uploadUniversalMaterial({
-          file,
-          studyRoomId: task.roomId,
-          signal: controller.signal,
-          onProgress: (progress) => {
-            updateTask(taskId, {
-              progress,
+        file.size > NORMAL_UPLOAD_BYTES
+          ? await uploadResumableMaterial({
+              file,
+              studyRoomId: task.roomId,
+              existingUploadId:
+                task.resumableUploadId,
+              signal: controller.signal,
+              onSession: (uploadId) => {
+                updateTask(taskId, {
+                  resumableUploadId:
+                    uploadId,
+                  message:
+                    "Large upload secured. Uploading in parts.",
+                });
+              },
+              onProgress: (progress) => {
+                updateTask(taskId, {
+                  progress,
+                });
+              },
+            })
+          : await uploadUniversalMaterial({
+              file,
+              studyRoomId: task.roomId,
+              signal: controller.signal,
+              onProgress: (progress) => {
+                updateTask(taskId, {
+                  progress,
+                });
+              },
             });
-          },
-        });
 
       updateTask(taskId, {
         progress: 100,
@@ -1095,6 +1123,7 @@ export default function GlobalTaskDock({
 
           previewAvailable:
             result.preview_available,
+        resumableUploadId: undefined,
         message: result.message,
         completedAt:
           new Date().toISOString(),
@@ -1288,7 +1317,7 @@ export default function GlobalTaskDock({
               ? "failed"
               : "queued",
             error: exceedsLimit
-              ? `This file is larger than the ${MAX_UPLOAD_MB} MB upload limit.`
+              ? `This file is larger than the ${MAX_UPLOAD_GB} GB upload limit.`
               : undefined,
             createdAt:
               new Date().toISOString(),
@@ -1347,7 +1376,7 @@ export default function GlobalTaskDock({
           oversizedCount === 1
             ? "file is"
             : "files are"
-        } larger than the ${MAX_UPLOAD_MB} MB upload limit.`
+        } larger than the ${MAX_UPLOAD_GB} GB upload limit.`
       );
     }
 
@@ -1436,11 +1465,37 @@ export default function GlobalTaskDock({
       );
 
       controller.abort();
+
+      const activeTask = tasks.find(
+        (item) => item.id === taskId
+      );
+
+      if (
+        activeTask?.resumableUploadId
+      ) {
+        void cancelResumableMaterialUpload(
+          activeTask.resumableUploadId
+        ).catch(() => undefined);
+      }
+
       return;
+    }
+
+    const waitingTask = tasks.find(
+      (item) => item.id === taskId
+    );
+
+    if (
+      waitingTask?.resumableUploadId
+    ) {
+      void cancelResumableMaterialUpload(
+        waitingTask.resumableUploadId
+      ).catch(() => undefined);
     }
 
     updateTask(taskId, {
       status: "cancelled",
+      resumableUploadId: undefined,
       error: "Upload cancelled.",
       message: undefined,
       completedAt:
@@ -1470,7 +1525,7 @@ export default function GlobalTaskDock({
       updateTask(taskId, {
         status: "failed",
         error:
-          `This file is larger than the ${MAX_UPLOAD_MB} MB upload limit.`,
+          `This file is larger than the ${MAX_UPLOAD_GB} GB upload limit.`,
         message: undefined,
         completedAt:
           new Date().toISOString(),
@@ -1500,7 +1555,10 @@ export default function GlobalTaskDock({
 
     updateTask(taskId, {
       status: "queued",
-      progress: 0,
+      progress:
+        task?.resumableUploadId
+          ? task.progress
+          : 0,
       error: undefined,
       message: undefined,
       completedAt: undefined,
@@ -1616,6 +1674,7 @@ export default function GlobalTaskDock({
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             onChange={handleFileInput}
             className="hidden"
           />
@@ -1739,9 +1798,10 @@ export default function GlobalTaskDock({
                 </div>
 
                 <p className="mt-2 text-[11px] leading-5 text-slate-500">
-                  Uploaded code is stored as
-                  text and never executed
-                  automatically.
+                  Up to 20 files at once.
+                  Large files upload safely in
+                  resumable parts. Code is never
+                  executed automatically.
                 </p>
 
                 {error ? (

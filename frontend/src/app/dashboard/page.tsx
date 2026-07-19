@@ -34,7 +34,7 @@ import {
   resolveStudyCommand,
 } from "@/lib/studyCommandRouter";
 import {
-  setPendingAIAttachment,
+  setPendingAIAttachments,
 } from "@/lib/aiAttachmentHandoff";
 
 type TokenPayload = {
@@ -256,15 +256,22 @@ function GeneralAIStartCard({
     input.click();
   }
 
-  function handleAttachment(
-    file: File | undefined,
+  function handleAttachments(
+    fileList: FileList | null,
   ) {
-    if (!file) {
+    const files = Array.from(
+      fileList ?? []
+    ).slice(0, 20);
+
+    if (!files.length) {
       return;
     }
 
-    setPendingAIAttachment(file);
-    router.push("/general-ai?attachment=pending");
+    setPendingAIAttachments(files);
+
+    router.push(
+      "/general-ai?attachment=pending"
+    );
   }
 
   return (
@@ -291,13 +298,16 @@ function GeneralAIStartCard({
         <input
           ref={attachmentInputRef}
           type="file"
-          accept="image/*,.heic,.heif"
+          multiple
+          accept="image/*,.heic,.heif,.pdf,.docx,.pptx,.xlsx,.txt,.rtf,.csv,.md,.json,.py,.js,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml"
           className="hidden"
-          onChange={(event) =>
-            handleAttachment(
-              event.currentTarget.files?.[0],
-            )
-          }
+          onChange={(event) => {
+            handleAttachments(
+              event.currentTarget.files,
+            );
+
+            event.currentTarget.value = "";
+          }}
         />
 
         <form
@@ -314,8 +324,8 @@ function GeneralAIStartCard({
           <button
             type="button"
             onClick={openChatAttachmentPicker}
-            aria-label="Attach image to StudySnap AI"
-            title="Attach image to StudySnap AI"
+            aria-label="Attach a file to StudySnap AI"
+            title="Attach a file to StudySnap AI"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-[#c9ad50]/[0.22] hover:bg-[#c9ad50]/[0.08] hover:text-[#cec18d]"
           >
             +
@@ -330,37 +340,21 @@ function GeneralAIStartCard({
           </button>
         </form>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href="/general-ai"
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/[0.06]"
-          >
-            <span>✦</span>
-            Ask StudySnap
-          </Link>
-
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <Link
             href={getRoomAwareHref("/notes", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
           >
             <span className="text-emerald-300">▣</span>
-            Create note
+            <span>Create note</span>
           </Link>
 
           <Link
             href={getRoomAwareHref("/quizzes", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
           >
             <span className="text-orange-300">▤</span>
-            Start quiz
-          </Link>
-
-          <Link
-            href={getRoomAwareHref("/flashcards", activeRoomId)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
-          >
-            <span className="text-[#79aeb5]">◫</span>
-            Concept Cards
+            <span>Start quiz</span>
           </Link>
         </div>
       </div>
@@ -393,11 +387,13 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
 
       <div className="mt-4 space-y-2">
         {items.length ? (
-          items.map((item) => (
+          items.map((item, index) => (
             <Link
               key={item.id}
               href={item.href}
-              className="group grid gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center"
+              className={`group gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center ${
+                index >= 2 ? "hidden sm:grid" : "grid"
+              }`}
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-lg">
@@ -593,8 +589,47 @@ function DashboardRightPanel({
   ];
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
+    <div className="space-y-3 xl:space-y-4">
+      <details className="group overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e] xl:hidden">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-white">
+              Today&apos;s plan
+            </p>
+
+            <p className="mt-0.5 text-xs text-slate-500">
+              Your recommended next study steps
+            </p>
+          </div>
+
+          <span className="flex shrink-0 items-center gap-2 text-xs font-black text-[#c9ad50]">
+            {focusItems.length} steps
+            <span className="text-lg text-slate-500">⌄</span>
+          </span>
+        </summary>
+
+        <div className="border-t border-white/[0.07] px-3 py-2">
+          {focusItems.map((item, index) => (
+            <Link
+              key={`mobile-${item.title}`}
+              href={item.href}
+              className="flex items-center gap-3 rounded-xl px-2 py-3 transition active:bg-white/[0.05]"
+            >
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 text-[10px] font-black text-slate-400">
+                {index + 1}
+              </span>
+
+              <span className="min-w-0 flex-1 text-sm font-semibold text-slate-200">
+                {item.title}
+              </span>
+
+              <span className="text-slate-600">›</span>
+            </Link>
+          ))}
+        </div>
+      </details>
+
+      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Today&apos;s Focus</h2>
 
@@ -622,7 +657,30 @@ function DashboardRightPanel({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
+      <Link
+        href="/progress"
+        className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-white/[0.075] bg-[#12181e] px-4 py-3 transition active:bg-white/[0.045] xl:hidden"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-black text-white">
+            Your progress
+          </p>
+
+          <p className="mt-1 text-xs text-slate-500">
+            {streak} day{streak === 1 ? "" : "s"} streak
+          </p>
+        </div>
+
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-lg font-black text-[#c9ad50]">
+            {displayScore}%
+          </span>
+
+          <span className="text-slate-500">›</span>
+        </span>
+      </Link>
+
+      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">🔥 Study Streak</h2>
 
@@ -646,7 +704,7 @@ function DashboardRightPanel({
         </p>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
+      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Progress Overview</h2>
 
@@ -1271,9 +1329,13 @@ export default function DashboardPage() {
       return;
     }
 
-    router.push(
-      `/general-ai?prompt=${encodeURIComponent(prompt)}`,
+    window.sessionStorage.setItem(
+      "studysnap:pending-general-ai-prompt",
+      prompt,
     );
+
+    setGeneralAiPrompt("");
+    router.push("/general-ai");
   }
 
 

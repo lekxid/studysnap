@@ -17,11 +17,15 @@ import {
   resolveStudyCommand,
 } from "@/lib/studyCommandRouter";
 import {
-  takePendingAIAttachment,
+  takePendingAIAttachments,
 } from "@/lib/aiAttachmentHandoff";
 import {
+  askAiWithFile,
+  askAiWithFiles,
   askAiWithImage,
   createAIConversation,
+  getStudyRooms,
+  uploadUniversalMaterial,
   generateAIImage,
   deleteAIConversation,
   getAIMessages,
@@ -32,7 +36,27 @@ import {
   type AIConversation,
   type AIMessage,
   type GenerateAIImageSize,
+  type StudyRoom,
 } from "@/lib/api";
+
+type PendingAttachment = {
+  id: string;
+  file: File;
+  name: string;
+  size: number;
+  kind: "image" | "file";
+  preview?: string;
+  status: "ready" | "uploading" | "reading" | "failed";
+  progress: number;
+};
+
+type MessageAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  kind: "image" | "file";
+  preview?: string;
+};
 
 type DisplayMessage = {
   id: number | string;
@@ -41,16 +65,16 @@ type DisplayMessage = {
   created_at?: string;
   imagePreview?: string;
   imageName?: string;
+  documentName?: string;
+  documentSize?: number;
+  attachments?: MessageAttachment[];
   generatedImage?: boolean;
 };
 
 const suggestions = [
-  "Explain something new",
-  "Help me study step by step",
-  "Create practice questions",
-  "Brainstorm ideas",
-  "Simplify a difficult topic",
-  "Help me write better",
+  "Summarize notes",
+  "Explain a topic",
+  "Create a quiz",
 ];
 
 function makeId() {
@@ -137,6 +161,30 @@ export default function GeneralAIChat({
 }) {
   const router = useRouter();
   const initialPromptHandledRef = useRef(false);
+  const [handoffPrompt, setHandoffPrompt] =
+    useState(initialPrompt);
+
+  useEffect(() => {
+    const savedPrompt =
+      window.sessionStorage.getItem(
+        "studysnap:pending-general-ai-prompt",
+      );
+
+    const nextPrompt =
+      initialPrompt.trim() ||
+      savedPrompt?.trim() ||
+      "";
+
+    if (!nextPrompt) {
+      return;
+    }
+
+    setHandoffPrompt(nextPrompt);
+
+    window.sessionStorage.removeItem(
+      "studysnap:pending-general-ai-prompt",
+    );
+  }, [initialPrompt]);
 
   const [trails, setTrails] = useState<
     AIConversation[]
@@ -160,10 +208,34 @@ export default function GeneralAIChat({
   const [copiedId, setCopiedId] = useState<
     string | number | null
   >(null);
+
+  const [
+    expandedMessageIds,
+    setExpandedMessageIds,
+  ] = useState<Set<string | number>>(
+    () => new Set()
+  );
+
   const [error, setError] = useState("");
 
   const [selectedImage, setSelectedImage] =
     useState<File | null>(null);
+
+  const [pendingDocument, setPendingDocument] =
+    useState<File | null>(null);
+
+  const [pendingAttachments, setPendingAttachments] =
+    useState<PendingAttachment[]>([]);
+  const [availableRooms, setAvailableRooms] =
+    useState<StudyRoom[]>([]);
+  const [roomPickerOpen, setRoomPickerOpen] =
+    useState(false);
+  const [loadingRooms, setLoadingRooms] =
+    useState(false);
+  const [documentUploadProgress, setDocumentUploadProgress] =
+    useState(0);
+  const [documentUploading, setDocumentUploading] =
+    useState(false);
   const [
     selectedImagePreview,
     setSelectedImagePreview,
@@ -216,23 +288,50 @@ export default function GeneralAIChat({
 
     return (
       (input.trim().length > 0 ||
-        selectedImage !== null) &&
-      !loading
+        selectedImage !== null ||
+        pendingDocument !== null ||
+        pendingAttachments.length > 0) &&
+      !loading &&
+      !documentUploading
     );
   }, [
     createImageMode,
     input,
     selectedImage,
+    pendingDocument,
+    pendingAttachments,
     loading,
+    documentUploading,
   ]);
 
-  function scrollToBottom() {
-    window.setTimeout(() => {
-      bottomRef.current?.scrollIntoView({
-        behavior: "smooth",
+  function scrollToBottom(
+    behavior: ScrollBehavior = "smooth"
+  ) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({
+          behavior,
+          block: "end",
+        });
       });
-    }, 50);
+    });
   }
+
+  useEffect(() => {
+    if (
+      messages.length > 0 ||
+      loading ||
+      loadingMessages
+    ) {
+      scrollToBottom(
+        loadingMessages ? "auto" : "smooth"
+      );
+    }
+  }, [
+    messages,
+    loading,
+    loadingMessages,
+  ]);
 
   async function loadMessages(
     conversationId: number
@@ -252,7 +351,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "Could not load this Study Trail."
+          : "Could not load this chat."
       );
     } finally {
       setLoadingMessages(false);
@@ -297,6 +396,8 @@ export default function GeneralAIChat({
 
     if (savedHistory !== null) {
       setHistoryOpen(savedHistory === "true");
+    } else {
+      setHistoryOpen(window.innerWidth >= 1280);
     }
 
     if (savedStudyTools !== null) {
@@ -333,7 +434,7 @@ export default function GeneralAIChat({
           setError(
             err instanceof Error
               ? err.message
-              : "Could not load your Study Trails."
+              : "Could not load your chats."
           );
         }
       } finally {
@@ -355,14 +456,16 @@ export default function GeneralAIChat({
   }, [activeConversationId]);
 
   useEffect(() => {
-    const pendingFile =
-      takePendingAIAttachment();
+    const pendingFiles =
+      takePendingAIAttachments();
 
-    if (!pendingFile) {
+    if (!pendingFiles.length) {
       return;
     }
 
-    void handleImageChange(pendingFile);
+    void addAttachments(
+      pendingFiles.slice(0, 20)
+    );
 
     window.history.replaceState(
       {},
@@ -372,7 +475,7 @@ export default function GeneralAIChat({
   }, []);
 
   useEffect(() => {
-    const prompt = initialPrompt.trim();
+    const prompt = handoffPrompt.trim();
 
     if (
       !prompt ||
@@ -393,10 +496,185 @@ export default function GeneralAIChat({
 
     void sendMessage(prompt);
   }, [
-    initialPrompt,
+    handoffPrompt,
     loading,
     loadingTrails,
   ]);
+
+  function attachmentId(file: File) {
+    return [
+      file.name,
+      file.size,
+      file.lastModified,
+      Math.random().toString(16).slice(2),
+    ].join("-");
+  }
+
+  function isImageAttachment(file: File) {
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "";
+
+    return (
+      file.type.startsWith("image/") ||
+      new Set([
+        "png",
+        "jpg",
+        "jpeg",
+        "webp",
+        "gif",
+        "bmp",
+        "tif",
+        "tiff",
+        "heic",
+        "heif",
+        "avif",
+      ]).has(extension)
+    );
+  }
+
+  async function addAttachments(files: File[]) {
+    if (!files.length) return;
+
+    setCreateImageMode(false);
+    setError("");
+
+    const supportedDocuments = new Set([
+      "pdf",
+      "docx",
+      "pptx",
+      "xlsx",
+      "txt",
+      "md",
+      "markdown",
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "log",
+      "rtf",
+      "py",
+      "java",
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "sql",
+      "html",
+      "css",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+    ]);
+
+    const prepared: PendingAttachment[] = [];
+    const rejected: string[] = [];
+
+    for (const file of files) {
+      const extension =
+        file.name.split(".").pop()?.toLowerCase() || "";
+
+      const image = isImageAttachment(file);
+
+      if (
+        !image &&
+        !supportedDocuments.has(extension)
+      ) {
+        rejected.push(file.name);
+        continue;
+      }
+
+      const limit = image
+        ? 25 * 1024 * 1024
+        : 25 * 1024 * 1024;
+
+      if (file.size > limit) {
+        rejected.push(file.name);
+        continue;
+      }
+
+      prepared.push({
+        id: attachmentId(file),
+        file,
+        name: file.name,
+        size: file.size,
+        kind: image ? "image" : "file",
+        preview: image
+          ? URL.createObjectURL(file)
+          : undefined,
+        status: "ready",
+        progress: 0,
+      });
+    }
+
+    setPendingAttachments((current) => {
+      const remainingSlots = Math.max(
+        0,
+        20 - current.length
+      );
+
+      return [
+        ...current,
+        ...prepared.slice(0, remainingSlots),
+      ];
+    });
+
+    if (rejected.length) {
+      setError(
+        `Skipped ${rejected.length} unsupported or oversized file${
+          rejected.length === 1 ? "" : "s"
+        }.`
+      );
+    }
+
+    inputRef.current?.focus();
+  }
+
+  function removePendingAttachment(id: string) {
+    setPendingAttachments((current) => {
+      const removed = current.find(
+        (item) => item.id === id
+      );
+
+      if (removed?.preview) {
+        URL.revokeObjectURL(removed.preview);
+      }
+
+      return current.filter(
+        (item) => item.id !== id
+      );
+    });
+  }
+
+  function clearPendingAttachments() {
+    setPendingAttachments((current) => {
+      current.forEach((item) => {
+        if (item.preview) {
+          URL.revokeObjectURL(item.preview);
+        }
+      });
+
+      return [];
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleMultipleAttachmentChange(
+    fileList: FileList | null
+  ) {
+    if (!fileList?.length) return;
+
+    await addAttachments(
+      Array.from(fileList)
+    );
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   async function handleImageChange(
     selectedFile: File | undefined
@@ -584,6 +862,167 @@ export default function GeneralAIChat({
     }
   }
 
+  async function handleAttachmentChange(
+    selectedFile: File | undefined
+  ) {
+    if (!selectedFile) {
+      return;
+    }
+
+    const extension =
+      selectedFile.name.split(".").pop()?.toLowerCase() || "";
+
+    const imageExtensions = new Set([
+      "png",
+      "jpg",
+      "jpeg",
+      "webp",
+      "gif",
+      "bmp",
+      "tif",
+      "tiff",
+      "heic",
+      "heif",
+      "avif",
+    ]);
+
+    const isImage =
+      selectedFile.type.startsWith("image/") ||
+      imageExtensions.has(extension);
+
+    if (isImage) {
+      setPendingDocument(null);
+      await handleImageChange(selectedFile);
+      return;
+    }
+
+    const supportedDocuments = new Set([
+      "pdf",
+      "docx",
+      "pptx",
+      "xlsx",
+      "txt",
+      "md",
+      "markdown",
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "log",
+      "rtf",
+      "py",
+      "java",
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "sql",
+      "html",
+      "css",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+    ]);
+
+    if (!supportedDocuments.has(extension)) {
+      setError(
+        "Use PDF, DOCX, PPTX, XLSX, text, code, CSV, JSON, or an image."
+      );
+      return;
+    }
+
+    if (selectedFile.size > 25 * 1024 * 1024) {
+      setError(
+        "Direct AI reading supports files up to 25MB."
+      );
+      return;
+    }
+
+    removeSelectedImage();
+    setPendingDocument(selectedFile);
+    setDocumentUploadProgress(0);
+    setRoomPickerOpen(false);
+    setError("");
+    setCreateImageMode(false);
+    inputRef.current?.focus();
+  }
+
+  function removeSelectedDocument() {
+    if (documentUploading) {
+      return;
+    }
+
+    setPendingDocument(null);
+    setDocumentUploadProgress(0);
+    setRoomPickerOpen(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function openSaveToRoomPicker() {
+    if (!pendingDocument || loadingRooms) {
+      return;
+    }
+
+    setRoomPickerOpen(true);
+    setLoadingRooms(true);
+    setError("");
+
+    try {
+      const rooms = await getStudyRooms();
+      setAvailableRooms(rooms);
+    } catch (err) {
+      setRoomPickerOpen(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "StudySnap could not load your rooms."
+      );
+    } finally {
+      setLoadingRooms(false);
+    }
+  }
+
+  async function uploadDocumentToRoom(room: StudyRoom) {
+    if (!pendingDocument || documentUploading) {
+      return;
+    }
+
+    try {
+      setDocumentUploading(true);
+      setDocumentUploadProgress(0);
+      setError("");
+
+      await uploadUniversalMaterial({
+        file: pendingDocument,
+        studyRoomId: room.id,
+        onProgress: setDocumentUploadProgress,
+      });
+
+      setRoomPickerOpen(false);
+      setDocumentUploadProgress(100);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "The document could not be saved to the room."
+      );
+    } finally {
+      setDocumentUploading(false);
+    }
+  }
+
+  function cancelDocumentUpload() {
+    if (documentUploading) {
+      return;
+    }
+
+    setRoomPickerOpen(false);
+  }
+
   function removeSelectedImage() {
     setSelectedImage(null);
     setSelectedImagePreview("");
@@ -598,6 +1037,8 @@ export default function GeneralAIChat({
   function clearComposer() {
     setInput("");
     removeSelectedImage();
+    removeSelectedDocument();
+    clearPendingAttachments();
     setError("");
     inputRef.current?.focus();
   }
@@ -726,6 +1167,7 @@ export default function GeneralAIChat({
 
     } finally {
       setLoading(false);
+      setDocumentUploading(false);
       inputRef.current?.focus();
     }
   }
@@ -743,17 +1185,39 @@ export default function GeneralAIChat({
     const imageNameToSend =
       selectedImage?.name;
 
+    const documentToSend = pendingDocument;
+    const attachmentsToSend = pendingAttachments;
+
     if (
-      (!question && !imageToSend) ||
-      loading
+      (
+        !question &&
+        !imageToSend &&
+        !documentToSend &&
+        attachmentsToSend.length === 0
+      ) ||
+      loading ||
+      documentUploading
     ) {
       return;
     }
 
     const finalQuestion =
-      question || "Describe this image clearly.";
+      question ||
+      (
+        attachmentsToSend.length > 1
+          ? "Explain these files clearly and connect the important points."
+          : attachmentsToSend.length === 1
+            ? (
+                attachmentsToSend[0].kind === "image"
+                  ? "Describe this image clearly."
+                  : "Summarize this file clearly."
+              )
+            : documentToSend
+              ? "Summarize this file clearly."
+              : "Describe this image clearly."
+      );
 
-    if (!imageToSend && question) {
+    if (!imageToSend && !documentToSend && question) {
       const commandResult =
         await resolveStudyCommand(question);
 
@@ -770,7 +1234,7 @@ export default function GeneralAIChat({
     setInput("");
 
     // Keep an attached image visible until the request succeeds.
-    if (!imageToSend) {
+    if (!imageToSend && !documentToSend) {
       removeSelectedImage();
     }
 
@@ -802,19 +1266,140 @@ export default function GeneralAIChat({
           imagePreview:
             imagePreviewToSend || undefined,
           imageName: imageNameToSend,
+          documentName: documentToSend?.name,
+          documentSize: documentToSend?.size,
+          attachments:
+            attachmentsToSend.length > 0
+              ? attachmentsToSend.map(
+                  (attachment) => ({
+                    id: attachment.id,
+                    name: attachment.name,
+                    size: attachment.size,
+                    kind: attachment.kind,
+                    preview: attachment.preview,
+                  })
+                )
+              : undefined,
         },
         {
           id: pendingAssistantId,
           role: "assistant",
-          content: imageToSend
-            ? "StudySnap AI is reading the image..."
-            : "StudySnap AI is thinking...",
+          content:
+            attachmentsToSend.length > 0
+              ? `StudySnap AI is reading ${
+                  attachmentsToSend.length
+                } file${
+                  attachmentsToSend.length === 1
+                    ? ""
+                    : "s"
+                }...`
+              : imageToSend
+                ? "StudySnap AI is reading the image..."
+                : documentToSend
+                  ? "StudySnap AI is reading the file..."
+                  : "StudySnap AI is thinking...",
         },
       ]);
 
       scrollToBottom();
 
-      if (imageToSend) {
+      if (attachmentsToSend.length > 0) {
+        setPendingAttachments((current) =>
+          current.map((attachment) =>
+            attachmentsToSend.some(
+              (selected) =>
+                selected.id === attachment.id
+            )
+              ? {
+                  ...attachment,
+                  status: "uploading",
+                  progress: 5,
+                }
+              : attachment
+          )
+        );
+
+        const data = await askAiWithFiles({
+          question: finalQuestion,
+          files: attachmentsToSend.map(
+            (attachment) => attachment.file
+          ),
+          conversationId,
+          onProgress: (percent) => {
+            setPendingAttachments((current) =>
+              current.map((attachment) =>
+                attachmentsToSend.some(
+                  (selected) =>
+                    selected.id === attachment.id
+                )
+                  ? {
+                      ...attachment,
+                      status:
+                        percent >= 100
+                          ? "reading"
+                          : "uploading",
+                      progress: percent,
+                    }
+                  : attachment
+              )
+            );
+
+            scrollToBottom();
+          },
+        });
+
+        const answer = extractAIText(data);
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === pendingAssistantId
+              ? {
+                  ...message,
+                  content: answer,
+                }
+              : message
+          )
+        );
+
+        clearPendingAttachments();
+      } else if (documentToSend) {
+        setDocumentUploading(true);
+        setDocumentUploadProgress(35);
+
+        const progressTimer =
+          window.setTimeout(() => {
+            setDocumentUploadProgress(75);
+          }, 700);
+
+        let data;
+
+        try {
+          data = await askAiWithFile(
+            finalQuestion,
+            documentToSend,
+            {
+              conversationId,
+            }
+          );
+        } finally {
+          window.clearTimeout(progressTimer);
+        }
+
+        setDocumentUploadProgress(100);
+
+        const answer = extractAIText(data);
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === pendingAssistantId
+              ? {
+                  ...message,
+                  content: answer,
+                }
+              : message
+          )
+        );
+      } else if (imageToSend) {
         setImageUploadStatus("uploading");
         setImageUploadProgress(35);
 
@@ -900,6 +1485,10 @@ export default function GeneralAIChat({
       if (imageToSend) {
         removeSelectedImage();
       }
+
+      if (documentToSend) {
+        removeSelectedDocument();
+      }
     } catch (err) {
       const message =
         err instanceof Error
@@ -939,15 +1528,96 @@ export default function GeneralAIChat({
     await sendMessage();
   }
 
+  function updateHistoryOpen(next: boolean) {
+    setHistoryOpen(next);
+
+    window.localStorage.setItem(
+      "studysnap:general-ai-history-open",
+      String(next)
+    );
+  }
+
+  function updateStudyToolsOpen(next: boolean) {
+    setStudyToolsOpen(next);
+
+    window.localStorage.setItem(
+      "studysnap:general-ai-study-tools-open",
+      String(next)
+    );
+  }
+
   function startNewTrail() {
     setActiveConversationId(null);
     setMessages([]);
     setInput("");
     setError("");
     setCopiedId(null);
+    setExpandedMessageIds(new Set());
     setCreateImageMode(false);
     removeSelectedImage();
+    clearPendingAttachments();
     inputRef.current?.focus();
+  }
+
+  async function resetCurrentChat() {
+    if (loading) return;
+
+    if (
+      activeConversationId === null ||
+      messages.length === 0
+    ) {
+      startNewTrail();
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Reset this chat? Its messages will be permanently removed."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      setError("");
+
+      await deleteAIConversation(
+        activeConversationId
+      );
+
+      setTrails((current) =>
+        current.filter(
+          (trail) =>
+            trail.id !== activeConversationId
+        )
+      );
+
+      startNewTrail();
+      updateHistoryOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not reset this chat."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleMessageExpanded(
+    messageId: string | number
+  ) {
+    setExpandedMessageIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+
+      return next;
+    });
   }
 
   async function selectTrail(
@@ -962,13 +1632,17 @@ export default function GeneralAIChat({
     removeSelectedImage();
 
     await loadMessages(trail.id);
+
+    if (window.innerWidth < 1280) {
+      updateHistoryOpen(false);
+    }
   }
 
   async function renameTrail(
     trail: AIConversation
   ) {
     const nextTitle = window.prompt(
-      "Rename Study Trail",
+      "Rename chat",
       trail.title
     );
 
@@ -996,7 +1670,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "Could not rename this trail."
+          : "Could not rename this chat."
       );
     }
   }
@@ -1028,7 +1702,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "Could not update this trail."
+          : "Could not update this chat."
       );
     }
   }
@@ -1069,7 +1743,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "Could not delete this trail."
+          : "Could not delete this chat."
       );
     }
   }
@@ -1123,11 +1797,12 @@ export default function GeneralAIChat({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,.heic,.heif"
+          multiple
+          accept="image/*,.heic,.heif,.pdf,.docx,.pptx,.xlsx,.txt,.rtf,.csv,.md,.json,.py,.js,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml"
           className="hidden"
           onChange={(event) => {
-            handleImageChange(
-              event.currentTarget.files?.[0]
+            void handleMultipleAttachmentChange(
+              event.currentTarget.files
             );
           }}
         />
@@ -1173,6 +1848,144 @@ export default function GeneralAIChat({
                 Portrait
               </option>
             </select>
+          </div>
+        ) : null}
+
+        {pendingAttachments.length > 0 ? (
+          <div className="mb-3 overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-2">
+              {pendingAttachments.map(
+                (attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="relative w-44 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25"
+                  >
+                    {attachment.kind === "image" &&
+                    attachment.preview ? (
+                      <img
+                        src={attachment.preview}
+                        alt={attachment.name}
+                        className="h-24 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-24 place-items-center bg-white/[0.035] text-3xl">
+                        📄
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removePendingAttachment(
+                          attachment.id
+                        )
+                      }
+                      disabled={
+                        attachment.status ===
+                          "uploading" ||
+                        attachment.status ===
+                          "reading"
+                      }
+                      aria-label={`Remove ${attachment.name}`}
+                      title="Remove"
+                      className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-sm font-black text-white backdrop-blur disabled:opacity-40"
+                    >
+                      ×
+                    </button>
+
+                    <div className="p-2.5">
+                      <p className="truncate text-xs font-black text-white">
+                        {attachment.name}
+                      </p>
+
+                      <p className="mt-1 text-[10px] font-bold text-slate-500">
+                        {attachment.status ===
+                        "uploading"
+                          ? `Uploading ${attachment.progress}%`
+                          : attachment.status ===
+                              "reading"
+                            ? "Reading…"
+                            : attachment.status ===
+                                "failed"
+                              ? "Failed"
+                              : `${(
+                                  attachment.size /
+                                  1024 /
+                                  1024
+                                ).toFixed(2)} MB`}
+                      </p>
+
+                      {attachment.status ===
+                        "uploading" ||
+                      attachment.status ===
+                        "reading" ? (
+                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-[#c9ad50] transition-all"
+                            style={{
+                              width: `${
+                                attachment.status ===
+                                "reading"
+                                  ? 100
+                                  : attachment.progress
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {pendingDocument ? (
+          <div className="mb-3 rounded-2xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.07] p-3">
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25 text-xl">
+                📄
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-black text-white">
+                  {pendingDocument.name}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {(pendingDocument.size / 1024 / 1024).toFixed(2)} MB
+                  {" · "}
+                  {documentUploading
+                    ? `Reading ${documentUploadProgress}%`
+                    : "Ready for AI"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={removeSelectedDocument}
+                disabled={documentUploading}
+                className="rounded-xl border border-white/10 px-3 py-2 text-xs font-black text-slate-300 disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void openSaveToRoomPicker()}
+                disabled={documentUploading}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-200 disabled:opacity-40"
+              >
+                Save to room
+              </button>
+
+              <span className="text-xs text-slate-500">
+                Optional
+              </span>
+            </div>
           </div>
         ) : null}
 
@@ -1280,9 +2093,15 @@ export default function GeneralAIChat({
           placeholder={
             createImageMode
               ? "Describe the image you want StudySnap to create..."
-              : selectedImage
-                ? "Ask about this image..."
-                : "Message StudySnap AI"
+              : pendingAttachments.length > 1
+                ? "Ask about these files..."
+                : pendingAttachments.length === 1
+                  ? "Ask about this file..."
+                  : selectedImage
+                    ? "Ask about this image..."
+                    : pendingDocument
+                      ? "Ask about this file..."
+                      : "Message..."
           }
           rows={large ? 4 : 2}
           className={`w-full resize-none bg-transparent px-3 py-3 font-semibold text-white outline-none placeholder:text-slate-500 ${
@@ -1312,7 +2131,7 @@ export default function GeneralAIChat({
               }}
               disabled={createImageMode || loading}
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-300 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
-              title="Attach image"
+              title="Attach a file"
             >
               ＋
             </button>
@@ -1340,7 +2159,9 @@ export default function GeneralAIChat({
             </button>
 
             {(input.trim() ||
-              selectedImage) ? (
+              selectedImage ||
+              pendingDocument ||
+              pendingAttachments.length > 0) ? (
               <button
                 type="button"
                 onClick={clearComposer}
@@ -1383,155 +2204,195 @@ export default function GeneralAIChat({
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#c9ad50]">
-            AI workspace
-          </p>
-
-          <p className="mt-1 text-xs leading-5 text-slate-400">
-            Open only the panels you need. Your choices stay saved.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
+    <section className="relative min-h-[calc(100dvh-10rem)]">
+      <div className="sticky top-[60px] z-30 -mx-3 border-b border-white/[0.08] bg-[#0b0f14]/[0.97] px-3 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:top-[72px] lg:mx-0 lg:mb-3 lg:rounded-2xl lg:border">
+        <div className="flex min-h-12 items-center gap-2">
           <button
             type="button"
-            aria-pressed={historyOpen}
-            onClick={() => {
-              setHistoryOpen((current) => {
-                const next = !current;
-
-                window.localStorage.setItem(
-                  "studysnap:general-ai-history-open",
-                  String(next)
-                );
-
-                return next;
-              });
-            }}
-            className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+            onClick={() =>
+              updateHistoryOpen(!historyOpen)
+            }
+            aria-label="Open chat history"
+            aria-expanded={historyOpen}
+            title="Chat history"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-base transition ${
               historyOpen
-                ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
-                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
             }`}
           >
-            {historyOpen
-              ? "Hide history"
-              : "Show history"}
+            ☰
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black text-white">
+              Ask
+            </p>
+
+            <p className="truncate text-[11px] text-slate-500">
+              {activeTrail?.title || "New chat"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={startNewTrail}
+            aria-label="Start a new chat"
+            title="New chat"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:bg-white/[0.08]"
+          >
+            ＋
           </button>
 
           <button
             type="button"
-            aria-pressed={studyToolsOpen}
-            onClick={() => {
-              setStudyToolsOpen((current) => {
-                const next = !current;
+            onClick={() =>
+              void resetCurrentChat()
+            }
+            disabled={
+              loading ||
+              (
+                !hasMessages &&
+                !input.trim() &&
+                !selectedImage
+              )
+            }
+            aria-label="Reset current chat"
+            title="Reset chat"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-lg text-slate-300 transition hover:border-red-300/20 hover:bg-red-400/10 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            ↻
+          </button>
 
-                window.localStorage.setItem(
-                  "studysnap:general-ai-study-tools-open",
-                  String(next)
-                );
-
-                return next;
-              });
-            }}
-            className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+          <button
+            type="button"
+            onClick={() =>
+              updateStudyToolsOpen(
+                !studyToolsOpen
+              )
+            }
+            aria-label="Open study tools"
+            aria-expanded={studyToolsOpen}
+            title="Study tools"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black tracking-[0.12em] transition ${
               studyToolsOpen
-                ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
-                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
             }`}
           >
-            {studyToolsOpen
-              ? "Hide study tools"
-              : "Show study tools"}
+            •••
           </button>
         </div>
       </div>
 
+      {historyOpen ? (
+        <div className="fixed inset-0 z-[90] xl:hidden">
+          <button
+            type="button"
+            aria-label="Close chat history"
+            onClick={() =>
+              updateHistoryOpen(false)
+            }
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+          />
+
+          <aside className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 top-[60px] w-[min(88vw,350px)] overflow-y-auto border-r border-white/10 bg-[#0d1218] p-2 shadow-2xl">
+            <div className="flex h-11 items-center justify-end px-1">
+              <button
+                type="button"
+                onClick={() =>
+                  updateHistoryOpen(false)
+                }
+                className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300"
+                aria-label="Close chat history"
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <StudyTrailPanel
+              trails={trails}
+              activeTrailId={activeConversationId}
+              loading={loadingTrails}
+              search={trailSearch}
+              title="Chats"
+              emptyMessage="Start your first chat."
+              onSearchChange={setTrailSearch}
+              onSelect={(trail) =>
+                void selectTrail(trail)
+              }
+              onNew={() => {
+                startNewTrail();
+                updateHistoryOpen(false);
+              }}
+              onRename={(trail) =>
+                void renameTrail(trail)
+              }
+              onDelete={(trail) =>
+                void deleteTrail(trail)
+              }
+              onTogglePin={(trail) =>
+                void togglePinTrail(trail)
+              }
+            />
+          </aside>
+        </div>
+      ) : null}
+
       <div
-        className={`grid gap-4 ${
-          historyOpen && studyToolsOpen
-            ? "xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_290px]"
-            : historyOpen
-              ? "xl:grid-cols-[280px_minmax(0,1fr)]"
-              : studyToolsOpen
-                ? "xl:grid-cols-[minmax(0,1fr)_290px]"
-                : "grid-cols-1"
+        className={`grid min-w-0 gap-4 ${
+          historyOpen
+            ? "xl:grid-cols-[280px_minmax(0,1fr)]"
+            : "grid-cols-1"
         }`}
       >
         {historyOpen ? (
-          <StudyTrailPanel
-            trails={trails}
-            activeTrailId={activeConversationId}
-            loading={loadingTrails}
-            search={trailSearch}
-            title="Study Trail"
-            emptyMessage="Ask your first question to begin a learning journey."
-            onSearchChange={setTrailSearch}
-            onSelect={(trail) =>
-              void selectTrail(trail)
-            }
-            onNew={startNewTrail}
-            onRename={(trail) =>
-              void renameTrail(trail)
-            }
-            onDelete={(trail) =>
-              void deleteTrail(trail)
-            }
-            onTogglePin={(trail) =>
-              void togglePinTrail(trail)
-            }
-          />
+          <aside className="hidden min-w-0 xl:block">
+            <div className="sticky top-[9.25rem]">
+              <StudyTrailPanel
+                trails={trails}
+                activeTrailId={activeConversationId}
+                loading={loadingTrails}
+                search={trailSearch}
+                title="Chats"
+                emptyMessage="Start your first chat."
+                onSearchChange={setTrailSearch}
+                onSelect={(trail) =>
+                  void selectTrail(trail)
+                }
+                onNew={startNewTrail}
+                onRename={(trail) =>
+                  void renameTrail(trail)
+                }
+                onDelete={(trail) =>
+                  void deleteTrail(trail)
+                }
+                onTogglePin={(trail) =>
+                  void togglePinTrail(trail)
+                }
+              />
+            </div>
+          </aside>
         ) : null}
 
-        <div className="min-w-0 space-y-4">
-          <header className="rounded-[1.7rem] border border-white/10 bg-[linear-gradient(135deg,rgba(250,204,21,0.11),rgba(8,17,29,0.94))] p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c9ad50]">
-                  StudySnap General AI
-                </p>
-
-                <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
-                  {activeTrail?.title ||
-                    "Start a new learning trail"}
-                </h2>
-
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                  Ask anything naturally. StudySnap remembers this conversation while keeping room and learning memory separate.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={startNewTrail}
-                className="rounded-2xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.075] px-5 py-3 text-sm font-black text-[#ece8da] transition hover:bg-[#c9ad50]/[0.11]"
-              >
-                New Trail
-              </button>
-            </div>
-          </header>
-
+        <div className="min-w-0">
           {!hasMessages &&
           !loadingMessages ? (
-            <div className="rounded-[1.7rem] border border-white/10 bg-[#12181e] p-5">
-              <div className="mx-auto max-w-4xl py-6 text-center">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] text-3xl">
+            <div className="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-3xl flex-col justify-center py-6">
+              <div className="text-center">
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#c9ad50]/20 bg-[#c9ad50]/10 text-xl text-[#e3d589]">
                   ✦
                 </div>
 
-                <h3 className="mt-4 text-3xl font-black text-white">
-                  What are we learning today?
-                </h3>
-
-                <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  Continue an old trail or begin a fresh conversation. Typos, shorthand, images, and follow-up questions are welcome.
-                </p>
+                <h2 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  How can I help?
+                </h2>
               </div>
 
-              {renderComposer(true)}
+              <div className="mt-6">
+                {renderComposer(false)}
+              </div>
 
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {suggestions.map((suggestion) => (
@@ -1542,7 +2403,7 @@ export default function GeneralAIChat({
                       void sendMessage(suggestion)
                     }
                     disabled={loading}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:border-[#c9ad50]/[0.18] hover:bg-[#c9ad50]/[0.07] hover:text-white disabled:opacity-50"
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-xs font-bold text-slate-300 transition hover:border-[#c9ad50]/20 hover:bg-[#c9ad50]/10 hover:text-white disabled:opacity-50"
                   >
                     {suggestion}
                   </button>
@@ -1551,143 +2412,355 @@ export default function GeneralAIChat({
             </div>
           ) : (
             <>
-              <div className="max-h-[68vh] min-h-[460px] space-y-4 overflow-y-auto rounded-[1.7rem] border border-white/10 bg-[#0f151b] p-4">
+              <div className="space-y-3 px-0.5 pb-48 pt-4 sm:px-2">
                 {loadingMessages ? (
                   <p className="py-12 text-center text-sm font-bold text-slate-400">
-                    Opening Study Trail...
+                    Opening chat...
                   </p>
                 ) : null}
 
-                {messages.map((message) => (
-                  <article
-                    key={message.id}
-                    className={
-                      message.role === "user"
-                        ? "ml-auto max-w-[84%] rounded-[1.35rem] border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.10] px-4 py-3 text-[#ece8da]"
-                        : "mr-auto max-w-[92%] rounded-[1.35rem] border border-white/[0.07] bg-[#12181e] px-4 py-3 text-slate-100"
-                    }
-                  >
-                    {message.imagePreview ? (
-                      <img
-                        src={message.imagePreview}
-                        alt={
-                          message.imageName ||
-                          "Uploaded image"
-                        }
-                        className={`mb-3 rounded-2xl object-contain ${
-                          message.generatedImage
-                            ? "max-h-[520px] w-full"
-                            : "max-h-72"
-                        }`}
-                      />
-                    ) : null}
+                {messages.map((message) => {
+                  const collapseLimit =
+                    message.role === "user"
+                      ? 420
+                      : 760;
 
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-65">
-                        {message.role === "user"
-                          ? "You"
-                          : "StudySnap AI"}
-                      </p>
+                  const longMessage =
+                    message.content.length >
+                    collapseLimit;
 
-                      {message.role ===
-                      "assistant" ? (
-                        <div className="flex items-center gap-2">
-                          {message.generatedImage &&
-                          message.imagePreview ? (
+                  const expanded =
+                    expandedMessageIds.has(
+                      message.id
+                    );
+
+                  const displayedContent =
+                    longMessage && !expanded
+                      ? `${message.content
+                          .slice(
+                            0,
+                            collapseLimit,
+                          )
+                          .trimEnd()}…`
+                      : message.content;
+
+                  return (
+                    <article
+                      key={message.id}
+                      className={
+                        message.role === "user"
+                          ? "ml-auto max-w-[88%] rounded-2xl border border-[#c9ad50]/15 bg-[#c9ad50]/10 px-4 py-3 text-[#ece8da] sm:max-w-[76%]"
+                          : "mr-auto max-w-[96%] rounded-2xl border border-white/[0.07] bg-[#12181e] px-4 py-3 text-slate-100 sm:max-w-[86%]"
+                      }
+                    >
+                      {message.attachments?.length ? (
+                        <div className="mb-3 flex max-w-full gap-2 overflow-x-auto pb-1">
+                          {message.attachments.map(
+                            (attachment) => (
+                              <div
+                                key={attachment.id}
+                                className="w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20"
+                              >
+                                {attachment.kind === "image" &&
+                                attachment.preview ? (
+                                  <img
+                                    src={attachment.preview}
+                                    alt={attachment.name}
+                                    className="h-24 w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="grid h-24 place-items-center text-3xl">
+                                    📄
+                                  </div>
+                                )}
+
+                                <div className="p-2">
+                                  <p className="truncate text-[11px] font-black text-white">
+                                    {attachment.name}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      ) : null}
+
+                      {message.documentName ? (
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <span className="text-xl">📄</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-white">
+                          {message.documentName}
+                        </p>
+                        {typeof message.documentSize === "number" ? (
+                          <p className="text-xs text-slate-500">
+                            {(message.documentSize / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {message.imagePreview ? (
+                        <img
+                          src={message.imagePreview}
+                          alt={
+                            message.imageName ||
+                            "Uploaded image"
+                          }
+                          className={`mb-3 rounded-xl object-contain ${
+                            message.generatedImage
+                              ? "max-h-[520px] w-full"
+                              : "max-h-72"
+                          }`}
+                        />
+                      ) : null}
+
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">
+                          {message.role === "user"
+                            ? "You"
+                            : "AI"}
+                        </p>
+
+                        {message.role ===
+                        "assistant" ? (
+                          <div className="flex items-center gap-1.5">
+                            {message.generatedImage &&
+                            message.imagePreview ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadGeneratedImage(
+                                    message
+                                  )
+                                }
+                                title="Download image"
+                                className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
+                              >
+                                ↓
+                              </button>
+                            ) : null}
+
                             <button
                               type="button"
                               onClick={() =>
-                                downloadGeneratedImage(
+                                void copyMessage(
                                   message
                                 )
                               }
-                              className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
+                              title="Copy answer"
+                              className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
                             >
-                              Download
+                              {copiedId === message.id
+                                ? "✓"
+                                : "Copy"}
                             </button>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void copyMessage(message)
-                            }
-                            className="rounded-full border border-white/10 px-3 py-1 text-[10px] font-black text-slate-300 hover:bg-white/[0.08]"
-                          >
-                            {copiedId === message.id
-                              ? "Copied"
-                              : "Copy"}
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {message.role ===
-                    "assistant" ? (
-                      <SimpleMarkdown
-                        content={message.content}
-                        className="text-sm leading-7"
-                      />
-                    ) : (
-                      <div className="whitespace-pre-wrap text-sm leading-6">
-                        {message.content}
+                          </div>
+                        ) : null}
                       </div>
-                    )}
-                  </article>
-                ))}
+
+                      {message.role ===
+                      "assistant" ? (
+                        <SimpleMarkdown
+                          content={displayedContent}
+                          className="text-sm leading-7"
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap text-sm leading-6">
+                          {displayedContent}
+                        </div>
+                      )}
+
+                      {longMessage ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleMessageExpanded(
+                              message.id
+                            )
+                          }
+                          className="mt-3 text-xs font-black text-[#d9ca83] hover:text-[#eee3ac]"
+                        >
+                          {expanded
+                            ? "Show less"
+                            : "Show more"}
+                        </button>
+                      ) : null}
+                    </article>
+                  );
+                })}
 
                 <div ref={bottomRef} />
               </div>
 
-              {renderComposer(false)}
+              <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 -mx-1 bg-gradient-to-t from-[#0b0f14] via-[#0b0f14]/95 to-transparent px-1 pb-2 pt-5 lg:bottom-3">
+                {renderComposer(false)}
+              </div>
             </>
           )}
 
           {error ? (
-            <div className="rounded-2xl border border-red-400/25 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-100">
+            <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
               {error}
             </div>
           ) : null}
         </div>
+      </div>
 
-        {studyToolsOpen ? (
-          <aside className="space-y-4 xl:col-start-2 2xl:col-start-auto">
-            <div className="rounded-[1.4rem] border border-white/[0.07] bg-[#12181e] p-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
-                Continue the flow
-              </p>
 
-              <div className="mt-3 grid gap-2">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() =>
-                      void sendMessage(
-                        suggestion
-                      )
-                    }
-                    disabled={loading}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm font-black text-white hover:bg-[#c9ad50]/[0.07] disabled:opacity-50"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+      {roomPickerOpen ? (
+        <div className="fixed inset-0 z-[110] grid place-items-end bg-black/70 p-3 backdrop-blur-sm sm:place-items-center">
+          <section className="w-full max-w-md rounded-2xl border border-white/10 bg-[#12181e] p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#c9ad50]">
+                  Add to a room
+                </p>
+
+                <h2 className="mt-1 truncate text-lg font-black text-white">
+                  {pendingDocument?.name || "Selected document"}
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Choose where this document belongs.
+                </p>
               </div>
+
+              <button
+                type="button"
+                onClick={cancelDocumentUpload}
+                disabled={documentUploading}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-slate-300"
+                aria-label="Close"
+              >
+                ×
+              </button>
             </div>
 
-            <div className="rounded-[1.4rem] border border-white/[0.07] bg-[#12181e] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a8b5bd]">
-                General AI boundary
+            {documentUploading ? (
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span>Uploading</span>
+                  <span>{documentUploadProgress}%</span>
+                </div>
+
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-[#c9ad50] transition-all"
+                    style={{
+                      width: `${documentUploadProgress}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+              {loadingRooms ? (
+                <p className="py-8 text-center text-sm text-slate-400">
+                  Loading rooms...
+                </p>
+              ) : availableRooms.length ? (
+                availableRooms.map((room) => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    onClick={() => void uploadDocumentToRoom(room)}
+                    disabled={documentUploading}
+                    className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:bg-white/[0.08] disabled:opacity-50"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9ad50]/10">
+                      📚
+                    </span>
+
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-white">
+                        {room.name}
+                      </span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {room.subject || "Study room"}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="py-7 text-center">
+                  <p className="text-sm font-bold text-white">
+                    No study room found
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Create a room before adding documents.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {studyToolsOpen ? (
+        <div className="fixed inset-0 z-[100]">
+          <button
+            type="button"
+            aria-label="Close study tools"
+            onClick={() =>
+              updateStudyToolsOpen(false)
+            }
+            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+          />
+
+          <aside className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 rounded-2xl border border-white/10 bg-[#12181e] p-4 shadow-2xl lg:bottom-auto lg:left-1/2 lg:right-auto lg:top-1/2 lg:w-[420px] lg:-translate-x-1/2 lg:-translate-y-1/2">
+            <div className="flex items-center justify-between">
+              <p className="font-black text-white">
+                Study tools
               </p>
 
-              <p className="mt-3 text-xs leading-6 text-slate-400">
-                This trail stays separate from Study Room AI so general questions do not mix with room-specific learning history.
-              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  updateStudyToolsOpen(false)
+                }
+                className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300"
+                aria-label="Close study tools"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={`tool-${suggestion}`}
+                  type="button"
+                  onClick={() => {
+                    updateStudyToolsOpen(false);
+                    void sendMessage(suggestion);
+                  }}
+                  disabled={loading}
+                  className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-[#c9ad50]/10 hover:text-white disabled:opacity-50"
+                >
+                  {suggestion}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateImageMode(true);
+                  removeSelectedImage();
+                  setError("");
+                  updateStudyToolsOpen(false);
+                  inputRef.current?.focus();
+                }}
+                className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-[#c9ad50]/10 hover:text-white"
+              >
+                ✦ Create an image
+              </button>
             </div>
           </aside>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }

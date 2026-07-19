@@ -94,6 +94,54 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   return res.text();
 }
 
+
+export async function getProtectedFileBlobUrl(
+  path: string
+): Promise<string> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}${path}`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    const message = await readResponseError(
+      response,
+      "The file could not be opened."
+    );
+
+    throw new Error(message);
+  }
+
+  return URL.createObjectURL(
+    await response.blob()
+  );
+}
+
+export async function hideAIAttachmentFromFeed(
+  messageId: number
+): Promise<{
+  id: number;
+  hidden_from_feed: boolean;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}/feed?hidden=true`,
+    {
+      method: "PATCH",
+    }
+  ) as Promise<{
+    id: number;
+    hidden_from_feed: boolean;
+  }>;
+}
+
 export async function signup(name: string, email: string, password: string) {
   return apiFetch("/api/auth/signup", {
     method: "POST",
@@ -461,12 +509,22 @@ export type AIConversation = {
   updated_at: string;
 };
 
+export type AIAttachment = {
+  filename: string;
+  file_size: number | null;
+  content_type: string | null;
+  kind: "image" | "file";
+  hidden_from_feed: boolean;
+  url: string;
+};
+
 export type AIMessage = {
   id: number;
   conversation_id: number;
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  attachment?: AIAttachment | null;
 };
 
 export type GenerateAIImageSize =
@@ -1901,6 +1959,240 @@ export async function logoutAllSessions() {
   });
 }
 
+export type AskAIWithFilesResponse = {
+  answer: string;
+  count: number;
+  attachments: AIMessage[];
+  assistant_message?: AIMessage | null;
+};
+
+export function askAiWithFiles({
+  question,
+  files,
+  conversationId,
+  studyRoomId,
+  onProgress,
+  signal,
+}: {
+  question: string;
+  files: File[];
+  conversationId?: number | null;
+  studyRoomId?: number | null;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<AskAIWithFilesResponse> {
+  return new Promise((resolve, reject) => {
+    if (!files.length) {
+      reject(
+        new Error("Choose at least one file.")
+      );
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+    const formData = new FormData();
+
+    formData.append(
+      "question",
+      question.trim() ||
+        "Explain these files clearly."
+    );
+
+    files.forEach((file) => {
+      formData.append(
+        "files",
+        file,
+        file.name
+      );
+    });
+
+    if (
+      typeof conversationId === "number"
+    ) {
+      formData.append(
+        "conversation_id",
+        String(conversationId)
+      );
+    }
+
+    if (
+      typeof studyRoomId === "number"
+    ) {
+      formData.append(
+        "study_room_id",
+        String(studyRoomId)
+      );
+    }
+
+    xhr.open(
+      "POST",
+      `${API_BASE}/api/ai/ask-files`
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`
+      );
+    }
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) return;
+
+        onProgress?.(
+          Math.min(
+            99,
+            Math.max(
+              0,
+              Math.round(
+                (event.loaded /
+                  event.total) *
+                  100
+              )
+            )
+          )
+        );
+      }
+    );
+
+    xhr.addEventListener("load", () => {
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300
+      ) {
+        onProgress?.(100);
+
+        try {
+          resolve(
+            JSON.parse(
+              xhr.responseText
+            ) as AskAIWithFilesResponse
+          );
+        } catch {
+          reject(
+            new Error(
+              "StudySnap returned an unreadable response."
+            )
+          );
+        }
+
+        return;
+      }
+
+      try {
+        const data = JSON.parse(
+          xhr.responseText
+        ) as {
+          detail?: string;
+          message?: string;
+        };
+
+        reject(
+          new Error(
+            data.detail ||
+              data.message ||
+              "The files could not be uploaded."
+          )
+        );
+      } catch {
+        reject(
+          new Error(
+            xhr.responseText ||
+              "The files could not be uploaded."
+          )
+        );
+      }
+    });
+
+    xhr.addEventListener(
+      "error",
+      () => {
+        reject(
+          new Error(
+            "The upload was interrupted."
+          )
+        );
+      }
+    );
+
+    xhr.addEventListener(
+      "abort",
+      () => {
+        reject(
+          new DOMException(
+            "The upload was cancelled.",
+            "AbortError"
+          )
+        );
+      }
+    );
+
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+
+      signal.addEventListener(
+        "abort",
+        () => xhr.abort(),
+        { once: true }
+      );
+    }
+
+    xhr.send(formData);
+  });
+}
+
+
+export type AskAIWithFileResponse = {
+  answer: string;
+  filename?: string;
+  file_kind?: string;
+  user_message?: AIMessage | null;
+  assistant_message?: AIMessage | null;
+};
+
+export async function askAiWithFile(
+  question: string,
+  file: File,
+  options: {
+    conversationId?: number | null;
+    studyRoomId?: number | null;
+  } = {},
+): Promise<AskAIWithFileResponse> {
+  const formData = new FormData();
+
+  formData.append(
+    "question",
+    question.trim() || "Summarize this file clearly.",
+  );
+
+  formData.append("file", file, file.name);
+
+  if (typeof options.conversationId === "number") {
+    formData.append(
+      "conversation_id",
+      String(options.conversationId),
+    );
+  }
+
+  if (typeof options.studyRoomId === "number") {
+    formData.append(
+      "study_room_id",
+      String(options.studyRoomId),
+    );
+  }
+
+  return apiFetch("/api/ai/ask-file", {
+    method: "POST",
+    body: formData,
+  }) as Promise<AskAIWithFileResponse>;
+}
+
 export type UniversalMaterialUploadResponse = {
   id: number;
   original_filename: string;
@@ -1938,6 +2230,289 @@ export type UniversalMaterialListItem = {
   created_at?: string | null;
   last_opened_at?: string | null;
 };
+
+
+export type ResumableUploadSession = {
+  upload_id: string;
+  study_room_id: number;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  chunk_size: number;
+  total_chunks: number;
+  uploaded_chunks: number[];
+  uploaded_bytes?: number;
+};
+
+export async function startResumableMaterialUpload({
+  file,
+  studyRoomId,
+}: {
+  file: File;
+  studyRoomId: number;
+}): Promise<ResumableUploadSession> {
+  return apiFetch(
+    "/api/materials/resumable/start",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        study_room_id: studyRoomId,
+        filename: file.name,
+        file_size: file.size,
+        content_type:
+          file.type ||
+          "application/octet-stream",
+      }),
+    }
+  ) as Promise<ResumableUploadSession>;
+}
+
+export async function getResumableMaterialUpload(
+  uploadId: string
+): Promise<ResumableUploadSession> {
+  return apiFetch(
+    `/api/materials/resumable/${uploadId}`
+  ) as Promise<ResumableUploadSession>;
+}
+
+function uploadMaterialChunk({
+  uploadId,
+  chunkIndex,
+  chunk,
+  signal,
+}: {
+  uploadId: string;
+  chunkIndex: number;
+  chunk: Blob;
+  signal?: AbortSignal;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+
+    xhr.open(
+      "PUT",
+      `${API_BASE}/api/materials/resumable/${uploadId}/chunks/${chunkIndex}`
+    );
+
+    xhr.setRequestHeader(
+      "Content-Type",
+      "application/octet-stream"
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`
+      );
+    }
+
+    xhr.addEventListener("load", () => {
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300
+      ) {
+        resolve();
+        return;
+      }
+
+      let message =
+        `Chunk upload failed with status ${xhr.status}.`;
+
+      try {
+        const body = JSON.parse(
+          xhr.responseText
+        ) as {
+          detail?: string;
+        };
+
+        if (
+          typeof body.detail === "string"
+        ) {
+          message = body.detail;
+        }
+      } catch {
+        // Keep fallback.
+      }
+
+      reject(new Error(message));
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(
+        new Error(
+          "The upload could not reach StudySnap."
+        )
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(
+        new DOMException(
+          "Upload paused.",
+          "AbortError"
+        )
+      );
+    });
+
+    const abort = () => xhr.abort();
+
+    signal?.addEventListener(
+      "abort",
+      abort,
+      { once: true }
+    );
+
+    xhr.addEventListener("loadend", () => {
+      signal?.removeEventListener(
+        "abort",
+        abort
+      );
+    });
+
+    xhr.send(chunk);
+  });
+}
+
+export async function completeResumableMaterialUpload(
+  uploadId: string
+): Promise<UniversalMaterialUploadResponse> {
+  return apiFetch(
+    `/api/materials/resumable/${uploadId}/complete`,
+    {
+      method: "POST",
+    }
+  ) as Promise<UniversalMaterialUploadResponse>;
+}
+
+export async function cancelResumableMaterialUpload(
+  uploadId: string
+): Promise<void> {
+  await apiFetch(
+    `/api/materials/resumable/${uploadId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export async function uploadResumableMaterial({
+  file,
+  studyRoomId,
+  existingUploadId,
+  onProgress,
+  onSession,
+  signal,
+}: {
+  file: File;
+  studyRoomId: number;
+  existingUploadId?: string;
+  onProgress?: (percent: number) => void;
+  onSession?: (uploadId: string) => void;
+  signal?: AbortSignal;
+}): Promise<UniversalMaterialUploadResponse> {
+  const session = existingUploadId
+    ? await getResumableMaterialUpload(
+        existingUploadId
+      )
+    : await startResumableMaterialUpload({
+        file,
+        studyRoomId,
+      });
+
+  onSession?.(session.upload_id);
+
+  const uploaded = new Set(
+    session.uploaded_chunks ?? []
+  );
+
+  const chunkSize = session.chunk_size;
+  const totalChunks = session.total_chunks;
+
+  let uploadedBytes =
+    session.uploaded_bytes ??
+    Array.from(uploaded).reduce(
+      (total, chunkIndex) => {
+        const start =
+          chunkIndex * chunkSize;
+
+        const end = Math.min(
+          file.size,
+          start + chunkSize
+        );
+
+        return total + (end - start);
+      },
+      0
+    );
+
+  onProgress?.(
+    Math.min(
+      99,
+      Math.round(
+        (uploadedBytes / file.size) * 100
+      )
+    )
+  );
+
+  for (
+    let chunkIndex = 0;
+    chunkIndex < totalChunks;
+    chunkIndex += 1
+  ) {
+    if (signal?.aborted) {
+      throw new DOMException(
+        "Upload paused.",
+        "AbortError"
+      );
+    }
+
+    if (uploaded.has(chunkIndex)) {
+      continue;
+    }
+
+    const start =
+      chunkIndex * chunkSize;
+
+    const end = Math.min(
+      file.size,
+      start + chunkSize
+    );
+
+    const chunk = file.slice(
+      start,
+      end
+    );
+
+    await uploadMaterialChunk({
+      uploadId: session.upload_id,
+      chunkIndex,
+      chunk,
+      signal,
+    });
+
+    uploadedBytes += chunk.size;
+
+    onProgress?.(
+      Math.min(
+        99,
+        Math.round(
+          (uploadedBytes / file.size) * 100
+        )
+      )
+    );
+  }
+
+  const result =
+    await completeResumableMaterialUpload(
+      session.upload_id
+    );
+
+  onProgress?.(100);
+
+  return result;
+}
+
 
 export function uploadUniversalMaterial({
   file,
