@@ -8,6 +8,7 @@ from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.storage import storage_path
 from app.models.pdf_document import PDFDocument
 from app.models.user import User
 from app.services.ai_service import generate_studysnap_answer
@@ -22,7 +23,7 @@ from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["PDF Documents"])
 
-UPLOAD_DIR = Path("uploads/pdfs")
+UPLOAD_DIR = storage_path("pdfs")
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 

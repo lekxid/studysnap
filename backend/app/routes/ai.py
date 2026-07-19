@@ -23,6 +23,7 @@ from app.services.intent_understanding import get_intent_understanding_instructi
 from app.routes.pdf_documents import extract_pdf_text
 
 from app.database import get_db
+from app.storage import storage_path
 from app.models.user import User
 from app.models.study_room import StudyRoom
 from app.models.note import Note
@@ -48,7 +49,9 @@ register_heif_opener()
 
 router = APIRouter(tags=["AI"])
 
-AI_ATTACHMENT_ROOT = Path("uploads/ai-attachments")
+AI_ATTACHMENT_ROOT = storage_path(
+    "ai-attachments"
+)
 
 
 def store_ai_attachment(

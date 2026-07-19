@@ -15,6 +15,7 @@ from app.models.quiz_question import QuizQuestion
 from app.models.pdf_document import PDFDocument
 from app.models.study_material import StudyMaterial
 from app.models.study_room import StudyRoom
+from app.storage import storage_path
 from app.services.material_intelligence import analyze_material
 from app.services.ai_service import generate_basic_flashcards, generate_basic_quiz
 
@@ -45,8 +46,10 @@ FILENAME_STOP_WORDS = {
     "version", "module", "lesson", "class",
 }
 
-PDF_UPLOAD_DIR = Path("uploads/pdfs")
-MATERIAL_UPLOAD_DIR = Path("uploads/materials")
+PDF_UPLOAD_DIR = storage_path("pdfs")
+MATERIAL_UPLOAD_DIR = storage_path(
+    "materials"
+)
 
 
 @dataclass

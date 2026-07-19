@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.storage import storage_path
 from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.schemas.user import UserResponse
@@ -28,7 +29,9 @@ from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Users"])
 
-AVATAR_UPLOAD_ROOT = Path("uploads/profile_images")
+AVATAR_UPLOAD_ROOT = storage_path(
+    "profile_images"
+)
 MAX_AVATAR_SIZE = 5 * 1024 * 1024
 
 ALLOWED_AVATAR_TYPES = {

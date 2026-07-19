@@ -10,6 +10,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./test.db"
 
+    # Local default: backend/uploads
+    # Cloud example: /mnt/studysnap
+    storage_root: str = "uploads"
+
     secret_key: str = "supersecretkey"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60

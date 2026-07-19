@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.storage import storage_path
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.services.material_intelligence import analyze_material
@@ -39,9 +40,9 @@ router = APIRouter(tags=["Universal Materials"])
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_ROOT = Path("uploads/materials")
-QUARANTINE_ROOT = Path("uploads/quarantine")
-TEMP_ROOT = Path("uploads/tmp")
+UPLOAD_ROOT = storage_path("materials")
+QUARANTINE_ROOT = storage_path("quarantine")
+TEMP_ROOT = storage_path("tmp")
 
 CHUNK_SIZE = 1024 * 1024
 TEXT_CAPTURE_LIMIT = 2 * 1024 * 1024
