@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+.next/
+out/
+coverage/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error*
+pnpm-debug.log*
+
+.git/
+.gitignore
+README*
