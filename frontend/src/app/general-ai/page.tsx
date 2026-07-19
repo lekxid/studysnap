@@ -11,10 +11,7 @@ function GeneralAIContent() {
   const initialPrompt = searchParams.get("prompt") || "";
 
   return (
-    <AppShell
-      title="General AI"
-      subtitle="Ask StudySnap anything, upload an image, brainstorm ideas, or get help studying."
-    >
+    <AppShell title="">
       <GeneralAIChat initialPrompt={initialPrompt} />
     </AppShell>
   );

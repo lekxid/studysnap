@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import type { AIConversation } from "@/lib/api";
 
 type StudyTrailPanelProps = {
@@ -22,21 +28,11 @@ type TrailGroup = {
   trails: AIConversation[];
 };
 
-const surfaceLabels: Record<string, string> = {
-  general_ai: "General",
-  room_ai: "Room",
-  pdf_ai: "PDF",
-  notes_ai: "Note",
-  quiz_ai: "Quiz",
-  concept_cards_ai: "Cards",
-  brain: "Brain",
-  planner_ai: "Planner",
-  smart_organizer: "Organizer",
-  voice_ai: "Voice",
-};
-
 function getTrailDate(trail: AIConversation) {
-  const value = trail.updated_at || trail.created_at;
+  const value =
+    trail.updated_at ||
+    trail.created_at;
+
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
@@ -48,14 +44,15 @@ function startOfDay(date: Date) {
   return new Date(
     date.getFullYear(),
     date.getMonth(),
-    date.getDate()
+    date.getDate(),
   );
 }
 
 function buildGroups(
-  trails: AIConversation[]
+  trails: AIConversation[],
 ): TrailGroup[] {
   const now = startOfDay(new Date());
+
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
 
@@ -63,11 +60,11 @@ function buildGroups(
   sevenDaysAgo.setDate(now.getDate() - 7);
 
   const pinned = trails.filter(
-    (trail) => trail.is_pinned
+    (trail) => trail.is_pinned,
   );
 
   const unpinned = trails.filter(
-    (trail) => !trail.is_pinned
+    (trail) => !trail.is_pinned,
   );
 
   const today: AIConversation[] = [];
@@ -76,12 +73,15 @@ function buildGroups(
   const older: AIConversation[] = [];
 
   for (const trail of unpinned) {
-    const trailDate = startOfDay(getTrailDate(trail));
+    const trailDate = startOfDay(
+      getTrailDate(trail),
+    );
 
     if (trailDate.getTime() === now.getTime()) {
       today.push(trail);
     } else if (
-      trailDate.getTime() === yesterday.getTime()
+      trailDate.getTime() ===
+      yesterday.getTime()
     ) {
       yesterdayItems.push(trail);
     } else if (trailDate >= sevenDaysAgo) {
@@ -92,8 +92,14 @@ function buildGroups(
   }
 
   return [
-    { label: "Pinned", trails: pinned },
-    { label: "Today", trails: today },
+    {
+      label: "Pinned",
+      trails: pinned,
+    },
+    {
+      label: "Today",
+      trails: today,
+    },
     {
       label: "Yesterday",
       trails: yesterdayItems,
@@ -102,17 +108,27 @@ function buildGroups(
       label: "Previous 7 days",
       trails: previousSevenDays,
     },
-    { label: "Older", trails: older },
-  ].filter((group) => group.trails.length > 0);
+    {
+      label: "Older",
+      trails: older,
+    },
+  ].filter(
+    (group) => group.trails.length > 0,
+  );
 }
 
-function formatTrailTime(trail: AIConversation) {
+function formatTrailTime(
+  trail: AIConversation,
+) {
   const date = getTrailDate(trail);
 
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+    },
+  );
 }
 
 export default function StudyTrailPanel({
@@ -120,8 +136,8 @@ export default function StudyTrailPanel({
   activeTrailId,
   loading = false,
   search,
-  title = "Study Trail",
-  emptyMessage = "Start your first learning trail.",
+  title = "Chats",
+  emptyMessage = "Start your first chat.",
   onSearchChange,
   onSelect,
   onNew,
@@ -129,168 +145,313 @@ export default function StudyTrailPanel({
   onDelete,
   onTogglePin,
 }: StudyTrailPanelProps) {
-  const cleanSearch = search.trim().toLowerCase();
+  const panelRef =
+    useRef<HTMLElement | null>(null);
+
+  const [
+    openMenuId,
+    setOpenMenuId,
+  ] = useState<number | null>(null);
+
+  useEffect(() => {
+    function handlePointerDown(
+      event: PointerEvent,
+    ) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(
+          event.target as Node,
+        )
+      ) {
+        setOpenMenuId(null);
+      }
+    }
+
+    function handleKeyDown(
+      event: KeyboardEvent,
+    ) {
+      if (event.key === "Escape") {
+        setOpenMenuId(null);
+      }
+    }
+
+    document.addEventListener(
+      "pointerdown",
+      handlePointerDown,
+    );
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+      );
+
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, []);
+
+  const cleanSearch =
+    search.trim().toLowerCase();
 
   const filteredTrails = cleanSearch
     ? trails.filter((trail) =>
-        trail.title.toLowerCase().includes(cleanSearch)
+        trail.title
+          .toLowerCase()
+          .includes(cleanSearch),
       )
     : trails;
 
-  const groups = buildGroups(filteredTrails);
+  const groups = buildGroups(
+    filteredTrails,
+  );
 
   return (
-    <aside className="rounded-[1.6rem] border border-white/10 bg-[#08111d]/92 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-      <div className="rounded-[1.25rem] border border-yellow-300/15 bg-[linear-gradient(145deg,rgba(250,204,21,0.12),rgba(255,255,255,0.025))] p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-yellow-300">
-              Learning history
-            </p>
-            <h3 className="mt-1 text-lg font-black text-white">
-              {title}
-            </h3>
-          </div>
+    <aside
+      ref={panelRef}
+      className="h-full rounded-2xl border border-white/[0.08] bg-[#0d131a] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.32)]"
+    >
+      <div className="flex min-h-11 items-center gap-2 px-2">
+        <h3 className="min-w-0 flex-1 truncate text-base font-black text-white">
+          {title}
+        </h3>
 
-          <button
-            type="button"
-            onClick={onNew}
-            className="grid h-10 w-10 place-items-center rounded-xl bg-yellow-300 text-xl font-black text-slate-950 transition hover:bg-yellow-200"
-            title="Start a new trail"
-          >
-            ＋
-          </button>
-        </div>
+        <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] font-black text-slate-500">
+          {filteredTrails.length}
+        </span>
+
+        <button
+          type="button"
+          onClick={onNew}
+          aria-label="New chat"
+          title="New chat"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63]"
+        >
+          ＋
+        </button>
+      </div>
+
+      <div className="relative mt-2">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-600">
+          ⌕
+        </span>
 
         <input
           value={search}
           onChange={(event) =>
-            onSearchChange(event.target.value)
+            onSearchChange(
+              event.target.value,
+            )
           }
-          placeholder="Search your trails..."
-          className="mt-3 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-yellow-300/35"
+          placeholder="Search chats"
+          aria-label="Search chats"
+          className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-9 pr-9 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/30"
         />
+
+        {search ? (
+          <button
+            type="button"
+            onClick={() =>
+              onSearchChange("")
+            }
+            aria-label="Clear search"
+            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white"
+          >
+            ×
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-3 max-h-[66vh] overflow-y-auto pr-1">
+      <div className="mt-3 max-h-[calc(100dvh-14rem)] overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-13rem)]">
         {loading ? (
-          <p className="px-3 py-5 text-sm font-semibold text-slate-400">
-            Loading your Study Trails...
+          <p className="px-3 py-5 text-sm font-semibold text-slate-500">
+            Loading…
           </p>
         ) : groups.length === 0 ? (
-          <div className="rounded-[1.2rem] border border-dashed border-white/10 bg-white/[0.025] px-4 py-6 text-center">
-            <div className="mx-auto grid h-10 w-10 place-items-center rounded-full border border-yellow-300/20 bg-yellow-300/10 text-lg">
-              ✦
-            </div>
-            <p className="mt-3 text-sm font-black text-white">
-              No trails yet
+          <div className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center">
+            <p className="text-xl">✦</p>
+
+            <p className="mt-2 text-sm font-black text-white">
+              No chats
             </p>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
+
+            <p className="mt-1 text-xs text-slate-500">
               {emptyMessage}
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {groups.map((group) => (
               <section key={group.label}>
-                <p className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
                   {group.label}
                 </p>
 
-                <div className="relative space-y-2 before:absolute before:bottom-3 before:left-[13px] before:top-3 before:w-px before:bg-white/10">
-                  {group.trails.map((trail) => {
-                    const active =
-                      trail.id === activeTrailId;
+                <div className="space-y-1">
+                  {group.trails.map(
+                    (trail) => {
+                      const active =
+                        trail.id ===
+                        activeTrailId;
 
-                    return (
-                      <article
-                        key={trail.id}
-                        className={`group relative rounded-[1.15rem] border transition ${
-                          active
-                            ? "border-yellow-300/35 bg-yellow-300/10"
-                            : "border-transparent bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onSelect(trail)}
-                          className="flex w-full gap-3 px-3 py-3 text-left"
+                      const menuOpen =
+                        openMenuId ===
+                        trail.id;
+
+                      return (
+                        <article
+                          key={trail.id}
+                          className={`overflow-hidden rounded-xl border transition ${
+                            active
+                              ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.09]"
+                              : "border-transparent bg-white/[0.025] hover:bg-white/[0.05]"
+                          }`}
                         >
-                          <span
-                            className={`relative z-10 mt-1 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ${
-                              active
-                                ? "bg-yellow-300 ring-yellow-300/10"
-                                : "bg-slate-600 ring-[#08111d]"
-                            }`}
-                          />
+                          <div className="flex min-w-0 items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(
+                                  null,
+                                );
+                                onSelect(
+                                  trail,
+                                );
+                              }}
+                              className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
+                            >
+                              <span
+                                className={`h-2 w-2 shrink-0 rounded-full ${
+                                  active
+                                    ? "bg-[#c9ad50]"
+                                    : "bg-slate-700"
+                                }`}
+                              />
 
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-black text-white">
-                              {trail.title}
-                            </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-bold text-slate-100">
+                                  {
+                                    trail.title
+                                  }
+                                </span>
 
-                            <span className="mt-1 flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                              <span className="rounded-full border border-white/10 px-2 py-0.5 uppercase tracking-wide">
-                                {surfaceLabels[trail.surface] ||
-                                  trail.surface}
+                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-600">
+                                  {formatTrailTime(
+                                    trail,
+                                  )}
+                                </span>
                               </span>
 
-                              <span>
-                                {formatTrailTime(trail)}
-                              </span>
-                            </span>
-                          </span>
-                        </button>
+                              {trail.is_pinned ? (
+                                <span
+                                  className="shrink-0 text-xs text-[#c9ad50]"
+                                  title="Pinned"
+                                >
+                                  ★
+                                </span>
+                              ) : null}
+                            </button>
 
-                        <div className="grid grid-cols-3 gap-1 border-t border-white/[0.06] px-2 py-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onTogglePin(trail)
-                            }
-                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-yellow-300/10 hover:text-yellow-100"
-                            title={
-                              trail.is_pinned
-                                ? "Unpin trail"
-                                : "Pin trail"
-                            }
-                          >
-                            {trail.is_pinned
-                                ? "★ Unpin"
-                                : "☆ Pin"}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenMenuId(
+                                  menuOpen
+                                    ? null
+                                    : trail.id,
+                                )
+                              }
+                              aria-label={`Actions for ${trail.title}`}
+                              aria-expanded={
+                                menuOpen
+                              }
+                              className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                            >
+                              •••
+                            </button>
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => onRename(trail)}
-                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-white/10 hover:text-white"
-                            title="Rename trail"
-                          >
-                            ✎ Rename
-                          </button>
+                          {menuOpen ? (
+                            <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(
+                                    null,
+                                  );
+                                  onTogglePin(
+                                    trail,
+                                  );
+                                }}
+                                aria-label={
+                                  trail.is_pinned
+                                    ? "Unpin chat"
+                                    : "Pin chat"
+                                }
+                                title={
+                                  trail.is_pinned
+                                    ? "Unpin"
+                                    : "Pin"
+                                }
+                                className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
+                              >
+                                {trail.is_pinned
+                                  ? "★"
+                                  : "☆"}
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => onDelete(trail)}
-                            className="rounded-lg px-2 py-1.5 text-[10px] font-black text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
-                            title="Delete trail"
-                          >
-                            × Delete
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(
+                                    null,
+                                  );
+                                  onRename(
+                                    trail,
+                                  );
+                                }}
+                                aria-label="Rename chat"
+                                title="Rename"
+                                className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                              >
+                                ✎
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuId(
+                                    null,
+                                  );
+                                  onDelete(
+                                    trail,
+                                  );
+                                }}
+                                aria-label="Delete chat"
+                                title="Delete"
+                                className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    },
+                  )}
                 </div>
               </section>
             ))}
           </div>
         )}
       </div>
-
-      <p className="mt-3 px-2 text-[10px] leading-5 text-slate-600">
-        Trails remember conversations. Learning memory remains separate and controlled in Settings.
-      </p>
     </aside>
   );
 }

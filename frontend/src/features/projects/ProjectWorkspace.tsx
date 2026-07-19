@@ -377,11 +377,11 @@ export default function ProjectWorkspace({
   const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-[1.7rem] border border-yellow-300/20 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.13),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+    <div className="space-y-3 sm:space-y-5">
+      <section className="overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onBack}
@@ -399,48 +399,48 @@ export default function ProjectWorkspace({
               </span>
             </div>
 
-            <h1 className="max-w-5xl text-4xl font-black leading-tight tracking-tight text-white">
+            <h1 className="max-w-5xl text-2xl font-black leading-tight tracking-tight text-white sm:text-4xl">
               {title}
             </h1>
 
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
+            <p className="mt-2 hidden max-w-4xl text-sm leading-6 text-slate-300 sm:block">
               {description ||
                 "Your materials, notes, AI Tutor, concept cards, quizzes, planner, progress, and future Study Together stay connected in this room."}
             </p>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:flex-row">
               <button
                 type="button"
                 onClick={() => onChangeTab("overview")}
-                className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
+                className="rounded-xl bg-yellow-300 px-3 py-2.5 text-xs font-black text-black transition hover:bg-yellow-200 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                🏠 Open overview
+                🏠 Overview
               </button>
 
               <button
                 type="button"
                 onClick={() => onChangeTab("materials")}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.08] sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                📚 Add study material
+                📚 Add
               </button>
 
               <button
                 type="button"
                 onClick={() => onChangeTab("ai")}
-                className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                className="rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2.5 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/15 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                🤖 Ask AI Tutor
+                ✦ Ask AI
               </button>
             </div>
           </div>
 
-          <aside className="grid gap-3 sm:grid-cols-4 xl:w-[500px] xl:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+          <aside className="grid grid-cols-4 gap-2 sm:gap-3 xl:w-[500px] xl:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Progress
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{safeProgress}%</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{safeProgress}%</p>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-yellow-300"
@@ -449,25 +449,25 @@ export default function ProjectWorkspace({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Materials
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{materialsCount}</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{materialsCount}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Notes
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{notesCount}</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{notesCount}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Practice
               </p>
-              <p className="mt-3 text-3xl font-black text-white">
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">
                 {conceptCardsCount + quizzesCount}
               </p>
             </div>
@@ -484,21 +484,18 @@ export default function ProjectWorkspace({
         ].join(" ")}
       >
         <div className="space-y-5">
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+          <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Room Workspace
-                </p>
-                <h2 className="mt-1 text-xl font-black text-white">
-                  Everything you need is here
+                <h2 className="text-sm font-black text-white">
+                  Room tools
                 </h2>
               </div>
 
               <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
               {roomTabs.map((tab) => (
                 <TabButton
                   key={tab.key}

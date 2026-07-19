@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -23,6 +23,44 @@ class AIMessage(Base):
     content = Column(
         Text,
         nullable=False,
+    )
+
+    attachment_filename = Column(
+        String,
+        nullable=True,
+    )
+
+    attachment_stored_filename = Column(
+        String,
+        nullable=True,
+    )
+
+    attachment_file_path = Column(
+        Text,
+        nullable=True,
+    )
+
+    attachment_file_size = Column(
+        Integer,
+        nullable=True,
+    )
+
+    attachment_content_type = Column(
+        String,
+        nullable=True,
+    )
+
+    attachment_kind = Column(
+        String,
+        nullable=True,
+        index=True,
+    )
+
+    attachment_hidden_from_feed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
     )
 
     created_at = Column(

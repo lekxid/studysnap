@@ -5,6 +5,7 @@ import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import {
+  askAiWithFile,
   askAiWithImage,
   createAIConversation,
   deleteAIConversation,
@@ -13,6 +14,7 @@ import {
   pinAIConversation,
   renameAIConversation,
   streamAIMessage,
+  uploadUniversalMaterial,
   type AIConversation,
   type AIMessage,
 } from "@/lib/api";
@@ -24,6 +26,8 @@ type ChatMessage = {
   created_at?: string;
   imagePreview?: string;
   imageName?: string;
+  documentName?: string;
+  documentSize?: number;
 };
 
 type CompactProjectAIProps = {
@@ -121,6 +125,14 @@ export default function CompactProjectAI({
 
   const [selectedImagePreview, setSelectedImagePreview] = useState("");
 
+  const [selectedDocument, setSelectedDocument] =
+    useState<File | null>(null);
+
+  const [documentUploadProgress, setDocumentUploadProgress] =
+    useState(0);
+  const [documentUploading, setDocumentUploading] =
+    useState(false);
+
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const [studyToolsPanelOpen, setStudyToolsPanelOpen] = useState(false);
@@ -168,13 +180,34 @@ export default function CompactProjectAI({
       .find((message) => message.role === "assistant");
   }, [messages]);
 
-  function scrollToBottom() {
-    window.setTimeout(() => {
-      if (!chatRef.current) return;
-
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }, 50);
+  function scrollToBottom(
+    behavior: ScrollBehavior = "smooth"
+  ) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        chatRef.current?.scrollTo({
+          top: chatRef.current.scrollHeight,
+          behavior,
+        });
+      });
+    });
   }
+
+  useEffect(() => {
+    if (
+      messages.length > 0 ||
+      loading ||
+      loadingHistory
+    ) {
+      scrollToBottom(
+        loadingHistory ? "auto" : "smooth"
+      );
+    }
+  }, [
+    messages,
+    loading,
+    loadingHistory,
+  ]);
 
   async function loadMessages(conversationId: number) {
     try {
@@ -392,6 +425,97 @@ export default function CompactProjectAI({
     reader.readAsDataURL(file);
   }
 
+  async function handleAttachmentChange(file: File | undefined) {
+    if (!file) return;
+
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "";
+
+    const imageExtensions = new Set([
+      "png",
+      "jpg",
+      "jpeg",
+      "webp",
+      "gif",
+      "bmp",
+      "tif",
+      "tiff",
+      "heic",
+      "heif",
+      "avif",
+    ]);
+
+    const isImage =
+      file.type.startsWith("image/") ||
+      imageExtensions.has(extension);
+
+    if (isImage) {
+      setSelectedDocument(null);
+      handleImageChange(file);
+      return;
+    }
+
+    const supportedDocuments = new Set([
+      "pdf",
+      "docx",
+      "pptx",
+      "xlsx",
+      "txt",
+      "md",
+      "markdown",
+      "csv",
+      "tsv",
+      "json",
+      "jsonl",
+      "log",
+      "rtf",
+      "py",
+      "java",
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "sql",
+      "html",
+      "css",
+      "xml",
+      "yaml",
+      "yml",
+      "toml",
+    ]);
+
+    if (!supportedDocuments.has(extension)) {
+      setError(
+        "Use PDF, DOCX, PPTX, XLSX, text, code, CSV, JSON, or an image."
+      );
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      setError(
+        "Direct AI reading supports files up to 25MB."
+      );
+      return;
+    }
+
+    removeSelectedImage();
+    setSelectedDocument(file);
+    setDocumentUploadProgress(0);
+    setError("");
+    composerRef.current?.focus();
+  }
+
+  function removeSelectedDocument() {
+    if (documentUploading) return;
+
+    setSelectedDocument(null);
+    setDocumentUploadProgress(0);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   function removeSelectedImage() {
     setSelectedImage(null);
     setSelectedImagePreview("");
@@ -404,6 +528,7 @@ export default function CompactProjectAI({
   function clearComposer() {
     setInput("");
     removeSelectedImage();
+    removeSelectedDocument();
     setError("");
     composerRef.current?.focus();
   }
@@ -445,13 +570,21 @@ export default function CompactProjectAI({
 
     const imageNameToSend = selectedImage?.name;
 
-    if ((!clean && !imageToSend) || loading) {
+    const documentToSend = selectedDocument;
+
+    if (
+      (!clean && !imageToSend && !documentToSend) ||
+      loading ||
+      documentUploading
+    ) {
       return;
     }
 
     const finalQuestion =
       clean ||
-      "Describe this image clearly and explain what I should learn from it.";
+      (documentToSend
+        ? "Summarize this file clearly and explain what I should learn from it."
+        : "Describe this image clearly and explain what I should learn from it.");
 
     const userMessageId = makeId();
     const assistantMessageId = makeId();
@@ -472,19 +605,69 @@ export default function CompactProjectAI({
           content: finalQuestion,
           imagePreview: imagePreviewToSend || undefined,
           imageName: imageNameToSend,
+          documentName: documentToSend?.name,
+          documentSize: documentToSend?.size,
         },
         {
           id: assistantMessageId,
           role: "assistant",
           content: imageToSend
             ? "StudySnap AI is reading the image..."
-            : "StudySnap AI is thinking...",
+            : documentToSend
+              ? "StudySnap AI is reading the file..."
+              : "StudySnap AI is thinking...",
         },
       ]);
 
       scrollToBottom();
 
-      if (imageToSend) {
+      if (documentToSend) {
+        setDocumentUploading(true);
+        setDocumentUploadProgress(30);
+
+        const progressTimer = window.setTimeout(() => {
+          setDocumentUploadProgress(70);
+        }, 700);
+
+        let response;
+
+        try {
+          response = await askAiWithFile(
+            finalQuestion,
+            documentToSend,
+            {
+              studyRoomId,
+              conversationId,
+            },
+          );
+        } finally {
+          window.clearTimeout(progressTimer);
+        }
+
+        setDocumentUploadProgress(100);
+
+        const answer = extractAIText(response);
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content: answer,
+                }
+              : message,
+          ),
+        );
+
+        try {
+          await uploadUniversalMaterial({
+            file: documentToSend,
+            studyRoomId,
+          });
+        } catch {
+          // AI reading succeeded. Saving to the room is secondary.
+        }
+      } else if (imageToSend) {
         const response = await askAiWithImage(finalQuestion, imageToSend, {
           studyRoomId,
           conversationId,
@@ -536,6 +719,10 @@ export default function CompactProjectAI({
 
       await refreshTrails(conversationId);
 
+      if (documentToSend) {
+        removeSelectedDocument();
+      }
+
       scrollToBottom();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Project AI failed.";
@@ -554,6 +741,7 @@ export default function CompactProjectAI({
       setError(message);
     } finally {
       setLoading(false);
+      setDocumentUploading(false);
     }
   }
 
@@ -795,18 +983,18 @@ export default function CompactProjectAI({
           />
         ) : null}
 
-        <section className="min-w-0 rounded-[1.35rem] border border-cyan-300/15 bg-black/25 p-4">
+        <section className="min-w-0 rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
                 Room AI Assistant
               </p>
 
-              <h3 className="mt-1 truncate text-2xl font-black text-white">
+              <h3 className="mt-1 truncate text-lg font-black text-white sm:text-2xl">
                 {activeTrail?.title || "Start a new room trail"}
               </h3>
 
-              <p className="mt-1 text-sm leading-6 text-slate-400">
+              <p className="mt-1 hidden text-sm leading-6 text-slate-400 sm:block">
                 Focused only on {projectTitle} and its connected learning
                 materials.
               </p>
@@ -854,14 +1042,14 @@ export default function CompactProjectAI({
 
           <div
             ref={chatRef}
-            className="mt-4 max-h-[620px] min-h-[440px] space-y-3 overflow-y-auto rounded-[1.2rem] border border-white/10 bg-black/35 p-4"
+            className="mt-3 max-h-[55vh] min-h-[300px] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-black/35 p-3 sm:mt-4 sm:min-h-[440px] sm:p-4"
           >
             {loadingHistory ? (
               <p className="py-12 text-center text-sm font-semibold text-slate-400">
                 Opening this room Study Trail...
               </p>
             ) : messages.length === 0 ? (
-              <div className="flex min-h-[400px] items-center justify-center text-center">
+              <div className="flex min-h-[270px] items-center justify-center text-center sm:min-h-[400px]">
                 <div className="max-w-md">
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-yellow-300/20 bg-yellow-300/10 text-2xl">
                     ✦
@@ -887,6 +1075,22 @@ export default function CompactProjectAI({
                       : "mr-auto max-w-[94%] border-cyan-300/15 bg-cyan-300/10"
                   }`}
                 >
+                  {message.documentName ? (
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <span className="text-xl">📄</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-white">
+                          {message.documentName}
+                        </p>
+                        {typeof message.documentSize === "number" ? (
+                          <p className="text-xs text-slate-500">
+                            {(message.documentSize / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {message.imagePreview ? (
                     <img
                       src={message.imagePreview}
@@ -912,10 +1116,43 @@ export default function CompactProjectAI({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif,.pdf,.doc,.docx,.ppt,.pptx,.txt,.rtf,.csv,.xls,.xlsx"
               className="hidden"
-              onChange={(event) => handleImageChange(event.target.files?.[0])}
+              onChange={(event) =>
+                void handleAttachmentChange(event.target.files?.[0])
+              }
             />
+
+            {selectedDocument ? (
+              <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-black/25 text-2xl">
+                  📄
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black text-white">
+                    {selectedDocument.name}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    {(selectedDocument.size / 1024 / 1024).toFixed(2)} MB
+                    {" · "}
+                    {documentUploading
+                      ? `Reading ${documentUploadProgress}%`
+                      : "Ready for AI"}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={removeSelectedDocument}
+                  disabled={documentUploading}
+                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-slate-300 disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
 
             {selectedImagePreview ? (
               <div className="mb-3 flex items-center gap-3 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-3">
@@ -953,9 +1190,11 @@ export default function CompactProjectAI({
               placeholder={
                 selectedImage
                   ? "Ask about this image or add more details..."
-                  : `Ask about ${projectTitle}...`
+                  : selectedDocument
+                    ? "Ask about this file..."
+                    : `Ask about ${projectTitle}...`
               }
-              className="min-h-[95px] w-full resize-none bg-transparent p-3 text-sm leading-7 text-white outline-none placeholder:text-slate-500"
+              className="min-h-16 w-full resize-none bg-transparent p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-500 sm:min-h-[95px]"
             />
 
             <div className="flex flex-col gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -963,15 +1202,15 @@ export default function CompactProjectAI({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
+                  disabled={loading || documentUploading}
                   className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl font-black text-slate-200 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100 disabled:opacity-50"
-                  aria-label="Add an image"
-                  title="Add an image"
+                  aria-label="Add a file"
+                  title="Add a file"
                 >
                   ＋
                 </button>
 
-                {input.trim() || selectedImage ? (
+                {input.trim() || selectedImage || selectedDocument ? (
                   <button
                     type="button"
                     onClick={clearComposer}
@@ -983,20 +1222,30 @@ export default function CompactProjectAI({
                 ) : null}
 
                 <p className="text-xs text-slate-500">
-                  Enter sends · Shift + Enter adds a line · Images up to 8MB
+                  {documentUploading
+                    ? `Uploading ${documentUploadProgress}%`
+                    : "Images and documents"}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => void sendMessage()}
-                disabled={loading || (!input.trim() && !selectedImage)}
+                disabled={
+                  loading ||
+                  documentUploading ||
+                  (!input.trim() &&
+                    !selectedImage &&
+                    !selectedDocument)
+                }
                 className="rounded-xl bg-yellow-300 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading
                   ? selectedImage
                     ? "Reading image..."
-                    : "Working..."
+                    : selectedDocument
+                      ? "Reading file..."
+                      : "Working..."
                   : "Ask Room AI"}
               </button>
             </div>

@@ -131,6 +131,47 @@ const topNavItems: NavItem[] = [
   },
 ];
 
+type MobileNavIconName =
+  | "home"
+  | "rooms"
+  | "ask"
+  | "together"
+  | "profile";
+
+type MobileNavItem = {
+  href: string;
+  label: string;
+  icon: MobileNavIconName;
+};
+
+const mobileNavItems: MobileNavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: "home",
+  },
+  {
+    href: "/study-rooms",
+    label: "Rooms",
+    icon: "rooms",
+  },
+  {
+    href: "/general-ai",
+    label: "Ask",
+    icon: "ask",
+  },
+  {
+    href: "/study-together",
+    label: "Together",
+    icon: "together",
+  },
+  {
+    href: "/settings",
+    label: "Profile",
+    icon: "profile",
+  },
+];
+
 const projectAwareNavHrefs = new Set([
   "/notes",
   "/flashcards",
@@ -170,6 +211,39 @@ function isNavItemActive(
 
 function isAnyNavItemActive(pathname: string, items: NavItem[]) {
   return items.some((item) => isNavItemActive(pathname, item.href));
+}
+
+function isMobileNavItemActive(
+  pathname: string,
+  item: MobileNavItem,
+  search?: string,
+) {
+  if (item.icon === "ask") {
+    return (
+      pathname.startsWith("/ai-tutor") ||
+      pathname.startsWith("/general-ai")
+    );
+  }
+
+  if (item.icon === "together") {
+    return (
+      pathname.startsWith("/study-together") ||
+      pathname.startsWith("/groups") ||
+      (
+        /^\/study-rooms\/\d+/.test(pathname) &&
+        search === "together"
+      )
+    );
+  }
+
+  if (item.icon === "profile") {
+    return (
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/onboarding")
+    );
+  }
+
+  return isNavItemActive(pathname, item.href, search);
 }
 
 function getRoomIdFromStudyRoomPath(pathname: string) {
@@ -284,6 +358,64 @@ function getInitials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function MobileNavIcon({
+  name,
+}: {
+  name: MobileNavIconName;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {name === "home" ? (
+        <>
+          <path d="M3 10.5 12 3l9 7.5" />
+          <path d="M5 9.5V21h14V9.5" />
+          <path d="M9 21v-7h6v7" />
+        </>
+      ) : null}
+
+      {name === "rooms" ? (
+        <>
+          <path d="M3.5 6.5h6l2 2h9v10a2 2 0 0 1-2 2h-15z" />
+          <path d="M3.5 6.5V5a2 2 0 0 1 2-2h3l2 2h8a2 2 0 0 1 2 2v1.5" />
+        </>
+      ) : null}
+
+      {name === "ask" ? (
+        <>
+          <path d="m12 3 1.25 4.05L17 8.5l-3.75 1.45L12 14l-1.25-4.05L7 8.5l3.75-1.45z" />
+          <path d="m18.5 14 .75 2.25L21.5 17l-2.25.75L18.5 20l-.75-2.25L15.5 17l2.25-.75z" />
+          <path d="m5.5 14 .55 1.45 1.45.55-1.45.55L5.5 18l-.55-1.45L3.5 16l1.45-.55z" />
+        </>
+      ) : null}
+
+      {name === "together" ? (
+        <>
+          <circle cx="9" cy="8" r="3" />
+          <circle cx="17" cy="9" r="2.5" />
+          <path d="M3.5 20c.3-4 2.2-6 5.5-6s5.2 2 5.5 6" />
+          <path d="M14 14.5c3.9-.8 6.2 1 6.5 4.5" />
+        </>
+      ) : null}
+
+      {name === "profile" ? (
+        <>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4.5 21c.45-4.7 3-7 7.5-7s7.05 2.3 7.5 7" />
+        </>
+      ) : null}
+    </svg>
+  );
 }
 
 export default function AppShell({
@@ -489,6 +621,7 @@ export default function AppShell({
     }
 
     setRoomMenuOpen(false);
+    setMobileMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -736,6 +869,87 @@ export default function AppShell({
     });
   }
 
+
+  function renderMobileBottomNavigation() {
+    return (
+      <nav
+        aria-label="Primary mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[#090d12]/[0.98] pb-[env(safe-area-inset-bottom)] shadow-[0_-16px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl lg:hidden"
+      >
+        <div className="mx-auto grid h-[70px] max-w-lg grid-cols-5 items-end px-1.5">
+          {mobileNavItems.map((item) => {
+            const active = isMobileNavItemActive(
+              pathname,
+              item,
+              activeQueryTab,
+            );
+
+            const primaryAction = item.icon === "ask";
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={(event) => {
+                  if (
+                    item.icon === "home" &&
+                    pathname === "/dashboard"
+                  ) {
+                    event.preventDefault();
+
+                    window.scrollTo({
+                      top: 0,
+                      left: 0,
+                      behavior: "smooth",
+                    });
+                  }
+                }}
+                aria-current={active ? "page" : undefined}
+                className={`group relative flex min-w-0 flex-col items-center justify-end gap-1 rounded-2xl px-1 pb-2 pt-2 text-[10px] font-black transition ${
+                  primaryAction ? "-mt-4" : ""
+                } ${
+                  active
+                    ? "text-[#e5d99c]"
+                    : "text-slate-500 active:bg-white/[0.06] active:text-slate-200"
+                }`}
+              >
+                <span
+                  className={`relative grid shrink-0 place-items-center transition ${
+                    primaryAction
+                      ? "h-12 w-12 rounded-2xl border border-[#d8bf62]/40 bg-[#c9ad50] text-[#111317] shadow-[0_10px_28px_rgba(0,0,0,0.42)]"
+                      : active
+                        ? "h-9 w-11 rounded-xl bg-[#c9ad50]/[0.13] text-[#ddcf8d]"
+                        : "h-9 w-11 rounded-xl text-slate-400 group-active:bg-white/[0.07]"
+                  }`}
+                >
+                  <MobileNavIcon name={item.icon} />
+
+                  {primaryAction ? (
+                    <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/20" />
+                  ) : null}
+                </span>
+
+                <span
+                  className={`max-w-full truncate ${
+                    primaryAction
+                      ? "text-[#e4d89c]"
+                      : ""
+                  }`}
+                >
+                  {item.label}
+                </span>
+
+                {active && !primaryAction ? (
+                  <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#c9ad50]" />
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#0b0f14] text-white">
       <aside
@@ -963,13 +1177,13 @@ export default function AppShell({
       </aside>
 
       <div
-        className={`min-w-0 pt-[72px] transition-[margin] duration-300 ${
+        className={`min-w-0 pt-[60px] transition-[margin] duration-300 lg:pt-[72px] ${
           desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
         <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#090d12]/96 backdrop-blur-xl">
-          <div className="flex h-[72px] items-center gap-3 px-3 sm:px-4">
-            <div className="flex min-w-0 items-center gap-3 lg:w-[390px]">
+          <div className="flex h-[60px] items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:h-[72px]">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3 lg:w-[390px] lg:flex-none">
               <button
                 type="button"
                 onClick={() =>
@@ -977,10 +1191,15 @@ export default function AppShell({
                     (current) => !current
                   )
                 }
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-white lg:hidden"
-                aria-label="Open menu"
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black tracking-[0.08em] transition lg:hidden ${
+                  mobileMenuOpen
+                    ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                    : "border-white/10 bg-white/[0.05] text-slate-200 active:bg-white/[0.1]"
+                }`}
+                aria-label={mobileMenuOpen ? "Close more menu" : "Open more menu"}
+                aria-expanded={mobileMenuOpen}
               >
-                ☰
+                {mobileMenuOpen ? "×" : "•••"}
               </button>
 
               <Link
@@ -992,7 +1211,7 @@ export default function AppShell({
                   ★
                 </span>
 
-                <span className="hidden text-lg font-black tracking-tight text-white sm:block">
+                <span className="text-base font-black tracking-tight text-white sm:text-lg">
                   StudySnap{" "}
                   <span className="text-[#c9ad50]">
                     AI
@@ -1017,7 +1236,7 @@ export default function AppShell({
               <Link
                 href="/settings"
                 title="Profile and settings"
-                className="grid h-11 w-11 overflow-hidden rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63]"
+                className="hidden h-11 w-11 overflow-hidden rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63] lg:grid"
               >
                 {learnerAvatarUrl ? (
                   <img
@@ -1035,16 +1254,26 @@ export default function AppShell({
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[calc(100vh-72px)] overflow-y-auto border-t border-white/[0.07] bg-[#0b0f14] px-4 py-4 lg:hidden">
-              <p className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                Main navigation
-              </p>
+            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.07] bg-[#0b0f14] px-4 py-4 shadow-2xl lg:hidden">
+              <div className="flex items-start justify-between gap-4 px-2">
+                <div>
+                  <p className="text-xs font-black text-white">
+                    More in StudySnap
+                  </p>
 
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {renderNavItems(
-                  topNavItems,
-                  true
-                )}
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Notes, practice, planning and learning tools.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300 active:bg-white/[0.1]"
+                  aria-label="Close more menu"
+                >
+                  ×
+                </button>
               </div>
 
               <p className="mt-5 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -1082,14 +1311,14 @@ export default function AppShell({
           ) : null}
         </header>
 
-        <main className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 sm:py-5">
-          {pathname !== "/dashboard" ? (
+        <main className="mx-auto w-full max-w-[1600px] px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
+          {pathname !== "/dashboard" && title ? (
             <div className="mb-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
                 {getPageKicker(pathname)}
               </p>
 
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-white">
+              <h1 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">
                 {title}
               </h1>
 
@@ -1113,6 +1342,8 @@ export default function AppShell({
           )}
         </main>
       </div>
+
+      {renderMobileBottomNavigation()}
     </div>
   );
 }

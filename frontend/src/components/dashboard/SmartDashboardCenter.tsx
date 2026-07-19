@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import {
+  getProtectedFileBlobUrl,
+  hideAIAttachmentFromFeed,
+} from "@/lib/api";
 
 import type {
   DashboardContinueItem,
@@ -325,25 +330,248 @@ function ContinueLearningSection({
     );
   }
 
+
+function ProtectedFeedImage({
+  path,
+  alt,
+}: {
+  path: string;
+  alt: string;
+}) {
+  const [source, setSource] = useState("");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+
+    void getProtectedFileBlobUrl(path)
+      .then((url) => {
+        objectUrl = url;
+
+        if (active) {
+          setSource(url);
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [path]);
+
+  if (failed) {
+    return (
+      <div className="grid min-h-40 place-items-center rounded-xl bg-black/25 text-sm font-bold text-slate-500">
+        Image unavailable
+      </div>
+    );
+  }
+
+  if (!source) {
+    return (
+      <div className="grid min-h-48 animate-pulse place-items-center rounded-xl bg-white/[0.035] text-xs font-bold text-slate-600">
+        Loading…
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={source}
+      alt={alt}
+      className="max-h-[520px] w-full rounded-xl object-contain"
+    />
+  );
+}
+
+
 function FeedItem({
   item,
+  onHide,
 }: {
   item: DashboardFeedItem;
+  onHide: (itemId: string) => void;
 }) {
   const groupedCount =
     typeof item.metadata.grouped_count === "number"
       ? item.metadata.grouped_count
       : 1;
 
+  const attachmentKind =
+    typeof item.metadata.attachment_kind === "string"
+      ? item.metadata.attachment_kind
+      : "";
+
+  const attachmentUrl =
+    typeof item.metadata.attachment_url === "string"
+      ? item.metadata.attachment_url
+      : "";
+
+  const isAttachment =
+    item.event === "ai_attachment_uploaded" &&
+    Boolean(attachmentUrl);
+
+  const isImage =
+    isAttachment &&
+    attachmentKind === "image";
+
+  const messageId =
+    item.entity_type === "ai_message_attachment" &&
+    typeof item.entity_id === "number"
+      ? item.entity_id
+      : null;
+
+  async function openProtectedFile() {
+    if (!attachmentUrl) return;
+
+    try {
+      const url =
+        await getProtectedFileBlobUrl(
+          attachmentUrl
+        );
+
+      window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer"
+      );
+
+      window.setTimeout(
+        () => URL.revokeObjectURL(url),
+        60_000
+      );
+    } catch {
+      window.location.assign(
+        item.action_href
+      );
+    }
+  }
+
+  async function hideImage() {
+    if (messageId === null) return;
+
+    await hideAIAttachmentFromFeed(
+      messageId
+    );
+
+    onHide(item.id);
+  }
+
+  if (isImage) {
+    return (
+      <article className="border-b border-white/[0.065] p-3 last:border-b-0 sm:p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <Link
+            href={item.action_href}
+            className="min-w-0 truncate text-sm font-black text-white hover:text-[#dfce8c]"
+          >
+            {item.title}
+          </Link>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-600">
+              {formatRelativeTime(item.timestamp)}
+            </span>
+
+            <details className="relative">
+              <summary
+                aria-label="Image options"
+                title="Image options"
+                className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-lg text-sm font-black text-slate-500 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                •••
+              </summary>
+
+              <div className="absolute right-0 top-9 z-20 min-w-28 rounded-xl border border-white/10 bg-[#171d23] p-1.5 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void hideImage()
+                  }
+                  className="w-full rounded-lg px-3 py-2 text-left text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
+                >
+                  Hide
+                </button>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <Link
+          href={item.action_href}
+          className="block overflow-hidden rounded-xl bg-black/20"
+        >
+          <ProtectedFeedImage
+            path={attachmentUrl}
+            alt={item.title}
+          />
+        </Link>
+
+        {item.room_name ? (
+          <p className="mt-2 truncate text-[10px] font-bold text-slate-600">
+            {item.room_name}
+          </p>
+        ) : null}
+      </article>
+    );
+  }
+
+  if (isAttachment) {
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          void openProtectedFile()
+        }
+        className="flex w-full items-center gap-3 border-b border-white/[0.065] px-3 py-3 text-left transition last:border-b-0 hover:bg-white/[0.025] sm:px-4"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-lg">
+          📄
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-black text-white">
+            {item.title}
+          </p>
+
+          <p className="mt-0.5 truncate text-[10px] font-bold text-slate-600">
+            {item.room_name
+              ? `${item.room_name} · `
+              : ""}
+            {formatRelativeTime(item.timestamp)}
+          </p>
+        </div>
+
+        <span className="text-sm text-slate-600">
+          ›
+        </span>
+      </button>
+    );
+  }
+
   return (
     <article className="border-b border-white/[0.065] px-3 py-4 last:border-b-0 sm:px-4">
-      <div className="flex items-start gap-3">
+      <Link
+        href={item.action_href}
+        className="flex items-start gap-3"
+      >
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-lg">
           {item.icon}
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start gap-2">
+          <div className="flex items-start gap-2">
             <h3 className="min-w-0 flex-1 text-sm font-black leading-5 text-white">
               {item.title}
             </h3>
@@ -353,9 +581,11 @@ function FeedItem({
             </span>
           </div>
 
-          <p className="mt-1 text-xs leading-5 text-slate-400">
-            {item.description}
-          </p>
+          {item.description ? (
+            <p className="mt-1 text-xs leading-5 text-slate-400">
+              {item.description}
+            </p>
+          ) : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
             {item.actor_name ? (
@@ -363,31 +593,20 @@ function FeedItem({
             ) : null}
 
             {item.room_name ? (
-              <span className="rounded-full border border-white/[0.06] bg-white/[0.025] px-2 py-1 text-slate-500">
-                {item.room_name}
-              </span>
+              <span>{item.room_name}</span>
             ) : null}
 
             {groupedCount > 1 ? (
               <span>
-                {groupedCount} grouped actions
+                {groupedCount} updates
               </span>
             ) : null}
           </div>
-
-          <Link
-            href={item.action_href}
-            className="mt-3 inline-flex items-center rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-1.5 text-[10px] font-black text-slate-300 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c]"
-          >
-            {item.action_label}
-            <span className="ml-1.5">→</span>
-          </Link>
         </div>
-      </div>
+      </Link>
     </article>
   );
 }
-
 
 function LearningFeedSection({
   data,
@@ -404,12 +623,29 @@ function LearningFeedSection({
   const emptyState =
     data.empty_states.feed;
 
+  const [hiddenItemIds, setHiddenItemIds] =
+    useState<Set<string>>(
+      () => new Set()
+    );
+
+  const availableItems = data.feed.filter(
+    (item) => !hiddenItemIds.has(item.id)
+  );
+
   const visibleItems = expanded
-    ? data.feed
-    : data.feed.slice(0, 3);
+    ? availableItems
+    : availableItems.slice(0, 3);
+
+  function hideFeedItem(itemId: string) {
+    setHiddenItemIds((current) => {
+      const next = new Set(current);
+      next.add(itemId);
+      return next;
+    });
+  }
 
   const hasMoreActivity =
-    data.feed.length > 3 ||
+    availableItems.length > 3 ||
     Boolean(
       data.has_more &&
       data.next_cursor
@@ -435,14 +671,8 @@ function LearningFeedSection({
             Learning Feed
           </h2>
 
-          <p className="mt-1 text-xs text-slate-500">
-            Your newest meaningful study activity first.
-          </p>
         </div>
 
-        <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-[10px] font-black text-slate-500">
-          Recent → older
-        </span>
       </div>
 
       {data.feed.length ? (
@@ -451,6 +681,7 @@ function LearningFeedSection({
             <FeedItem
               key={item.id}
               item={item}
+              onHide={hideFeedItem}
             />
           ))}
         </div>

@@ -1307,26 +1307,12 @@ export default function StudyRoomDetailPage() {
   function renderAiTab() {
     return (
       <div ref={aiSectionRef} className="scroll-mt-8">
-        <div className="mb-4">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
-            AI Tutor
-          </p>
-          <h2 className="mt-2 text-xl font-black text-white">
-            Ask one AI about this whole room
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Ask about PDFs, notes, concept cards, quizzes, summaries, weak
-            concepts, and study plans.
-          </p>
-        </div>
-
         <CompactProjectAI
           studyRoomId={studyRoomId}
           projectTitle={roomTitle}
           focusComposerToken={aiComposerFocusToken}
-            selectedMaterial={
-              selectedUniversalMaterial
-            }        />
+          selectedMaterial={selectedUniversalMaterial}
+        />
       </div>
     );
   }

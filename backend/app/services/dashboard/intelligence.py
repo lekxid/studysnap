@@ -11,6 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.ai_conversation import AIConversation
+from app.models.ai_message import AIMessage
 from app.models.dashboard_activity import DashboardActivity
 from app.models.flashcard import Flashcard
 from app.models.learning_event import LearningEvent
@@ -1208,6 +1209,126 @@ def build_ai_items(
         )
 
     return items, conversations
+
+
+
+def build_ai_attachment_items(
+    db: Session,
+    *,
+    user_id: int,
+    rooms_by_id: dict[int, StudyRoom],
+) -> list[dict[str, Any]]:
+    rows = (
+        db.query(
+            AIMessage,
+            AIConversation,
+        )
+        .join(
+            AIConversation,
+            AIConversation.id
+            == AIMessage.conversation_id,
+        )
+        .filter(
+            AIConversation.owner_id == user_id,
+            AIMessage.attachment_file_path.isnot(None),
+            AIMessage.attachment_filename.isnot(None),
+            AIMessage.attachment_hidden_from_feed.is_(False),
+        )
+        .order_by(
+            AIMessage.created_at.desc(),
+            AIMessage.id.desc(),
+        )
+        .limit(FEED_SOURCE_LIMIT)
+        .all()
+    )
+
+    items: list[dict[str, Any]] = []
+
+    for message, conversation in rows:
+        room = (
+            rooms_by_id.get(
+                conversation.study_room_id
+            )
+            if conversation.study_room_id
+            else None
+        )
+
+        href = (
+            room_href(
+                conversation.study_room_id,
+                "ai",
+            )
+            + f"&conversationId={conversation.id}"
+            if conversation.study_room_id
+            else (
+                "/general-ai?"
+                f"conversationId={conversation.id}"
+            )
+        )
+
+        attachment_kind = (
+            message.attachment_kind
+            or (
+                "image"
+                if (
+                    message.attachment_content_type
+                    or ""
+                ).startswith("image/")
+                else "file"
+            )
+        )
+
+        filename = (
+            message.attachment_filename
+            or "Uploaded file"
+        )
+
+        items.append(
+            make_feed_item(
+                item_id=(
+                    f"ai-attachment-{message.id}"
+                ),
+                activity_type=(
+                    "image"
+                    if attachment_kind == "image"
+                    else "file"
+                ),
+                event="ai_attachment_uploaded",
+                timestamp=message.created_at,
+                title=filename,
+                description="",
+                action_label="",
+                action_href=href,
+                room_id=conversation.study_room_id,
+                room_name=room.name if room else None,
+                entity_type="ai_message_attachment",
+                entity_id=message.id,
+                dedupe_key=(
+                    f"ai-attachment:{message.id}"
+                ),
+                metadata={
+                    "attachment_kind": attachment_kind,
+                    "attachment_filename": filename,
+                    "attachment_file_size": (
+                        message.attachment_file_size
+                    ),
+                    "attachment_content_type": (
+                        message.attachment_content_type
+                    ),
+                    "attachment_url": (
+                        f"/api/ai/attachments/"
+                        f"{message.id}"
+                    ),
+                    "conversation_id": (
+                        conversation.id
+                    ),
+                    "surface": conversation.surface,
+                    "mode": conversation.mode,
+                },
+            )
+        )
+
+    return items
 
 
 def build_learning_event_items(
@@ -2459,6 +2580,12 @@ def build_dashboard_intelligence(
         rooms_by_id=rooms_by_id,
     )
 
+    ai_attachment_items = build_ai_attachment_items(
+        db,
+        user_id=user_id,
+        rooms_by_id=rooms_by_id,
+    )
+
     learning_items = build_learning_event_items(
         db,
         user_id=user_id,
@@ -2515,6 +2642,7 @@ def build_dashboard_intelligence(
         *legacy_pdf_items,
         *note_items,
         *quiz_items,
+        *ai_attachment_items,
         *ai_items,
         *learning_items,
         *message_items,
