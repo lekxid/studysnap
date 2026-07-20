@@ -11,6 +11,12 @@ class User(Base):
     full_name = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
     learning_mode = Column(String, default="clear")
+    greeting_emoji = Column(
+        String(32),
+        nullable=True,
+        default="👋",
+        server_default="👋",
+    )
     avatar_path = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

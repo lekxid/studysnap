@@ -233,11 +233,15 @@ function GeneralAIStartCard({
   onPromptChange,
   onSubmit,
   activeRoomId,
+  displayName,
+  greetingEmoji,
 }: {
   prompt: string;
   onPromptChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   activeRoomId: number | null;
+  displayName: string;
+  greetingEmoji: string;
 }) {
   const router = useRouter();
 
@@ -284,8 +288,15 @@ function GeneralAIStartCard({
             ✦
           </div>
 
-          <div>
-            <h2 className="text-xl font-black text-white">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black text-[#cec18d]">
+              Hi, {displayName}
+              {greetingEmoji
+                ? ` ${greetingEmoji}`
+                : ""}
+            </p>
+
+            <h2 className="mt-1 text-xl font-black text-white">
               What would you like to study today?
             </h2>
 
@@ -795,6 +806,8 @@ export default function DashboardPage() {
 
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [greetingEmoji, setGreetingEmoji] =
+    useState("👋");
   const [learningInsights, setLearningInsights] =
     useState<LearningInsights | null>(null);
   const [learningInsightsError, setLearningInsightsError] = useState("");
@@ -1049,7 +1062,12 @@ export default function DashboardPage() {
       try {
         const profile = await getCurrentUser();
         setFullName(
-          profile.full_name || profile.email?.split("@")[0] || "Student",
+          profile.full_name ||
+            profile.email?.split("@")[0] ||
+            "Student",
+        );
+        setGreetingEmoji(
+          profile.greeting_emoji ?? ""
         );
 
         if (typeof window !== "undefined") {
@@ -1435,6 +1453,8 @@ export default function DashboardPage() {
           onPromptChange={setGeneralAiPrompt}
           onSubmit={handleGeneralAiSubmit}
           activeRoomId={activeRoomId}
+          displayName={displayName}
+          greetingEmoji={greetingEmoji}
         />
 
         <SmartDashboardCenter
