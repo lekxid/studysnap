@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     secret_key: str = "supersecretkey"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 10080
+    access_token_expire_minutes: int = 2880
 
     openai_api_key: str = ""
     openai_vision_model: str = "gpt-4o-mini"
