@@ -50,8 +50,22 @@ ALLOWED_AVATAR_TYPES = {
 }
 
 
+GREETING_EMOJI_OPTIONS = {
+    "",
+    "👋",
+    "😊",
+    "📚",
+    "⭐",
+    "🎓",
+    "🔥",
+    "💪",
+    "✨",
+}
+
+
 class UserProfileUpdate(BaseModel):
     full_name: str
+    greeting_emoji: str | None = None
 
 
 def get_avatar_directory(user_id: int) -> Path:
@@ -142,6 +156,27 @@ def update_my_profile(
         )
 
     current_user.full_name = full_name
+
+    if payload.greeting_emoji is not None:
+        greeting_emoji = (
+            payload.greeting_emoji.strip()
+        )
+
+        if (
+            greeting_emoji
+            not in GREETING_EMOJI_OPTIONS
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Choose one of the available "
+                    "greeting emojis."
+                ),
+            )
+
+        current_user.greeting_emoji = (
+            greeting_emoji or None
+        )
 
     db.add(current_user)
     db.commit()

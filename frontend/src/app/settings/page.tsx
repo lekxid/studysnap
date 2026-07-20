@@ -164,6 +164,18 @@ const notificationOptions = [
   "Off",
 ];
 
+const greetingEmojiOptions = [
+  "👋",
+  "😊",
+  "📚",
+  "⭐",
+  "🎓",
+  "🔥",
+  "💪",
+  "✨",
+  "",
+];
+
 const connectedAppLabels: Record<string, string> = {
   google_drive: "Google Drive",
   google_docs: "Google Docs",
@@ -399,6 +411,8 @@ export default function SettingsPage() {
   const [account, setAccount] = useState<UserProfile | null>(null);
   const [accountStatus, setAccountStatus] = useState("Loading account...");
   const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileEmojiDraft, setProfileEmojiDraft] =
+    useState("👋");
   const [profileSaving, setProfileSaving] = useState(false);
   const [avatarPreviewUrl, setAvatarPreviewUrl] =
     useState<string | null>(null);
@@ -437,6 +451,17 @@ export default function SettingsPage() {
     filename: string;
     roomName: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!account) return;
+
+    setProfileEmojiDraft(
+      account.greeting_emoji ?? ""
+    );
+  }, [
+    account?.id,
+    account?.greeting_emoji,
+  ]);
 
   useEffect(() => {
     if (!ready) return;
@@ -795,16 +820,24 @@ export default function SettingsPage() {
     setProfileSaving(true);
 
     try {
-      const updatedProfile = await updateCurrentUserProfile(fullName);
+      const updatedProfile =
+        await updateCurrentUserProfile(
+          fullName,
+          profileEmojiDraft
+        );
 
       setAccount(updatedProfile);
-      setProfileNameDraft(updatedProfile.full_name || fullName);
-      setAccountStatus("Profile name updated.");
-      setSavedMessage("Profile name updated.");
+      setProfileNameDraft(
+        updatedProfile.full_name || fullName
+      );
+      setProfileEmojiDraft(
+        updatedProfile.greeting_emoji ?? ""
+      );
+      setAccountStatus("Profile updated.");
+      setSavedMessage("Profile updated.");
+      announceProfileUpdated(updatedProfile);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("studysnap_user", JSON.stringify(updatedProfile));
-
         window.setTimeout(() => {
           setSavedMessage("");
         }, 1800);
@@ -1302,8 +1335,54 @@ export default function SettingsPage() {
                         disabled={profileSaving}
                         className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {profileSaving ? "Saving..." : "Save name"}
+                        {profileSaving ? "Saving..." : "Save profile"}
                       </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-white">
+                            Greeting emoji
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Shown beside your name on Home.
+                          </p>
+                        </div>
+
+                        <span className="text-2xl">
+                          {profileEmojiDraft || "—"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {greetingEmojiOptions.map((emoji) => {
+                          const active =
+                            profileEmojiDraft === emoji;
+
+                          return (
+                            <button
+                              key={emoji || "none"}
+                              type="button"
+                              aria-label={
+                                emoji
+                                  ? `Use ${emoji} as greeting emoji`
+                                  : "Use no greeting emoji"
+                              }
+                              onClick={() =>
+                                setProfileEmojiDraft(emoji)
+                              }
+                              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-black transition ${
+                                active
+                                  ? "border-[#c9ad50]/50 bg-[#c9ad50]/15 text-[#ece1ae]"
+                                  : "border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]"
+                              }`}
+                            >
+                              {emoji || "None"}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">

@@ -19,6 +19,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     full_name: str
     learning_mode: str
+    greeting_emoji: str | None = "👋"
     avatar_url: str | None = None
 
     class Config:

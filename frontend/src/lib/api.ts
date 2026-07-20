@@ -191,6 +191,7 @@ export type UserProfile = {
   email: string;
   full_name: string;
   learning_mode: string;
+  greeting_emoji?: string | null;
   avatar_url?: string | null;
 };
 
@@ -202,11 +203,15 @@ export async function getCurrentUser(): Promise<UserProfile> {
 }
 
 export async function updateCurrentUserProfile(
-  fullName: string
+  fullName: string,
+  greetingEmoji?: string | null
 ): Promise<UserProfile> {
   return apiFetch("/api/users/me/profile", {
     method: "PUT",
-    body: JSON.stringify({ full_name: fullName }),
+    body: JSON.stringify({
+      full_name: fullName,
+      greeting_emoji: greetingEmoji,
+    }),
   });
 }
 
