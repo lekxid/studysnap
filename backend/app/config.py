@@ -19,7 +19,14 @@ class Settings(BaseSettings):
 
     secret_key: str = "supersecretkey"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+
+    # Private beta sessions remain active for two days.
+    access_token_expire_minutes: int = 2880
+
+    password_reset_expire_minutes: int = 30
+
+    azure_communication_connection_string: str = ""
+    email_sender_address: str = ""
 
     openai_api_key: str = ""
     openai_vision_model: str = "gpt-4o-mini"
@@ -53,7 +60,10 @@ class Settings(BaseSettings):
             "production",
         }
 
-        if self.app_env.strip().lower() not in protected_environments:
+        if (
+            self.app_env.strip().lower()
+            not in protected_environments
+        ):
             return self
 
         insecure_secrets = {
@@ -74,21 +84,26 @@ class Settings(BaseSettings):
 
         if not origins:
             raise ValueError(
-                "CORS_ORIGINS must contain at least one frontend origin."
+                "CORS_ORIGINS must contain at least one "
+                "frontend origin."
             )
 
         if "*" in origins:
             raise ValueError(
-                "Wildcard CORS is not allowed outside development."
+                "Wildcard CORS is not allowed outside "
+                "development."
             )
 
         if (
             self.INVITE_ONLY_SIGNUP
-            and len(self.SIGNUP_INVITE_CODE.strip()) < 8
+            and len(
+                self.SIGNUP_INVITE_CODE.strip()
+            ) < 8
         ):
             raise ValueError(
                 "SIGNUP_INVITE_CODE must contain at least "
-                "8 characters when invite-only signup is enabled."
+                "8 characters when invite-only signup is "
+                "enabled."
             )
 
         return self
