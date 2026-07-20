@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -10,7 +11,11 @@ from sqlalchemy.pool import StaticPool
 import app.models
 from app.database import Base, get_db
 from app.routes.auth import router as auth_router
+from app.models.room_invitation import RoomInvitation
+from app.models.room_invite_link import RoomInviteLink
 from app.routes.room_invitations import (
+    refresh_email_status,
+    refresh_link_status,
     router as room_invitations_router,
 )
 from app.routes.study_rooms import (
@@ -81,6 +86,42 @@ class RoomInvitationAPITests(unittest.TestCase):
         Base.metadata.create_all(bind=test_engine)
 
         self.suffix = uuid.uuid4().hex
+
+    def test_expiry_checks_accept_timezone_aware_datetimes(
+        self,
+    ):
+        expired_at = (
+            datetime.now(timezone.utc)
+            - timedelta(minutes=5)
+        )
+
+        email_invitation = RoomInvitation(
+            status="pending",
+            expires_at=expired_at,
+        )
+
+        invite_link = RoomInviteLink(
+            status="active",
+            expires_at=expired_at,
+            max_uses=None,
+            use_count=0,
+        )
+
+        self.assertTrue(
+            refresh_email_status(email_invitation)
+        )
+        self.assertEqual(
+            email_invitation.status,
+            "expired",
+        )
+
+        self.assertTrue(
+            refresh_link_status(invite_link)
+        )
+        self.assertEqual(
+            invite_link.status,
+            "expired",
+        )
 
     def email(self, label):
         return (

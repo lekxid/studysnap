@@ -14,7 +14,10 @@ import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
 import StudyTogetherWorkspace from "@/features/projects/StudyTogetherWorkspace";
-import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
+import {
+  clearProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
@@ -739,11 +742,33 @@ export default function StudyRoomDetailPage() {
       saveProjectRoomId(studyRoomId);
     } catch (err) {
       setRoom(null);
-      setError(
+
+      const message =
         err instanceof Error
           ? err.message
-          : "Failed to load project."
-      );
+          : "Failed to load project.";
+
+      const normalizedMessage =
+        message.toLowerCase();
+
+      if (
+        normalizedMessage.includes(
+          "study room not found"
+        ) ||
+        normalizedMessage.includes(
+          "room not found"
+        )
+      ) {
+        clearProjectRoomId();
+
+        router.replace(
+          "/study-rooms?notice=room-not-found"
+        );
+
+        return;
+      }
+
+      setError(message);
     } finally {
       setLoadingRoom(false);
     }

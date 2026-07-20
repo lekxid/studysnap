@@ -10,6 +10,7 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
 import {
+  clearProjectRoomId,
   getSavedProjectRoomId,
   PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
@@ -566,12 +567,29 @@ export default function AppShell({
 
         if (cancelled) return;
 
-        setStudyRooms(
-          rooms.map((room) => ({
+        const roomSummaries = rooms.map(
+          (room) => ({
             id: room.id,
-            name: room.name?.trim() || `Room #${room.id}`,
-          })),
+            name:
+              room.name?.trim() ||
+              `Room #${room.id}`,
+          })
         );
+
+        setStudyRooms(roomSummaries);
+
+        const savedRoomId =
+          getSavedProjectRoomId();
+
+        if (
+          savedRoomId !== null &&
+          !roomSummaries.some(
+            (room) => room.id === savedRoomId
+          )
+        ) {
+          clearProjectRoomId();
+          setActiveProjectRoomId(null);
+        }
       } catch {
         if (!cancelled) {
           setRoomsError("Rooms could not be loaded.");
@@ -627,7 +645,7 @@ export default function AppShell({
   useEffect(() => {
     function handleProjectRoomChanged(event: Event) {
       const roomEvent = event as CustomEvent<{
-        roomId?: number;
+        roomId?: number | null;
       }>;
 
       const nextRoomId = roomEvent.detail?.roomId ?? getSavedProjectRoomId();
