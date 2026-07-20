@@ -28,7 +28,7 @@ import {
   getQuizzes,
   getStudyMaterials,
   getRoomFoundation,
-  getStudyRooms,
+  getStudyRoom,
   retrieveBrain,
   summarizePDF,
   type BrainSource,
@@ -721,6 +721,7 @@ export default function StudyRoomDetailPage() {
 
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
+      setRoom(null);
       setError("Invalid project.");
       setLoadingRoom(false);
       return;
@@ -729,20 +730,20 @@ export default function StudyRoomDetailPage() {
     try {
       setLoadingRoom(true);
       setError("");
+      setRoom(null);
 
-      const data = await getStudyRooms();
-      const rooms = Array.isArray(data) ? data : [];
-      const foundRoom = rooms.find((item: StudyRoom) => item.id === studyRoomId);
+      const loadedRoom =
+        await getStudyRoom(studyRoomId);
 
-      if (!foundRoom) {
-        setRoom(null);
-        setError("Project not found.");
-        return;
-      }
-
-      setRoom(foundRoom);
+      setRoom(loadedRoom);
+      saveProjectRoomId(studyRoomId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project.");
+      setRoom(null);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load project."
+      );
     } finally {
       setLoadingRoom(false);
     }
@@ -1001,14 +1002,24 @@ export default function StudyRoomDetailPage() {
 
   useEffect(() => {
     if (!ready) return;
-    saveProjectRoomId(studyRoomId);
-    loadRoom();
-    loadPdfs();
-    loadStudyMaterials();
-    loadNotes();
-    loadPractice();
-    loadRoomFoundation();
+
+    void loadRoom();
   }, [ready, studyRoomId]);
+
+  useEffect(() => {
+    if (
+      !ready ||
+      room?.id !== studyRoomId
+    ) {
+      return;
+    }
+
+    void loadPdfs();
+    void loadStudyMaterials();
+    void loadNotes();
+    void loadPractice();
+    void loadRoomFoundation();
+  }, [ready, room?.id, studyRoomId]);
 
   if (!ready) {
     return <div className="min-h-screen bg-[#0b0f14] p-6 text-white">Checking authentication...</div>;

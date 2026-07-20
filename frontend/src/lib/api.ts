@@ -941,6 +941,14 @@ export async function getStudyRooms(): Promise<StudyRoom[]> {
   return apiFetch("/api/study-rooms") as Promise<StudyRoom[]>;
 }
 
+export async function getStudyRoom(
+  id: number
+): Promise<StudyRoom> {
+  return apiFetch(
+    `/api/study-rooms/${id}`
+  ) as Promise<StudyRoom>;
+}
+
 export type RoomInvitationRole =
   | "member"
   | "viewer"

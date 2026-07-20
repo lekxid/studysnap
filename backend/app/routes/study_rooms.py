@@ -155,6 +155,31 @@ def list_study_rooms(
     ]
 
 
+@router.get("/{room_id}")
+def get_study_room(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    room, role = require_room_roles(
+        db=db,
+        room_id=room_id,
+        user_id=current_user.id,
+        allowed_roles={
+            "owner",
+            "admin",
+            "member",
+            "viewer",
+            "ai_tutor",
+        },
+    )
+
+    return serialize_study_room(
+        room=room,
+        role=role,
+    )
+
+
 @router.post("")
 def create_study_room(
     data: StudyRoomCreate,
