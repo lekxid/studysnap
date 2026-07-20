@@ -142,7 +142,12 @@ export async function hideAIAttachmentFromFeed(
   }>;
 }
 
-export async function signup(name: string, email: string, password: string) {
+export async function signup(
+  name: string,
+  email: string,
+  password: string,
+  inviteCode: string,
+) {
   return apiFetch("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify({

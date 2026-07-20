@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./test.db"
 
+    INVITE_ONLY_SIGNUP: bool = False
+    SIGNUP_INVITE_CODE: str = ""
+
     # Local default: backend/uploads
     # Cloud example: /mnt/studysnap
     storage_root: str = "uploads"
@@ -77,6 +80,15 @@ class Settings(BaseSettings):
         if "*" in origins:
             raise ValueError(
                 "Wildcard CORS is not allowed outside development."
+            )
+
+        if (
+            self.INVITE_ONLY_SIGNUP
+            and len(self.SIGNUP_INVITE_CODE.strip()) < 8
+        ):
+            raise ValueError(
+                "SIGNUP_INVITE_CODE must contain at least "
+                "8 characters when invite-only signup is enabled."
             )
 
         return self

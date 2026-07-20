@@ -1,7 +1,10 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse
@@ -20,8 +23,36 @@ class MessageResponse(BaseModel):
     message: str
 
 
+def validate_signup_invite(
+    invite_code: str | None,
+) -> None:
+    if not settings.INVITE_ONLY_SIGNUP:
+        return
+
+    expected_code = settings.SIGNUP_INVITE_CODE.strip()
+    provided_code = (invite_code or "").strip()
+
+    if (
+        not expected_code
+        or not provided_code
+        or not secrets.compare_digest(
+            provided_code,
+            expected_code,
+        )
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "A valid private beta invite code "
+                "is required."
+            ),
+        )
+
+
 @router.post("/signup", response_model=UserResponse)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):
+    validate_signup_invite(user_data.invite_code)
+
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")

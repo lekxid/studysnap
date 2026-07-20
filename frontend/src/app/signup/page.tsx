@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -49,6 +50,7 @@ export default function SignupPage() {
           full_name: name,
           email,
           password,
+          invite_code: inviteCode,
           learning_mode: "clear",
         }),
       });
@@ -126,6 +128,21 @@ export default function SignupPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Create a password"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Invite code
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/50 focus:ring-4 focus:ring-amber-300/10"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="Private beta code"
+            autoComplete="off"
             required
           />
         </div>

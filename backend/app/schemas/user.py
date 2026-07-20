@@ -5,6 +5,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: str
     password: str
+    invite_code: str | None = None
     learning_mode: str = "clear"
 
 
