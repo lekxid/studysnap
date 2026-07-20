@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -61,7 +61,25 @@ class InviteLinkCreate(BaseModel):
 
 
 def utc_now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
+
+
+def normalize_utc_datetime(
+    value: datetime,
+) -> datetime:
+    """
+    PostgreSQL returns timezone-aware values, while SQLite
+    may return naive values even for timezone columns.
+    Normalize both forms before comparing invitation dates.
+    """
+    if value.tzinfo is None:
+        return value.replace(
+            tzinfo=timezone.utc
+        )
+
+    return value.astimezone(
+        timezone.utc
+    )
 
 
 def normalize_email(value: str) -> str:
@@ -130,7 +148,7 @@ def refresh_email_status(
 ) -> bool:
     if (
         invitation.status == "pending"
-        and invitation.expires_at <= utc_now()
+        and normalize_utc_datetime(invitation.expires_at) <= utc_now()
     ):
         invitation.status = "expired"
         return True
@@ -144,7 +162,7 @@ def refresh_link_status(
     if link.status != "active":
         return False
 
-    if link.expires_at <= utc_now():
+    if normalize_utc_datetime(link.expires_at) <= utc_now():
         link.status = "expired"
         return True
 

@@ -1093,3 +1093,39 @@ class RoomInvitationAPITests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+
+def test_invitation_expiry_handles_aware_and_naive_datetimes():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    from app.routes.room_invitations import (
+        refresh_link_status,
+    )
+
+    aware_expiry = (
+        datetime.now(timezone.utc)
+        - timedelta(minutes=1)
+    )
+
+    naive_expiry = (
+        datetime.now()
+        - timedelta(minutes=1)
+    ).replace(tzinfo=None)
+
+    for expires_at in (
+        aware_expiry,
+        naive_expiry,
+    ):
+        link = SimpleNamespace(
+            status="active",
+            expires_at=expires_at,
+            max_uses=None,
+            use_count=0,
+        )
+
+        changed = refresh_link_status(link)
+
+        assert changed is True
+        assert link.status == "expired"
