@@ -20,11 +20,15 @@ import {
   takePendingAIAttachments,
 } from "@/lib/aiAttachmentHandoff";
 import {
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
+import {
   askAiWithFile,
   askAiWithFiles,
   askAiWithImage,
   createAIConversation,
   getStudyRooms,
+  organizeFilesIntoStudyRooms,
   uploadUniversalMaterial,
   generateAIImage,
   deleteAIConversation,
@@ -56,6 +60,12 @@ type MessageAttachment = {
   size: number;
   kind: "image" | "file";
   preview?: string;
+};
+
+type RoomCreationOffer = {
+  files: File[];
+  fileNames: string[];
+  status: "ready" | "creating";
 };
 
 type DisplayMessage = {
@@ -226,6 +236,10 @@ export default function GeneralAIChat({
 
   const [pendingAttachments, setPendingAttachments] =
     useState<PendingAttachment[]>([]);
+  const [
+    roomCreationOffer,
+    setRoomCreationOffer,
+  ] = useState<RoomCreationOffer | null>(null);
   const [availableRooms, setAvailableRooms] =
     useState<StudyRoom[]>([]);
   const [roomPickerOpen, setRoomPickerOpen] =
@@ -1233,6 +1247,10 @@ export default function GeneralAIChat({
     setError("");
     setInput("");
 
+    if (attachmentsToSend.length > 0) {
+      setRoomCreationOffer(null);
+    }
+
     // Keep an attached image visible until the request succeeds.
     if (!imageToSend && !documentToSend) {
       removeSelectedImage();
@@ -1360,6 +1378,16 @@ export default function GeneralAIChat({
               : message
           )
         );
+
+        setRoomCreationOffer({
+          files: attachmentsToSend.map(
+            (attachment) => attachment.file
+          ),
+          fileNames: attachmentsToSend.map(
+            (attachment) => attachment.name
+          ),
+          status: "ready",
+        });
 
         clearPendingAttachments();
       } else if (documentToSend) {
@@ -1554,6 +1582,7 @@ export default function GeneralAIChat({
     setCopiedId(null);
     setExpandedMessageIds(new Set());
     setCreateImageMode(false);
+    setRoomCreationOffer(null);
     removeSelectedImage();
     clearPendingAttachments();
     inputRef.current?.focus();
@@ -1784,6 +1813,63 @@ export default function GeneralAIChat({
     link.remove();
   }
 
+  async function createStudyRoomFromFiles() {
+    if (
+      !roomCreationOffer ||
+      roomCreationOffer.status === "creating"
+    ) {
+      return;
+    }
+
+    const files = roomCreationOffer.files;
+
+    try {
+      setError("");
+
+      setRoomCreationOffer((current) =>
+        current
+          ? {
+              ...current,
+              status: "creating",
+            }
+          : null
+      );
+
+      const result =
+        await organizeFilesIntoStudyRooms(files);
+
+      const firstRoom = result.rooms[0];
+
+      if (!firstRoom) {
+        throw new Error(
+          "StudySnap could not create a room from these files."
+        );
+      }
+
+      saveProjectRoomId(firstRoom.id);
+      setRoomCreationOffer(null);
+
+      router.push(
+        `/projects?roomId=${firstRoom.id}`
+      );
+    } catch (err) {
+      setRoomCreationOffer((current) =>
+        current
+          ? {
+              ...current,
+              status: "ready",
+            }
+          : null
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "The study room could not be created."
+      );
+    }
+  }
+
   function renderComposer(large = false) {
     return (
       <form
@@ -1806,6 +1892,56 @@ export default function GeneralAIChat({
             );
           }}
         />
+
+        {roomCreationOffer ? (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#c9ad50]/20 bg-[#c9ad50]/[0.07] p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-white">
+                Keep these files together
+              </p>
+              <p className="mt-1 truncate text-xs text-slate-400">
+                {roomCreationOffer.fileNames.length === 1
+                  ? roomCreationOffer.fileNames[0]
+                  : `${roomCreationOffer.fileNames.length} files`}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setRoomCreationOffer(null)
+                }
+                disabled={
+                  roomCreationOffer.status ===
+                  "creating"
+                }
+                aria-label="Dismiss study room suggestion"
+                title="Dismiss"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-40"
+              >
+                ×
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void createStudyRoomFromFiles()
+                }
+                disabled={
+                  roomCreationOffer.status ===
+                  "creating"
+                }
+                className="rounded-xl bg-[#c9ad50] px-3 py-2 text-xs font-black text-[#111317] transition hover:bg-[#d5bb63] disabled:opacity-50"
+              >
+                {roomCreationOffer.status ===
+                "creating"
+                  ? "Creating..."
+                  : "Create study room"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {createImageMode ? (
           <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3 sm:flex-row sm:items-center sm:justify-between">
