@@ -16,12 +16,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] =
+    useState(false);
 
   useEffect(() => {
-    const requestedNext =
+    const params =
       new URLSearchParams(
         window.location.search
-      ).get("next");
+      );
+
+    const requestedNext =
+      params.get("next");
+
+    setSessionExpired(
+      params.get("expired") === "1"
+    );
 
     if (
       requestedNext &&
@@ -113,6 +122,11 @@ export default function LoginPage() {
       title="Sign in"
       subtitle="Continue your study streak and jump back into your connected StudySnap workspace."
     >
+      {sessionExpired ? (
+        <div className="mb-5 rounded-[1.2rem] border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">
+          Your session expired. Sign in again to continue.
+        </div>
+      ) : null}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-bold text-slate-200">

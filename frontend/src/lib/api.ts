@@ -15,6 +15,46 @@ export function removeToken() {
   localStorage.removeItem("token");
 }
 
+let authRedirectStarted = false;
+
+function redirectExpiredSession() {
+  if (
+    typeof window === "undefined" ||
+    authRedirectStarted
+  ) {
+    return;
+  }
+
+  authRedirectStarted = true;
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("studysnap_user");
+
+  const currentPath =
+    `${window.location.pathname}${window.location.search}`;
+
+  const publicPaths = [
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ];
+
+  if (
+    publicPaths.some((path) =>
+      window.location.pathname.startsWith(path)
+    )
+  ) {
+    authRedirectStarted = false;
+    return;
+  }
+
+  const loginUrl =
+    `/login?expired=1&next=${encodeURIComponent(currentPath)}`;
+
+  window.location.replace(loginUrl);
+}
+
 function getErrorMessage(data: unknown): string {
   if (typeof data === "string") return data;
 
@@ -82,6 +122,15 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
       res,
       "Request failed"
     );
+
+    if (res.status === 401 && token) {
+      redirectExpiredSession();
+
+      throw new Error(
+        "Your session expired. Please sign in again."
+      );
+    }
+
     throw new Error(message);
   }
 
@@ -154,6 +203,7 @@ export async function signup(
       full_name: name,
       email,
       password,
+      invite_code: inviteCode.trim(),
       learning_mode: "medium",
     }),
   });
