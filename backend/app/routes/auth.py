@@ -107,15 +107,14 @@ def login(
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
 
-    # For now, do not reveal whether the email exists.
-    # This keeps the UI working safely until real email delivery is added.
-    if user:
-        return {
-            "message": "If an account with that email exists, a reset link has been sent."
-        }
-
+    # Do not reveal whether the email exists.
+    # Email delivery is not connected in the private beta yet.
     return {
-        "message": "If an account with that email exists, a reset link has been sent."
+        "message": (
+            "Password reset email is not available yet during "
+            "the private beta. Please contact StudySnap support "
+            "for account recovery."
+        )
     }
 
 

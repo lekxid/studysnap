@@ -377,7 +377,7 @@ export default function ProjectWorkspace({
   const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
 
   return (
-    <div className="space-y-3 sm:space-y-5">
+    <div className="min-w-0 max-w-full space-y-3 overflow-x-hidden sm:space-y-5">
       <section className="overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -483,8 +483,8 @@ export default function ProjectWorkspace({
             : "grid-cols-1",
         ].join(" ")}
       >
-        <div className="space-y-5">
-          <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
+        <div className="min-w-0 max-w-full space-y-5 overflow-x-hidden">
+          <section className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-sm font-black text-white">
@@ -515,8 +515,10 @@ export default function ProjectWorkspace({
             onOpenResult={onOpenSearchResult}
           />
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            {children}
+          <section className="min-w-0 max-w-full overflow-x-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-3 sm:p-4">
+            <div className="min-w-0 max-w-full overflow-x-hidden">
+              {children}
+            </div>
           </section>
         </div>
 

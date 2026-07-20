@@ -112,10 +112,18 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error(
+      "StudySnap could not connect. Check your internet and try again."
+    );
+  }
 
   if (!res.ok) {
     const message = await readResponseError(

@@ -1090,8 +1090,34 @@ export default function DashboardPage() {
       }
     }
 
-    loadCurrentProfile();
-    loadDashboardFoundation();
+    function refreshDashboardFoundation() {
+      void loadCurrentProfile();
+      void loadDashboardFoundation();
+    }
+
+    refreshDashboardFoundation();
+
+    window.addEventListener(
+      "studysnap:dashboard-refresh",
+      refreshDashboardFoundation
+    );
+
+    window.addEventListener(
+      "focus",
+      refreshDashboardFoundation
+    );
+
+    return () => {
+      window.removeEventListener(
+        "studysnap:dashboard-refresh",
+        refreshDashboardFoundation
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshDashboardFoundation
+      );
+    };
   }, []);
 
   useEffect(() => {
@@ -1132,7 +1158,33 @@ export default function DashboardPage() {
       }
     }
 
-    loadActiveRoomData();
+    function refreshActiveRoomData() {
+      void loadActiveRoomData();
+    }
+
+    refreshActiveRoomData();
+
+    window.addEventListener(
+      "studysnap:dashboard-refresh",
+      refreshActiveRoomData
+    );
+
+    window.addEventListener(
+      "focus",
+      refreshActiveRoomData
+    );
+
+    return () => {
+      window.removeEventListener(
+        "studysnap:dashboard-refresh",
+        refreshActiveRoomData
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshActiveRoomData
+      );
+    };
   }, [activeRoomId]);
 
   useEffect(() => {

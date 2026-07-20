@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
     <AuthShell
       badge="Account recovery"
       title="Reset password"
-      subtitle="Enter your email and StudySnap will start the password reset flow."
+      subtitle="Request help recovering access to your StudySnap account."
       sideTitle="Recover access without losing your study flow."
       sideSubtitle="Get back into your connected rooms, notes, PDFs, quizzes, flashcards, progress, and AI Tutor workspace."
     >
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
         <div className="space-y-5">
           <div className="gold-card rounded-[1.5rem] p-5">
             <p className="text-sm font-black text-amber-100">
-              Reset request accepted
+              Password help requested
             </p>
             <p className="mt-2 text-sm leading-7 text-slate-200">{message}</p>
           </div>
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
             disabled={loading}
             className="premium-button w-full rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Sending..." : "Send reset link"}
+            {loading ? "Sending..." : "Request password help"}
           </button>
 
           <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">

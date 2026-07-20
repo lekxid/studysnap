@@ -474,6 +474,33 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
+    if (pathname !== "/dashboard") {
+      return;
+    }
+
+    function refreshHome() {
+      window.dispatchEvent(
+        new Event("studysnap:dashboard-refresh")
+      );
+    }
+
+    const refreshTimer = window.setTimeout(
+      refreshHome,
+      100
+    );
+
+    window.addEventListener("focus", refreshHome);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.removeEventListener(
+        "focus",
+        refreshHome
+      );
+    };
+  }, [pathname]);
+
+  useEffect(() => {
     let cancelled = false;
     let activeObjectUrl: string | null = null;
 
@@ -1307,11 +1334,22 @@ export default function AppShell({
                   closeMobile: true,
                 })}
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void handleLogout();
+                }}
+                className="mt-4 flex w-full items-center justify-center rounded-xl border border-red-300/15 bg-red-400/10 px-4 py-3 text-sm font-black text-red-100 active:bg-red-400/20"
+              >
+                Log out
+              </button>
             </div>
           ) : null}
         </header>
 
-        <main className="mx-auto w-full max-w-[1600px] px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
+        <main className="mx-auto min-w-0 w-full max-w-[1600px] overflow-x-hidden px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
           {pathname !== "/dashboard" && title ? (
             <div className="mb-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
