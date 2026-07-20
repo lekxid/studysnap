@@ -19,6 +19,9 @@ export default function LoginPage() {
   const [sessionExpired, setSessionExpired] =
     useState(false);
 
+  const [notice, setNotice] =
+    useState("");
+
   useEffect(() => {
     const params =
       new URLSearchParams(
@@ -31,6 +34,27 @@ export default function LoginPage() {
     setSessionExpired(
       params.get("expired") === "1"
     );
+
+    const emailFromLink =
+      params.get("email");
+
+    if (emailFromLink) {
+      setEmail(emailFromLink);
+    }
+
+    if (params.get("welcome") === "1") {
+      setNotice(
+        "Welcome to StudySnap. Your email is ready—enter your password to open your workspace."
+      );
+    } else if (params.get("reset") === "1") {
+      setNotice(
+        "Your password was changed successfully. Sign in with your new password."
+      );
+    } else if (params.get("created") === "1") {
+      setNotice(
+        "Your account was created. Check your email for the StudySnap welcome and getting-started guide."
+      );
+    }
 
     if (
       requestedNext &&
@@ -127,6 +151,13 @@ export default function LoginPage() {
           Your session expired. Sign in again to continue.
         </div>
       ) : null}
+
+      {notice ? (
+        <div className="mb-5 rounded-[1.2rem] border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-semibold leading-6 text-cyan-100">
+          {notice}
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-bold text-slate-200">

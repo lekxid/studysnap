@@ -68,12 +68,21 @@ export default function SignupPage() {
         throw new Error(data?.detail || data?.message || "Signup failed.");
       }
 
+      const loginParams =
+        new URLSearchParams({
+          email,
+          created: "1",
+        });
+
+      if (nextPath) {
+        loginParams.set(
+          "next",
+          nextPath
+        );
+      }
+
       window.location.href =
-        nextPath
-          ? `/login?next=${encodeURIComponent(
-              nextPath
-            )}`
-          : "/login";
+        `/login?${loginParams.toString()}`;
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {

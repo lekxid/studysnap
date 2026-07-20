@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     secret_key: str = "supersecretkey"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 2880
+    password_reset_expire_minutes: int = 30
+
+    azure_communication_connection_string: str = ""
+    email_sender_address: str = ""
 
     openai_api_key: str = ""
     openai_vision_model: str = "gpt-4o-mini"

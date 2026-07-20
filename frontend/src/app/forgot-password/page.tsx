@@ -1,20 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useState,
+} from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] =
+    useState("");
 
-  async function handleSubmit(e: FormEvent) {
+  const [loading, setLoading] =
+    useState(false);
+
+  const [sent, setSent] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  async function handleSubmit(
+    e: FormEvent
+  ) {
     e.preventDefault();
+
     if (!email.trim()) return;
 
     setLoading(true);
@@ -22,15 +37,21 @@ export default function ForgotPasswordPage() {
     setMessage("");
 
     try {
-      const data = await forgotPassword(email);
+      const data =
+        await forgotPassword(email);
+
       setMessage(
         data?.message ||
-          "If an account with that email exists, a reset link has been sent."
+          "If an account with that email exists, a secure reset link has been sent."
       );
+
       setSent(true);
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : "Failed to send reset link.";
+        err instanceof Error
+          ? err.message
+          : "Failed to request a reset link.";
+
       setError(msg);
     } finally {
       setLoading(false);
@@ -41,17 +62,25 @@ export default function ForgotPasswordPage() {
     <AuthShell
       badge="Account recovery"
       title="Reset password"
-      subtitle="Request help recovering access to your StudySnap account."
-      sideTitle="Recover access without losing your study flow."
-      sideSubtitle="Get back into your connected rooms, notes, PDFs, quizzes, flashcards, progress, and AI Tutor workspace."
+      subtitle="Enter your account email and StudySnap will send you a secure, single-use reset link."
+      sideTitle="Recover your account safely."
+      sideSubtitle="Your rooms, notes, files, quizzes, flashcards, progress, and AI learning history remain connected to your account."
     >
       {sent ? (
         <div className="space-y-5">
           <div className="gold-card rounded-[1.5rem] p-5">
             <p className="text-sm font-black text-amber-100">
-              Password help requested
+              Check your email
             </p>
-            <p className="mt-2 text-sm leading-7 text-slate-200">{message}</p>
+
+            <p className="mt-2 text-sm leading-7 text-slate-200">
+              {message}
+            </p>
+
+            <p className="mt-3 text-xs leading-6 text-slate-400">
+              The link expires after 30 minutes and can only be used once.
+              Check your junk or spam folder when it does not appear quickly.
+            </p>
           </div>
 
           <Link
@@ -62,16 +91,23 @@ export default function ForgotPasswordPage() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5"
+        >
           <div>
             <label className="mb-2 block text-sm font-bold text-slate-200">
               Email
             </label>
+
             <input
               type="email"
+              autoComplete="email"
               className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/10"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
               placeholder="you@example.com"
               required
             />
@@ -88,7 +124,9 @@ export default function ForgotPasswordPage() {
             disabled={loading}
             className="premium-button w-full rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Sending..." : "Request password help"}
+            {loading
+              ? "Sending..."
+              : "Send secure reset link"}
           </button>
 
           <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
