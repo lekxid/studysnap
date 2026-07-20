@@ -946,3 +946,138 @@ main a[href]:hover h4 {
 .fire-icon {
   filter: none;
 }
+
+
+/* StudySnap mobile width safety */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
+.panel-title,
+.panel-muted {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .content-grid,
+  .hero-grid,
+  .premium-card,
+  .gold-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+
+/* Settings and Organizer mobile cleanup */
+@media (max-width: 639px) {
+  .settings-page {
+    gap: 0.85rem;
+  }
+
+  .settings-page > section,
+  .settings-page > div,
+  .settings-page .premium-card,
+  .settings-page .gold-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-page .premium-card,
+  .settings-page .gold-card,
+  .settings-page section.rounded-\[1\.6rem\] {
+    border-radius: 1.15rem;
+    padding: 1rem;
+  }
+
+  .settings-tabs {
+    margin-inline: -0.25rem;
+    overflow: hidden;
+  }
+
+  .settings-tab-grid button {
+    min-width: 0;
+    padding: 0.65rem 0.25rem;
+    text-align: center;
+  }
+
+  .settings-tab-grid button > span,
+  .settings-tab-grid button p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-tab-grid button p:last-child,
+  .settings-tab-grid button .panel-muted {
+    display: none;
+  }
+
+  .settings-page input,
+  .settings-page select,
+  .settings-page textarea {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .settings-page .grid-cols-2,
+  .settings-page .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-page button {
+    overflow-wrap: anywhere;
+  }
+
+  .organizer-overview {
+    display: none;
+  }
+
+  .organizer-future {
+    display: none;
+  }
+
+  .organizer-upload-card,
+  .organizer-preview-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .organizer-upload-card input[type="file"] {
+    padding: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .organizer-upload-card input[type="file"]::file-selector-button {
+    max-width: 8rem;
+    margin-right: 0.6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .organizer-preview-card [class*="confidence"] {
+    align-self: flex-start;
+  }
+
+  .organizer-note summary {
+    list-style-position: inside;
+  }
+}

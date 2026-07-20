@@ -1852,13 +1852,13 @@ export default function GeneralAIChat({
         ) : null}
 
         {pendingAttachments.length > 0 ? (
-          <div className="mb-3 overflow-x-auto pb-1">
+          <div className="mb-3 min-w-0 max-w-full overflow-x-auto pb-1">
             <div className="flex min-w-max gap-2">
               {pendingAttachments.map(
                 (attachment) => (
                   <div
                     key={attachment.id}
-                    className="relative w-44 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25"
+                    className="relative w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25 sm:w-44"
                   >
                     {attachment.kind === "image" &&
                     attachment.preview ? (
@@ -2111,8 +2111,8 @@ export default function GeneralAIChat({
           }`}
         />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -2147,7 +2147,7 @@ export default function GeneralAIChat({
                 setError("");
                 inputRef.current?.focus();
               }}
-              className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+              className={`max-w-full rounded-xl border px-3 py-2 text-xs font-black transition ${
                 createImageMode
                   ? "border-[#c9ad50]/[0.20] bg-[#c9ad50]/[0.09] text-[#ece8da]"
                   : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.1] hover:text-white"
@@ -2204,7 +2204,7 @@ export default function GeneralAIChat({
   }
 
   return (
-    <section className="relative min-h-[calc(100dvh-10rem)]">
+    <section className="relative min-h-[calc(100dvh-10rem)] min-w-0 max-w-full overflow-x-clip">
       <div className="sticky top-[60px] z-30 -mx-3 border-b border-white/[0.08] bg-[#0b0f14]/[0.97] px-3 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:top-[72px] lg:mx-0 lg:mb-3 lg:rounded-2xl lg:border">
         <div className="flex min-h-12 items-center gap-2">
           <button

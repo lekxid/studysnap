@@ -1307,11 +1307,23 @@ export default function AppShell({
                   closeMobile: true,
                 })}
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void handleLogout();
+                }}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 active:bg-red-500/20"
+              >
+                <span aria-hidden="true">↪</span>
+                Sign out
+              </button>
             </div>
           ) : null}
         </header>
 
-        <main className="mx-auto w-full max-w-[1600px] px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
+        <main className="mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
           {pathname !== "/dashboard" && title ? (
             <div className="mb-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
@@ -1338,7 +1350,9 @@ export default function AppShell({
               </aside>
             </div>
           ) : (
-            children
+            <div className="min-w-0 max-w-full">
+              {children}
+            </div>
           )}
         </main>
       </div>

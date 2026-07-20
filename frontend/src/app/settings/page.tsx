@@ -1133,9 +1133,9 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="Manage your synced learning profile, AI memory, future app connections, privacy, and StudySnap setup."
     >
-      <div className="content-grid">
-        <section className="sticky top-4 z-20 rounded-[1.6rem] border border-white/10 bg-[#0d1218]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur">
-          <div className="grid gap-2 md:grid-cols-4">
+      <div className="settings-page content-grid min-w-0 max-w-full overflow-x-clip">
+        <section className="settings-tabs sticky top-[64px] z-20 min-w-0 rounded-[1.2rem] border border-white/10 bg-[#0d1218]/95 p-2 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur sm:top-4 sm:rounded-[1.6rem] sm:p-3">
+          <div className="settings-tab-grid grid grid-cols-4 gap-1.5 md:gap-2">
             {settingsTabs.map((tab) => {
               const active = activeSettingsTab === tab.id;
 
@@ -1547,7 +1547,7 @@ export default function SettingsPage() {
                   These subjects personalize your StudySnap workspace.
                 </p>
 
-                <div className="mt-5 flex gap-3">
+                <div className="mt-4 flex min-w-0 flex-col gap-2 sm:mt-5 sm:flex-row sm:gap-3">
                   <input
                     className="rounded-[1.2rem] px-4 py-3.5"
                     placeholder="Add subject, example: Anatomy"
@@ -1604,7 +1604,7 @@ export default function SettingsPage() {
 
               <div className="premium-card gold-border rounded-[2rem] p-6">
                 <div className="gold-chip mb-4">Privacy</div>
-                  <h3 className="panel-title text-white">Progress sharing</h3>
+                <h3 className="panel-title text-white">Progress sharing</h3>
 
                   <div className="mt-5 grid gap-3">
                     {sharingOptions.map((item) => {
