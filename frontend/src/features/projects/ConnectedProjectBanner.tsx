@@ -76,7 +76,7 @@ export default function ConnectedProjectBanner({
   const roomSubject = room?.subject || "Study room";
 
   return (
-    <section className="mb-6 overflow-hidden rounded-[1.7rem] border border-yellow-400/25 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-5">
+    <section className="mb-4 min-w-0 max-w-full overflow-hidden rounded-[1.5rem] border border-white/[0.10] bg-[radial-gradient(circle_at_top_left,rgba(201,173,80,0.15),transparent_38%),linear-gradient(145deg,rgba(24,30,37,0.78),rgba(8,13,19,0.76))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_22px_65px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:mb-6 sm:rounded-[1.7rem] sm:p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -89,7 +89,7 @@ export default function ConnectedProjectBanner({
             </span>
           </div>
 
-          <h2 className="text-2xl font-black tracking-tight text-white">
+          <h2 className="break-words text-xl font-black tracking-tight text-white sm:text-2xl">
             {toolIcon} {toolName} is connected to {roomName}
           </h2>
 

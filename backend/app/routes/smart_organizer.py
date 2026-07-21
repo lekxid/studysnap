@@ -16,7 +16,7 @@ from app.utils.deps import get_current_user
 
 router = APIRouter(tags=["Smart Organizer"])
 
-MAX_FILE_SIZE = 20 * 1024 * 1024
+MAX_FILE_SIZE = 25 * 1024 * 1024
 MAX_FILES = 30
 
 
@@ -40,7 +40,7 @@ async def build_candidates_from_upload(
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"{file.filename or 'A file'} is too large. Maximum size is 20MB.",
+                detail=f"{file.filename or 'A file'} is too large. Maximum size is 25MB.",
             )
 
         candidates.append(

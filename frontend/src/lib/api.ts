@@ -1997,6 +1997,53 @@ export type AskAIWithFilesResponse = {
   assistant_message?: AIMessage | null;
 };
 
+export type SmartOrganizerItem = {
+  filename: string;
+  material_type: string;
+  topic: string;
+  room: StudyRoom;
+  saved_as: string;
+  saved_id: number;
+  generated_flashcards: number;
+  generated_quizzes: number;
+  generated_quiz_questions: number;
+};
+
+export type SmartOrganizerResult = {
+  organized_count: number;
+  rooms: StudyRoom[];
+  generated_flashcards: number;
+  generated_quizzes: number;
+  generated_quiz_questions: number;
+  items: SmartOrganizerItem[];
+};
+
+export async function organizeFilesIntoStudyRooms(
+  files: File[]
+): Promise<SmartOrganizerResult> {
+  if (!files.length) {
+    throw new Error(
+      "Choose at least one file to create a study room."
+    );
+  }
+
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append("files", file, file.name);
+  });
+
+  formData.append("assignments_json", "{}");
+
+  return apiFetch(
+    "/api/smart-organizer/organize",
+    {
+      method: "POST",
+      body: formData,
+    }
+  ) as Promise<SmartOrganizerResult>;
+}
+
 export function askAiWithFiles({
   question,
   files,
