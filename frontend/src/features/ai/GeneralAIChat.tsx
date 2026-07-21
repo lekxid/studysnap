@@ -1,27 +1,15 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 
-import {
-  resolveStudyCommand,
-} from "@/lib/studyCommandRouter";
-import {
-  takePendingAIAttachments,
-} from "@/lib/aiAttachmentHandoff";
-import {
-  saveProjectRoomId,
-} from "@/features/projects/projectRoomContext";
+import { resolveStudyCommand } from "@/lib/studyCommandRouter";
+import { takePendingAIAttachments } from "@/lib/aiAttachmentHandoff";
+import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import {
   askAiWithFile,
   askAiWithFiles,
@@ -82,111 +70,75 @@ type DisplayMessage = {
   generatedImage?: boolean;
 };
 
-const suggestions = [
-  "Summarize notes",
-  "Explain a topic",
-  "Create a quiz",
-];
+const suggestions = ["Summarize notes", "Explain a topic", "Create a quiz"];
 
 function makeId() {
-  if (
-    typeof crypto !== "undefined" &&
-    "randomUUID" in crypto
-  ) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function cleanStoredMessageContent(
-  message: AIMessage
-): string {
+function cleanStoredMessageContent(message: AIMessage): string {
   const content = message.content.trim();
 
   if (content.startsWith("[Create image]")) {
-    const prompt = content
-      .replace("[Create image]", "")
-      .trim();
+    const prompt = content.replace("[Create image]", "").trim();
 
-    return prompt
-      ? `Create an image: ${prompt}`
-      : "Create an image";
+    return prompt ? `Create an image: ${prompt}` : "Create an image";
   }
 
   if (content.startsWith("[Generated image]")) {
     return (
-      "This image was created before saved-image " +
-      "history was available."
+      "This image was created before saved-image " + "history was available."
     );
   }
 
   if (content.startsWith("[Image uploaded]")) {
-    return content
-      .replace("[Image uploaded]", "")
-      .trim();
+    return content.replace("[Image uploaded]", "").trim();
   }
 
   if (content.startsWith("[File:")) {
-    const closingBracket =
-      content.indexOf("]");
+    const closingBracket = content.indexOf("]");
 
     if (closingBracket >= 0) {
-      return content
-        .slice(closingBracket + 1)
-        .trim();
+      return content.slice(closingBracket + 1).trim();
     }
   }
 
   return message.content;
 }
 
-
 function mapStoredMessage(
   message: AIMessage,
-  attachmentPreview?: string
+  attachmentPreview?: string,
 ): DisplayMessage {
   const attachment = message.attachment;
 
   const generatedImage =
-    message.role === "assistant" &&
-    attachment?.kind === "image";
+    message.role === "assistant" && attachment?.kind === "image";
 
-  const storedAttachment:
-    | MessageAttachment
-    | undefined = attachment
-      ? {
-          id: `stored-${message.id}`,
-          name: attachment.filename,
-          size: attachment.file_size || 0,
-          kind: attachment.kind,
-          preview:
-            attachment.kind === "image"
-              ? attachmentPreview
-              : undefined,
-        }
-      : undefined;
+  const storedAttachment: MessageAttachment | undefined = attachment
+    ? {
+        id: `stored-${message.id}`,
+        name: attachment.filename,
+        size: attachment.file_size || 0,
+        kind: attachment.kind,
+        preview: attachment.kind === "image" ? attachmentPreview : undefined,
+      }
+    : undefined;
 
   return {
     id: message.id,
     role: message.role,
-    content: cleanStoredMessageContent(
-      message
-    ),
+    content: cleanStoredMessageContent(message),
     created_at: message.created_at,
-    imagePreview: generatedImage
-      ? attachmentPreview
-      : undefined,
-    imageName: generatedImage
-      ? attachment?.filename
-      : undefined,
+    imagePreview: generatedImage ? attachmentPreview : undefined,
+    imageName: generatedImage ? attachment?.filename : undefined,
     generatedImage,
     attachments:
-      storedAttachment && !generatedImage
-        ? [storedAttachment]
-        : undefined,
+      storedAttachment && !generatedImage ? [storedAttachment] : undefined,
   };
 }
 
@@ -205,10 +157,7 @@ function extractAIText(data: unknown): string {
       "result",
       "output",
     ]) {
-      if (
-        typeof value[key] === "string" &&
-        value[key]
-      ) {
+      if (typeof value[key] === "string" && value[key]) {
         return value[key] as string;
       }
     }
@@ -218,10 +167,7 @@ function extractAIText(data: unknown): string {
 }
 
 async function copyTextWithFallback(text: string) {
-  if (
-    navigator.clipboard &&
-    window.isSecureContext
-  ) {
+  if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
     return;
   }
@@ -250,19 +196,14 @@ export default function GeneralAIChat({
 }) {
   const router = useRouter();
   const initialPromptHandledRef = useRef(false);
-  const [handoffPrompt, setHandoffPrompt] =
-    useState(initialPrompt);
+  const [handoffPrompt, setHandoffPrompt] = useState(initialPrompt);
 
   useEffect(() => {
-    const savedPrompt =
-      window.sessionStorage.getItem(
-        "studysnap:pending-general-ai-prompt",
-      );
+    const savedPrompt = window.sessionStorage.getItem(
+      "studysnap:pending-general-ai-prompt",
+    );
 
-    const nextPrompt =
-      initialPrompt.trim() ||
-      savedPrompt?.trim() ||
-      "";
+    const nextPrompt = initialPrompt.trim() || savedPrompt?.trim() || "";
 
     if (!nextPrompt) {
       return;
@@ -270,109 +211,62 @@ export default function GeneralAIChat({
 
     setHandoffPrompt(nextPrompt);
 
-    window.sessionStorage.removeItem(
-      "studysnap:pending-general-ai-prompt",
-    );
+    window.sessionStorage.removeItem("studysnap:pending-general-ai-prompt");
   }, [initialPrompt]);
 
-  const [trails, setTrails] = useState<
-    AIConversation[]
-  >([]);
-  const [
-    activeConversationId,
-    setActiveConversationId,
-  ] = useState<number | null>(null);
-  const [messages, setMessages] = useState<
-    DisplayMessage[]
-  >([]);
+  const [trails, setTrails] = useState<AIConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<
+    number | null
+  >(null);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
 
   const [input, setInput] = useState("");
-  const [trailSearch, setTrailSearch] =
-    useState("");
+  const [trailSearch, setTrailSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingTrails, setLoadingTrails] =
-    useState(true);
-  const [loadingMessages, setLoadingMessages] =
-    useState(false);
-  const [copiedId, setCopiedId] = useState<
-    string | number | null
-  >(null);
+  const [loadingTrails, setLoadingTrails] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | number | null>(null);
 
-  const [
-    expandedMessageIds,
-    setExpandedMessageIds,
-  ] = useState<Set<string | number>>(
-    () => new Set()
-  );
+  const [expandedMessageIds, setExpandedMessageIds] = useState<
+    Set<string | number>
+  >(() => new Set());
 
   const [error, setError] = useState("");
 
-  const [selectedImage, setSelectedImage] =
-    useState<File | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
-  const [pendingDocument, setPendingDocument] =
-    useState<File | null>(null);
+  const [pendingDocument, setPendingDocument] = useState<File | null>(null);
 
-  const [pendingAttachments, setPendingAttachments] =
-    useState<PendingAttachment[]>([]);
-  const [
-    roomCreationOffer,
-    setRoomCreationOffer,
-  ] = useState<RoomCreationOffer | null>(null);
-  const [availableRooms, setAvailableRooms] =
-    useState<StudyRoom[]>([]);
-  const [roomPickerOpen, setRoomPickerOpen] =
-    useState(false);
-  const [loadingRooms, setLoadingRooms] =
-    useState(false);
-  const [documentUploadProgress, setDocumentUploadProgress] =
-    useState(0);
-  const [documentUploading, setDocumentUploading] =
-    useState(false);
-  const [
-    selectedImagePreview,
-    setSelectedImagePreview,
-  ] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
+  const [roomCreationOffer, setRoomCreationOffer] =
+    useState<RoomCreationOffer | null>(null);
+  const [availableRooms, setAvailableRooms] = useState<StudyRoom[]>([]);
+  const [roomPickerOpen, setRoomPickerOpen] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [selectedImagePreview, setSelectedImagePreview] = useState("");
 
-  const [
-    imageUploadProgress,
-    setImageUploadProgress,
-  ] = useState(0);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
 
-  const [
-    imageUploadStatus,
-    setImageUploadStatus,
-  ] = useState<
-    | "idle"
-    | "converting"
-    | "reading"
-    | "ready"
-    | "uploading"
-    | "analyzing"
+  const [imageUploadStatus, setImageUploadStatus] = useState<
+    "idle" | "converting" | "reading" | "ready" | "uploading" | "analyzing"
   >("idle");
 
-  const [historyOpen, setHistoryOpen] =
-    useState(false);
-  const [studyToolsOpen, setStudyToolsOpen] =
-    useState(false);
-  const [createImageMode, setCreateImageMode] =
-    useState(false);
-  const [imageSize, setImageSize] =
-    useState<GenerateAIImageSize>("1024x1024");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [studyToolsOpen, setStudyToolsOpen] = useState(false);
+  const [createImageMode, setCreateImageMode] = useState(false);
+  const [imageSize, setImageSize] = useState<GenerateAIImageSize>("1024x1024");
 
-  const inputRef =
-    useRef<HTMLTextAreaElement | null>(null);
-  const fileInputRef =
-    useRef<HTMLInputElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(
-    null
-  );
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const hasMessages = messages.length > 0;
 
-  const activeTrail = trails.find(
-    (trail) => trail.id === activeConversationId
-  );
+  const activeTrail = trails.find((trail) => trail.id === activeConversationId);
 
   const canSend = useMemo(() => {
     if (createImageMode) {
@@ -397,9 +291,7 @@ export default function GeneralAIChat({
     documentUploading,
   ]);
 
-  function scrollToBottom(
-    behavior: ScrollBehavior = "smooth"
-  ) {
+  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({
@@ -411,110 +303,67 @@ export default function GeneralAIChat({
   }
 
   useEffect(() => {
-    if (
-      messages.length > 0 ||
-      loading ||
-      loadingMessages
-    ) {
-      scrollToBottom(
-        loadingMessages ? "auto" : "smooth"
-      );
+    if (messages.length > 0 || loading || loadingMessages) {
+      scrollToBottom(loadingMessages ? "auto" : "smooth");
     }
-  }, [
-    messages,
-    loading,
-    loadingMessages,
-  ]);
+  }, [messages, loading, loadingMessages]);
 
-  async function loadMessages(
-    conversationId: number
-  ) {
+  async function loadMessages(conversationId: number) {
     try {
       setLoadingMessages(true);
       setError("");
 
-      const storedMessages =
-        await getAIMessages(conversationId);
+      const storedMessages = await getAIMessages(conversationId);
 
-      const displayMessages =
-        await Promise.all(
-          storedMessages.map(
-            async (message) => {
-              let attachmentPreview:
-                | string
-                | undefined;
+      const displayMessages = await Promise.all(
+        storedMessages.map(async (message) => {
+          let attachmentPreview: string | undefined;
 
-              if (
-                message.attachment?.kind ===
-                "image"
-              ) {
-                try {
-                  attachmentPreview =
-                    await getAIAttachmentDataUrl(
-                      message.id
-                    );
-                } catch {
-                  attachmentPreview =
-                    undefined;
-                }
-              }
-
-              return mapStoredMessage(
-                message,
-                attachmentPreview
-              );
+          if (message.attachment?.kind === "image") {
+            try {
+              attachmentPreview = await getAIAttachmentDataUrl(message.id);
+            } catch {
+              attachmentPreview = undefined;
             }
-          )
-        );
+          }
+
+          return mapStoredMessage(message, attachmentPreview);
+        }),
+      );
 
       setMessages(displayMessages);
     } catch (err) {
       setMessages([]);
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load this chat."
+        err instanceof Error ? err.message : "Could not load this chat.",
       );
     } finally {
       setLoadingMessages(false);
     }
   }
 
-  async function refreshTrails(
-    preferredConversationId?: number
-  ) {
-    const list = await getStudyTrails(
-      "general_ai",
-      "",
-      100
-    );
+  async function refreshTrails(preferredConversationId?: number) {
+    const list = await getStudyTrails("general_ai", "", 100);
 
     setTrails(list);
 
     if (
       typeof preferredConversationId === "number" &&
-      list.some(
-        (trail) =>
-          trail.id === preferredConversationId
-      )
+      list.some((trail) => trail.id === preferredConversationId)
     ) {
-      setActiveConversationId(
-        preferredConversationId
-      );
+      setActiveConversationId(preferredConversationId);
     }
 
     return list;
   }
 
   useEffect(() => {
-    const savedHistory =
-      window.localStorage.getItem(
-        "studysnap:general-ai-history-open"
-      );
-    const savedStudyTools =
-      window.localStorage.getItem(
-        "studysnap:general-ai-study-tools-open"
-      );
+    const savedHistory = window.localStorage.getItem(
+      "studysnap:general-ai-history-drawer-v2",
+    );
+    const savedStudyTools = window.localStorage.getItem(
+      "studysnap:general-ai-study-tools-open",
+    );
 
     if (savedHistory !== null) {
       setHistoryOpen(savedHistory === "true");
@@ -523,9 +372,7 @@ export default function GeneralAIChat({
     }
 
     if (savedStudyTools !== null) {
-      setStudyToolsOpen(
-        savedStudyTools === "true"
-      );
+      setStudyToolsOpen(savedStudyTools === "true");
     }
   }, []);
 
@@ -537,11 +384,7 @@ export default function GeneralAIChat({
         setLoadingTrails(true);
         setError("");
 
-        const list = await getStudyTrails(
-          "general_ai",
-          "",
-          100
-        );
+        const list = await getStudyTrails("general_ai", "", 100);
 
         if (cancelled) return;
 
@@ -554,9 +397,7 @@ export default function GeneralAIChat({
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Could not load your chats."
+            err instanceof Error ? err.message : "Could not load your chats.",
           );
         }
       } finally {
@@ -578,22 +419,15 @@ export default function GeneralAIChat({
   }, [activeConversationId]);
 
   useEffect(() => {
-    const pendingFiles =
-      takePendingAIAttachments();
+    const pendingFiles = takePendingAIAttachments();
 
     if (!pendingFiles.length) {
       return;
     }
 
-    void addAttachments(
-      pendingFiles.slice(0, 20)
-    );
+    void addAttachments(pendingFiles.slice(0, 20));
 
-    window.history.replaceState(
-      {},
-      "",
-      "/general-ai",
-    );
+    window.history.replaceState({}, "", "/general-ai");
   }, []);
 
   useEffect(() => {
@@ -610,18 +444,10 @@ export default function GeneralAIChat({
 
     initialPromptHandledRef.current = true;
 
-    window.history.replaceState(
-      {},
-      "",
-      "/general-ai",
-    );
+    window.history.replaceState({}, "", "/general-ai");
 
     void sendMessage(prompt);
-  }, [
-    handoffPrompt,
-    loading,
-    loadingTrails,
-  ]);
+  }, [handoffPrompt, loading, loadingTrails]);
 
   function attachmentId(file: File) {
     return [
@@ -633,8 +459,7 @@ export default function GeneralAIChat({
   }
 
   function isImageAttachment(file: File) {
-    const extension =
-      file.name.split(".").pop()?.toLowerCase() || "";
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
 
     return (
       file.type.startsWith("image/") ||
@@ -693,22 +518,16 @@ export default function GeneralAIChat({
     const rejected: string[] = [];
 
     for (const file of files) {
-      const extension =
-        file.name.split(".").pop()?.toLowerCase() || "";
+      const extension = file.name.split(".").pop()?.toLowerCase() || "";
 
       const image = isImageAttachment(file);
 
-      if (
-        !image &&
-        !supportedDocuments.has(extension)
-      ) {
+      if (!image && !supportedDocuments.has(extension)) {
         rejected.push(file.name);
         continue;
       }
 
-      const limit = image
-        ? 25 * 1024 * 1024
-        : 25 * 1024 * 1024;
+      const limit = image ? 25 * 1024 * 1024 : 25 * 1024 * 1024;
 
       if (file.size > limit) {
         rejected.push(file.name);
@@ -721,31 +540,23 @@ export default function GeneralAIChat({
         name: file.name,
         size: file.size,
         kind: image ? "image" : "file",
-        preview: image
-          ? URL.createObjectURL(file)
-          : undefined,
+        preview: image ? URL.createObjectURL(file) : undefined,
         status: "ready",
         progress: 0,
       });
     }
 
     setPendingAttachments((current) => {
-      const remainingSlots = Math.max(
-        0,
-        20 - current.length
-      );
+      const remainingSlots = Math.max(0, 20 - current.length);
 
-      return [
-        ...current,
-        ...prepared.slice(0, remainingSlots),
-      ];
+      return [...current, ...prepared.slice(0, remainingSlots)];
     });
 
     if (rejected.length) {
       setError(
         `Skipped ${rejected.length} unsupported or oversized file${
           rejected.length === 1 ? "" : "s"
-        }.`
+        }.`,
       );
     }
 
@@ -754,17 +565,13 @@ export default function GeneralAIChat({
 
   function removePendingAttachment(id: string) {
     setPendingAttachments((current) => {
-      const removed = current.find(
-        (item) => item.id === id
-      );
+      const removed = current.find((item) => item.id === id);
 
       if (removed?.preview) {
         URL.revokeObjectURL(removed.preview);
       }
 
-      return current.filter(
-        (item) => item.id !== id
-      );
+      return current.filter((item) => item.id !== id);
     });
   }
 
@@ -784,23 +591,17 @@ export default function GeneralAIChat({
     }
   }
 
-  async function handleMultipleAttachmentChange(
-    fileList: FileList | null
-  ) {
+  async function handleMultipleAttachmentChange(fileList: FileList | null) {
     if (!fileList?.length) return;
 
-    await addAttachments(
-      Array.from(fileList)
-    );
+    await addAttachments(Array.from(fileList));
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
-  async function handleImageChange(
-    selectedFile: File | undefined
-  ) {
+  async function handleImageChange(selectedFile: File | undefined) {
     if (!selectedFile) {
       return;
     }
@@ -809,10 +610,7 @@ export default function GeneralAIChat({
     setImageUploadProgress(0);
 
     const originalExtension =
-      selectedFile.name
-        .split(".")
-        .pop()
-        ?.toLowerCase() || "";
+      selectedFile.name.split(".").pop()?.toLowerCase() || "";
 
     const isHeic =
       originalExtension === "heic" ||
@@ -836,22 +634,19 @@ export default function GeneralAIChat({
 
     if (!isImage) {
       setError(
-        "Please choose a PNG, JPG, JPEG, WEBP, GIF, HEIC, or HEIF image."
+        "Please choose a PNG, JPG, JPEG, WEBP, GIF, HEIC, or HEIF image.",
       );
       return;
     }
 
     // Allow a larger HEIC source because JPEG conversion often reduces it.
-    const maximumSourceSize =
-      isHeic
-        ? 25 * 1024 * 1024
-        : 8 * 1024 * 1024;
+    const maximumSourceSize = isHeic ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
 
     if (selectedFile.size > maximumSourceSize) {
       setError(
         isHeic
           ? "This HEIC image is too large. Please choose one smaller than 25 MB."
-          : "This image is too large. Please choose one smaller than 8 MB."
+          : "This image is too large. Please choose one smaller than 8 MB.",
       );
       return;
     }
@@ -863,39 +658,27 @@ export default function GeneralAIChat({
         setImageUploadStatus("converting");
         setImageUploadProgress(15);
 
-        const heicModule =
-          await import("heic2any");
+        const heicModule = await import("heic2any");
 
-        const heic2any =
-          heicModule.default;
+        const heic2any = heicModule.default;
 
-        const convertedResult =
-          await heic2any({
-            blob: selectedFile,
-            toType: "image/jpeg",
-            quality: 0.88,
-          });
+        const convertedResult = await heic2any({
+          blob: selectedFile,
+          toType: "image/jpeg",
+          quality: 0.88,
+        });
 
-        const convertedBlob = Array.isArray(
-          convertedResult
-        )
+        const convertedBlob = Array.isArray(convertedResult)
           ? convertedResult[0]
           : convertedResult;
 
         const jpegName =
-          selectedFile.name.replace(
-            /\.(heic|heif)$/i,
-            ""
-          ) + ".jpg";
+          selectedFile.name.replace(/\.(heic|heif)$/i, "") + ".jpg";
 
-        file = new File(
-          [convertedBlob],
-          jpegName,
-          {
-            type: "image/jpeg",
-            lastModified: Date.now(),
-          }
-        );
+        file = new File([convertedBlob], jpegName, {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
 
         setImageUploadProgress(45);
       }
@@ -904,7 +687,7 @@ export default function GeneralAIChat({
         setImageUploadStatus("idle");
         setImageUploadProgress(0);
         setError(
-          "The prepared image is still larger than 8 MB. Please choose a smaller image."
+          "The prepared image is still larger than 8 MB. Please choose a smaller image.",
         );
         return;
       }
@@ -913,9 +696,7 @@ export default function GeneralAIChat({
       setSelectedImage(file);
       setSelectedImagePreview("");
       setImageUploadStatus("reading");
-      setImageUploadProgress(
-        isHeic ? 50 : 0
-      );
+      setImageUploadProgress(isHeic ? 50 : 0);
 
       const reader = new FileReader();
 
@@ -924,8 +705,7 @@ export default function GeneralAIChat({
           return;
         }
 
-        const readPercent =
-          (event.loaded / event.total) * 100;
+        const readPercent = (event.loaded / event.total) * 100;
 
         const progress = isHeic
           ? Math.round(50 + readPercent * 0.5)
@@ -935,9 +715,7 @@ export default function GeneralAIChat({
       };
 
       reader.onload = () => {
-        setSelectedImagePreview(
-          String(reader.result || "")
-        );
+        setSelectedImagePreview(String(reader.result || ""));
         setImageUploadProgress(100);
         setImageUploadStatus("ready");
         setError("");
@@ -950,7 +728,7 @@ export default function GeneralAIChat({
         setImageUploadProgress(0);
         setImageUploadStatus("idle");
         setError(
-          "StudySnap could not prepare this image. Please try another image."
+          "StudySnap could not prepare this image. Please try another image.",
         );
       };
 
@@ -958,7 +736,7 @@ export default function GeneralAIChat({
     } catch (error) {
       console.warn(
         "Browser HEIC conversion failed; using backend fallback:",
-        error
+        error,
       );
 
       if (!isHeic) {
@@ -967,7 +745,7 @@ export default function GeneralAIChat({
         setImageUploadProgress(0);
         setImageUploadStatus("idle");
         setError(
-          "StudySnap could not prepare this image. Please try another image."
+          "StudySnap could not prepare this image. Please try another image.",
         );
         return;
       }
@@ -984,15 +762,12 @@ export default function GeneralAIChat({
     }
   }
 
-  async function handleAttachmentChange(
-    selectedFile: File | undefined
-  ) {
+  async function handleAttachmentChange(selectedFile: File | undefined) {
     if (!selectedFile) {
       return;
     }
 
-    const extension =
-      selectedFile.name.split(".").pop()?.toLowerCase() || "";
+    const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "";
 
     const imageExtensions = new Set([
       "png",
@@ -1009,8 +784,7 @@ export default function GeneralAIChat({
     ]);
 
     const isImage =
-      selectedFile.type.startsWith("image/") ||
-      imageExtensions.has(extension);
+      selectedFile.type.startsWith("image/") || imageExtensions.has(extension);
 
     if (isImage) {
       setPendingDocument(null);
@@ -1049,15 +823,13 @@ export default function GeneralAIChat({
 
     if (!supportedDocuments.has(extension)) {
       setError(
-        "Use PDF, DOCX, PPTX, XLSX, text, code, CSV, JSON, or an image."
+        "Use PDF, DOCX, PPTX, XLSX, text, code, CSV, JSON, or an image.",
       );
       return;
     }
 
     if (selectedFile.size > 25 * 1024 * 1024) {
-      setError(
-        "Direct AI reading supports files up to 25MB."
-      );
+      setError("Direct AI reading supports files up to 25MB.");
       return;
     }
 
@@ -1101,7 +873,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "StudySnap could not load your rooms."
+          : "StudySnap could not load your rooms.",
       );
     } finally {
       setLoadingRooms(false);
@@ -1130,7 +902,7 @@ export default function GeneralAIChat({
       setError(
         err instanceof Error
           ? err.message
-          : "The document could not be saved to the room."
+          : "The document could not be saved to the room.",
       );
     } finally {
       setDocumentUploading(false);
@@ -1170,22 +942,19 @@ export default function GeneralAIChat({
       return activeConversationId;
     }
 
-    const conversation =
-      await createAIConversation({
-        studyRoomId: null,
-        title: "New Conversation",
-        mode: "general",
-        surface: "general_ai",
-        contextType: "general",
-        contextId: null,
-        forceNew: true,
-      });
+    const conversation = await createAIConversation({
+      studyRoomId: null,
+      title: "New Conversation",
+      mode: "general",
+      surface: "general_ai",
+      contextType: "general",
+      contextId: null,
+      forceNew: true,
+    });
 
     setTrails((current) => [
       conversation,
-      ...current.filter(
-        (trail) => trail.id !== conversation.id
-      ),
+      ...current.filter((trail) => trail.id !== conversation.id),
     ]);
 
     setActiveConversationId(conversation.id);
@@ -1193,12 +962,8 @@ export default function GeneralAIChat({
     return conversation.id;
   }
 
-  async function createGeneratedImage(
-    promptText?: string
-  ) {
-    const prompt = (
-      promptText ?? input
-    ).trim();
+  async function createGeneratedImage(promptText?: string) {
+    const prompt = (promptText ?? input).trim();
 
     if (!prompt || loading) return;
 
@@ -1210,8 +975,7 @@ export default function GeneralAIChat({
       setError("");
       setInput("");
 
-      const conversationId =
-        await ensureConversation();
+      const conversationId = await ensureConversation();
 
       setMessages((current) => [
         ...current,
@@ -1223,30 +987,22 @@ export default function GeneralAIChat({
         {
           id: assistantMessageId,
           role: "assistant",
-          content:
-            "StudySnap AI is creating your image...",
+          content: "StudySnap AI is creating your image...",
         },
       ]);
 
       scrollToBottom();
 
-      const result = await generateAIImage(
-        prompt,
-        {
-          conversationId,
-          size: imageSize,
-          quality: "medium",
-        }
-      );
+      const result = await generateAIImage(prompt, {
+        conversationId,
+        size: imageSize,
+        quality: "medium",
+      });
 
-      const imageSource =
-        result.image_data_url ||
-        result.image_url;
+      const imageSource = result.image_data_url || result.image_url;
 
       if (!imageSource) {
-        throw new Error(
-          "The image model returned no displayable image."
-        );
+        throw new Error("The image model returned no displayable image.");
       }
 
       await loadMessages(conversationId);
@@ -1266,12 +1022,11 @@ export default function GeneralAIChat({
                 ...item,
                 content: message,
               }
-            : item
-        )
+            : item,
+        ),
       );
 
       setError(message);
-
     } finally {
       setLoading(false);
       setDocumentUploading(false);
@@ -1279,29 +1034,21 @@ export default function GeneralAIChat({
     }
   }
 
-  async function sendMessage(
-    messageText?: string
-  ) {
-    const question = (
-      messageText ?? input
-    ).trim();
+  async function sendMessage(messageText?: string) {
+    const question = (messageText ?? input).trim();
 
     const imageToSend = selectedImage;
-    const imagePreviewToSend =
-      selectedImagePreview;
-    const imageNameToSend =
-      selectedImage?.name;
+    const imagePreviewToSend = selectedImagePreview;
+    const imageNameToSend = selectedImage?.name;
 
     const documentToSend = pendingDocument;
     const attachmentsToSend = pendingAttachments;
 
     if (
-      (
-        !question &&
+      (!question &&
         !imageToSend &&
         !documentToSend &&
-        attachmentsToSend.length === 0
-      ) ||
+        attachmentsToSend.length === 0) ||
       loading ||
       documentUploading
     ) {
@@ -1310,23 +1057,18 @@ export default function GeneralAIChat({
 
     const finalQuestion =
       question ||
-      (
-        attachmentsToSend.length > 1
-          ? "Explain these files clearly and connect the important points."
-          : attachmentsToSend.length === 1
-            ? (
-                attachmentsToSend[0].kind === "image"
-                  ? "Describe this image clearly."
-                  : "Summarize this file clearly."
-              )
-            : documentToSend
-              ? "Summarize this file clearly."
-              : "Describe this image clearly."
-      );
+      (attachmentsToSend.length > 1
+        ? "Explain these files clearly and connect the important points."
+        : attachmentsToSend.length === 1
+          ? attachmentsToSend[0].kind === "image"
+            ? "Describe this image clearly."
+            : "Summarize this file clearly."
+          : documentToSend
+            ? "Summarize this file clearly."
+            : "Describe this image clearly.");
 
     if (!imageToSend && !documentToSend && question) {
-      const commandResult =
-        await resolveStudyCommand(question);
+      const commandResult = await resolveStudyCommand(question);
 
       if (commandResult.handled) {
         setInput("");
@@ -1352,17 +1094,14 @@ export default function GeneralAIChat({
     const pendingAssistantId = makeId();
 
     try {
-      const conversationId =
-        await ensureConversation();
+      const conversationId = await ensureConversation();
 
       setTrails((current) =>
         current.map((trail) =>
           trail.id === conversationId
             ? {
                 ...trail,
-                title:
-                  finalQuestion.slice(0, 60) ||
-                  "New Conversation",
+                title: finalQuestion.slice(0, 60) || "New Conversation",
               }
             : trail,
         ),
@@ -1374,22 +1113,19 @@ export default function GeneralAIChat({
           id: makeId(),
           role: "user",
           content: finalQuestion,
-          imagePreview:
-            imagePreviewToSend || undefined,
+          imagePreview: imagePreviewToSend || undefined,
           imageName: imageNameToSend,
           documentName: documentToSend?.name,
           documentSize: documentToSend?.size,
           attachments:
             attachmentsToSend.length > 0
-              ? attachmentsToSend.map(
-                  (attachment) => ({
-                    id: attachment.id,
-                    name: attachment.name,
-                    size: attachment.size,
-                    kind: attachment.kind,
-                    preview: attachment.preview,
-                  })
-                )
+              ? attachmentsToSend.map((attachment) => ({
+                  id: attachment.id,
+                  name: attachment.name,
+                  size: attachment.size,
+                  kind: attachment.kind,
+                  preview: attachment.preview,
+                }))
               : undefined,
         },
         {
@@ -1397,12 +1133,8 @@ export default function GeneralAIChat({
           role: "assistant",
           content:
             attachmentsToSend.length > 0
-              ? `StudySnap AI is reading ${
-                  attachmentsToSend.length
-                } file${
-                  attachmentsToSend.length === 1
-                    ? ""
-                    : "s"
+              ? `StudySnap AI is reading ${attachmentsToSend.length} file${
+                  attachmentsToSend.length === 1 ? "" : "s"
                 }...`
               : imageToSend
                 ? "StudySnap AI is reading the image..."
@@ -1417,42 +1149,33 @@ export default function GeneralAIChat({
       if (attachmentsToSend.length > 0) {
         setPendingAttachments((current) =>
           current.map((attachment) =>
-            attachmentsToSend.some(
-              (selected) =>
-                selected.id === attachment.id
-            )
+            attachmentsToSend.some((selected) => selected.id === attachment.id)
               ? {
                   ...attachment,
                   status: "uploading",
                   progress: 5,
                 }
-              : attachment
-          )
+              : attachment,
+          ),
         );
 
         const data = await askAiWithFiles({
           question: finalQuestion,
-          files: attachmentsToSend.map(
-            (attachment) => attachment.file
-          ),
+          files: attachmentsToSend.map((attachment) => attachment.file),
           conversationId,
           onProgress: (percent) => {
             setPendingAttachments((current) =>
               current.map((attachment) =>
                 attachmentsToSend.some(
-                  (selected) =>
-                    selected.id === attachment.id
+                  (selected) => selected.id === attachment.id,
                 )
                   ? {
                       ...attachment,
-                      status:
-                        percent >= 100
-                          ? "reading"
-                          : "uploading",
+                      status: percent >= 100 ? "reading" : "uploading",
                       progress: percent,
                     }
-                  : attachment
-              )
+                  : attachment,
+              ),
             );
 
             scrollToBottom();
@@ -1468,17 +1191,13 @@ export default function GeneralAIChat({
                   ...message,
                   content: answer,
                 }
-              : message
-          )
+              : message,
+          ),
         );
 
         setRoomCreationOffer({
-          files: attachmentsToSend.map(
-            (attachment) => attachment.file
-          ),
-          fileNames: attachmentsToSend.map(
-            (attachment) => attachment.name
-          ),
+          files: attachmentsToSend.map((attachment) => attachment.file),
+          fileNames: attachmentsToSend.map((attachment) => attachment.name),
           status: "ready",
         });
 
@@ -1487,21 +1206,16 @@ export default function GeneralAIChat({
         setDocumentUploading(true);
         setDocumentUploadProgress(35);
 
-        const progressTimer =
-          window.setTimeout(() => {
-            setDocumentUploadProgress(75);
-          }, 700);
+        const progressTimer = window.setTimeout(() => {
+          setDocumentUploadProgress(75);
+        }, 700);
 
         let data;
 
         try {
-          data = await askAiWithFile(
-            finalQuestion,
-            documentToSend,
-            {
-              conversationId,
-            }
-          );
+          data = await askAiWithFile(finalQuestion, documentToSend, {
+            conversationId,
+          });
         } finally {
           window.clearTimeout(progressTimer);
         }
@@ -1517,33 +1231,26 @@ export default function GeneralAIChat({
                   ...message,
                   content: answer,
                 }
-              : message
-          )
+              : message,
+          ),
         );
       } else if (imageToSend) {
         setImageUploadStatus("uploading");
         setImageUploadProgress(35);
 
-        const analyzingTimer =
-          window.setTimeout(() => {
-            setImageUploadStatus("analyzing");
-            setImageUploadProgress(75);
-          }, 800);
+        const analyzingTimer = window.setTimeout(() => {
+          setImageUploadStatus("analyzing");
+          setImageUploadProgress(75);
+        }, 800);
 
         let data;
 
         try {
-          data = await askAiWithImage(
-            finalQuestion,
-            imageToSend,
-            {
-              conversationId,
-            }
-          );
+          data = await askAiWithImage(finalQuestion, imageToSend, {
+            conversationId,
+          });
         } finally {
-          window.clearTimeout(
-            analyzingTimer
-          );
+          window.clearTimeout(analyzingTimer);
         }
 
         setImageUploadProgress(100);
@@ -1557,8 +1264,8 @@ export default function GeneralAIChat({
                   ...message,
                   content: answer,
                 }
-              : message
-          )
+              : message,
+          ),
         );
       } else {
         let streamedAnswer = "";
@@ -1572,18 +1279,17 @@ export default function GeneralAIChat({
 
             setMessages((current) =>
               current.map((message) =>
-                message.id ===
-                pendingAssistantId
+                message.id === pendingAssistantId
                   ? {
                       ...message,
                       content: streamedAnswer,
                     }
-                  : message
-              )
+                  : message,
+              ),
             );
 
             scrollToBottom();
-          }
+          },
         );
 
         if (!streamedAnswer) {
@@ -1592,11 +1298,10 @@ export default function GeneralAIChat({
               message.id === pendingAssistantId
                 ? {
                     ...message,
-                    content:
-                      "No answer was returned.",
+                    content: "No answer was returned.",
                   }
-                : message
-            )
+                : message,
+            ),
           );
         }
       }
@@ -1623,8 +1328,8 @@ export default function GeneralAIChat({
                 ...item,
                 content: message,
               }
-            : item
-        )
+            : item,
+        ),
       );
 
       setError(message);
@@ -1634,9 +1339,7 @@ export default function GeneralAIChat({
     }
   }
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!canSend) return;
@@ -1653,8 +1356,8 @@ export default function GeneralAIChat({
     setHistoryOpen(next);
 
     window.localStorage.setItem(
-      "studysnap:general-ai-history-open",
-      String(next)
+      "studysnap:general-ai-history-drawer-v2",
+      String(next),
     );
   }
 
@@ -1663,7 +1366,7 @@ export default function GeneralAIChat({
 
     window.localStorage.setItem(
       "studysnap:general-ai-study-tools-open",
-      String(next)
+      String(next),
     );
   }
 
@@ -1684,16 +1387,13 @@ export default function GeneralAIChat({
   async function resetCurrentChat() {
     if (loading) return;
 
-    if (
-      activeConversationId === null ||
-      messages.length === 0
-    ) {
+    if (activeConversationId === null || messages.length === 0) {
       startNewTrail();
       return;
     }
 
     const confirmed = window.confirm(
-      "Reset this chat? Its messages will be permanently removed."
+      "Reset this chat? Its messages will be permanently removed.",
     );
 
     if (!confirmed) return;
@@ -1702,33 +1402,24 @@ export default function GeneralAIChat({
       setLoading(true);
       setError("");
 
-      await deleteAIConversation(
-        activeConversationId
-      );
+      await deleteAIConversation(activeConversationId);
 
       setTrails((current) =>
-        current.filter(
-          (trail) =>
-            trail.id !== activeConversationId
-        )
+        current.filter((trail) => trail.id !== activeConversationId),
       );
 
       startNewTrail();
       updateHistoryOpen(false);
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not reset this chat."
+        err instanceof Error ? err.message : "Could not reset this chat.",
       );
     } finally {
       setLoading(false);
     }
   }
 
-  function toggleMessageExpanded(
-    messageId: string | number
-  ) {
+  function toggleMessageExpanded(messageId: string | number) {
     setExpandedMessageIds((current) => {
       const next = new Set(current);
 
@@ -1742,9 +1433,7 @@ export default function GeneralAIChat({
     });
   }
 
-  async function selectTrail(
-    trail: AIConversation
-  ) {
+  async function selectTrail(trail: AIConversation) {
     if (loading) return;
 
     setActiveConversationId(trail.id);
@@ -1760,13 +1449,8 @@ export default function GeneralAIChat({
     }
   }
 
-  async function renameTrail(
-    trail: AIConversation
-  ) {
-    const nextTitle = window.prompt(
-      "Rename chat",
-      trail.title
-    );
+  async function renameTrail(trail: AIConversation) {
+    const nextTitle = window.prompt("Rename chat", trail.title);
 
     if (nextTitle === null) return;
 
@@ -1775,65 +1459,37 @@ export default function GeneralAIChat({
     if (!cleanTitle) return;
 
     try {
-      const updated =
-        await renameAIConversation(
-          trail.id,
-          cleanTitle
-        );
+      const updated = await renameAIConversation(trail.id, cleanTitle);
 
       setTrails((current) =>
-        current.map((item) =>
-          item.id === trail.id
-            ? updated
-            : item
-        )
+        current.map((item) => (item.id === trail.id ? updated : item)),
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not rename this chat."
+        err instanceof Error ? err.message : "Could not rename this chat.",
       );
     }
   }
 
-  async function togglePinTrail(
-    trail: AIConversation
-  ) {
+  async function togglePinTrail(trail: AIConversation) {
     try {
-      const updated =
-        await pinAIConversation(
-          trail.id,
-          !trail.is_pinned
-        );
+      const updated = await pinAIConversation(trail.id, !trail.is_pinned);
 
       setTrails((current) =>
         current
-          .map((item) =>
-            item.id === trail.id
-              ? updated
-              : item
-          )
-          .sort(
-            (a, b) =>
-              Number(b.is_pinned) -
-              Number(a.is_pinned)
-          )
+          .map((item) => (item.id === trail.id ? updated : item))
+          .sort((a, b) => Number(b.is_pinned) - Number(a.is_pinned)),
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not update this chat."
+        err instanceof Error ? err.message : "Could not update this chat.",
       );
     }
   }
 
-  async function deleteTrail(
-    trail: AIConversation
-  ) {
+  async function deleteTrail(trail: AIConversation) {
     const confirmed = window.confirm(
-      `Delete "${trail.title}"? This cannot be undone.`
+      `Delete "${trail.title}"? This cannot be undone.`,
     );
 
     if (!confirmed) return;
@@ -1841,64 +1497,44 @@ export default function GeneralAIChat({
     try {
       await deleteAIConversation(trail.id);
 
-      const remaining = trails.filter(
-        (item) => item.id !== trail.id
-      );
+      const remaining = trails.filter((item) => item.id !== trail.id);
 
       setTrails(remaining);
 
-      if (
-        activeConversationId === trail.id
-      ) {
+      if (activeConversationId === trail.id) {
         if (remaining.length > 0) {
-          setActiveConversationId(
-            remaining[0].id
-          );
-          await loadMessages(
-            remaining[0].id
-          );
+          setActiveConversationId(remaining[0].id);
+          await loadMessages(remaining[0].id);
         } else {
           startNewTrail();
         }
       }
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Could not delete this chat."
+        err instanceof Error ? err.message : "Could not delete this chat.",
       );
     }
   }
 
-  async function copyMessage(
-    message: DisplayMessage
-  ) {
+  async function copyMessage(message: DisplayMessage) {
     try {
-      await copyTextWithFallback(
-        message.content
-      );
+      await copyTextWithFallback(message.content);
 
       setCopiedId(message.id);
 
-      window.setTimeout(
-        () => setCopiedId(null),
-        1200
-      );
+      window.setTimeout(() => setCopiedId(null), 1200);
     } catch {
       setError("Unable to copy this answer.");
     }
   }
 
-  function downloadGeneratedImage(
-    message: DisplayMessage
-  ) {
+  function downloadGeneratedImage(message: DisplayMessage) {
     if (!message.imagePreview) return;
 
     const link = document.createElement("a");
 
     link.href = message.imagePreview;
-    link.download =
-      `studysnap-image-${Date.now()}.png`;
+    link.download = `studysnap-image-${Date.now()}.png`;
     link.rel = "noopener";
 
     document.body.appendChild(link);
@@ -1907,10 +1543,7 @@ export default function GeneralAIChat({
   }
 
   async function createStudyRoomFromFiles() {
-    if (
-      !roomCreationOffer ||
-      roomCreationOffer.status === "creating"
-    ) {
+    if (!roomCreationOffer || roomCreationOffer.status === "creating") {
       return;
     }
 
@@ -1925,26 +1558,21 @@ export default function GeneralAIChat({
               ...current,
               status: "creating",
             }
-          : null
+          : null,
       );
 
-      const result =
-        await organizeFilesIntoStudyRooms(files);
+      const result = await organizeFilesIntoStudyRooms(files);
 
       const firstRoom = result.rooms[0];
 
       if (!firstRoom) {
-        throw new Error(
-          "StudySnap could not create a room from these files."
-        );
+        throw new Error("StudySnap could not create a room from these files.");
       }
 
       saveProjectRoomId(firstRoom.id);
       setRoomCreationOffer(null);
 
-      router.push(
-        `/study-rooms/${firstRoom.id}`
-      );
+      router.push(`/study-rooms/${firstRoom.id}`);
     } catch (err) {
       setRoomCreationOffer((current) =>
         current
@@ -1952,13 +1580,13 @@ export default function GeneralAIChat({
               ...current,
               status: "ready",
             }
-          : null
+          : null,
       );
 
       setError(
         err instanceof Error
           ? err.message
-          : "The study room could not be created."
+          : "The study room could not be created.",
       );
     }
   }
@@ -1969,8 +1597,8 @@ export default function GeneralAIChat({
         onSubmit={handleSubmit}
         className={
           large
-            ? "rounded-[1.6rem] border border-[#c9ad50]/[0.18] bg-[#12181e] p-4"
-            : "rounded-[1.4rem] border border-white/10 bg-[#12181e] p-3 shadow-[0_20px_70px_rgba(0,0,0,0.42)]"
+            ? "studysnap-composer rounded-[1.6rem] border border-[#c9ad50]/[0.18] p-4"
+            : "studysnap-composer rounded-[1.15rem] border border-white/[0.085] p-2.5 sm:p-3"
         }
       >
         <input
@@ -1980,9 +1608,7 @@ export default function GeneralAIChat({
           accept="image/*,.heic,.heif,.pdf,.docx,.pptx,.xlsx,.txt,.rtf,.csv,.md,.json,.py,.js,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml"
           className="hidden"
           onChange={(event) => {
-            void handleMultipleAttachmentChange(
-              event.currentTarget.files
-            );
+            void handleMultipleAttachmentChange(event.currentTarget.files);
           }}
         />
 
@@ -2002,13 +1628,8 @@ export default function GeneralAIChat({
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setRoomCreationOffer(null)
-                }
-                disabled={
-                  roomCreationOffer.status ===
-                  "creating"
-                }
+                onClick={() => setRoomCreationOffer(null)}
+                disabled={roomCreationOffer.status === "creating"}
                 aria-label="Dismiss study room suggestion"
                 title="Dismiss"
                 className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-40"
@@ -2018,17 +1639,11 @@ export default function GeneralAIChat({
 
               <button
                 type="button"
-                onClick={() =>
-                  void createStudyRoomFromFiles()
-                }
-                disabled={
-                  roomCreationOffer.status ===
-                  "creating"
-                }
+                onClick={() => void createStudyRoomFromFiles()}
+                disabled={roomCreationOffer.status === "creating"}
                 className="rounded-xl bg-[#c9ad50] px-3 py-2 text-xs font-black text-[#111317] transition hover:bg-[#d5bb63] disabled:opacity-50"
               >
-                {roomCreationOffer.status ===
-                "creating"
+                {roomCreationOffer.status === "creating"
                   ? "Creating..."
                   : "Create study room"}
               </button>
@@ -2050,30 +1665,18 @@ export default function GeneralAIChat({
             <select
               value={imageSize}
               onChange={(event) =>
-                setImageSize(
-                  event.target
-                    .value as GenerateAIImageSize
-                )
+                setImageSize(event.target.value as GenerateAIImageSize)
               }
               className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs font-black text-white outline-none"
               aria-label="Generated image size"
             >
-              <option
-                value="1024x1024"
-                className="bg-[#151c23]"
-              >
+              <option value="1024x1024" className="bg-[#151c23]">
                 Square
               </option>
-              <option
-                value="1536x1024"
-                className="bg-[#151c23]"
-              >
+              <option value="1536x1024" className="bg-[#151c23]">
                 Landscape
               </option>
-              <option
-                value="1024x1536"
-                className="bg-[#151c23]"
-              >
+              <option value="1024x1536" className="bg-[#151c23]">
                 Portrait
               </option>
             </select>
@@ -2083,89 +1686,72 @@ export default function GeneralAIChat({
         {pendingAttachments.length > 0 ? (
           <div className="mb-3 min-w-0 max-w-full overflow-x-auto pb-1">
             <div className="flex min-w-max gap-2">
-              {pendingAttachments.map(
-                (attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="relative w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25 sm:w-44"
-                  >
-                    {attachment.kind === "image" &&
-                    attachment.preview ? (
-                      <img
-                        src={attachment.preview}
-                        alt={attachment.name}
-                        className="h-24 w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-24 place-items-center bg-white/[0.035] text-3xl">
-                        📄
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removePendingAttachment(
-                          attachment.id
-                        )
-                      }
-                      disabled={
-                        attachment.status ===
-                          "uploading" ||
-                        attachment.status ===
-                          "reading"
-                      }
-                      aria-label={`Remove ${attachment.name}`}
-                      title="Remove"
-                      className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-sm font-black text-white backdrop-blur disabled:opacity-40"
-                    >
-                      ×
-                    </button>
-
-                    <div className="p-2.5">
-                      <p className="truncate text-xs font-black text-white">
-                        {attachment.name}
-                      </p>
-
-                      <p className="mt-1 text-[10px] font-bold text-slate-500">
-                        {attachment.status ===
-                        "uploading"
-                          ? `Uploading ${attachment.progress}%`
-                          : attachment.status ===
-                              "reading"
-                            ? "Reading…"
-                            : attachment.status ===
-                                "failed"
-                              ? "Failed"
-                              : `${(
-                                  attachment.size /
-                                  1024 /
-                                  1024
-                                ).toFixed(2)} MB`}
-                      </p>
-
-                      {attachment.status ===
-                        "uploading" ||
-                      attachment.status ===
-                        "reading" ? (
-                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-[#c9ad50] transition-all"
-                            style={{
-                              width: `${
-                                attachment.status ===
-                                "reading"
-                                  ? 100
-                                  : attachment.progress
-                              }%`,
-                            }}
-                          />
-                        </div>
-                      ) : null}
+              {pendingAttachments.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  className="relative w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25 sm:w-44"
+                >
+                  {attachment.kind === "image" && attachment.preview ? (
+                    <img
+                      src={attachment.preview}
+                      alt={attachment.name}
+                      className="h-24 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-24 place-items-center bg-white/[0.035] text-3xl">
+                      📄
                     </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => removePendingAttachment(attachment.id)}
+                    disabled={
+                      attachment.status === "uploading" ||
+                      attachment.status === "reading"
+                    }
+                    aria-label={`Remove ${attachment.name}`}
+                    title="Remove"
+                    className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-sm font-black text-white backdrop-blur disabled:opacity-40"
+                  >
+                    ×
+                  </button>
+
+                  <div className="p-2.5">
+                    <p className="truncate text-xs font-black text-white">
+                      {attachment.name}
+                    </p>
+
+                    <p className="mt-1 text-[10px] font-bold text-slate-500">
+                      {attachment.status === "uploading"
+                        ? `Uploading ${attachment.progress}%`
+                        : attachment.status === "reading"
+                          ? "Reading…"
+                          : attachment.status === "failed"
+                            ? "Failed"
+                            : `${(attachment.size / 1024 / 1024).toFixed(
+                                2,
+                              )} MB`}
+                    </p>
+
+                    {attachment.status === "uploading" ||
+                    attachment.status === "reading" ? (
+                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-[#c9ad50] transition-all"
+                          style={{
+                            width: `${
+                              attachment.status === "reading"
+                                ? 100
+                                : attachment.progress
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </div>
           </div>
         ) : null}
@@ -2211,9 +1797,7 @@ export default function GeneralAIChat({
                 Save to room
               </button>
 
-              <span className="text-xs text-slate-500">
-                Optional
-              </span>
+              <span className="text-xs text-slate-500">Optional</span>
             </div>
           </div>
         ) : null}
@@ -2300,14 +1884,9 @@ export default function GeneralAIChat({
         <textarea
           ref={inputRef}
           value={input}
-          onChange={(event) =>
-            setInput(event.target.value)
-          }
+          onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey
-            ) {
+            if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
 
               if (!canSend) return;
@@ -2332,11 +1911,9 @@ export default function GeneralAIChat({
                       ? "Ask about this file..."
                       : "Message..."
           }
-          rows={large ? 4 : 2}
+          rows={large ? 4 : 1}
           className={`w-full resize-none bg-transparent px-3 py-3 font-semibold text-white outline-none placeholder:text-slate-500 ${
-            large
-              ? "min-h-32 text-lg"
-              : "max-h-40 min-h-16 text-sm"
+            large ? "min-h-32 text-lg" : "max-h-36 min-h-12 text-sm leading-6"
           }`}
         />
 
@@ -2345,8 +1922,7 @@ export default function GeneralAIChat({
             <button
               type="button"
               onClick={() => {
-                const attachmentInput =
-                  fileInputRef.current;
+                const attachmentInput = fileInputRef.current;
 
                 if (!attachmentInput) {
                   setError(
@@ -2369,9 +1945,7 @@ export default function GeneralAIChat({
               type="button"
               aria-pressed={createImageMode}
               onClick={() => {
-                setCreateImageMode(
-                  (current) => !current
-                );
+                setCreateImageMode((current) => !current);
                 removeSelectedImage();
                 setError("");
                 inputRef.current?.focus();
@@ -2382,15 +1956,13 @@ export default function GeneralAIChat({
                   : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.1] hover:text-white"
               }`}
             >
-              {createImageMode
-                ? "✦ Image mode"
-                : "✦ Create image"}
+              {createImageMode ? "✦ Image mode" : "✦ Create image"}
             </button>
 
-            {(input.trim() ||
-              selectedImage ||
-              pendingDocument ||
-              pendingAttachments.length > 0) ? (
+            {input.trim() ||
+            selectedImage ||
+            pendingDocument ||
+            pendingAttachments.length > 0 ? (
               <button
                 type="button"
                 onClick={clearComposer}
@@ -2410,21 +1982,11 @@ export default function GeneralAIChat({
               type="submit"
               disabled={!canSend}
               className={`grid h-10 place-items-center rounded-xl bg-[#c9ad50] font-black text-[#111317] transition hover:bg-[#d5bb63] disabled:cursor-not-allowed disabled:opacity-40 ${
-                createImageMode
-                  ? "min-w-24 px-4 text-xs"
-                  : "w-10 text-lg"
+                createImageMode ? "min-w-24 px-4 text-xs" : "w-10 text-lg"
               }`}
-              title={
-                createImageMode
-                  ? "Create image"
-                  : "Send"
-              }
+              title={createImageMode ? "Create image" : "Send"}
             >
-              {loading
-                ? "..."
-                : createImageMode
-                  ? "Create"
-                  : "↑"}
+              {loading ? "..." : createImageMode ? "Create" : "↑"}
             </button>
           </div>
         </div>
@@ -2433,84 +1995,24 @@ export default function GeneralAIChat({
   }
 
   return (
-    <section className="relative min-h-[calc(100dvh-10rem)] min-w-0 max-w-full overflow-x-clip">
-      <div className="sticky top-[60px] z-30 -mx-3 border-b border-white/[0.08] bg-[#0b0f14]/[0.97] px-3 py-2 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:top-[72px] lg:mx-0 lg:mb-3 lg:rounded-2xl lg:border">
-        <div className="flex min-h-12 items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              updateHistoryOpen(!historyOpen)
-            }
-            aria-label="Open chat history"
-            aria-expanded={historyOpen}
-            title="Chat history"
-            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-base transition ${
-              historyOpen
-                ? "border-[#c9ad50]/30 bg-white/[0.04] text-[#e6daa0]"
-                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-            }`}
-          >
-            ☰
-          </button>
+    <section className="studysnap-ai-workspace relative flex h-[calc(100dvh-8.5rem-env(safe-area-inset-bottom))] min-h-[31rem] min-w-0 max-w-full flex-col overflow-hidden lg:h-[calc(100dvh-6.75rem)] lg:min-h-[36rem]">
+      <div className="mb-2 shrink-0 overflow-hidden rounded-[1.15rem] border border-white/[0.075] bg-black/20 px-3 py-2 shadow-[0_14px_40px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+        <div className="flex min-h-12 items-center gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.09] bg-white/[0.045] text-sm font-black text-[#d8c878]">
+            S
+          </div>
 
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-white">
-              Ask
-            </p>
+            <p className="text-sm font-black text-white">Ask</p>
 
             <p className="truncate text-[11px] text-slate-500">
               {activeTrail?.title || "New chat"}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={startNewTrail}
-            aria-label="Start a new chat"
-            title="New chat"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-xl text-slate-200 transition hover:bg-white/[0.08]"
-          >
-            ＋
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              void resetCurrentChat()
-            }
-            disabled={
-              loading ||
-              (
-                !hasMessages &&
-                !input.trim() &&
-                !selectedImage
-              )
-            }
-            aria-label="Reset current chat"
-            title="Reset chat"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-lg text-slate-300 transition hover:border-red-300/20 hover:bg-red-400/10 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            ↻
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              updateStudyToolsOpen(
-                !studyToolsOpen
-              )
-            }
-            aria-label="Open study tools"
-            aria-expanded={studyToolsOpen}
-            title="Study tools"
-            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black tracking-[0.12em] transition ${
-              studyToolsOpen
-                ? "border-[#c9ad50]/30 bg-white/[0.04] text-[#e6daa0]"
-                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-            }`}
-          >
-            •••
-          </button>
+          <span className="hidden shrink-0 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 sm:inline-flex">
+            StudySnap AI
+          </span>
         </div>
       </div>
 
@@ -2519,9 +2021,7 @@ export default function GeneralAIChat({
           <button
             type="button"
             aria-label="Close chat history"
-            onClick={() =>
-              updateHistoryOpen(false)
-            }
+            onClick={() => updateHistoryOpen(false)}
             className="absolute inset-0 bg-black/65 backdrop-blur-sm"
           />
 
@@ -2529,9 +2029,7 @@ export default function GeneralAIChat({
             <div className="flex h-11 items-center justify-end px-1">
               <button
                 type="button"
-                onClick={() =>
-                  updateHistoryOpen(false)
-                }
+                onClick={() => updateHistoryOpen(false)}
                 className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300"
                 aria-label="Close chat history"
                 title="Close"
@@ -2548,37 +2046,125 @@ export default function GeneralAIChat({
               title="Chats"
               emptyMessage="Start your first chat."
               onSearchChange={setTrailSearch}
-              onSelect={(trail) =>
-                void selectTrail(trail)
-              }
+              onSelect={(trail) => void selectTrail(trail)}
               onNew={() => {
                 startNewTrail();
                 updateHistoryOpen(false);
               }}
-              onRename={(trail) =>
-                void renameTrail(trail)
-              }
-              onDelete={(trail) =>
-                void deleteTrail(trail)
-              }
-              onTogglePin={(trail) =>
-                void togglePinTrail(trail)
-              }
+              onRename={(trail) => void renameTrail(trail)}
+              onDelete={(trail) => void deleteTrail(trail)}
+              onTogglePin={(trail) => void togglePinTrail(trail)}
             />
           </aside>
         </div>
       ) : null}
 
-      <div
-        className={`grid min-w-0 gap-4 ${
-          historyOpen
-            ? "xl:grid-cols-[280px_minmax(0,1fr)]"
-            : "grid-cols-1"
-        }`}
-      >
+      <div className="relative grid min-h-0 flex-1 grid-cols-[50px_minmax(0,1fr)] gap-2 overflow-hidden sm:grid-cols-[54px_minmax(0,1fr)] sm:gap-3">
+        <nav
+          aria-label="AI tools"
+          className="studysnap-ai-rail studysnap-scroll flex min-h-0 flex-col items-center gap-2 overflow-y-auto rounded-[1.1rem] border border-white/[0.075] px-1 py-2.5 sm:px-1.5 sm:py-3"
+        >
+          <button
+            type="button"
+            onClick={startNewTrail}
+            aria-label="Start a new chat"
+            title="New chat"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63] active:scale-95"
+          >
+            ＋
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateHistoryOpen(!historyOpen)}
+            aria-label="Open chat history"
+            aria-expanded={historyOpen}
+            title="Chats"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-base transition ${
+              historyOpen
+                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                : "border-white/[0.09] bg-white/[0.04] text-slate-300 hover:bg-white/[0.09]"
+            }`}
+          >
+            ☰
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const attachmentInput = fileInputRef.current;
+
+              if (!attachmentInput) {
+                setError(
+                  "The attachment picker could not open. Please refresh and try again.",
+                );
+                return;
+              }
+
+              attachmentInput.value = "";
+              attachmentInput.click();
+            }}
+            disabled={createImageMode || loading}
+            aria-label="Attach files"
+            title="Attach files"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.09] bg-white/[0.04] text-base font-black text-slate-300 transition hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ↥
+          </button>
+
+          <button
+            type="button"
+            aria-pressed={createImageMode}
+            onClick={() => {
+              setCreateImageMode((current) => !current);
+              removeSelectedImage();
+              setError("");
+              inputRef.current?.focus();
+            }}
+            aria-label="Create an image"
+            title="Create image"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black transition ${
+              createImageMode
+                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                : "border-white/[0.09] bg-white/[0.04] text-slate-300 hover:bg-white/[0.09]"
+            }`}
+          >
+            ✦
+          </button>
+
+          <div className="mt-auto flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => void resetCurrentChat()}
+              disabled={
+                loading || (!hasMessages && !input.trim() && !selectedImage)
+              }
+              aria-label="Reset current chat"
+              title="Reset chat"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.09] bg-white/[0.04] text-base text-slate-400 transition hover:border-red-300/20 hover:bg-red-400/10 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              ↻
+            </button>
+
+            <button
+              type="button"
+              onClick={() => updateStudyToolsOpen(!studyToolsOpen)}
+              aria-label="Open study tools"
+              aria-expanded={studyToolsOpen}
+              title="More tools"
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[11px] font-black tracking-[0.08em] transition ${
+                studyToolsOpen
+                  ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                  : "border-white/[0.09] bg-white/[0.04] text-slate-400 hover:bg-white/[0.09] hover:text-white"
+              }`}
+            >
+              •••
+            </button>
+          </div>
+        </nav>
         {historyOpen ? (
-          <aside className="hidden min-w-0 xl:block">
-            <div className="sticky top-[9.25rem]">
+          <aside className="absolute bottom-0 left-[68px] top-0 z-40 hidden w-[280px] min-w-0 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#080c10]/95 p-2 shadow-[0_28px_80px_rgba(0,0,0,0.60),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-3xl xl:block">
+            <div className="h-full">
               <StudyTrailPanel
                 trails={trails}
                 activeTrailId={activeConversationId}
@@ -2587,28 +2173,19 @@ export default function GeneralAIChat({
                 title="Chats"
                 emptyMessage="Start your first chat."
                 onSearchChange={setTrailSearch}
-                onSelect={(trail) =>
-                  void selectTrail(trail)
-                }
+                onSelect={(trail) => void selectTrail(trail)}
                 onNew={startNewTrail}
-                onRename={(trail) =>
-                  void renameTrail(trail)
-                }
-                onDelete={(trail) =>
-                  void deleteTrail(trail)
-                }
-                onTogglePin={(trail) =>
-                  void togglePinTrail(trail)
-                }
+                onRename={(trail) => void renameTrail(trail)}
+                onDelete={(trail) => void deleteTrail(trail)}
+                onTogglePin={(trail) => void togglePinTrail(trail)}
               />
             </div>
           </aside>
         ) : null}
 
-        <div className="min-w-0">
-          {!hasMessages &&
-          !loadingMessages ? (
-            <div className="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-3xl flex-col justify-center py-6">
+        <div className="studysnap-chat-surface relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[1.15rem] border border-white/[0.075]">
+          {!hasMessages && !loadingMessages ? (
+            <div className="mx-auto flex h-full w-full max-w-[960px] flex-col justify-center overflow-y-auto px-3 py-6">
               <div className="text-center">
                 <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-xl text-[#e3d589]">
                   ✦
@@ -2619,18 +2196,14 @@ export default function GeneralAIChat({
                 </h2>
               </div>
 
-              <div className="mt-6">
-                {renderComposer(false)}
-              </div>
+              <div className="mt-6">{renderComposer(false)}</div>
 
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
-                    onClick={() =>
-                      void sendMessage(suggestion)
-                    }
+                    onClick={() => void sendMessage(suggestion)}
                     disabled={loading}
                     className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-xs font-bold text-slate-300 transition hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
                   >
@@ -2641,7 +2214,7 @@ export default function GeneralAIChat({
             </div>
           ) : (
             <>
-              <div className="space-y-3 px-0.5 pb-48 pt-4 sm:px-2">
+              <div className="mx-auto min-h-0 w-full max-w-[1100px] studysnap-scroll flex-1 space-y-4 overflow-y-auto px-3 pb-5 pt-3 sm:px-6">
                 {loadingMessages ? (
                   <p className="py-12 text-center text-sm font-bold text-slate-400">
                     Opening chat...
@@ -2649,28 +2222,15 @@ export default function GeneralAIChat({
                 ) : null}
 
                 {messages.map((message) => {
-                  const collapseLimit =
-                    message.role === "user"
-                      ? 420
-                      : 760;
+                  const collapseLimit = message.role === "user" ? 420 : 760;
 
-                  const longMessage =
-                    message.content.length >
-                    collapseLimit;
+                  const longMessage = message.content.length > collapseLimit;
 
-                  const expanded =
-                    expandedMessageIds.has(
-                      message.id
-                    );
+                  const expanded = expandedMessageIds.has(message.id);
 
                   const displayedContent =
                     longMessage && !expanded
-                      ? `${message.content
-                          .slice(
-                            0,
-                            collapseLimit,
-                          )
-                          .trimEnd()}…`
+                      ? `${message.content.slice(0, collapseLimit).trimEnd()}…`
                       : message.content;
 
                   return (
@@ -2678,65 +2238,63 @@ export default function GeneralAIChat({
                       key={message.id}
                       className={
                         message.role === "user"
-                          ? "ml-auto w-fit max-w-[88%] rounded-2xl border border-white/[0.07] bg-white/[0.055] px-4 py-3 text-[#f2efe6] shadow-sm sm:max-w-[76%]"
-                          : "mr-auto w-fit max-w-[96%] rounded-2xl border border-white/[0.06] bg-[#0d1013] px-4 py-3 text-slate-100 shadow-sm sm:max-w-[86%]"
+                          ? "ml-auto w-fit max-w-[88%] rounded-2xl border border-white/[0.07] bg-white/[0.055] px-4 py-3 text-[#f2efe6] shadow-sm sm:max-w-[72%]"
+                          : "mr-auto w-fit max-w-[94%] rounded-2xl border border-white/[0.06] bg-[#0d1013] px-4 py-3 text-slate-100 shadow-sm sm:max-w-[92%]"
                       }
                     >
                       {message.attachments?.length ? (
                         <div className="mb-3 flex max-w-full gap-2 overflow-x-auto pb-1">
-                          {message.attachments.map(
-                            (attachment) => (
-                              <div
-                                key={attachment.id}
-                                className="w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20"
-                              >
-                                {attachment.kind === "image" &&
-                                attachment.preview ? (
-                                  <img
-                                    src={attachment.preview}
-                                    alt={attachment.name}
-                                    className="h-24 w-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="grid h-24 place-items-center text-3xl">
-                                    📄
-                                  </div>
-                                )}
-
-                                <div className="p-2">
-                                  <p className="truncate text-[11px] font-black text-white">
-                                    {attachment.name}
-                                  </p>
+                          {message.attachments.map((attachment) => (
+                            <div
+                              key={attachment.id}
+                              className="w-36 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20"
+                            >
+                              {attachment.kind === "image" &&
+                              attachment.preview ? (
+                                <img
+                                  src={attachment.preview}
+                                  alt={attachment.name}
+                                  className="h-24 w-full object-cover"
+                                />
+                              ) : (
+                                <div className="grid h-24 place-items-center text-3xl">
+                                  📄
                                 </div>
+                              )}
+
+                              <div className="p-2">
+                                <p className="truncate text-[11px] font-black text-white">
+                                  {attachment.name}
+                                </p>
                               </div>
-                            )
-                          )}
+                            </div>
+                          ))}
                         </div>
                       ) : null}
 
                       {message.documentName ? (
-                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
-                      <span className="text-xl">📄</span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-white">
-                          {message.documentName}
-                        </p>
-                        {typeof message.documentSize === "number" ? (
-                          <p className="text-xs text-slate-500">
-                            {(message.documentSize / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
+                        <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                          <span className="text-xl">📄</span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-white">
+                              {message.documentName}
+                            </p>
+                            {typeof message.documentSize === "number" ? (
+                              <p className="text-xs text-slate-500">
+                                {(message.documentSize / 1024 / 1024).toFixed(
+                                  2,
+                                )}{" "}
+                                MB
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
 
-                  {message.imagePreview ? (
+                      {message.imagePreview ? (
                         <img
                           src={message.imagePreview}
-                          alt={
-                            message.imageName ||
-                            "Uploaded image"
-                          }
+                          alt={message.imageName || "Uploaded image"}
                           className={`mb-3 rounded-xl object-contain ${
                             message.generatedImage
                               ? "max-h-[520px] w-full"
@@ -2747,23 +2305,15 @@ export default function GeneralAIChat({
 
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">
-                          {message.role === "user"
-                            ? "You"
-                            : "AI"}
+                          {message.role === "user" ? "You" : "AI"}
                         </p>
 
-                        {message.role ===
-                        "assistant" ? (
+                        {message.role === "assistant" ? (
                           <div className="flex items-center gap-1.5">
-                            {message.generatedImage &&
-                            message.imagePreview ? (
+                            {message.generatedImage && message.imagePreview ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  downloadGeneratedImage(
-                                    message
-                                  )
-                                }
+                                onClick={() => downloadGeneratedImage(message)}
                                 title="Download image"
                                 className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
                               >
@@ -2773,24 +2323,17 @@ export default function GeneralAIChat({
 
                             <button
                               type="button"
-                              onClick={() =>
-                                void copyMessage(
-                                  message
-                                )
-                              }
+                              onClick={() => void copyMessage(message)}
                               title="Copy answer"
                               className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
                             >
-                              {copiedId === message.id
-                                ? "✓"
-                                : "Copy"}
+                              {copiedId === message.id ? "✓" : "Copy"}
                             </button>
                           </div>
                         ) : null}
                       </div>
 
-                      {message.role ===
-                      "assistant" ? (
+                      {message.role === "assistant" ? (
                         <SimpleMarkdown
                           content={displayedContent}
                           className="text-sm leading-7"
@@ -2804,16 +2347,10 @@ export default function GeneralAIChat({
                       {longMessage ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            toggleMessageExpanded(
-                              message.id
-                            )
-                          }
+                          onClick={() => toggleMessageExpanded(message.id)}
                           className="mt-3 text-xs font-black text-[#d9ca83] hover:text-[#eee3ac]"
                         >
-                          {expanded
-                            ? "Show less"
-                            : "Show more"}
+                          {expanded ? "Show less" : "Show more"}
                         </button>
                       ) : null}
                     </article>
@@ -2823,8 +2360,10 @@ export default function GeneralAIChat({
                 <div ref={bottomRef} />
               </div>
 
-              <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 -mx-1 bg-gradient-to-t from-[#0b0f14] via-[#0b0f14]/95 to-transparent px-1 pb-2 pt-5 lg:bottom-3">
-                {renderComposer(false)}
+              <div className="shrink-0 border-t border-white/[0.065] bg-[#06090c]/88 px-2.5 pb-2.5 pt-2 backdrop-blur-2xl sm:px-4 sm:pb-3">
+                <div className="mx-auto w-full max-w-[1100px]">
+                  {renderComposer(false)}
+                </div>
               </div>
             </>
           )}
@@ -2836,7 +2375,6 @@ export default function GeneralAIChat({
           ) : null}
         </div>
       </div>
-
 
       {roomPickerOpen ? (
         <div className="fixed inset-0 z-[110] grid place-items-end bg-black/70 p-3 backdrop-blur-sm sm:place-items-center">
@@ -2933,23 +2471,17 @@ export default function GeneralAIChat({
           <button
             type="button"
             aria-label="Close study tools"
-            onClick={() =>
-              updateStudyToolsOpen(false)
-            }
+            onClick={() => updateStudyToolsOpen(false)}
             className="absolute inset-0 bg-black/65 backdrop-blur-sm"
           />
 
           <aside className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3 right-3 rounded-2xl border border-white/10 bg-[#12181e] p-4 shadow-2xl lg:bottom-auto lg:left-1/2 lg:right-auto lg:top-1/2 lg:w-[420px] lg:-translate-x-1/2 lg:-translate-y-1/2">
             <div className="flex items-center justify-between">
-              <p className="font-black text-white">
-                Study tools
-              </p>
+              <p className="font-black text-white">Study tools</p>
 
               <button
                 type="button"
-                onClick={() =>
-                  updateStudyToolsOpen(false)
-                }
+                onClick={() => updateStudyToolsOpen(false)}
                 className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300"
                 aria-label="Close study tools"
               >

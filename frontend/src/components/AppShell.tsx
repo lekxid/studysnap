@@ -1,10 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  usePathname,
-  useRouter,
-} from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import CommandBar from "@/components/CommandBar";
@@ -141,12 +138,7 @@ const topNavItems: NavItem[] = [
   },
 ];
 
-type MobileNavIconName =
-  | "home"
-  | "rooms"
-  | "ask"
-  | "together"
-  | "profile";
+type MobileNavIconName = "home" | "rooms" | "ask" | "together" | "profile";
 
 type MobileNavItem = {
   href: string;
@@ -190,11 +182,7 @@ const projectAwareNavHrefs = new Set([
   "/ai-tutor",
 ]);
 
-function isNavItemActive(
-  pathname: string,
-  href: string,
-  search?: string,
-) {
+function isNavItemActive(pathname: string, href: string, search?: string) {
   if (
     href === "/study-together" &&
     /^\/study-rooms\/\d+/.test(pathname) &&
@@ -204,17 +192,11 @@ function isNavItemActive(
   }
 
   if (href === "/study-rooms") {
-    if (
-      /^\/study-rooms\/\d+/.test(pathname) &&
-      search === "together"
-    ) {
+    if (/^\/study-rooms\/\d+/.test(pathname) && search === "together") {
       return false;
     }
 
-    return (
-      pathname === "/study-rooms" ||
-      /^\/study-rooms\/\d+/.test(pathname)
-    );
+    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -231,8 +213,7 @@ function isMobileNavItemActive(
 ) {
   if (item.icon === "ask") {
     return (
-      pathname.startsWith("/ai-tutor") ||
-      pathname.startsWith("/general-ai")
+      pathname.startsWith("/ai-tutor") || pathname.startsWith("/general-ai")
     );
   }
 
@@ -240,17 +221,13 @@ function isMobileNavItemActive(
     return (
       pathname.startsWith("/study-together") ||
       pathname.startsWith("/groups") ||
-      (
-        /^\/study-rooms\/\d+/.test(pathname) &&
-        search === "together"
-      )
+      (/^\/study-rooms\/\d+/.test(pathname) && search === "together")
     );
   }
 
   if (item.icon === "profile") {
     return (
-      pathname.startsWith("/settings") ||
-      pathname.startsWith("/onboarding")
+      pathname.startsWith("/settings") || pathname.startsWith("/onboarding")
     );
   }
 
@@ -371,11 +348,7 @@ function getInitials(name: string) {
     .join("");
 }
 
-function MobileNavIcon({
-  name,
-}: {
-  name: MobileNavIconName;
-}) {
+function MobileNavIcon({ name }: { name: MobileNavIconName }) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -443,8 +416,9 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const [activeQueryTab, setActiveQueryTab] =
-    useState<string | undefined>(undefined);
+  const [activeQueryTab, setActiveQueryTab] = useState<string | undefined>(
+    undefined,
+  );
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [brandMenuOpen, setBrandMenuOpen] = useState(false);
@@ -471,8 +445,7 @@ export default function AppShell({
   const [roomsError, setRoomsError] = useState("");
 
   const [learnerName, setLearnerName] = useState("StudySnap Learner");
-  const [learnerAvatarUrl, setLearnerAvatarUrl] =
-    useState<string | null>(null);
+  const [learnerAvatarUrl, setLearnerAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const savedSidebarState = window.localStorage.getItem(
@@ -488,19 +461,13 @@ export default function AppShell({
     let cancelled = false;
     let activeObjectUrl: string | null = null;
 
-    async function loadProfile(
-      suppliedProfile?: UserProfile
-    ) {
+    async function loadProfile(suppliedProfile?: UserProfile) {
       try {
-        const profile =
-          suppliedProfile ?? await getCurrentUser();
+        const profile = suppliedProfile ?? (await getCurrentUser());
 
         if (cancelled) return;
 
-        setLearnerName(
-          profile.full_name?.trim() ||
-            getStoredUserName()
-        );
+        setLearnerName(profile.full_name?.trim() || getStoredUserName());
 
         if (!profile.avatar_url) {
           setLearnerAvatarUrl((current) => {
@@ -510,8 +477,7 @@ export default function AppShell({
           return;
         }
 
-        const avatarBlob =
-          await getCurrentUserAvatarBlob();
+        const avatarBlob = await getCurrentUserAvatarBlob();
 
         if (cancelled) return;
 
@@ -526,10 +492,7 @@ export default function AppShell({
           return nextObjectUrl;
         });
       } catch (error) {
-        console.error(
-          "Could not load shell profile.",
-          error
-        );
+        console.error("Could not load shell profile.", error);
 
         if (!cancelled) {
           setLearnerName(getStoredUserName());
@@ -538,26 +501,19 @@ export default function AppShell({
     }
 
     function handleProfileUpdated(event: Event) {
-      const profileEvent =
-        event as CustomEvent<UserProfile | undefined>;
+      const profileEvent = event as CustomEvent<UserProfile | undefined>;
 
       void loadProfile(profileEvent.detail);
     }
 
     void loadProfile();
 
-    window.addEventListener(
-      PROFILE_UPDATED_EVENT,
-      handleProfileUpdated
-    );
+    window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
 
     return () => {
       cancelled = true;
 
-      window.removeEventListener(
-        PROFILE_UPDATED_EVENT,
-        handleProfileUpdated
-      );
+      window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
 
       if (activeObjectUrl) {
         URL.revokeObjectURL(activeObjectUrl);
@@ -577,25 +533,18 @@ export default function AppShell({
 
         if (cancelled) return;
 
-        const roomSummaries = rooms.map(
-          (room) => ({
-            id: room.id,
-            name:
-              room.name?.trim() ||
-              `Room #${room.id}`,
-          })
-        );
+        const roomSummaries = rooms.map((room) => ({
+          id: room.id,
+          name: room.name?.trim() || `Room #${room.id}`,
+        }));
 
         setStudyRooms(roomSummaries);
 
-        const savedRoomId =
-          getSavedProjectRoomId();
+        const savedRoomId = getSavedProjectRoomId();
 
         if (
           savedRoomId !== null &&
-          !roomSummaries.some(
-            (room) => room.id === savedRoomId
-          )
+          !roomSummaries.some((room) => room.id === savedRoomId)
         ) {
           clearProjectRoomId();
           setActiveProjectRoomId(null);
@@ -621,9 +570,7 @@ export default function AppShell({
   useEffect(() => {
     const tab =
       typeof window !== "undefined"
-        ? new URLSearchParams(
-            window.location.search
-          ).get("tab") ?? undefined
+        ? (new URLSearchParams(window.location.search).get("tab") ?? undefined)
         : undefined;
 
     setActiveQueryTab(tab);
@@ -680,17 +627,12 @@ export default function AppShell({
     return getInitials(learnerName);
   }, [learnerName]);
 
-  function resolveTopNavHref(
-    item: NavItem,
-  ) {
+  function resolveTopNavHref(item: NavItem) {
     if (item.label === "Study Together") {
       return "/study-together";
     }
 
-    if (
-      item.href === "/ai-tutor" &&
-      activeProjectRoomId !== null
-    ) {
+    if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
       return `/study-rooms/${activeProjectRoomId}?tab=ai`;
     }
 
@@ -776,17 +718,12 @@ export default function AppShell({
     return `${href}?roomId=${activeProjectRoomId}`;
   }
 
-  function getMobileNavHref(
-    item: MobileNavItem,
-  ) {
+  function getMobileNavHref(item: MobileNavItem) {
     if (item.icon === "profile") {
       return "/settings?tab=profile&focus=account";
     }
 
-    if (
-      item.href === "/general-ai" &&
-      activeProjectRoomId !== null
-    ) {
+    if (item.href === "/general-ai" && activeProjectRoomId !== null) {
       return `/study-rooms/${activeProjectRoomId}?tab=ai`;
     }
 
@@ -839,10 +776,7 @@ export default function AppShell({
           href={connectedHref}
           aria-current={active ? "page" : undefined}
           onClick={(event) => {
-            if (
-              item.href === "/ai-tutor" &&
-              activeProjectRoomId !== null
-            ) {
+            if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
               event.preventDefault();
 
               if (closeMobile) {
@@ -850,7 +784,7 @@ export default function AppShell({
               }
 
               window.location.assign(
-                `/study-rooms/${activeProjectRoomId}?tab=ai`
+                `/study-rooms/${activeProjectRoomId}?tab=ai`,
               );
 
               return;
@@ -937,20 +871,14 @@ export default function AppShell({
 
   function renderTopNavigation() {
     return topNavItems.map((item) => {
-      const active = isNavItemActive(
-        pathname,
-        item.href,
-        activeQueryTab
-      );
+      const active = isNavItemActive(pathname, item.href, activeQueryTab);
 
       return (
         <Link
           key={item.href}
           href={resolveTopNavHref(item)}
           title={item.label}
-          aria-current={
-            active ? "page" : undefined
-          }
+          aria-current={active ? "page" : undefined}
           className={`group relative flex h-[72px] min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition ${
             active
               ? "text-[#cec18d]"
@@ -973,16 +901,13 @@ export default function AppShell({
 
           <span
             className={`absolute bottom-0 left-3 right-3 h-[3px] rounded-full ${
-              active
-                ? "bg-[#c9ad50]"
-                : "bg-transparent"
+              active ? "bg-[#c9ad50]" : "bg-transparent"
             }`}
           />
         </Link>
       );
     });
   }
-
 
   function renderMobileBottomNavigation() {
     return (
@@ -1009,16 +934,13 @@ export default function AppShell({
                     event.preventDefault();
 
                     window.location.assign(
-                      "/settings?tab=profile&focus=account"
+                      "/settings?tab=profile&focus=account",
                     );
 
                     return;
                   }
 
-                  if (
-                    item.icon === "home" &&
-                    pathname === "/dashboard"
-                  ) {
+                  if (item.icon === "home" && pathname === "/dashboard") {
                     event.preventDefault();
 
                     window.scrollTo({
@@ -1055,9 +977,7 @@ export default function AppShell({
 
                 <span
                   className={`max-w-full truncate ${
-                    primaryAction
-                      ? "text-[#d6b84a]"
-                      : ""
+                    primaryAction ? "text-[#d6b84a]" : ""
                   }`}
                 >
                   {item.label}
@@ -1259,9 +1179,7 @@ export default function AppShell({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="place-self-center">
-                    {learnerInitials}
-                  </span>
+                  <span className="place-self-center">{learnerInitials}</span>
                 )}
               </div>
 
@@ -1305,9 +1223,9 @@ export default function AppShell({
           desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.065] bg-[#030405]/[0.97] shadow-[0_10px_32px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
+        <header className="studysnap-shell-header fixed left-0 right-0 top-0 z-50 border-b border-white/[0.065] bg-[#030405]/[0.97] shadow-[0_10px_32px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
           <div className="flex h-[60px] items-center gap-1.5 px-2.5 sm:gap-2.5 sm:px-4 lg:h-[72px]">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:w-[420px] lg:flex-none">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 xl:w-[360px] xl:flex-none">
               <div className="relative shrink-0">
                 <button
                   type="button"
@@ -1391,7 +1309,10 @@ export default function AppShell({
                           onClick={() => setBrandMenuOpen(false)}
                           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
                         >
-                          <span aria-hidden="true" className="w-5 text-center text-[#d9c575]">
+                          <span
+                            aria-hidden="true"
+                            className="w-5 text-center text-[#d9c575]"
+                          >
                             ✦
                           </span>
                           AI Tutor
@@ -1431,7 +1352,6 @@ export default function AppShell({
                             >
                               ◈
                             </span>
-
                             Plans & access
                           </span>
 
@@ -1544,11 +1464,14 @@ export default function AppShell({
               </div>
             </div>
 
-            <nav className="hidden">
+            <nav
+              aria-label="Main navigation"
+              className="studysnap-top-navigation hidden min-w-0 flex-1 items-center justify-center xl:flex"
+            >
               {renderTopNavigation()}
             </nav>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 xl:w-[176px] xl:justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -1562,16 +1485,12 @@ export default function AppShell({
                     : "border-white/[0.11] bg-[#0c1117]/90 active:bg-white/[0.1]"
                 }`}
                 aria-label={
-                  mobileMenuOpen
-                    ? "Close room tools"
-                    : "Open room tools"
+                  mobileMenuOpen ? "Close room tools" : "Open room tools"
                 }
                 aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? (
-                  <span className="text-lg font-black text-[#e8d98f]">
-                    ×
-                  </span>
+                  <span className="text-lg font-black text-[#e8d98f]">×</span>
                 ) : (
                   <span
                     aria-hidden="true"
@@ -1601,9 +1520,7 @@ export default function AppShell({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="place-self-center">
-                    {learnerInitials}
-                  </span>
+                  <span className="place-self-center">{learnerInitials}</span>
                 )}
               </Link>
             </div>
@@ -1613,9 +1530,7 @@ export default function AppShell({
             <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.1] bg-[#020406]/[0.91] px-3 py-4 shadow-[0_32px_90px_rgba(0,0,0,0.76)] backdrop-blur-3xl lg:hidden">
               <div className="flex items-start justify-between gap-4 px-2">
                 <div>
-                  <p className="text-sm font-black text-white">
-                    Room tools
-                  </p>
+                  <p className="text-sm font-black text-white">Room tools</p>
                 </div>
 
                 <button
@@ -1649,55 +1564,42 @@ export default function AppShell({
                         ? `/study-rooms/${activeProjectRoomId}`
                         : "/study-rooms"
                     }
-                    onClick={() =>
-                      setMobileMenuOpen(false)
-                    }
+                    onClick={() => setMobileMenuOpen(false)}
                     className="shrink-0 rounded-full border border-[#d9c568]/25 bg-[#c9ad50]/10 px-3 py-1.5 text-[10px] font-black text-[#e7d994]"
                   >
-                    {activeProjectRoomId !== null
-                      ? "Open"
-                      : "Choose"}
+                    {activeProjectRoomId !== null ? "Open" : "Choose"}
                   </Link>
                 </div>
 
                 {activeProjectRoomId !== null ? (
                   <div className="mt-3 grid grid-cols-4 gap-2">
-                    {dashboardRoomTools.map(
-                      (tool) => (
-                        <Link
-                          key={tool.label}
-                          href={tool.href}
-                          onClick={() =>
-                            setMobileMenuOpen(false)
-                          }
-                          className="flex min-h-[72px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-white/[0.085] bg-[#080c10]/80 px-1.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] active:border-[#c9ad50]/35 active:bg-[#c9ad50]/10"
+                    {dashboardRoomTools.map((tool) => (
+                      <Link
+                        key={tool.label}
+                        href={tool.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex min-h-[72px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-white/[0.085] bg-[#080c10]/80 px-1.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] active:border-[#c9ad50]/35 active:bg-[#c9ad50]/10"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="text-xl leading-none"
                         >
-                          <span
-                            aria-hidden="true"
-                            className="text-xl leading-none"
-                          >
-                            {tool.icon}
-                          </span>
+                          {tool.icon}
+                        </span>
 
-                          <span className="w-full truncate text-[9px] font-black text-slate-200">
-                            {tool.label}
-                          </span>
-                        </Link>
-                      )
-                    )}
+                        <span className="w-full truncate text-[9px] font-black text-slate-200">
+                          {tool.label}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
                 ) : (
                   <Link
                     href="/study-rooms"
-                    onClick={() =>
-                      setMobileMenuOpen(false)
-                    }
+                    onClick={() => setMobileMenuOpen(false)}
                     className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#d6b84a]/25 bg-[#111418] px-4 py-3 text-sm font-black text-[#d6b84a]"
                   >
-                    <span className="text-lg">
-                      +
-                    </span>
-
+                    <span className="text-lg">+</span>
                     Choose a room
                   </Link>
                 )}
@@ -1713,10 +1615,7 @@ export default function AppShell({
                   icon: "✦",
                   items: mobileStudyToolNavItems,
                   open: studyToolsOpen,
-                  onToggle: () =>
-                    setStudyToolsOpen(
-                      (current) => !current
-                    ),
+                  onToggle: () => setStudyToolsOpen((current) => !current),
                   closeMobile: true,
                 })}
               </div>
@@ -1727,10 +1626,7 @@ export default function AppShell({
                   icon: "•••",
                   items: moreNavItems,
                   open: moreOpen,
-                  onToggle: () =>
-                    setMoreOpen(
-                      (current) => !current
-                    ),
+                  onToggle: () => setMoreOpen((current) => !current),
                   closeMobile: true,
                 })}
               </div>
@@ -1750,7 +1646,7 @@ export default function AppShell({
           ) : null}
         </header>
 
-        <main className="mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
+        <main className="studysnap-main-content mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
           {pathname !== "/dashboard" && title ? (
             <div className="mb-5">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
@@ -1777,9 +1673,7 @@ export default function AppShell({
               </aside>
             </div>
           ) : (
-            <div className="min-w-0 max-w-full">
-              {children}
-            </div>
+            <div className="min-w-0 max-w-full">{children}</div>
           )}
         </main>
       </div>

@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import {
-  getProtectedFileBlobUrl,
-  hideAIAttachmentFromFeed,
-} from "@/lib/api";
+import { getProtectedFileBlobUrl, hideAIAttachmentFromFeed } from "@/lib/api";
 
 import type {
   DashboardContinueItem,
@@ -14,7 +11,6 @@ import type {
   DashboardNextStep,
   SmartDashboardResponse,
 } from "@/lib/api";
-
 
 type SmartDashboardCenterProps = {
   data: SmartDashboardResponse | null;
@@ -24,7 +20,6 @@ type SmartDashboardCenterProps = {
   onRetry: () => void;
   onLoadMore: () => void;
 };
-
 
 function formatRelativeTime(value?: string | null) {
   if (!value) {
@@ -43,10 +38,7 @@ function formatRelativeTime(value?: string | null) {
     return "Just now";
   }
 
-  const minutes = Math.max(
-    1,
-    Math.floor(difference / 60_000),
-  );
+  const minutes = Math.max(1, Math.floor(difference / 60_000));
 
   if (minutes < 60) {
     return `${minutes}m ago`;
@@ -64,15 +56,11 @@ function formatRelativeTime(value?: string | null) {
     return `${days}d ago`;
   }
 
-  return new Date(value).toLocaleDateString(
-    undefined,
-    {
-      month: "short",
-      day: "numeric",
-    },
-  );
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
-
 
 function EmptySection({
   icon,
@@ -88,14 +76,12 @@ function EmptySection({
   actionLabel?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#12181e] px-4 py-6 text-center">
+    <div className="rounded-xl border border-dashed border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl px-4 py-6 text-center">
       <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-xl">
         {icon}
       </span>
 
-      <p className="mt-3 text-sm font-black text-[#f0ead3]">
-        {title}
-      </p>
+      <p className="mt-3 text-sm font-black text-[#f0ead3]">{title}</p>
 
       <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">
         {description}
@@ -113,7 +99,6 @@ function EmptySection({
   );
 }
 
-
 function LoadingDashboardFeed() {
   return (
     <div
@@ -124,7 +109,7 @@ function LoadingDashboardFeed() {
       {[0, 1, 2].map((item) => (
         <section
           key={item}
-          className="animate-pulse rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5"
+          className="animate-pulse rounded-2xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5"
         >
           <div className="h-3 w-28 rounded bg-white/[0.07]" />
           <div className="mt-3 h-6 w-2/3 rounded bg-white/[0.07]" />
@@ -137,14 +122,9 @@ function LoadingDashboardFeed() {
   );
 }
 
-
-function NextStepCard({
-  item,
-}: {
-  item: DashboardNextStep;
-}) {
+function NextStepCard({ item }: { item: DashboardNextStep }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#c9ad50]/[0.24] bg-[#12181e] shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
+    <section className="studysnap-glass-panel overflow-hidden rounded-2xl border border-[#c9ad50]/[0.24] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
       <div className="h-1 bg-gradient-to-r from-[#c9ad50] via-[#c8ad4c] to-transparent" />
 
       <div className="p-4 sm:p-5">
@@ -186,19 +166,13 @@ function NextStepCard({
   );
 }
 
-
-function ContinueRow({
-  item,
-}: {
-  item: DashboardContinueItem;
-}) {
-  const hasRealProgress =
-    typeof item.progress_percent === "number";
+function ContinueRow({ item }: { item: DashboardContinueItem }) {
+  const hasRealProgress = typeof item.progress_percent === "number";
 
   return (
     <Link
       href={item.action_href}
-      className="group grid gap-3 rounded-xl border border-white/[0.07] bg-[#12181e] p-3 transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      className="group grid gap-3 rounded-xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-3 transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-lg">
@@ -215,15 +189,9 @@ function ContinueRow({
           </p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
-            {item.room_name ? (
-              <span>{item.room_name}</span>
-            ) : null}
+            {item.room_name ? <span>{item.room_name}</span> : null}
 
-            <span>
-              {formatRelativeTime(
-                item.last_active_at,
-              )}
-            </span>
+            <span>{formatRelativeTime(item.last_active_at)}</span>
           </div>
         </div>
       </div>
@@ -237,10 +205,7 @@ function ContinueRow({
                 style={{
                   width: `${Math.max(
                     0,
-                    Math.min(
-                      100,
-                      item.progress_percent || 0,
-                    ),
+                    Math.min(100, item.progress_percent || 0),
                   )}%`,
                 }}
               />
@@ -260,84 +225,62 @@ function ContinueRow({
   );
 }
 
+function ContinueLearningSection({ data }: { data: SmartDashboardResponse }) {
+  const [expanded, setExpanded] = useState(false);
 
-function ContinueLearningSection({
-    data,
-  }: {
-    data: SmartDashboardResponse;
-  }) {
-    const [expanded, setExpanded] =
-      useState(false);
+  const emptyState = data.empty_states.continue_learning;
 
-    const emptyState =
-      data.empty_states.continue_learning;
+  const visibleItems = expanded
+    ? data.continue_learning
+    : data.continue_learning.slice(0, 3);
 
-    const visibleItems = expanded
-      ? data.continue_learning
-      : data.continue_learning.slice(0, 3);
+  const hasMore = data.continue_learning.length > 3;
 
-    const hasMore =
-      data.continue_learning.length > 3;
+  return (
+    <section className="studysnap-glass-panel rounded-2xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-black text-slate-300">
+          <span>📖</span>
+          Continue Learning
+        </h2>
 
-    return (
-      <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-slate-300">
-            <span>📖</span>
-            Continue Learning
-          </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Resume your most recent meaningful work.
+        </p>
+      </div>
 
-          <p className="mt-1 text-xs text-slate-500">
-            Resume your most recent meaningful work.
-          </p>
+      <div className="mt-4 space-y-2">
+        {visibleItems.length ? (
+          visibleItems.map((item) => <ContinueRow key={item.id} item={item} />)
+        ) : (
+          <EmptySection
+            icon="📖"
+            title={emptyState.title}
+            description={emptyState.description}
+            actionHref="/study-rooms"
+            actionLabel="Open Study Rooms"
+          />
+        )}
+      </div>
+
+      {hasMore ? (
+        <div className="mt-4 border-t border-white/[0.07] pt-4 text-center">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c]"
+          >
+            {expanded
+              ? "Show less"
+              : `View all (${data.continue_learning.length})`}
+          </button>
         </div>
+      ) : null}
+    </section>
+  );
+}
 
-        <div className="mt-4 space-y-2">
-          {visibleItems.length ? (
-            visibleItems.map((item) => (
-              <ContinueRow
-                key={item.id}
-                item={item}
-              />
-            ))
-          ) : (
-            <EmptySection
-              icon="📖"
-              title={emptyState.title}
-              description={emptyState.description}
-              actionHref="/study-rooms"
-              actionLabel="Open Study Rooms"
-            />
-          )}
-        </div>
-
-        {hasMore ? (
-          <div className="mt-4 border-t border-white/[0.07] pt-4 text-center">
-            <button
-              type="button"
-              onClick={() =>
-                setExpanded((current) => !current)
-              }
-              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c]"
-            >
-              {expanded
-                ? "Show less"
-                : `View all (${data.continue_learning.length})`}
-            </button>
-          </div>
-        ) : null}
-      </section>
-    );
-  }
-
-
-function ProtectedFeedImage({
-  path,
-  alt,
-}: {
-  path: string;
-  alt: string;
-}) {
+function ProtectedFeedImage({ path, alt }: { path: string; alt: string }) {
   const [source, setSource] = useState("");
   const [failed, setFailed] = useState(false);
 
@@ -395,7 +338,6 @@ function ProtectedFeedImage({
   );
 }
 
-
 function FeedItem({
   item,
   onHide,
@@ -419,12 +361,9 @@ function FeedItem({
       : "";
 
   const isAttachment =
-    item.event === "ai_attachment_uploaded" &&
-    Boolean(attachmentUrl);
+    item.event === "ai_attachment_uploaded" && Boolean(attachmentUrl);
 
-  const isImage =
-    isAttachment &&
-    attachmentKind === "image";
+  const isImage = isAttachment && attachmentKind === "image";
 
   const messageId =
     item.entity_type === "ai_message_attachment" &&
@@ -436,34 +375,20 @@ function FeedItem({
     if (!attachmentUrl) return;
 
     try {
-      const url =
-        await getProtectedFileBlobUrl(
-          attachmentUrl
-        );
+      const url = await getProtectedFileBlobUrl(attachmentUrl);
 
-      window.open(
-        url,
-        "_blank",
-        "noopener,noreferrer"
-      );
+      window.open(url, "_blank", "noopener,noreferrer");
 
-      window.setTimeout(
-        () => URL.revokeObjectURL(url),
-        60_000
-      );
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch {
-      window.location.assign(
-        item.action_href
-      );
+      window.location.assign(item.action_href);
     }
   }
 
   async function hideImage() {
     if (messageId === null) return;
 
-    await hideAIAttachmentFromFeed(
-      messageId
-    );
+    await hideAIAttachmentFromFeed(messageId);
 
     onHide(item.id);
   }
@@ -496,9 +421,7 @@ function FeedItem({
               <div className="absolute right-0 top-9 z-20 min-w-28 rounded-xl border border-white/10 bg-[#171d23] p-1.5 shadow-2xl">
                 <button
                   type="button"
-                  onClick={() =>
-                    void hideImage()
-                  }
+                  onClick={() => void hideImage()}
                   className="w-full rounded-lg px-3 py-2 text-left text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
                 >
                   Hide
@@ -512,10 +435,7 @@ function FeedItem({
           href={item.action_href}
           className="block overflow-hidden rounded-xl bg-black/20"
         >
-          <ProtectedFeedImage
-            path={attachmentUrl}
-            alt={item.title}
-          />
+          <ProtectedFeedImage path={attachmentUrl} alt={item.title} />
         </Link>
 
         {item.room_name ? (
@@ -531,9 +451,7 @@ function FeedItem({
     return (
       <button
         type="button"
-        onClick={() =>
-          void openProtectedFile()
-        }
+        onClick={() => void openProtectedFile()}
         className="flex w-full items-center gap-3 border-b border-white/[0.065] px-3 py-3 text-left transition last:border-b-0 hover:bg-white/[0.025] sm:px-4"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-lg">
@@ -541,31 +459,22 @@ function FeedItem({
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black text-white">
-            {item.title}
-          </p>
+          <p className="truncate text-sm font-black text-white">{item.title}</p>
 
           <p className="mt-0.5 truncate text-[10px] font-bold text-slate-600">
-            {item.room_name
-              ? `${item.room_name} · `
-              : ""}
+            {item.room_name ? `${item.room_name} · ` : ""}
             {formatRelativeTime(item.timestamp)}
           </p>
         </div>
 
-        <span className="text-sm text-slate-600">
-          ›
-        </span>
+        <span className="text-sm text-slate-600">›</span>
       </button>
     );
   }
 
   return (
     <article className="border-b border-white/[0.065] px-3 py-4 last:border-b-0 sm:px-4">
-      <Link
-        href={item.action_href}
-        className="flex items-start gap-3"
-      >
+      <Link href={item.action_href} className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-lg">
           {item.icon}
         </span>
@@ -588,19 +497,11 @@ function FeedItem({
           ) : null}
 
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-600">
-            {item.actor_name ? (
-              <span>{item.actor_name}</span>
-            ) : null}
+            {item.actor_name ? <span>{item.actor_name}</span> : null}
 
-            {item.room_name ? (
-              <span>{item.room_name}</span>
-            ) : null}
+            {item.room_name ? <span>{item.room_name}</span> : null}
 
-            {groupedCount > 1 ? (
-              <span>
-                {groupedCount} updates
-              </span>
-            ) : null}
+            {groupedCount > 1 ? <span>{groupedCount} updates</span> : null}
           </div>
         </div>
       </Link>
@@ -617,24 +518,19 @@ function LearningFeedSection({
   loadingMore: boolean;
   onLoadMore: () => void;
 }) {
-  const [expanded, setExpanded] =
-    useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  const emptyState =
-    data.empty_states.feed;
+  const emptyState = data.empty_states.feed;
 
-  const [hiddenItemIds, setHiddenItemIds] =
-    useState<Set<string>>(
-      () => new Set()
-    );
-
-  const availableItems = data.feed.filter(
-    (item) => !hiddenItemIds.has(item.id)
+  const [hiddenItemIds, setHiddenItemIds] = useState<Set<string>>(
+    () => new Set(),
   );
 
-  const visibleItems = expanded
-    ? availableItems
-    : availableItems.slice(0, 3);
+  const availableItems = data.feed.filter(
+    (item) => !hiddenItemIds.has(item.id),
+  );
+
+  const visibleItems = expanded ? availableItems : availableItems.slice(0, 3);
 
   function hideFeedItem(itemId: string) {
     setHiddenItemIds((current) => {
@@ -645,44 +541,28 @@ function LearningFeedSection({
   }
 
   const hasMoreActivity =
-    availableItems.length > 3 ||
-    Boolean(
-      data.has_more &&
-      data.next_cursor
-    );
+    availableItems.length > 3 || Boolean(data.has_more && data.next_cursor);
 
   function handleViewAll() {
     setExpanded(true);
 
-    if (
-      data.has_more &&
-      data.next_cursor &&
-      !loadingMore
-    ) {
+    if (data.has_more && data.next_cursor && !loadingMore) {
       onLoadMore();
     }
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e]">
+    <section className="studysnap-glass-panel overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] p-4 sm:p-5">
         <div>
-          <h2 className="text-lg font-black text-white">
-            Learning Feed
-          </h2>
-
+          <h2 className="text-lg font-black text-white">Learning Feed</h2>
         </div>
-
       </div>
 
       {data.feed.length ? (
         <div>
           {visibleItems.map((item) => (
-            <FeedItem
-              key={item.id}
-              item={item}
-              onHide={hideFeedItem}
-            />
+            <FeedItem key={item.id} item={item} onHide={hideFeedItem} />
           ))}
         </div>
       ) : (
@@ -706,24 +586,19 @@ function LearningFeedSection({
               disabled={loadingMore}
               className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
             >
-              {loadingMore
-                ? "Loading activity..."
-                : "View all activity"}
+              {loadingMore ? "Loading activity..." : "View all activity"}
             </button>
           ) : expanded ? (
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setExpanded(false)
-                }
+                onClick={() => setExpanded(false)}
                 className="rounded-xl border border-white/[0.075] bg-white/[0.025] px-4 py-2.5 text-xs font-black text-slate-300 transition hover:text-white"
               >
                 Show less
               </button>
 
-              {data.has_more &&
-              data.next_cursor ? (
+              {data.has_more && data.next_cursor ? (
                 <button
                   type="button"
                   onClick={onLoadMore}
@@ -751,30 +626,17 @@ function LearningFeedSection({
   );
 }
 
-function isNotificationOnlyNextStep(
-  reason: unknown
-) {
+function isNotificationOnlyNextStep(reason: unknown) {
   const normalized =
-    typeof reason === "string"
-      ? reason.trim().toLowerCase()
-      : "";
+    typeof reason === "string" ? reason.trim().toLowerCase() : "";
 
   return (
-    normalized.includes(
-      "unread group"
-    ) ||
-    normalized.includes(
-      "new material not reviewed"
-    ) ||
-    normalized.includes(
-      "group activity"
-    ) ||
-    normalized.includes(
-      "notification"
-    )
+    normalized.includes("unread group") ||
+    normalized.includes("new material not reviewed") ||
+    normalized.includes("group activity") ||
+    normalized.includes("notification")
   );
 }
-
 
 export default function SmartDashboardCenter({
   data,
@@ -790,14 +652,13 @@ export default function SmartDashboardCenter({
 
   if (!data) {
     return (
-      <section className="rounded-2xl border border-red-400/15 bg-red-400/[0.04] p-5 text-center">
+      <section className="studysnap-glass-panel rounded-2xl border border-red-400/15 bg-red-400/[0.04] p-5 text-center">
         <p className="text-sm font-black text-[#f0ead3]">
           StudySnap could not load your learning feed
         </p>
 
         <p className="mt-1 text-xs leading-5 text-slate-400">
-          {error ||
-            "Your dashboard data is temporarily unavailable."}
+          {error || "Your dashboard data is temporarily unavailable."}
         </p>
 
         <button
@@ -813,9 +674,7 @@ export default function SmartDashboardCenter({
 
   const showBestNextStep =
     Boolean(data.next_step) &&
-    !isNotificationOnlyNextStep(
-      data.next_step?.reason
-    );
+    !isNotificationOnlyNextStep(data.next_step?.reason);
 
   return (
     <div className="space-y-5">
@@ -838,11 +697,7 @@ export default function SmartDashboardCenter({
         </div>
       ) : null}
 
-      {showBestNextStep ? (
-        <NextStepCard
-          item={data.next_step}
-        />
-      ) : null}
+      {showBestNextStep ? <NextStepCard item={data.next_step} /> : null}
 
       <ContinueLearningSection data={data} />
 

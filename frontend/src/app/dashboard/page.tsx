@@ -30,12 +30,8 @@ import {
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 
-import {
-  resolveStudyCommand,
-} from "@/lib/studyCommandRouter";
-import {
-  setPendingAIAttachments,
-} from "@/lib/aiAttachmentHandoff";
+import { resolveStudyCommand } from "@/lib/studyCommandRouter";
+import { setPendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 
 type TokenPayload = {
   sub?: string;
@@ -245,12 +241,10 @@ function GeneralAIStartCard({
 }) {
   const router = useRouter();
 
-  const attachmentInputRef =
-    useRef<HTMLInputElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   function openChatAttachmentPicker() {
-    const input =
-      attachmentInputRef.current;
+    const input = attachmentInputRef.current;
 
     if (!input) {
       return;
@@ -260,12 +254,8 @@ function GeneralAIStartCard({
     input.click();
   }
 
-  function handleAttachments(
-    fileList: FileList | null,
-  ) {
-    const files = Array.from(
-      fileList ?? []
-    ).slice(0, 20);
+  function handleAttachments(fileList: FileList | null) {
+    const files = Array.from(fileList ?? []).slice(0, 20);
 
     if (!files.length) {
       return;
@@ -273,27 +263,23 @@ function GeneralAIStartCard({
 
     setPendingAIAttachments(files);
 
-    router.push(
-      "/general-ai?attachment=pending"
-    );
+    router.push("/general-ai?attachment=pending");
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e] shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
+    <section className="studysnap-glass-panel overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
       <div className="h-px bg-white/[0.08]" />
 
       <div className="p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.075] bg-white/[0.045] text-xl">
-            ✦
+            S
           </div>
 
           <div className="min-w-0">
             <p className="truncate text-sm font-black text-[#cec18d]">
               Hi, {displayName}
-              {greetingEmoji
-                ? ` ${greetingEmoji}`
-                : ""}
+              {greetingEmoji ? ` ${greetingEmoji}` : ""}
             </p>
 
             <h2 className="mt-1 text-xl font-black text-white">
@@ -313,9 +299,7 @@ function GeneralAIStartCard({
           accept="image/*,.heic,.heif,.pdf,.docx,.pptx,.xlsx,.txt,.rtf,.csv,.md,.json,.py,.js,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml"
           className="hidden"
           onChange={(event) => {
-            handleAttachments(
-              event.currentTarget.files,
-            );
+            handleAttachments(event.currentTarget.files);
 
             event.currentTarget.value = "";
           }}
@@ -375,7 +359,7 @@ function GeneralAIStartCard({
 
 function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 sm:p-5">
+    <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-black text-white">
@@ -460,7 +444,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
 
 function RecentActivityCard({ items }: { items: ActivityItem[] }) {
   return (
-    <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 sm:p-5">
+    <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-white">Recent Activity</h2>
@@ -600,13 +584,11 @@ function DashboardRightPanel({
   ];
 
   return (
-    <div className="space-y-3 xl:space-y-4">
-      <details className="group overflow-hidden rounded-2xl border border-white/[0.075] bg-[#12181e] xl:hidden">
+    <div className="space-y-3">
+      <details className="studysnap-glass-panel group overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl xl:hidden">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
-            <p className="text-sm font-black text-white">
-              Today&apos;s plan
-            </p>
+            <p className="text-sm font-black text-white">Today&apos;s plan</p>
 
             <p className="mt-0.5 text-xs text-slate-500">
               Your recommended next study steps
@@ -630,7 +612,10 @@ function DashboardRightPanel({
                 {index + 1}
               </span>
 
-              <span className="min-w-0 flex-1 text-sm font-semibold text-slate-200">
+              <span
+                className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-200"
+                title={item.title}
+              >
                 {item.title}
               </span>
 
@@ -640,7 +625,7 @@ function DashboardRightPanel({
         </div>
       </details>
 
-      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
+      <section className="studysnap-glass-panel hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 xl:block">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Today&apos;s Focus</h2>
 
@@ -660,7 +645,10 @@ function DashboardRightPanel({
                 {index + 1}
               </span>
 
-              <span className="text-sm font-semibold text-slate-200">
+              <span
+                className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-200"
+                title={item.title}
+              >
                 {item.title}
               </span>
             </Link>
@@ -670,12 +658,10 @@ function DashboardRightPanel({
 
       <Link
         href="/progress"
-        className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-white/[0.075] bg-[#12181e] px-4 py-3 transition active:bg-white/[0.045] xl:hidden"
+        className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl px-4 py-3 transition active:bg-white/[0.045] xl:hidden"
       >
         <div className="min-w-0">
-          <p className="text-sm font-black text-white">
-            Your progress
-          </p>
+          <p className="text-sm font-black text-white">Your progress</p>
 
           <p className="mt-1 text-xs text-slate-500">
             {streak} day{streak === 1 ? "" : "s"} streak
@@ -691,72 +677,90 @@ function DashboardRightPanel({
         </span>
       </Link>
 
-      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
-        <div className="flex items-center justify-between">
-          <h2 className="font-black text-white">🔥 Study Streak</h2>
+      <section className="studysnap-glass-panel hidden overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl xl:block">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="font-black text-white">Progress</h2>
 
-          <Link href="/progress" className="text-xs font-black text-slate-300">
-            Progress
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Your current study activity
+            </p>
+          </div>
+
+          <Link
+            href="/progress"
+            className="shrink-0 text-xs font-black text-slate-300 transition hover:text-white"
+          >
+            View details
           </Link>
         </div>
 
-        <div className="mt-4 flex items-end gap-2">
-          <span className="text-4xl font-black text-white">{streak}</span>
+        <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-4 p-4">
+          <div className="flex flex-col justify-center rounded-xl border border-white/[0.065] bg-white/[0.025] px-3 py-4">
+            <div className="flex items-end gap-1.5">
+              <span className="text-3xl font-black text-white">{streak}</span>
 
-          <span className="pb-1 text-sm text-slate-500">
-            day{streak === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          {streak > 0
-            ? "Keep going. A small study session today protects your streak."
-            : "Start with one quick review today."}
-        </p>
-      </section>
-
-      <section className="hidden rounded-2xl border border-white/[0.075] bg-[#12181e] p-4 xl:block">
-        <div className="flex items-center justify-between">
-          <h2 className="font-black text-white">Progress Overview</h2>
-
-          <span className="text-xs font-black text-slate-300">
-            {displayScore}%
-          </span>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {progressRows.map((row) => (
-            <div key={row.label}>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">{row.label}</span>
-
-                <span className="text-slate-500">{row.value}</span>
-              </div>
-
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-[#c9ad50]"
-                  style={{
-                    width: `${row.percent}%`,
-                  }}
-                />
-              </div>
+              <span className="pb-1 text-xs font-bold text-slate-500">
+                day{streak === 1 ? "" : "s"}
+              </span>
             </div>
-          ))}
+
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+              Streak
+            </p>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-slate-300">
+                Learning progress
+              </span>
+
+              <span className="text-sm font-black text-white">
+                {displayScore}%
+              </span>
+            </div>
+
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-[#c9ad50]"
+                style={{
+                  width: `${displayScore}%`,
+                }}
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {progressRows.map((row) => (
+                <div
+                  key={row.label}
+                  className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/[0.055] bg-white/[0.02] px-2.5 py-2"
+                >
+                  <p className="min-w-0 truncate text-[10px] font-bold text-slate-500">
+                    {row.label}
+                  </p>
+
+                  <p className="shrink-0 text-sm font-black text-slate-200">
+                    {row.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-white/[0.07] bg-[#151a24] p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#b8a8cf]">
-            AI Insight
-          </p>
+        <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 shrink-0 text-xs text-[#c9ad50]">✦</span>
 
-          <p className="mt-2 text-xs leading-5 text-slate-300">
-            {aiRecommendation}
-          </p>
+            <p className="line-clamp-2 text-xs leading-5 text-slate-400">
+              {aiRecommendation}
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.075] bg-[#12181e] p-4">
+      <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Recent PDFs</h2>
 
@@ -777,8 +781,11 @@ function DashboardRightPanel({
                   📄
                 </span>
 
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate text-xs font-bold text-white"
+                    title={pdf.original_filename}
+                  >
                     {pdf.original_filename}
                   </p>
 
@@ -806,22 +813,17 @@ export default function DashboardPage() {
 
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [greetingEmoji, setGreetingEmoji] =
-    useState("👋");
+  const [greetingEmoji, setGreetingEmoji] = useState("👋");
   const [learningInsights, setLearningInsights] =
     useState<LearningInsights | null>(null);
   const [learningInsightsError, setLearningInsightsError] = useState("");
 
   const [smartDashboard, setSmartDashboard] =
     useState<SmartDashboardResponse | null>(null);
-  const [smartDashboardLoading, setSmartDashboardLoading] =
-    useState(true);
-  const [
-    smartDashboardLoadingMore,
-    setSmartDashboardLoadingMore,
-  ] = useState(false);
-  const [smartDashboardError, setSmartDashboardError] =
-    useState("");
+  const [smartDashboardLoading, setSmartDashboardLoading] = useState(true);
+  const [smartDashboardLoadingMore, setSmartDashboardLoadingMore] =
+    useState(false);
+  const [smartDashboardError, setSmartDashboardError] = useState("");
 
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
@@ -838,95 +840,70 @@ export default function DashboardPage() {
   });
   const [insights, setInsights] = useState<LearningInsights | null>(null);
 
-  const loadSmartDashboard = useCallback(
-    async () => {
-      setSmartDashboardLoading(true);
-      setSmartDashboardError("");
+  const loadSmartDashboard = useCallback(async () => {
+    setSmartDashboardLoading(true);
+    setSmartDashboardError("");
 
-      try {
-        const data = await getSmartDashboard({
-          limit: 3,
-        });
+    try {
+      const data = await getSmartDashboard({
+        limit: 3,
+      });
 
-        setSmartDashboard(data);
-      } catch (error) {
-        console.error(
-          "Could not load smart dashboard.",
-          error,
+      setSmartDashboard(data);
+    } catch (error) {
+      console.error("Could not load smart dashboard.", error);
+
+      setSmartDashboardError(
+        "Live dashboard updates are temporarily unavailable.",
+      );
+    } finally {
+      setSmartDashboardLoading(false);
+    }
+  }, []);
+
+  const loadMoreSmartDashboard = useCallback(async () => {
+    const cursor = smartDashboard?.next_cursor;
+
+    if (!cursor || smartDashboardLoadingMore) {
+      return;
+    }
+
+    setSmartDashboardLoadingMore(true);
+    setSmartDashboardError("");
+
+    try {
+      const nextPage = await getSmartDashboard({
+        limit: 20,
+        cursor,
+      });
+
+      setSmartDashboard((current) => {
+        if (!current) {
+          return nextPage;
+        }
+
+        const existingIds = new Set(current.feed.map((item) => item.id));
+
+        const newItems = nextPage.feed.filter(
+          (item) => !existingIds.has(item.id),
         );
 
-        setSmartDashboardError(
-          "Live dashboard updates are temporarily unavailable.",
-        );
-      } finally {
-        setSmartDashboardLoading(false);
-      }
-    },
-    [],
-  );
+        return {
+          ...current,
+          generated_at: nextPage.generated_at,
+          feed: [...current.feed, ...newItems],
+          next_cursor: nextPage.next_cursor,
+          has_more: nextPage.has_more,
+        };
+      });
+    } catch (error) {
+      console.error("Could not load older dashboard activity.", error);
 
-  const loadMoreSmartDashboard = useCallback(
-    async () => {
-      const cursor = smartDashboard?.next_cursor;
-
-      if (
-        !cursor ||
-        smartDashboardLoadingMore
-      ) {
-        return;
-      }
-
-      setSmartDashboardLoadingMore(true);
-      setSmartDashboardError("");
-
-      try {
-        const nextPage = await getSmartDashboard({
-          limit: 20,
-          cursor,
-        });
-
-        setSmartDashboard((current) => {
-          if (!current) {
-            return nextPage;
-          }
-
-          const existingIds = new Set(
-            current.feed.map((item) => item.id),
-          );
-
-          const newItems = nextPage.feed.filter(
-            (item) => !existingIds.has(item.id),
-          );
-
-          return {
-            ...current,
-            generated_at: nextPage.generated_at,
-            feed: [
-              ...current.feed,
-              ...newItems,
-            ],
-            next_cursor: nextPage.next_cursor,
-            has_more: nextPage.has_more,
-          };
-        });
-      } catch (error) {
-        console.error(
-          "Could not load older dashboard activity.",
-          error,
-        );
-
-        setSmartDashboardError(
-          "Older learning activity could not be loaded.",
-        );
-      } finally {
-        setSmartDashboardLoadingMore(false);
-      }
-    },
-    [
-      smartDashboard?.next_cursor,
-      smartDashboardLoadingMore,
-    ],
-  );
+      setSmartDashboardError("Older learning activity could not be loaded.");
+    } finally {
+      setSmartDashboardLoadingMore(false);
+    }
+  }, [smartDashboard?.next_cursor, smartDashboardLoadingMore]);
 
   useEffect(() => {
     if (!checked) {
@@ -938,24 +915,16 @@ export default function DashboardPage() {
     }
 
     function refreshWhenVisible() {
-      if (
-        document.visibilityState === "visible"
-      ) {
+      if (document.visibilityState === "visible") {
         void loadSmartDashboard();
       }
     }
 
     void loadSmartDashboard();
 
-    window.addEventListener(
-      "studysnap:dashboard-refresh",
-      refreshDashboard,
-    );
+    window.addEventListener("studysnap:dashboard-refresh", refreshDashboard);
 
-    document.addEventListener(
-      "visibilitychange",
-      refreshWhenVisible,
-    );
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       window.removeEventListener(
@@ -963,10 +932,7 @@ export default function DashboardPage() {
         refreshDashboard,
       );
 
-      document.removeEventListener(
-        "visibilitychange",
-        refreshWhenVisible,
-      );
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [checked, loadSmartDashboard]);
 
@@ -1047,11 +1013,7 @@ export default function DashboardPage() {
     const payload = parseJwt(token);
 
     if (payload) {
-      setFullName(
-        payload.full_name ||
-          payload.sub?.split("@")[0] ||
-          "Student"
-      );
+      setFullName(payload.full_name || payload.sub?.split("@")[0] || "Student");
     } else {
       setFullName("Student");
     }
@@ -1062,13 +1024,9 @@ export default function DashboardPage() {
       try {
         const profile = await getCurrentUser();
         setFullName(
-          profile.full_name ||
-            profile.email?.split("@")[0] ||
-            "Student",
+          profile.full_name || profile.email?.split("@")[0] || "Student",
         );
-        setGreetingEmoji(
-          profile.greeting_emoji ?? ""
-        );
+        setGreetingEmoji(profile.greeting_emoji ?? "");
 
         if (typeof window !== "undefined") {
           localStorage.setItem("studysnap_user", JSON.stringify(profile));
@@ -1324,9 +1282,7 @@ export default function DashboardPage() {
     return items.slice(0, 6);
   }, [activeRoom, activeRoomId, flashcards, notes, pdfs, quizCount]);
 
-  async function handleGeneralAiSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleGeneralAiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const prompt = generalAiPrompt.trim();
@@ -1336,11 +1292,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const commandResult =
-      await resolveStudyCommand(
-        prompt,
-        rooms,
-      );
+    const commandResult = await resolveStudyCommand(prompt, rooms);
 
     if (commandResult.handled) {
       router.push(commandResult.href);
@@ -1355,7 +1307,6 @@ export default function DashboardPage() {
     setGeneralAiPrompt("");
     router.push("/general-ai");
   }
-
 
   if (!checked) {
     return (
@@ -1395,7 +1346,7 @@ export default function DashboardPage() {
       subtitle={`${getTimeGreeting()}, ${displayName}. ${roomTitle} · ${roomSubject}`}
       rightPanel={dashboardRightPanel}
     >
-      <div className="space-y-5">
+      <div className="studysnap-dashboard-readable space-y-4">
         <GeneralAIStartCard
           prompt={generalAiPrompt}
           onPromptChange={setGeneralAiPrompt}

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { AIConversation } from "@/lib/api";
 
@@ -29,28 +25,18 @@ type TrailGroup = {
 };
 
 function getTrailDate(trail: AIConversation) {
-  const value =
-    trail.updated_at ||
-    trail.created_at;
+  const value = trail.updated_at || trail.created_at;
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime())
-    ? new Date()
-    : date;
+  return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
 function startOfDay(date: Date) {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  );
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function buildGroups(
-  trails: AIConversation[],
-): TrailGroup[] {
+function buildGroups(trails: AIConversation[]): TrailGroup[] {
   const now = startOfDay(new Date());
 
   const yesterday = new Date(now);
@@ -59,13 +45,9 @@ function buildGroups(
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
 
-  const pinned = trails.filter(
-    (trail) => trail.is_pinned,
-  );
+  const pinned = trails.filter((trail) => trail.is_pinned);
 
-  const unpinned = trails.filter(
-    (trail) => !trail.is_pinned,
-  );
+  const unpinned = trails.filter((trail) => !trail.is_pinned);
 
   const today: AIConversation[] = [];
   const yesterdayItems: AIConversation[] = [];
@@ -73,16 +55,11 @@ function buildGroups(
   const older: AIConversation[] = [];
 
   for (const trail of unpinned) {
-    const trailDate = startOfDay(
-      getTrailDate(trail),
-    );
+    const trailDate = startOfDay(getTrailDate(trail));
 
     if (trailDate.getTime() === now.getTime()) {
       today.push(trail);
-    } else if (
-      trailDate.getTime() ===
-      yesterday.getTime()
-    ) {
+    } else if (trailDate.getTime() === yesterday.getTime()) {
       yesterdayItems.push(trail);
     } else if (trailDate >= sevenDaysAgo) {
       previousSevenDays.push(trail);
@@ -112,23 +89,16 @@ function buildGroups(
       label: "Older",
       trails: older,
     },
-  ].filter(
-    (group) => group.trails.length > 0,
-  );
+  ].filter((group) => group.trails.length > 0);
 }
 
-function formatTrailTime(
-  trail: AIConversation,
-) {
+function formatTrailTime(trail: AIConversation) {
   const date = getTrailDate(trail);
 
-  return date.toLocaleDateString(
-    undefined,
-    {
-      month: "short",
-      day: "numeric",
-    },
-  );
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default function StudyTrailPanel({
@@ -145,78 +115,49 @@ export default function StudyTrailPanel({
   onDelete,
   onTogglePin,
 }: StudyTrailPanelProps) {
-  const panelRef =
-    useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
 
-  const [
-    openMenuId,
-    setOpenMenuId,
-  ] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   useEffect(() => {
-    function handlePointerDown(
-      event: PointerEvent,
-    ) {
+    function handlePointerDown(event: PointerEvent) {
       if (
         panelRef.current &&
-        !panelRef.current.contains(
-          event.target as Node,
-        )
+        !panelRef.current.contains(event.target as Node)
       ) {
         setOpenMenuId(null);
       }
     }
 
-    function handleKeyDown(
-      event: KeyboardEvent,
-    ) {
+    function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpenMenuId(null);
       }
     }
 
-    document.addEventListener(
-      "pointerdown",
-      handlePointerDown,
-    );
+    document.addEventListener("pointerdown", handlePointerDown);
 
-    window.addEventListener(
-      "keydown",
-      handleKeyDown,
-    );
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener(
-        "pointerdown",
-        handlePointerDown,
-      );
+      document.removeEventListener("pointerdown", handlePointerDown);
 
-      window.removeEventListener(
-        "keydown",
-        handleKeyDown,
-      );
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
-  const cleanSearch =
-    search.trim().toLowerCase();
+  const cleanSearch = search.trim().toLowerCase();
 
   const filteredTrails = cleanSearch
-    ? trails.filter((trail) =>
-        trail.title
-          .toLowerCase()
-          .includes(cleanSearch),
-      )
+    ? trails.filter((trail) => trail.title.toLowerCase().includes(cleanSearch))
     : trails;
 
-  const groups = buildGroups(
-    filteredTrails,
-  );
+  const groups = buildGroups(filteredTrails);
 
   return (
     <aside
       ref={panelRef}
-      className="h-full rounded-2xl border border-white/[0.08] bg-[#0d131a] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.32)]"
+      className="studysnap-chat-history studysnap-scroll h-full rounded-2xl border border-white/[0.08] bg-[#0d131a] p-2 shadow-[0_20px_60px_rgba(0,0,0,0.32)]"
     >
       <div className="flex min-h-11 items-center gap-2 px-2">
         <h3 className="min-w-0 flex-1 truncate text-base font-black text-white">
@@ -245,11 +186,7 @@ export default function StudyTrailPanel({
 
         <input
           value={search}
-          onChange={(event) =>
-            onSearchChange(
-              event.target.value,
-            )
-          }
+          onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search chats"
           aria-label="Search chats"
           className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-9 pr-9 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/30"
@@ -258,9 +195,7 @@ export default function StudyTrailPanel({
         {search ? (
           <button
             type="button"
-            onClick={() =>
-              onSearchChange("")
-            }
+            onClick={() => onSearchChange("")}
             aria-label="Clear search"
             className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white"
           >
@@ -269,7 +204,7 @@ export default function StudyTrailPanel({
         ) : null}
       </div>
 
-      <div className="mt-3 max-h-[calc(100dvh-14rem)] overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-13rem)]">
+      <div className="studysnap-scroll mt-3 max-h-[calc(100dvh-14rem)] overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-13rem)]">
         {loading ? (
           <p className="px-3 py-5 text-sm font-semibold text-slate-500">
             Loading…
@@ -278,13 +213,9 @@ export default function StudyTrailPanel({
           <div className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center">
             <p className="text-xl">✦</p>
 
-            <p className="mt-2 text-sm font-black text-white">
-              No chats
-            </p>
+            <p className="mt-2 text-sm font-black text-white">No chats</p>
 
-            <p className="mt-1 text-xs text-slate-500">
-              {emptyMessage}
-            </p>
+            <p className="mt-1 text-xs text-slate-500">{emptyMessage}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -295,157 +226,115 @@ export default function StudyTrailPanel({
                 </p>
 
                 <div className="space-y-1">
-                  {group.trails.map(
-                    (trail) => {
-                      const active =
-                        trail.id ===
-                        activeTrailId;
+                  {group.trails.map((trail) => {
+                    const active = trail.id === activeTrailId;
 
-                      const menuOpen =
-                        openMenuId ===
-                        trail.id;
+                    const menuOpen = openMenuId === trail.id;
 
-                      return (
-                        <article
-                          key={trail.id}
-                          className={`overflow-hidden rounded-xl border transition ${
-                            active
-                              ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.09]"
-                              : "border-transparent bg-white/[0.025] hover:bg-white/[0.05]"
-                          }`}
-                        >
-                          <div className="flex min-w-0 items-center">
+                    return (
+                      <article
+                        key={trail.id}
+                        className={`overflow-hidden rounded-xl border transition ${
+                          active
+                            ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.09]"
+                            : "border-transparent bg-white/[0.025] hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              onSelect(trail);
+                            }}
+                            className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
+                          >
+                            <span
+                              className={`h-2 w-2 shrink-0 rounded-full ${
+                                active ? "bg-[#c9ad50]" : "bg-slate-700"
+                              }`}
+                            />
+
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-bold text-slate-100">
+                                {trail.title}
+                              </span>
+
+                              <span className="mt-0.5 block text-[10px] font-semibold text-slate-600">
+                                {formatTrailTime(trail)}
+                              </span>
+                            </span>
+
+                            {trail.is_pinned ? (
+                              <span
+                                className="shrink-0 text-xs text-[#c9ad50]"
+                                title="Pinned"
+                              >
+                                ★
+                              </span>
+                            ) : null}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenMenuId(menuOpen ? null : trail.id)
+                            }
+                            aria-label={`Actions for ${trail.title}`}
+                            aria-expanded={menuOpen}
+                            className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                          >
+                            •••
+                          </button>
+                        </div>
+
+                        {menuOpen ? (
+                          <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
                             <button
                               type="button"
                               onClick={() => {
-                                setOpenMenuId(
-                                  null,
-                                );
-                                onSelect(
-                                  trail,
-                                );
+                                setOpenMenuId(null);
+                                onTogglePin(trail);
                               }}
-                              className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
+                              aria-label={
+                                trail.is_pinned ? "Unpin chat" : "Pin chat"
+                              }
+                              title={trail.is_pinned ? "Unpin" : "Pin"}
+                              className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
                             >
-                              <span
-                                className={`h-2 w-2 shrink-0 rounded-full ${
-                                  active
-                                    ? "bg-[#c9ad50]"
-                                    : "bg-slate-700"
-                                }`}
-                              />
-
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-bold text-slate-100">
-                                  {
-                                    trail.title
-                                  }
-                                </span>
-
-                                <span className="mt-0.5 block text-[10px] font-semibold text-slate-600">
-                                  {formatTrailTime(
-                                    trail,
-                                  )}
-                                </span>
-                              </span>
-
-                              {trail.is_pinned ? (
-                                <span
-                                  className="shrink-0 text-xs text-[#c9ad50]"
-                                  title="Pinned"
-                                >
-                                  ★
-                                </span>
-                              ) : null}
+                              {trail.is_pinned ? "★" : "☆"}
                             </button>
 
                             <button
                               type="button"
-                              onClick={() =>
-                                setOpenMenuId(
-                                  menuOpen
-                                    ? null
-                                    : trail.id,
-                                )
-                              }
-                              aria-label={`Actions for ${trail.title}`}
-                              aria-expanded={
-                                menuOpen
-                              }
-                              className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                onRename(trail);
+                              }}
+                              aria-label="Rename chat"
+                              title="Rename"
+                              className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
                             >
-                              •••
+                              ✎
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                onDelete(trail);
+                              }}
+                              aria-label="Delete chat"
+                              title="Delete"
+                              className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
+                            >
+                              🗑
                             </button>
                           </div>
-
-                          {menuOpen ? (
-                            <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(
-                                    null,
-                                  );
-                                  onTogglePin(
-                                    trail,
-                                  );
-                                }}
-                                aria-label={
-                                  trail.is_pinned
-                                    ? "Unpin chat"
-                                    : "Pin chat"
-                                }
-                                title={
-                                  trail.is_pinned
-                                    ? "Unpin"
-                                    : "Pin"
-                                }
-                                className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
-                              >
-                                {trail.is_pinned
-                                  ? "★"
-                                  : "☆"}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(
-                                    null,
-                                  );
-                                  onRename(
-                                    trail,
-                                  );
-                                }}
-                                aria-label="Rename chat"
-                                title="Rename"
-                                className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
-                              >
-                                ✎
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(
-                                    null,
-                                  );
-                                  onDelete(
-                                    trail,
-                                  );
-                                }}
-                                aria-label="Delete chat"
-                                title="Delete"
-                                className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
-                              >
-                                🗑
-                              </button>
-                            </div>
-                          ) : null}
-                        </article>
-                      );
-                    },
-                  )}
+                        ) : null}
+                      </article>
+                    );
+                  })}
                 </div>
               </section>
             ))}

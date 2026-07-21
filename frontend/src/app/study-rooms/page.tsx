@@ -28,7 +28,9 @@ type StudyRoom = {
 
 function getRoomDescription(room: StudyRoom | null) {
   if (!room) return "No room selected yet.";
-  return room.description?.trim() || "Open this topic workspace and start learning.";
+  return (
+    room.description?.trim() || "Open this topic workspace and start learning."
+  );
 }
 
 export default function StudyRoomsPage() {
@@ -37,8 +39,7 @@ export default function StudyRoomsPage() {
 
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
-  const [openRoomMenuId, setOpenRoomMenuId] =
-    useState<number | null>(null);
+  const [openRoomMenuId, setOpenRoomMenuId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
 
   const [newName, setNewName] = useState("");
@@ -68,7 +69,8 @@ export default function StudyRoomsPage() {
 
       const savedRoomId = getSavedProjectRoomId();
       const savedRoomExists =
-        savedRoomId !== null && roomList.some((room) => room.id === savedRoomId);
+        savedRoomId !== null &&
+        roomList.some((room) => room.id === savedRoomId);
 
       const nextSelectedId =
         savedRoomExists && savedRoomId !== null
@@ -136,6 +138,36 @@ export default function StudyRoomsPage() {
     router.push(`/study-rooms/${roomId}`);
   }
 
+  function startRenameRoom(room: StudyRoom) {
+    setOpenRoomMenuId(null);
+    setSelectedRoomId(room.id);
+    saveProjectRoomId(room.id);
+
+    setEditName(room.name || "");
+    setEditSubject(room.subject || "");
+    setEditDescription(room.description || "");
+
+    window.setTimeout(() => {
+      const settingsPanel = document.getElementById("room-settings");
+
+      if (settingsPanel instanceof HTMLDetailsElement) {
+        settingsPanel.open = true;
+      }
+
+      settingsPanel?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      const nameInput = document.getElementById("room-settings-name");
+
+      if (nameInput instanceof HTMLInputElement) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 80);
+  }
+
   async function handleCreateRoom() {
     if (!newName.trim()) {
       setError("Enter a room name.");
@@ -155,7 +187,7 @@ export default function StudyRoomsPage() {
       const created = (await createStudyRoom(
         newName.trim(),
         newSubject.trim(),
-        newDescription.trim() || undefined
+        newDescription.trim() || undefined,
       )) as StudyRoom;
 
       setRooms((current) => [created, ...current]);
@@ -195,11 +227,11 @@ export default function StudyRoomsPage() {
         selectedRoom.id,
         editName.trim(),
         editSubject.trim(),
-        editDescription.trim() || undefined
+        editDescription.trim() || undefined,
       )) as StudyRoom;
 
       setRooms((current) =>
-        current.map((room) => (room.id === updated.id ? updated : room))
+        current.map((room) => (room.id === updated.id ? updated : room)),
       );
 
       setSelectedRoomId(updated.id);
@@ -212,35 +244,42 @@ export default function StudyRoomsPage() {
     }
   }
 
-  async function handleDeleteRoom() {
-    if (!selectedRoom) return;
-
+  async function handleDeleteRoom(room: StudyRoom) {
     const confirmed = window.confirm(
-      `Delete "${selectedRoom.name}"? This cannot be undone.`
+      `Delete "${room.name}"? This cannot be undone.`,
     );
 
     if (!confirmed) return;
+
+    setOpenRoomMenuId(null);
 
     try {
       setDeleting(true);
       setError("");
       setMessage("");
 
-      await deleteStudyRoom(selectedRoom.id);
+      await deleteStudyRoom(room.id);
 
-      const nextRooms = rooms.filter((room) => room.id !== selectedRoom.id);
-      const nextSelectedId = nextRooms[0]?.id || null;
+      const nextRooms = rooms.filter((item) => item.id !== room.id);
+
+      const deletedCurrentRoom = selectedRoomId === room.id;
+
+      const nextSelectedId = deletedCurrentRoom
+        ? (nextRooms[0]?.id ?? null)
+        : selectedRoomId;
 
       setRooms(nextRooms);
       setSelectedRoomId(nextSelectedId);
 
-      if (nextSelectedId !== null) {
-        saveProjectRoomId(nextSelectedId);
-      } else {
-        clearProjectRoomId();
+      if (deletedCurrentRoom) {
+        if (nextSelectedId !== null) {
+          saveProjectRoomId(nextSelectedId);
+        } else {
+          clearProjectRoomId();
+        }
       }
 
-      setMessage("Room deleted.");
+      setMessage(`"${room.name}" deleted.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete room.");
     } finally {
@@ -274,9 +313,7 @@ export default function StudyRoomsPage() {
         <section className="rounded-[1.6rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(16,22,28,0.94),rgba(3,6,9,0.98))] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-3xl sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-white">
-                Study rooms
-              </h2>
+              <h2 className="text-xl font-black text-white">Study rooms</h2>
 
               <p className="mt-1 text-xs font-bold text-slate-500">
                 {rooms.length} room{rooms.length === 1 ? "" : "s"}
@@ -347,27 +384,30 @@ export default function StudyRoomsPage() {
               return (
                 <article
                   key={room.id}
-                  className={`relative rounded-[1.4rem] border p-3 shadow-[0_16px_44px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition ${
+                  className={`group cursor-pointer focus-within:z-30 relative rounded-[1.4rem] border p-3 shadow-[0_16px_44px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:shadow-[0_22px_58px_rgba(0,0,0,0.38)] ${
                     active
                       ? "border-[#c9ad50]/35 bg-[#c9ad50]/[0.07]"
                       : "border-white/[0.1] bg-[linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))]"
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openRoom(room.id)}
+                  <button
+                    type="button"
+                    data-room-card-link
+                    onClick={() => openRoom(room.id)}
+                    aria-label={`Open ${room.name}`}
+                    className="absolute inset-0 z-0 rounded-[1.4rem] outline-none transition focus-visible:ring-2 focus-visible:ring-[#c9ad50]/75 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    <span className="sr-only">Open {room.name}</span>
+                  </button>
+                  <div className="pointer-events-none relative z-10 flex items-start gap-3">
+                    <div
+                      aria-hidden="true"
                       className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-base font-black text-[#e0ce80]"
-                      aria-label={`Open ${room.name}`}
                     >
                       {room.name.trim().charAt(0).toUpperCase() || "S"}
-                    </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => openRoom(room.id)}
-                      className="min-w-0 flex-1 text-left"
-                    >
+                    <div className="min-w-0 flex-1 text-left">
                       <div className="flex items-center gap-2">
                         <h3 className="truncate text-sm font-black text-white">
                           {room.name}
@@ -390,21 +430,18 @@ export default function StudyRoomsPage() {
                       <p className="mt-2 line-clamp-1 text-xs text-slate-400">
                         {getRoomDescription(room)}
                       </p>
-                    </button>
+                    </div>
 
                     <button
                       type="button"
                       onClick={() =>
                         setOpenRoomMenuId(
-                          openRoomMenuId === room.id
-                            ? null
-                            : room.id
+                          openRoomMenuId === room.id ? null : room.id,
                         )
                       }
                       aria-label={`Room options for ${room.name}`}
-                      aria-expanded={
-                        openRoomMenuId === room.id
-                      }
+                      aria-haspopup="menu"
+                      aria-expanded={openRoomMenuId === room.id}
                       aria-controls={`room-options-${room.id}`}
                       className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-lg font-black transition ${
                         openRoomMenuId === room.id
@@ -412,9 +449,7 @@ export default function StudyRoomsPage() {
                           : "border-white/[0.1] bg-white/[0.045] text-slate-400 active:bg-white/[0.09]"
                       }`}
                     >
-                      {openRoomMenuId === room.id
-                        ? "×"
-                        : "⋯"}
+                      ⋯
                     </button>
                   </div>
 
@@ -423,43 +458,79 @@ export default function StudyRoomsPage() {
                       id={`room-options-${room.id}`}
                       role="menu"
                       aria-label={`Options for ${room.name}`}
-                      className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.08] pt-3"
+                      className="pointer-events-auto absolute right-3 top-14 z-40 w-52 overflow-hidden rounded-2xl border border-white/[0.12] bg-[#080c10]/95 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-3xl"
                     >
                       <button
                         type="button"
                         role="menuitem"
-                        onClick={() =>
-                          selectRoom(room.id)
-                        }
-                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-black transition ${
-                          active
-                            ? "border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[#dfcf8b]"
-                            : "border-white/[0.09] bg-white/[0.04] text-slate-200 active:bg-white/[0.09]"
-                        }`}
+                        onClick={() => openRoom(room.id)}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-slate-100 transition hover:bg-white/[0.08]"
                       >
-                        <span aria-hidden="true">
-                          ✓
+                        <span
+                          aria-hidden="true"
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.055] text-sm"
+                        >
+                          ↗
                         </span>
-
-                        {active
-                          ? "Selected"
-                          : "Select"}
+                        Open room
                       </button>
 
                       <button
                         type="button"
                         role="menuitem"
-                        onClick={() =>
-                          openRoom(room.id)
-                        }
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#d8c362]/25 bg-[#c9ad50]/10 px-3 py-2.5 text-xs font-black text-[#e7d994] transition active:bg-[#c9ad50]/18"
+                        disabled={active}
+                        onClick={() => selectRoom(room.id)}
+                        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
+                          active
+                            ? "cursor-default text-[#dfcf8b]"
+                            : "text-slate-100 hover:bg-white/[0.08]"
+                        }`}
                       >
-                        <span aria-hidden="true">
-                          ↗
+                        <span
+                          aria-hidden="true"
+                          className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-sm ${
+                            active ? "bg-[#c9ad50]/15" : "bg-white/[0.055]"
+                          }`}
+                        >
+                          ✓
                         </span>
 
-                        Open room
+                        {active ? "Current room" : "Set as current"}
                       </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => startRenameRoom(room)}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-slate-100 transition hover:bg-white/[0.08]"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.055] text-sm"
+                        >
+                          ✎
+                        </span>
+                        Rename
+                      </button>
+
+                      <div className="mt-1 border-t border-white/[0.08] pt-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={deleting}
+                          onClick={() => void handleDeleteRoom(room)}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-red-500/10 text-sm"
+                          >
+                            ⌫
+                          </span>
+
+                          {deleting ? "Deleting…" : "Delete room"}
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                 </article>
@@ -516,16 +587,17 @@ export default function StudyRoomsPage() {
             </div>
           </details>
 
-          <details className="group overflow-hidden rounded-[1.4rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.92),rgba(3,6,9,0.97))] shadow-[0_18px_50px_rgba(0,0,0,0.3)]">
+          <details
+            id="room-settings"
+            className="group overflow-hidden rounded-[1.4rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.92),rgba(3,6,9,0.97))] shadow-[0_18px_50px_rgba(0,0,0,0.3)]"
+          >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4">
               <span className="flex min-w-0 items-center gap-3 text-sm font-black text-white">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.1] bg-white/[0.045] text-slate-300">
                   ⚙
                 </span>
 
-                <span className="truncate">
-                  Room settings
-                </span>
+                <span className="truncate">Room settings</span>
               </span>
 
               <span className="text-xs text-slate-500 transition group-open:rotate-180">
@@ -535,9 +607,7 @@ export default function StudyRoomsPage() {
 
             <div className="border-t border-white/[0.08] p-4">
               {!selectedRoom ? (
-                <p className="text-sm text-slate-500">
-                  Select a room first.
-                </p>
+                <p className="text-sm text-slate-500">Select a room first.</p>
               ) : (
                 <div className="grid gap-3">
                   <p className="truncate text-sm font-black text-[#dfce83]">
@@ -545,6 +615,7 @@ export default function StudyRoomsPage() {
                   </p>
 
                   <input
+                    id="room-settings-name"
                     className="rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
                     placeholder="Room name"
                     value={editName}
@@ -565,25 +636,14 @@ export default function StudyRoomsPage() {
                     onChange={(event) => setEditDescription(event.target.value)}
                   />
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={handleUpdateRoom}
-                      disabled={savingEdit}
-                      className="rounded-xl bg-[#c9ad50] px-3 py-3 text-xs font-black text-black disabled:opacity-50"
-                    >
-                      {savingEdit ? "Saving…" : "Save"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleDeleteRoom}
-                      disabled={deleting}
-                      className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs font-black text-red-200 disabled:opacity-50"
-                    >
-                      {deleting ? "Deleting…" : "Delete"}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUpdateRoom}
+                    disabled={savingEdit}
+                    className="w-full rounded-xl bg-[#c9ad50] px-3 py-3 text-xs font-black text-black transition hover:bg-[#d3b95e] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingEdit ? "Saving…" : "Save changes"}
+                  </button>
                 </div>
               )}
             </div>
