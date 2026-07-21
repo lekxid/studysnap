@@ -76,11 +76,18 @@ test_app.dependency_overrides[get_db] = (
 class RoomAIAccessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.welcome_email_patcher = patch(
+            "app.routes.auth.send_welcome_email",
+            return_value=True,
+        )
+        cls.welcome_email_patcher.start()
+
         cls.client = TestClient(test_app)
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
+        cls.welcome_email_patcher.stop()
         test_app.dependency_overrides.clear()
         test_engine.dispose()
 

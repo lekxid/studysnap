@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     email_sender_address: str = ""
 
     openai_api_key: str = ""
+    openai_model: str = "gpt-4.1-mini"
     openai_vision_model: str = "gpt-4o-mini"
+
+    # Current-awareness defaults for StudySnap AI.
+    studysnap_timezone: str = "America/Toronto"
+    web_search_enabled: bool = True
 
     frontend_app_url: str = "http://localhost:3000"
     cors_origins: str = (
