@@ -8,6 +8,7 @@ import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { deleteStudyRoom, getStudyRooms, type StudyRoom } from "@/lib/api";
 import {
+  clearProjectRoomId,
   getSavedProjectRoomId,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
@@ -170,7 +171,7 @@ export default function StudyTogetherPage() {
       });
 
       if (getSavedProjectRoomId() === room.id) {
-        saveProjectRoomId(0);
+        clearProjectRoomId();
       }
 
       setOpenMenuRoomId(null);

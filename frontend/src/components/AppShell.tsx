@@ -447,7 +447,7 @@ export default function AppShell({
     useState<string | undefined>(undefined);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
+  const [brandMenuOpen, setBrandMenuOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
@@ -723,6 +723,47 @@ export default function AppShell({
       ? `Room #${activeProjectRoomId}`
       : "Choose a study room");
 
+  const dashboardRoomTools =
+    activeProjectRoomId === null
+      ? []
+      : [
+          {
+            label: "Overview",
+            icon: "🏠",
+            href: `/study-rooms/${activeProjectRoomId}`,
+          },
+          {
+            label: "Materials",
+            icon: "📚",
+            href: `/study-rooms/${activeProjectRoomId}?tab=materials`,
+          },
+          {
+            label: "Notes",
+            icon: "📝",
+            href: `/study-rooms/${activeProjectRoomId}?tab=notes`,
+          },
+          {
+            label: "AI Tutor",
+            icon: "🤖",
+            href: `/study-rooms/${activeProjectRoomId}?tab=ai`,
+          },
+          {
+            label: "Practice",
+            icon: "🧠",
+            href: `/study-rooms/${activeProjectRoomId}?tab=practice`,
+          },
+          {
+            label: "Together",
+            icon: "👥",
+            href: `/study-rooms/${activeProjectRoomId}?tab=together`,
+          },
+          {
+            label: "Progress",
+            icon: "📈",
+            href: `/study-rooms/${activeProjectRoomId}?tab=progress`,
+          },
+        ];
+
   function getConnectedHref(href: string) {
     if (!projectAwareNavHrefs.has(href) || activeProjectRoomId === null) {
       return href;
@@ -738,6 +779,10 @@ export default function AppShell({
   function getMobileNavHref(
     item: MobileNavItem,
   ) {
+    if (item.icon === "profile") {
+      return "/settings?tab=profile&focus=account";
+    }
+
     if (
       item.href === "/general-ai" &&
       activeProjectRoomId !== null
@@ -960,6 +1005,16 @@ export default function AppShell({
                 key={item.href}
                 href={getMobileNavHref(item)}
                 onClick={(event) => {
+                  if (item.icon === "profile") {
+                    event.preventDefault();
+
+                    window.location.assign(
+                      "/settings?tab=profile&focus=account"
+                    );
+
+                    return;
+                  }
+
                   if (
                     item.icon === "home" &&
                     pathname === "/dashboard"
@@ -1250,43 +1305,239 @@ export default function AppShell({
           desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#090d12]/96 backdrop-blur-xl">
-          <div className="flex h-[60px] items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:h-[72px]">
-            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3 lg:w-[390px] lg:flex-none">
-              <button
-                type="button"
-                onClick={() =>
-                  setMobileMenuOpen(
-                    (current) => !current
-                  )
-                }
-                className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black tracking-[0.08em] transition lg:hidden ${
-                  mobileMenuOpen
-                    ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
-                    : "border-white/10 bg-white/[0.05] text-slate-200 active:bg-white/[0.1]"
-                }`}
-                aria-label={mobileMenuOpen ? "Close more menu" : "Open more menu"}
-                aria-expanded={mobileMenuOpen}
-              >
-                {mobileMenuOpen ? "×" : "•••"}
-              </button>
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.09] bg-[#020406]/[0.92] shadow-[0_16px_50px_rgba(0,0,0,0.58)] backdrop-blur-3xl">
+          <div className="flex h-[60px] items-center gap-1.5 px-2.5 sm:gap-2.5 sm:px-4 lg:h-[72px]">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:w-[420px] lg:flex-none">
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  title="StudySnap menu"
+                  aria-label="Open StudySnap menu"
+                  aria-haspopup="menu"
+                  aria-expanded={brandMenuOpen}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setBrandMenuOpen((current) => !current);
+                  }}
+                  className="group block"
+                >
+                  <span className="relative grid h-10 w-[54px] place-items-center overflow-hidden rounded-[14px] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(20,25,31,0.98),rgba(2,4,6,0.99))] shadow-[0_12px_32px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.09)] transition group-active:scale-95">
+                    <span className="pointer-events-none absolute inset-[2px] rounded-[12px] border border-white/[0.05]" />
 
-              <Link
-                href="/dashboard"
-                title="Go to Dashboard"
-                className="flex shrink-0 items-center gap-2"
-              >
-                <span className="text-2xl text-[#c9ad50]">
-                  ★
-                </span>
+                    <span className="relative -translate-x-1 text-[22px] font-black leading-none tracking-[-0.12em] text-[#e3cf79]">
+                      S
+                    </span>
 
-                <span className="text-base font-black tracking-tight text-white sm:text-lg">
-                  StudySnap{" "}
-                  <span className="text-[#c9ad50]">
-                    AI
+                    <span className="absolute bottom-[7px] right-[6px] text-[8px] font-black tracking-[-0.04em] text-[#aa9857]">
+                      AI
+                    </span>
                   </span>
-                </span>
-              </Link>
+                </button>
+
+                {brandMenuOpen ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close StudySnap menu"
+                      onClick={() => setBrandMenuOpen(false)}
+                      className="fixed inset-0 z-[55] cursor-default bg-transparent"
+                    />
+
+                    <div
+                      role="menu"
+                      className="absolute left-0 top-12 z-[60] w-[min(18rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.25rem] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(18,24,30,0.98),rgba(3,6,9,0.98))] p-2 shadow-[0_26px_80px_rgba(0,0,0,0.76),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl"
+                    >
+                      <div className="mb-2 flex items-center gap-3 rounded-[1rem] border border-white/[0.08] bg-white/[0.035] p-3">
+                        <div className="grid h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-[#c9ad50] text-xs font-black text-black">
+                          {learnerAvatarUrl ? (
+                            <img
+                              src={learnerAvatarUrl}
+                              alt={`${learnerName} profile`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="place-self-center">
+                              {learnerInitials}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-white">
+                            {learnerName}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-500">
+                            StudySnap AI
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Link
+                          href="/dashboard"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ⌂
+                          </span>
+                          Home
+                        </Link>
+
+                        <Link
+                          href="/general-ai"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center text-[#d9c575]">
+                            ✦
+                          </span>
+                          AI Tutor
+                        </Link>
+
+                        <Link
+                          href="/study-rooms"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ▦
+                          </span>
+                          Rooms
+                        </Link>
+
+                        <Link
+                          href="/settings"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ⚙
+                          </span>
+                          Settings
+                        </Link>
+                      </div>
+
+                      <details className="group mt-1 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.06]">
+                          <span className="flex items-center gap-3">
+                            <span
+                              aria-hidden="true"
+                              className="w-5 text-center text-[#d9c575]"
+                            >
+                              ◈
+                            </span>
+
+                            Plans & access
+                          </span>
+
+                          <span
+                            aria-hidden="true"
+                            className="text-xs text-slate-500 transition group-open:rotate-180"
+                          >
+                            ▾
+                          </span>
+                        </summary>
+
+                        <div className="border-t border-white/[0.07] p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Core model
+                              </span>
+
+                              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300">
+                                Included
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Advanced models
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                More messages & uploads
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="max-w-[10.5rem] text-xs font-bold leading-4 text-slate-300">
+                                Advanced images + Thinking
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Expanded memory
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="max-w-[10.5rem] text-xs font-bold leading-4 text-slate-300">
+                                Coding tools & deep research
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Early access
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+
+                      <div className="my-2 border-t border-white/[0.08]" />
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setBrandMenuOpen(false);
+                          void handleLogout();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-300 transition hover:bg-red-500/10"
+                      >
+                        <span aria-hidden="true" className="w-5 text-center">
+                          ↪
+                        </span>
+                        Sign out
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
 
               <div className="min-w-0 flex-1">
                 <CommandBar />
@@ -1297,8 +1548,44 @@ export default function AppShell({
               {renderTopNavigation()}
             </nav>
 
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <div className="grid h-11 min-w-11 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] px-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBrandMenuOpen(false);
+                  setMobileMenuOpen((current) => !current);
+                }}
+                title="Room tools"
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border shadow-[0_10px_28px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl transition active:scale-95 lg:hidden ${
+                  mobileMenuOpen
+                    ? "border-[#d8bd60]/45 bg-[#c9ad50]/15"
+                    : "border-white/[0.11] bg-[#0c1117]/90 active:bg-white/[0.1]"
+                }`}
+                aria-label={
+                  mobileMenuOpen
+                    ? "Close room tools"
+                    : "Open room tools"
+                }
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? (
+                  <span className="text-lg font-black text-[#e8d98f]">
+                    ×
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="grid grid-cols-2 gap-[4px]"
+                  >
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                  </span>
+                )}
+              </button>
+
+              <div className="grid h-10 min-w-10 place-items-center rounded-[14px] border border-white/[0.11] bg-[#0c1117]/90 px-2 shadow-[0_10px_28px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl sm:h-11 sm:min-w-11">
                 <NotificationBell />
               </div>
 
@@ -1323,15 +1610,11 @@ export default function AppShell({
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.09] bg-[#0b0f14]/[0.84] px-4 py-4 shadow-[0_24px_70px_rgba(0,0,0,0.48)] backdrop-blur-2xl lg:hidden">
+            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.1] bg-[#020406]/[0.91] px-3 py-4 shadow-[0_32px_90px_rgba(0,0,0,0.76)] backdrop-blur-3xl lg:hidden">
               <div className="flex items-start justify-between gap-4 px-2">
                 <div>
-                  <p className="text-xs font-black text-white">
-                    More in StudySnap
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Notes, practice, planning and learning tools.
+                  <p className="text-sm font-black text-white">
+                    Room tools
                   </p>
                 </div>
 
@@ -1345,8 +1628,83 @@ export default function AppShell({
                 </button>
               </div>
 
+              <section
+                data-mobile-room-shortcuts="true"
+                className="mt-5 rounded-[1.35rem] border border-[#c9ad50]/20 bg-[#c9ad50]/[0.055] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.055)]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b7a45c]">
+                      Current room
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-black text-white">
+                      {currentRoomLabel}
+                    </p>
+                  </div>
+
+                  <Link
+                    href={
+                      activeProjectRoomId !== null
+                        ? `/study-rooms/${activeProjectRoomId}`
+                        : "/study-rooms"
+                    }
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className="shrink-0 rounded-full border border-[#d9c568]/25 bg-[#c9ad50]/10 px-3 py-1.5 text-[10px] font-black text-[#e7d994]"
+                  >
+                    {activeProjectRoomId !== null
+                      ? "Open"
+                      : "Choose"}
+                  </Link>
+                </div>
+
+                {activeProjectRoomId !== null ? (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {dashboardRoomTools.map(
+                      (tool) => (
+                        <Link
+                          key={tool.label}
+                          href={tool.href}
+                          onClick={() =>
+                            setMobileMenuOpen(false)
+                          }
+                          className="flex min-h-[72px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-white/[0.085] bg-[#080c10]/80 px-1.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] active:border-[#c9ad50]/35 active:bg-[#c9ad50]/10"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="text-xl leading-none"
+                          >
+                            {tool.icon}
+                          </span>
+
+                          <span className="w-full truncate text-[9px] font-black text-slate-200">
+                            {tool.label}
+                          </span>
+                        </Link>
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    href="/study-rooms"
+                    onClick={() =>
+                      setMobileMenuOpen(false)
+                    }
+                    className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#ead675]/30 bg-[linear-gradient(145deg,#d8bd5a,#a88631)] px-4 py-3 text-sm font-black text-[#050608]"
+                  >
+                    <span className="text-lg">
+                      +
+                    </span>
+
+                    Choose a room
+                  </Link>
+                )}
+              </section>
+
               <p className="mt-5 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                Study tools
+                Tools
               </p>
 
               <div className="mt-2">
