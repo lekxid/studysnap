@@ -278,7 +278,7 @@ export default function SmartOrganizerPage() {
       title="Smart Organizer"
       subtitle="Upload files, screenshots, PDFs, or long notes and let StudySnap organize them into rooms."
     >
-      <div className="content-grid min-w-0 max-w-full overflow-x-clip">
+      <div className="organizer-glass-page content-grid min-w-0 max-w-full overflow-x-clip">
         <section className="organizer-overview hero-grid min-w-0">
           <div className="gold-card min-w-0 rounded-[1.4rem] p-4 sm:rounded-[2rem] sm:p-8">
             <div className="gold-chip mb-4">AI Smart Room Organizer</div>

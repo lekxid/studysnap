@@ -3,13 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-type MaterialFilter =
-  | "all"
-  | "file"
-  | "pdf"
-  | "note"
-  | "concept-card"
-  | "quiz";
+type MaterialFilter = "all" | "file" | "pdf" | "note" | "concept-card" | "quiz";
 
 type PDFDocument = {
   id: number;
@@ -31,11 +25,7 @@ type StudyMaterialItem = {
   detected_topic: string | null;
   intelligence_summary: string | null;
   classification_confidence: number | null;
-  intelligence_status:
-    | "pending"
-    | "processing"
-    | "ready"
-    | "failed";
+  intelligence_status: "pending" | "processing" | "ready" | "failed";
   intelligence_error: string | null;
   analyzed_at: string | null;
   study_room_id: number;
@@ -87,17 +77,9 @@ type Props = {
   selectedPdfTitle: string;
   selectedStudyMaterialId: number | null;
 
-  onOpenStudyMaterial: (
-    materialId: number,
-    filename: string
-  ) => void;
-  onDownloadStudyMaterial: (
-    materialId: number,
-    filename: string
-  ) => void;
-  onDeleteStudyMaterial: (
-    materialId: number
-  ) => void;
+  onOpenStudyMaterial: (materialId: number, filename: string) => void;
+  onDownloadStudyMaterial: (materialId: number, filename: string) => void;
+  onDeleteStudyMaterial: (materialId: number) => void;
   onSelectPdf: (pdfId: number, title: string) => void;
   onSummarizePdf: (pdfId: number) => void;
   onDeletePdf: (pdfId: number) => void;
@@ -150,9 +132,7 @@ function formatFileSize(bytes: number) {
 
 function getConceptCardTitle(card: ConceptCardItem, index: number) {
   return (
-    card.question?.trim() ||
-    card.front?.trim() ||
-    `Concept Card ${index + 1}`
+    card.question?.trim() || card.front?.trim() || `Concept Card ${index + 1}`
   );
 }
 
@@ -180,16 +160,13 @@ function filterLabel(filter: MaterialFilter) {
 function titleCase(value?: string | null) {
   return (value || "")
     .replace(/[_-]+/g, " ")
-    .replace(
-      /\b\w/g,
-      (letter) => letter.toUpperCase()
-    )
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
     .trim();
 }
 
 function buildMaterialIntelligenceDescription(
   material: StudyMaterialItem,
-  fallbackType: string
+  fallbackType: string,
 ) {
   if (
     material.intelligence_status === "pending" ||
@@ -204,22 +181,15 @@ function buildMaterialIntelligenceDescription(
     titleCase(material.detected_topic),
   ].filter(Boolean);
 
-  const summary =
-    material.intelligence_summary?.trim();
+  const summary = material.intelligence_summary?.trim();
 
-  const confidence =
-    material.classification_confidence;
+  const confidence = material.classification_confidence;
 
   const confidenceLabel =
-    typeof confidence === "number"
-      ? ` • ${confidence}% confidence`
-      : "";
+    typeof confidence === "number" ? ` • ${confidence}% confidence` : "";
 
   if (labels.length && summary) {
-    return (
-      `${labels.join(" • ")} — ${summary}` +
-      confidenceLabel
-    );
+    return `${labels.join(" • ")} — ${summary}` + confidenceLabel;
   }
 
   if (summary) {
@@ -230,11 +200,8 @@ function buildMaterialIntelligenceDescription(
     return labels.join(" • ") + confidenceLabel;
   }
 
-  return `${fallbackType} • ${formatFileSize(
-    material.file_size
-  )}`;
+  return `${fallbackType} • ${formatFileSize(material.file_size)}`;
 }
-
 
 export default function RoomMaterialsTab({
   studyRoomId,
@@ -264,8 +231,8 @@ export default function RoomMaterialsTab({
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
 
   const materials = useMemo<UnifiedMaterial[]>(() => {
-    const studyMaterialItems: UnifiedMaterial[] =
-      studyMaterials.map((material) => {
+    const studyMaterialItems: UnifiedMaterial[] = studyMaterials.map(
+      (material) => {
         const typeLabel =
           material.material_type === "image"
             ? "Image"
@@ -293,15 +260,15 @@ export default function RoomMaterialsTab({
           id: material.id,
           type: "file",
           title: material.original_filename,
-          description:
-            buildMaterialIntelligenceDescription(
-              material,
-              typeLabel
-            ),
+          description: buildMaterialIntelligenceDescription(
+            material,
+            typeLabel,
+          ),
           createdAt: material.created_at,
           icon,
         };
-      });
+      },
+    );
 
     const pdfItems: UnifiedMaterial[] = pdfs.map((pdf) => ({
       key: `pdf-${pdf.id}`,
@@ -333,7 +300,7 @@ export default function RoomMaterialsTab({
         description: getConceptCardDescription(card),
         createdAt: card.created_at,
         icon: "🧠",
-      })
+      }),
     );
 
     const quizItems: UnifiedMaterial[] = quizzes.map((quiz, index) => ({
@@ -362,20 +329,13 @@ export default function RoomMaterialsTab({
 
       return secondTime - firstTime;
     });
-  }, [
-    conceptCards,
-    notes,
-    pdfs,
-    quizzes,
-    studyMaterials,
-  ]);
+  }, [conceptCards, notes, pdfs, quizzes, studyMaterials]);
 
   const visibleMaterials = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
 
     return materials.filter((material) => {
-      const matchesFilter =
-        filter === "all" || material.type === filter;
+      const matchesFilter = filter === "all" || material.type === filter;
 
       const matchesSearch =
         !normalizedSearch ||
@@ -418,131 +378,50 @@ export default function RoomMaterialsTab({
   ];
 
   const loading =
-    loadingPdfs ||
-    loadingStudyMaterials ||
-    loadingNotes ||
-    loadingPractice;
+    loadingPdfs || loadingStudyMaterials || loadingNotes || loadingPractice;
 
-  function renderPrimaryAction(material: UnifiedMaterial) {
-    const buttonClass =
-      "inline-flex min-w-[92px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100";
+  function renderMaterialMenu(material: UnifiedMaterial) {
+    const menuItemClass =
+      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08] hover:text-white";
+
+    const dangerItemClass =
+      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-red-200 transition hover:bg-red-400/10 hover:text-red-100";
 
     if (material.type === "file") {
-      const selected =
-        material.id === selectedStudyMaterialId;
+      const selected = material.id === selectedStudyMaterialId;
 
       return (
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <>
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
-              onOpenStudyMaterial(
-                material.id,
-                material.title
-              );
               setOpenMenuKey(null);
+              onOpenStudyMaterial(material.id, material.title);
             }}
-            className={[
-              buttonClass,
-              selected
-                ? "border-yellow-300/40 bg-yellow-300/15 text-yellow-100"
-                : "",
-            ].join(" ")}
+            className={menuItemClass}
           >
+            <span aria-hidden="true" className="w-5 text-center text-slate-400">
+              ↗
+            </span>
             {selected ? "Open again" : "Open"}
           </button>
 
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
-              onDownloadStudyMaterial(
-                material.id,
-                material.title
-              );
               setOpenMenuKey(null);
+              onDownloadStudyMaterial(material.id, material.title);
             }}
-            className={buttonClass}
+            className={menuItemClass}
           >
+            <span aria-hidden="true" className="w-5 text-center text-slate-400">
+              ↓
+            </span>
             Download
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setOpenMenuKey(null);
-              onDeleteStudyMaterial(
-                material.id
-              );
-            }}
-            className="inline-flex min-w-[82px] items-center justify-center rounded-xl border border-red-300/25 bg-red-400/[0.08] px-4 py-2.5 text-xs font-black text-red-200 transition hover:border-red-300/50 hover:bg-red-400/15"
-          >
-            Delete
-          </button>
-        </div>
-      );
-    }
-
-    if (material.type === "pdf") {
-      const selected = material.id === selectedPdfId;
-
-      return (
-        <button
-          type="button"
-          onClick={() => {
-            onSelectPdf(material.id, material.title);
-            setOpenMenuKey(null);
-          }}
-          className={[
-            buttonClass,
-            selected
-              ? "border-yellow-300/40 bg-yellow-300/15 text-yellow-100"
-              : "",
-          ].join(" ")}
-        >
-          {selected ? "Selected" : "Select"}
-        </button>
-      );
-    }
-
-    if (material.type === "note") {
-      return (
-        <Link
-          href={`/notes?room=${studyRoomId}&note=${material.id}`}
-          className={buttonClass}
-        >
-          Open
-        </Link>
-      );
-    }
-
-    if (material.type === "concept-card") {
-      return (
-        <Link
-          href={`/flashcards?room=${studyRoomId}`}
-          className={buttonClass}
-        >
-          Practice
-        </Link>
-      );
-    }
-
-    return (
-      <Link
-        href={`/quizzes?room=${studyRoomId}`}
-        className={buttonClass}
-      >
-        Start Quiz
-      </Link>
-    );
-  }
-
-  function renderMaterialMenu(material: UnifiedMaterial) {
-    const menuItemClass =
-      "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-slate-200 transition hover:bg-white/[0.08] hover:text-white";
-
-    if (material.type === "file") {
-      return (
-        <>
           <button
             type="button"
             role="menuitem"
@@ -552,7 +431,12 @@ export default function RoomMaterialsTab({
             }}
             className={menuItemClass}
           >
-            <span aria-hidden="true">🤖</span>
+            <span
+              aria-hidden="true"
+              className="w-5 text-center text-yellow-200"
+            >
+              ✦
+            </span>
             Ask AI Tutor
           </button>
 
@@ -563,13 +447,13 @@ export default function RoomMaterialsTab({
             role="menuitem"
             onClick={() => {
               setOpenMenuKey(null);
-              onDeleteStudyMaterial(
-                material.id
-              );
+              onDeleteStudyMaterial(material.id);
             }}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
+            className={dangerItemClass}
           >
-            <span aria-hidden="true">🗑️</span>
+            <span aria-hidden="true" className="w-5 text-center">
+              ⌫
+            </span>
             Delete
           </button>
         </>
@@ -577,8 +461,25 @@ export default function RoomMaterialsTab({
     }
 
     if (material.type === "pdf") {
+      const selected = material.id === selectedPdfId;
+
       return (
         <>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onSelectPdf(material.id, material.title);
+            }}
+            className={menuItemClass}
+          >
+            <span aria-hidden="true" className="w-5 text-center text-slate-400">
+              ↗
+            </span>
+            {selected ? "Open again" : "Open PDF"}
+          </button>
+
           <button
             type="button"
             role="menuitem"
@@ -588,7 +489,12 @@ export default function RoomMaterialsTab({
             }}
             className={menuItemClass}
           >
-            <span aria-hidden="true">✨</span>
+            <span
+              aria-hidden="true"
+              className="w-5 text-center text-yellow-200"
+            >
+              ✦
+            </span>
             Summarize
           </button>
 
@@ -602,7 +508,12 @@ export default function RoomMaterialsTab({
             }}
             className={menuItemClass}
           >
-            <span aria-hidden="true">🤖</span>
+            <span
+              aria-hidden="true"
+              className="w-5 text-center text-yellow-200"
+            >
+              ✦
+            </span>
             Ask AI Tutor
           </button>
 
@@ -615,30 +526,118 @@ export default function RoomMaterialsTab({
               setOpenMenuKey(null);
               onDeletePdf(material.id);
             }}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
+            className={dangerItemClass}
           >
-            <span aria-hidden="true">🗑️</span>
+            <span aria-hidden="true" className="w-5 text-center">
+              ⌫
+            </span>
             Delete
           </button>
         </>
       );
     }
 
+    if (material.type === "note") {
+      return (
+        <>
+          <Link
+            href={`/notes?room=${studyRoomId}&note=${material.id}`}
+            role="menuitem"
+            onClick={() => setOpenMenuKey(null)}
+            className={menuItemClass}
+          >
+            <span aria-hidden="true" className="w-5 text-center text-slate-400">
+              ↗
+            </span>
+            Open note
+          </Link>
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onOpenAiTutor();
+            }}
+            className={menuItemClass}
+          >
+            <span
+              aria-hidden="true"
+              className="w-5 text-center text-yellow-200"
+            >
+              ✦
+            </span>
+            Ask AI Tutor
+          </button>
+        </>
+      );
+    }
+
+    if (material.type === "concept-card") {
+      return (
+        <>
+          <Link
+            href={`/flashcards?room=${studyRoomId}`}
+            role="menuitem"
+            onClick={() => setOpenMenuKey(null)}
+            className={menuItemClass}
+          >
+            <span aria-hidden="true" className="w-5 text-center text-slate-400">
+              ↗
+            </span>
+            Practice cards
+          </Link>
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpenMenuKey(null);
+              onOpenAiTutor();
+            }}
+            className={menuItemClass}
+          >
+            <span
+              aria-hidden="true"
+              className="w-5 text-center text-yellow-200"
+            >
+              ✦
+            </span>
+            Explain with AI
+          </button>
+        </>
+      );
+    }
+
     return (
-      <button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          setOpenMenuKey(null);
-          onOpenAiTutor();
-        }}
-        className={menuItemClass}
-      >
-        <span aria-hidden="true">🤖</span>
-        {material.type === "concept-card"
-          ? "Explain with AI"
-          : "Ask AI Tutor"}
-      </button>
+      <>
+        <Link
+          href={`/quizzes?room=${studyRoomId}`}
+          role="menuitem"
+          onClick={() => setOpenMenuKey(null)}
+          className={menuItemClass}
+        >
+          <span aria-hidden="true" className="w-5 text-center text-slate-400">
+            ↗
+          </span>
+          Start quiz
+        </Link>
+
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setOpenMenuKey(null);
+            onOpenAiTutor();
+          }}
+          className={menuItemClass}
+        >
+          <span aria-hidden="true" className="w-5 text-center text-yellow-200">
+            ✦
+          </span>
+          Ask AI Tutor
+        </button>
+      </>
     );
   }
 
@@ -656,8 +655,9 @@ export default function RoomMaterialsTab({
             </h2>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Files, PDFs, notes, concept cards, and quizzes stay connected here.
-              StudySnap can use them to support AI Tutor, practice, and progress.
+              Files, PDFs, notes, concept cards, and quizzes stay connected
+              here. StudySnap can use them to support AI Tutor, practice, and
+              progress.
             </p>
 
             {selectedPdfId ? (
@@ -798,8 +798,7 @@ export default function RoomMaterialsTab({
             ) : visibleMaterials.length ? (
               visibleMaterials.map((material) => {
                 const selected =
-                  material.type === "pdf" &&
-                  material.id === selectedPdfId;
+                  material.type === "pdf" && material.id === selectedPdfId;
 
                 return (
                   <article
@@ -811,68 +810,69 @@ export default function RoomMaterialsTab({
                         : "border-white/10 bg-black/25 hover:border-white/20 hover:bg-white/[0.04]",
                     ].join(" ")}
                   >
-                    <div className="min-w-0">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xl">
-                            {material.icon}
-                          </div>
+                    <div className="relative flex min-w-0 items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xl">
+                        {material.icon}
+                      </div>
 
-                          <div className="min-w-0 flex-1">
-                            <p
-                              title={material.title}
-                              className="line-clamp-2 break-words text-sm font-black leading-5 text-white"
-                            >
-                              {material.title}
-                            </p>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          title={material.title}
+                          className="line-clamp-2 break-words text-sm font-black leading-5 text-white"
+                        >
+                          {material.title}
+                        </p>
 
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
-                              <span className="uppercase tracking-[0.1em] text-slate-300">
-                                {filterLabel(material.type)}
-                              </span>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                          <span className="uppercase tracking-[0.1em] text-slate-300">
+                            {filterLabel(material.type)}
+                          </span>
 
-                              <span aria-hidden="true">•</span>
+                          <span aria-hidden="true">•</span>
 
-                              <span>{formatDate(material.createdAt)}</span>
-                            </div>
-
-                            <p className="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-400">
-                              {material.description}
-                            </p>
-                          </div>
+                          <span>{formatDate(material.createdAt)}</span>
                         </div>
 
-                        <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/10 pt-3">
-                          {renderPrimaryAction(material)}
+                        <p className="mt-2 line-clamp-2 break-words text-xs leading-5 text-slate-400">
+                          {material.description}
+                        </p>
+                      </div>
 
-                          <div className="relative">
+                      <div className="relative shrink-0">
+                        <button
+                          type="button"
+                          aria-label={`More actions for ${material.title}`}
+                          aria-haspopup="menu"
+                          aria-expanded={openMenuKey === material.key}
+                          onClick={() =>
+                            setOpenMenuKey((current) =>
+                              current === material.key ? null : material.key,
+                            )
+                          }
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-lg font-black text-slate-300 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white"
+                        >
+                          <span aria-hidden="true">⋯</span>
+                        </button>
+
+                        {openMenuKey === material.key ? (
+                          <>
                             <button
                               type="button"
-                              aria-label={`More actions for ${material.title}`}
-                              aria-haspopup="menu"
-                              aria-expanded={openMenuKey === material.key}
-                              onClick={() =>
-                                setOpenMenuKey((current) =>
-                                  current === material.key
-                                    ? null
-                                    : material.key
-                                )
-                              }
-                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-lg font-black text-slate-300 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white"
-                            >
-                              <span aria-hidden="true">⋯</span>
-                            </button>
+                              className="fixed inset-0 z-40 cursor-default"
+                              aria-label="Close material menu"
+                              onClick={() => setOpenMenuKey(null)}
+                            />
 
-                            {openMenuKey === material.key ? (
-                              <div
-                                role="menu"
-                                className="absolute bottom-12 right-0 z-50 w-48 rounded-2xl border border-white/10 bg-slate-950 p-2 shadow-2xl shadow-black/60"
-                              >
-                                {renderMaterialMenu(material)}
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
+                            <div
+                              role="menu"
+                              className="absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-2xl border border-white/[0.14] bg-[#151c23]/95 p-2 shadow-2xl shadow-black/70 backdrop-blur-2xl"
+                            >
+                              {renderMaterialMenu(material)}
+                            </div>
+                          </>
+                        ) : null}
                       </div>
+                    </div>
                   </article>
                 );
               })

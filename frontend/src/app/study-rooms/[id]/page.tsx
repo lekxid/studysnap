@@ -124,13 +124,13 @@ function RoomGuide({
   ];
 
   return (
-    <section className="rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
             How StudySnap helps in this room
           </p>
-          <h2 className="mt-2 text-2xl font-black text-white">
+          <h2 className="mt-2 break-words text-2xl font-black text-white">
             One connected study workspace
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
@@ -140,19 +140,19 @@ function RoomGuide({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm text-slate-200">
-          <p className="font-black">{status}</p>
-          <p className="mt-1 text-xs text-slate-400">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm text-slate-200">
+          <p className="break-words font-black">{status}</p>
+          <p className="mt-1 break-words text-xs text-slate-400">
             AI Memory: {sources.map((source) => source.replaceAll("_", " ")).join(" + ")}
           </p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-4">
+      <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((step) => (
           <div
             key={step.title}
-            className="rounded-2xl border border-white/10 bg-[#0f151b] p-4"
+            className="min-w-0 rounded-2xl border border-white/10 bg-[#0f151b] p-4"
           >
             <div className="text-2xl">{step.icon}</div>
             <h3 className="mt-3 text-sm font-black text-white">{step.title}</h3>
@@ -371,12 +371,17 @@ export default function StudyRoomDetailPage() {
   function openProjectAi() {
     changeRoomTab("ai");
 
-    setTimeout(() => {
+    const aiTutorUrl =
+      `/study-rooms/${studyRoomId}?tab=ai`;
+
+    router.push(aiTutorUrl);
+
+    window.setTimeout(() => {
       aiSectionRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
-    }, 100);
+    }, 150);
   }
 
   function openMaterials() {
@@ -1052,7 +1057,7 @@ export default function StudyRoomDetailPage() {
 
   function renderOverviewTab() {
     return (
-      <div className="space-y-5">
+      <div className="min-w-0 max-w-full space-y-5">
         <RoomGuide
           foundation={roomFoundation}
           loading={loadingFoundation}
@@ -1060,8 +1065,8 @@ export default function StudyRoomDetailPage() {
         />
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-[#0f151b] p-5">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
               Recent Materials
             </p>
             <h3 className="mt-2 text-xl font-black text-white">
@@ -1079,7 +1084,7 @@ export default function StudyRoomDetailPage() {
                       setSummaryTitle(pdf.original_filename);
                       setActiveRoomTab("materials");
                     }}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
+                    className="min-w-0 w-full overflow-hidden break-words rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
                   >
                     📕 {pdf.original_filename}
                   </button>
@@ -1092,8 +1097,8 @@ export default function StudyRoomDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0f151b] p-5">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#a8b5bd]">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
               Recent Notes
             </p>
             <h3 className="mt-2 text-xl font-black text-white">
@@ -1105,7 +1110,7 @@ export default function StudyRoomDetailPage() {
                 notes.slice(0, 3).map((note) => (
                   <div
                     key={note.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                    className="min-w-0 max-w-full rounded-xl border border-white/10 bg-white/[0.04] p-3"
                   >
                     <p className="line-clamp-1 text-sm font-black text-white">
                       📝 {note.title || "Untitled Note"}
@@ -1125,21 +1130,21 @@ export default function StudyRoomDetailPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.045] p-5">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] p-4 sm:p-5">
             <p className="text-sm font-black text-[#ece8da]">Pinned Items</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Pin PDFs, notes, concept cards, and quizzes here later.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-5">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
             <p className="text-sm font-black text-slate-200">Room Activity</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Uploads, AI actions, summaries, and Study Together updates will appear here.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-5">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 sm:p-5">
             <p className="text-sm font-black text-slate-200">
               Study Together Preview
             </p>
@@ -1237,7 +1242,7 @@ export default function StudyRoomDetailPage() {
         />
 
         {summary ? (
-          <section className="rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-6">
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-4 sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.3em] text-[#c9ad50]/80">
@@ -1258,7 +1263,7 @@ export default function StudyRoomDetailPage() {
               </button>
             </div>
 
-            <pre className="mt-6 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
+            <pre className="mt-6 min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-xl bg-black p-4 text-sm leading-7 text-white/80 sm:max-h-[520px] sm:p-5">
               {summary}
             </pre>
           </section>
@@ -1269,10 +1274,10 @@ export default function StudyRoomDetailPage() {
 
   function renderNotesTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#a8b5bd]">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
               Room Notes
             </p>
             <h2 className="mt-2 text-2xl font-black text-white">
@@ -1355,10 +1360,10 @@ export default function StudyRoomDetailPage() {
 
   function renderPracticeTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
               Practice
             </p>
             <h2 className="mt-2 text-2xl font-black text-white">
@@ -1450,8 +1455,8 @@ export default function StudyRoomDetailPage() {
 
   function renderProgressTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
           Progress
         </p>
         <h2 className="mt-2 text-2xl font-black text-white">

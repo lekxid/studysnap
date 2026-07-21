@@ -86,6 +86,15 @@ const studyToolNavItems: NavItem[] = [
   },
 ];
 
+const mobileStudyToolNavItems: NavItem[] = [
+  {
+    href: "/study-rooms/organize",
+    label: "Smart Organizer",
+    icon: "🗂️",
+  },
+  ...studyToolNavItems,
+];
+
 const moreNavItems: NavItem[] = [
   {
     href: "/onboarding",
@@ -178,6 +187,7 @@ const projectAwareNavHrefs = new Set([
   "/flashcards",
   "/quizzes",
   "/planner",
+  "/ai-tutor",
 ]);
 
 function isNavItemActive(
@@ -677,6 +687,13 @@ export default function AppShell({
       return "/study-together";
     }
 
+    if (
+      item.href === "/ai-tutor" &&
+      activeProjectRoomId !== null
+    ) {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+    }
+
     return item.href;
   }
 
@@ -711,7 +728,24 @@ export default function AppShell({
       return href;
     }
 
+    if (href === "/ai-tutor") {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+    }
+
     return `${href}?roomId=${activeProjectRoomId}`;
+  }
+
+  function getMobileNavHref(
+    item: MobileNavItem,
+  ) {
+    if (
+      item.href === "/general-ai" &&
+      activeProjectRoomId !== null
+    ) {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+    }
+
+    return item.href;
   }
 
   function handleChooseRoom(room: RoomSummary) {
@@ -759,15 +793,32 @@ export default function AppShell({
           key={item.href}
           href={connectedHref}
           aria-current={active ? "page" : undefined}
-          onClick={() => {
+          onClick={(event) => {
+            if (
+              item.href === "/ai-tutor" &&
+              activeProjectRoomId !== null
+            ) {
+              event.preventDefault();
+
+              if (closeMobile) {
+                setMobileMenuOpen(false);
+              }
+
+              window.location.assign(
+                `/study-rooms/${activeProjectRoomId}?tab=ai`
+              );
+
+              return;
+            }
+
             if (closeMobile) {
               setMobileMenuOpen(false);
             }
           }}
-          className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold transition ${
+          className={`flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] backdrop-blur-xl transition ${
             active
-              ? "border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.09] text-[#ece8da]"
-              : "text-slate-200 hover:bg-white/[0.06] hover:text-white"
+              ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.13] text-[#f2e8b6]"
+              : "border-white/[0.055] bg-white/[0.025] text-slate-200 hover:border-white/[0.11] hover:bg-white/[0.065] hover:text-white"
           }`}
         >
           <span
@@ -804,7 +855,7 @@ export default function AppShell({
     const sectionActive = isAnyNavItemActive(pathname, items);
 
     return (
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-1">
+      <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_35px_rgba(0,0,0,0.16)] backdrop-blur-2xl">
         <button
           type="button"
           onClick={onToggle}
@@ -907,7 +958,7 @@ export default function AppShell({
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={getMobileNavHref(item)}
                 onClick={(event) => {
                   if (
                     item.icon === "home" &&
@@ -971,7 +1022,7 @@ export default function AppShell({
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#0b0f14] text-white">
       <aside
-        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.07] bg-[#0d1218] px-3 py-4 shadow-[12px_0_40px_rgba(0,0,0,0.18)] transition-transform duration-300 lg:flex lg:flex-col ${
+        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.09] bg-[#0b1016]/[0.86] px-3 py-4 shadow-[18px_0_55px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition-transform duration-300 lg:flex lg:flex-col ${
           desktopSidebarOpen ? "lg:translate-x-0" : "lg:-translate-x-full"
         }`}
         aria-hidden={!desktopSidebarOpen}
@@ -1272,7 +1323,7 @@ export default function AppShell({
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.07] bg-[#0b0f14] px-4 py-4 shadow-2xl lg:hidden">
+            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.09] bg-[#0b0f14]/[0.84] px-4 py-4 shadow-[0_24px_70px_rgba(0,0,0,0.48)] backdrop-blur-2xl lg:hidden">
               <div className="flex items-start justify-between gap-4 px-2">
                 <div>
                   <p className="text-xs font-black text-white">
@@ -1287,7 +1338,7 @@ export default function AppShell({
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-lg text-slate-300 active:bg-white/[0.1]"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.055] text-lg text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl active:bg-white/[0.11]"
                   aria-label="Close more menu"
                 >
                   ×
@@ -1302,7 +1353,7 @@ export default function AppShell({
                 {renderExpandableNav({
                   title: "Study Tools",
                   icon: "✦",
-                  items: studyToolNavItems,
+                  items: mobileStudyToolNavItems,
                   open: studyToolsOpen,
                   onToggle: () =>
                     setStudyToolsOpen(

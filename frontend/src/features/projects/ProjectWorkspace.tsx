@@ -377,9 +377,9 @@ export default function ProjectWorkspace({
   const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
 
   return (
-    <div className="space-y-3 sm:space-y-5">
-      <section className="overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="min-w-0 max-w-full space-y-3 sm:space-y-5">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <button
@@ -394,12 +394,12 @@ export default function ProjectWorkspace({
                 Your Study Room
               </span>
 
-              <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
+              <span className="min-w-0 max-w-full break-words rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
                 {subject}
               </span>
             </div>
 
-            <h1 className="max-w-5xl text-2xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+            <h1 className="max-w-5xl break-words text-2xl font-black leading-tight tracking-tight text-white sm:text-4xl">
               {title}
             </h1>
 
@@ -435,7 +435,7 @@ export default function ProjectWorkspace({
             </div>
           </div>
 
-          <aside className="grid grid-cols-4 gap-2 sm:gap-3 xl:w-[500px] xl:grid-cols-2">
+          <aside className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:w-[500px] xl:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Progress
@@ -483,10 +483,10 @@ export default function ProjectWorkspace({
             : "grid-cols-1",
         ].join(" ")}
       >
-        <div className="space-y-5">
-          <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
+        <div className="min-w-0 space-y-5">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-black text-white">
                   Room tools
                 </h2>
@@ -495,7 +495,7 @@ export default function ProjectWorkspace({
               <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
               {roomTabs.map((tab) => (
                 <TabButton
                   key={tab.key}
@@ -515,7 +515,7 @@ export default function ProjectWorkspace({
             onOpenResult={onOpenSearchResult}
           />
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-3 sm:p-4">
             {children}
           </section>
         </div>
@@ -597,18 +597,18 @@ export default function ProjectWorkspace({
             </button>
           </section>
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
                   Your AI Tutor
                 </p>
-                <h3 className="mt-1 text-xl font-black text-white">
+                <h3 className="mt-1 break-words text-xl font-black text-white">
                   What your AI Tutor knows
                 </h3>
               </div>
 
-              <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
+              <span className="shrink-0 self-start rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
                 {brainLoading ? "Loading" : `${masteryPercent}% mastery`}
               </span>
             </div>
@@ -716,8 +716,8 @@ export default function ProjectWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-yellow-300/20 bg-yellow-300/10 p-5">
-            <p className="text-lg font-black text-white">
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-yellow-300/20 bg-yellow-300/10 p-4 sm:p-5">
+            <p className="break-words text-lg font-black text-white">
               🏆 Connected study system
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
