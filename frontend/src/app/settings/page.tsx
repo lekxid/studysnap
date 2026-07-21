@@ -396,7 +396,6 @@ function getDriveFileKind(mimeType?: string | null) {
 
 export default function SettingsPage() {
   const ready = useRequireAuth();
-
   const [activeSettingsTab, setActiveSettingsTab] =
     useState<SettingsTab>("profile");
 
@@ -418,6 +417,9 @@ export default function SettingsPage() {
     useState<string | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  const accountSectionRef =
+    useRef<HTMLDivElement | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] =
     useState<GoogleDriveIntegrationStatus | null>(null);
   const [integrationMessage, setIntegrationMessage] = useState("");
@@ -451,6 +453,50 @@ export default function SettingsPage() {
     filename: string;
     roomName: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (
+      !ready ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const params = new URLSearchParams(
+      window.location.search
+    );
+
+    const requestedTab =
+      params.get("tab");
+
+    const requestedFocus =
+      params.get("focus");
+
+    if (requestedTab === "profile") {
+      setActiveSettingsTab("profile");
+    }
+
+    if (requestedFocus !== "account") {
+      return;
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+
+    const timer = window.setTimeout(() => {
+      accountSectionRef.current?.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [ready]);
 
   useEffect(() => {
     if (!account) return;
@@ -1242,7 +1288,11 @@ export default function SettingsPage() {
             </section>
 
             <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-              <div className="premium-card gold-border rounded-[2rem] p-6">
+              <div
+                id="profile-account"
+                ref={accountSectionRef}
+                className="premium-card gold-border scroll-mt-[5.5rem] rounded-[2rem] p-6"
+              >
                 <div className="gold-chip mb-4">Account</div>
 
                 <div className="flex flex-wrap items-start gap-5">

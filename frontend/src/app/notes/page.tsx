@@ -9,7 +9,6 @@ import {
 } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { askAi, createNote, deleteNote, downloadAITextPdf, downloadNotePdf, generateFlashcardsFromNotes, generateLesson, generateQuizzesFromNotes, getNotes, getStudyRooms, updateNote } from "@/lib/api";
-import NotesStats from "@/features/notes/NotesStats";
 import NotesEditor from "@/features/notes/NotesEditor";
 import NotesAIWorkspace, { AIChatMessage, AIHistoryItem } from "@/features/notes/NotesAIWorkspace";
 import NotesLibrary from "@/features/notes/NotesLibrary";
@@ -76,7 +75,11 @@ export default function NotesPage() {
     content: string;
   } | null>(null);
 
-  const aiWorkspaceRef = useRef<HTMLDivElement | null>(null);
+  const aiWorkspaceRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const aiWorkspaceDetailsRef =
+    useRef<HTMLDetailsElement | null>(null);
 
   function scrollToAIWorkspace() {
     window.setTimeout(() => {
@@ -920,14 +923,9 @@ Answer clearly in a helpful student-friendly way.`;
   }
 
   return (
-    <AppShell
-      title="Notes"
-      subtitle="Write, understand, and practise inside your study room"
-    >
+    <AppShell title="Notes">
 
-      <NotesStats notes={notes} selectedRoom={selectedRoom} />
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
         <NotesEditor
           rooms={rooms}
           selectedRoomId={selectedRoomId}
@@ -944,69 +942,191 @@ Answer clearly in a helpful student-friendly way.`;
           onTitleChange={setTitle}
           onContentChange={setContent}
           onSave={handleSaveNote}
-          onSummarize={handleSummarizeNote}
-          onExplain={handleExplainNote}
-          onLesson={handleLessonNote}
-          onFlashcards={handleFlashcardsNote}
-          onQuiz={handleQuizNote}
-          onAskAI={handleAskAINote}
-        />
-
-        <div ref={aiWorkspaceRef}>
-          <NotesAIWorkspace
-            title={aiTitle}
-          content={aiContent}
-          loading={aiLoading}
-          status={aiStatus}
-          history={aiHistory}
-          onCopy={handleCopyAI}
-          onInsert={handleInsertAI}
-          onCopyHistory={handleCopyAIHistory}
-          onInsertHistory={handleInsertAIHistory}
-          onSaveHistoryAsNote={handleSaveAIHistoryAsNote}
-          onDownloadCurrent={handleDownloadAITextPdf}
-          onDownloadHistory={handleDownloadAITextPdf}
-          onTogglePinHistory={handleTogglePinAIHistory}
-          onRegenerateHistory={handleRegenerateAIHistory}
-          onReplyHistory={handleReplyAIHistory}
-          onDeleteHistory={handleDeleteAIHistory}
-          onClearHistory={handleClearAIHistory}
-          chatMessages={aiChatMessages}
-          chatInput={aiChatInput}
-          chatLoading={aiLoading}
-          focusComposerToken={aiComposerFocusToken}
-          onChatInputChange={setAiChatInput}
-          onSendChat={handleSendAIChat}
-          />
-        </div>
-
-        <NotesLibrary
-          selectedRoom={selectedRoom}
-          query={query}
-          filteredNotes={filteredNotes}
-          loadingNotes={loadingNotes}
-          deletingId={deletingId}
-          downloadingId={downloadingId}
-          onQueryChange={setQuery}
-          onDeleteNote={handleDeleteNote}
-          onDownloadNote={handleDownloadNotePdf}
-          onSelectNote={(note) => {
-            setEditingNoteId(note.id);
-            setTitle(note.title);
-            setContent(note.content);
-            lastSavedNoteRef.current = {
-              id: note.id,
-              title: note.title.trim(),
-              content: note.content.trim(),
-            };
-            setSaveStatus("saved");
-            setAiChatMessages([]);
-            setAiChatInput("");
-            setAiContent("");
-            setAiTitle("Your AI Tutor");
-            setAiStatus("Opened a new note. Ask anything about it.");
+          onSummarize={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            void handleSummarizeNote();
+          }}
+          onExplain={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            void handleExplainNote();
+          }}
+          onLesson={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            void handleLessonNote();
+          }}
+          onFlashcards={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            void handleFlashcardsNote();
+          }}
+          onQuiz={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            void handleQuizNote();
+          }}
+          onAskAI={() => {
+            aiWorkspaceDetailsRef.current?.setAttribute(
+              "open",
+              ""
+            );
+            handleAskAINote();
           }}
         />
+
+        <details
+          ref={aiWorkspaceDetailsRef}
+          className="group overflow-hidden rounded-[1.5rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(14,20,26,0.95),rgba(2,5,8,0.98))] shadow-[0_22px_65px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-5">
+            <span className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfcd7e]">
+                ✦
+              </span>
+
+              <span>
+                <span className="block text-sm font-black text-white">
+                  AI Tutor
+                </span>
+
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Chat and study tools
+                </span>
+              </span>
+            </span>
+
+            <span className="text-sm text-slate-500 transition group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <div
+            ref={aiWorkspaceRef}
+            className="border-t border-white/[0.08] p-3 sm:p-4"
+          >
+            <NotesAIWorkspace
+              title={aiTitle}
+              content={aiContent}
+              loading={aiLoading}
+              status={aiStatus}
+              history={aiHistory}
+              onCopy={handleCopyAI}
+              onInsert={handleInsertAI}
+              onCopyHistory={handleCopyAIHistory}
+              onInsertHistory={handleInsertAIHistory}
+              onSaveHistoryAsNote={
+                handleSaveAIHistoryAsNote
+              }
+              onDownloadCurrent={
+                handleDownloadAITextPdf
+              }
+              onDownloadHistory={
+                handleDownloadAITextPdf
+              }
+              onTogglePinHistory={
+                handleTogglePinAIHistory
+              }
+              onRegenerateHistory={
+                handleRegenerateAIHistory
+              }
+              onReplyHistory={
+                handleReplyAIHistory
+              }
+              onDeleteHistory={
+                handleDeleteAIHistory
+              }
+              onClearHistory={
+                handleClearAIHistory
+              }
+              chatMessages={aiChatMessages}
+              chatInput={aiChatInput}
+              chatLoading={aiLoading}
+              focusComposerToken={
+                aiComposerFocusToken
+              }
+              onChatInputChange={
+                setAiChatInput
+              }
+              onSendChat={handleSendAIChat}
+            />
+          </div>
+        </details>
+
+        {loadingNotes || notes.length > 0 ? (
+          <details className="group overflow-hidden rounded-[1.5rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(14,20,26,0.95),rgba(2,5,8,0.98))] shadow-[0_22px_65px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 sm:px-5">
+              <span className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.1] bg-white/[0.045] text-lg text-slate-300">
+                  ▤
+                </span>
+
+                <span>
+                  <span className="block text-sm font-black text-white">
+                    Saved notes
+                  </span>
+
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    {loadingNotes
+                      ? "Loading"
+                      : `${notes.length} saved`}
+                  </span>
+                </span>
+              </span>
+
+              <span className="text-sm text-slate-500 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+
+            <div className="border-t border-white/[0.08] p-3 sm:p-4">
+              <NotesLibrary
+                selectedRoom={selectedRoom}
+                query={query}
+                filteredNotes={filteredNotes}
+                loadingNotes={loadingNotes}
+                deletingId={deletingId}
+                downloadingId={downloadingId}
+                onQueryChange={setQuery}
+                onDeleteNote={handleDeleteNote}
+                onDownloadNote={
+                  handleDownloadNotePdf
+                }
+                onSelectNote={(note) => {
+                  setEditingNoteId(note.id);
+                  setTitle(note.title);
+                  setContent(note.content);
+
+                  lastSavedNoteRef.current = {
+                    id: note.id,
+                    title: note.title.trim(),
+                    content: note.content.trim(),
+                  };
+
+                  setSaveStatus("saved");
+                  setAiChatMessages([]);
+                  setAiChatInput("");
+                  setAiContent("");
+                  setAiTitle("Your AI Tutor");
+                  setAiStatus(
+                    "Opened a new note. Ask anything about it."
+                  );
+                }}
+              />
+            </div>
+          </details>
+        ) : null}
       </div>
 
       {aiHistoryDeleteRequest ? (

@@ -1850,7 +1850,7 @@ export default function GeneralAIChat({
       setRoomCreationOffer(null);
 
       router.push(
-        `/projects?roomId=${firstRoom.id}`
+        `/study-rooms/${firstRoom.id}`
       );
     } catch (err) {
       setRoomCreationOffer((current) =>

@@ -315,7 +315,7 @@ export default function ProjectWorkspace({
   quizzesCount,
   progress,
   continueItems,
-  
+
   smartSuggestion,
   searchQuery,
   searchResults,
@@ -328,6 +328,9 @@ export default function ProjectWorkspace({
   onOpenSearchResult,
   children,
 }: Props) {
+  const [roomToolsOpen, setRoomToolsOpen] =
+    useState(true);
+
   const [brainInsights, setBrainInsights] = useState<BrainInsights | null>(null);
   const [brainLoading, setBrainLoading] = useState(false);
 
@@ -484,12 +487,54 @@ export default function ProjectWorkspace({
         ].join(" ")}
       >
         <div className="min-w-0 space-y-5">
-          <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
+          <section data-collapsible-room-tools="true" className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfcd7e]">
+              ✦
+            </span>
+
+            <div className="min-w-0">
+              <h2 className="text-xl font-black text-white">
+                Room tools
+              </h2>
+
+              <p className="mt-0.5 text-xs text-slate-500">
+                Search and open workspace tools
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setRoomToolsOpen(
+                (current) => !current
+              )
+            }
+            aria-expanded={roomToolsOpen}
+            aria-controls="room-tools-content"
+            className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.045] px-3 text-xs font-black text-slate-300 active:bg-white/[0.1]"
+          >
+            <span aria-hidden="true">
+              {roomToolsOpen ? "−" : "+"}
+            </span>
+
+            <span>
+              {roomToolsOpen ? "Hide" : "Show"}
+            </span>
+          </button>
+        </div>
+
+        {roomToolsOpen ? (
+          <div
+            id="room-tools-content"
+            className="mt-4"
+          >
+
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
-                <h2 className="text-sm font-black text-white">
-                  Room tools
-                </h2>
+
               </div>
 
               <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
@@ -505,7 +550,24 @@ export default function ProjectWorkspace({
                 />
               ))}
             </div>
-          </section>
+
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              setRoomToolsOpen(true)
+            }
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c9ad50]/25 bg-[#c9ad50]/[0.055] px-4 py-3 text-sm font-black text-[#ddce89]"
+          >
+            <span aria-hidden="true">
+              +
+            </span>
+
+            Show room tools
+          </button>
+        )}
+      </section>
 
           <ProjectSearchResults
             query={searchQuery}
