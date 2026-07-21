@@ -580,6 +580,65 @@ export type GenerateAIImageResponse = {
   assistant_message?: AIMessage | null;
 };
 
+export async function getAIAttachmentDataUrl(
+  messageId: number
+): Promise<string> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/ai/attachments/${messageId}`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "The saved image could not be opened."
+    );
+  }
+
+  const imageBlob = await response.blob();
+
+  return new Promise<string>(
+    (resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const value = String(
+          reader.result || ""
+        );
+
+        if (!value) {
+          reject(
+            new Error(
+              "The saved image was empty."
+            )
+          );
+          return;
+        }
+
+        resolve(value);
+      };
+
+      reader.onerror = () => {
+        reject(
+          new Error(
+            "The saved image could not be read."
+          )
+        );
+      };
+
+      reader.readAsDataURL(imageBlob);
+    }
+  );
+}
+
+
 export async function generateAIImage(
   prompt: string,
   options: GenerateAIImageOptions = {}

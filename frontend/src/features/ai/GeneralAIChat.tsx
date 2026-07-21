@@ -33,6 +33,7 @@ import {
   generateAIImage,
   deleteAIConversation,
   getAIMessages,
+  getAIAttachmentDataUrl,
   getStudyTrails,
   pinAIConversation,
   renameAIConversation,
@@ -100,14 +101,92 @@ function makeId() {
     .slice(2)}`;
 }
 
-function mapStoredMessage(
+function cleanStoredMessageContent(
   message: AIMessage
+): string {
+  const content = message.content.trim();
+
+  if (content.startsWith("[Create image]")) {
+    const prompt = content
+      .replace("[Create image]", "")
+      .trim();
+
+    return prompt
+      ? `Create an image: ${prompt}`
+      : "Create an image";
+  }
+
+  if (content.startsWith("[Generated image]")) {
+    return (
+      "This image was created before saved-image " +
+      "history was available."
+    );
+  }
+
+  if (content.startsWith("[Image uploaded]")) {
+    return content
+      .replace("[Image uploaded]", "")
+      .trim();
+  }
+
+  if (content.startsWith("[File:")) {
+    const closingBracket =
+      content.indexOf("]");
+
+    if (closingBracket >= 0) {
+      return content
+        .slice(closingBracket + 1)
+        .trim();
+    }
+  }
+
+  return message.content;
+}
+
+
+function mapStoredMessage(
+  message: AIMessage,
+  attachmentPreview?: string
 ): DisplayMessage {
+  const attachment = message.attachment;
+
+  const generatedImage =
+    message.role === "assistant" &&
+    attachment?.kind === "image";
+
+  const storedAttachment:
+    | MessageAttachment
+    | undefined = attachment
+      ? {
+          id: `stored-${message.id}`,
+          name: attachment.filename,
+          size: attachment.file_size || 0,
+          kind: attachment.kind,
+          preview:
+            attachment.kind === "image"
+              ? attachmentPreview
+              : undefined,
+        }
+      : undefined;
+
   return {
     id: message.id,
     role: message.role,
-    content: message.content,
+    content: cleanStoredMessageContent(
+      message
+    ),
     created_at: message.created_at,
+    imagePreview: generatedImage
+      ? attachmentPreview
+      : undefined,
+    imageName: generatedImage
+      ? attachment?.filename
+      : undefined,
+    generatedImage,
+    attachments:
+      storedAttachment && !generatedImage
+        ? [storedAttachment]
+        : undefined,
   };
 }
 
@@ -357,9 +436,38 @@ export default function GeneralAIChat({
       const storedMessages =
         await getAIMessages(conversationId);
 
-      setMessages(
-        storedMessages.map(mapStoredMessage)
-      );
+      const displayMessages =
+        await Promise.all(
+          storedMessages.map(
+            async (message) => {
+              let attachmentPreview:
+                | string
+                | undefined;
+
+              if (
+                message.attachment?.kind ===
+                "image"
+              ) {
+                try {
+                  attachmentPreview =
+                    await getAIAttachmentDataUrl(
+                      message.id
+                    );
+                } catch {
+                  attachmentPreview =
+                    undefined;
+                }
+              }
+
+              return mapStoredMessage(
+                message,
+                attachmentPreview
+              );
+            }
+          )
+        );
+
+      setMessages(displayMessages);
     } catch (err) {
       setMessages([]);
       setError(
@@ -1141,22 +1249,7 @@ export default function GeneralAIChat({
         );
       }
 
-      setMessages((current) =>
-        current.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                content: result.revised_prompt
-                  ? `Your image is ready.\n\nCreated from: ${result.revised_prompt}`
-                  : `Your image is ready.\n\nCreated from: ${prompt}`,
-                imagePreview: imageSource,
-                imageName:
-                  "StudySnap generated image",
-                generatedImage: true,
-              }
-            : message
-        )
-      );
+      await loadMessages(conversationId);
 
       await refreshTrails(conversationId);
       scrollToBottom();
@@ -1894,7 +1987,7 @@ export default function GeneralAIChat({
         />
 
         {roomCreationOffer ? (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-[#c9ad50]/20 bg-[#c9ad50]/[0.07] p-3">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#c9ad50]/[0.07] p-3">
             <div className="min-w-0">
               <p className="text-sm font-black text-white">
                 Keep these files together
@@ -2126,7 +2219,7 @@ export default function GeneralAIChat({
         ) : null}
 
         {selectedImage ? (
-          <div className="mb-3 flex items-center gap-3 rounded-2xl border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] p-3">
+          <div className="mb-3 flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-black/30">
               {selectedImagePreview ? (
                 <img
@@ -2353,7 +2446,7 @@ export default function GeneralAIChat({
             title="Chat history"
             className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-base transition ${
               historyOpen
-                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                ? "border-[#c9ad50]/30 bg-white/[0.04] text-[#e6daa0]"
                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
             }`}
           >
@@ -2412,7 +2505,7 @@ export default function GeneralAIChat({
             title="Study tools"
             className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-sm font-black tracking-[0.12em] transition ${
               studyToolsOpen
-                ? "border-[#c9ad50]/30 bg-[#c9ad50]/10 text-[#e6daa0]"
+                ? "border-[#c9ad50]/30 bg-white/[0.04] text-[#e6daa0]"
                 : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
             }`}
           >
@@ -2517,7 +2610,7 @@ export default function GeneralAIChat({
           !loadingMessages ? (
             <div className="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-3xl flex-col justify-center py-6">
               <div className="text-center">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#c9ad50]/20 bg-[#c9ad50]/10 text-xl text-[#e3d589]">
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-xl text-[#e3d589]">
                   ✦
                 </div>
 
@@ -2539,7 +2632,7 @@ export default function GeneralAIChat({
                       void sendMessage(suggestion)
                     }
                     disabled={loading}
-                    className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-xs font-bold text-slate-300 transition hover:border-[#c9ad50]/20 hover:bg-[#c9ad50]/10 hover:text-white disabled:opacity-50"
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-xs font-bold text-slate-300 transition hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
                   >
                     {suggestion}
                   </button>
@@ -2585,8 +2678,8 @@ export default function GeneralAIChat({
                       key={message.id}
                       className={
                         message.role === "user"
-                          ? "ml-auto max-w-[88%] rounded-2xl border border-[#c9ad50]/15 bg-[#c9ad50]/10 px-4 py-3 text-[#ece8da] sm:max-w-[76%]"
-                          : "mr-auto max-w-[96%] rounded-2xl border border-white/[0.07] bg-[#12181e] px-4 py-3 text-slate-100 sm:max-w-[86%]"
+                          ? "ml-auto w-fit max-w-[88%] rounded-2xl border border-white/[0.07] bg-white/[0.055] px-4 py-3 text-[#f2efe6] shadow-sm sm:max-w-[76%]"
+                          : "mr-auto w-fit max-w-[96%] rounded-2xl border border-white/[0.06] bg-[#0d1013] px-4 py-3 text-slate-100 shadow-sm sm:max-w-[86%]"
                       }
                     >
                       {message.attachments?.length ? (
@@ -2806,7 +2899,7 @@ export default function GeneralAIChat({
                     disabled={documentUploading}
                     className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:bg-white/[0.08] disabled:opacity-50"
                   >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c9ad50]/10">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/[0.04]">
                       📚
                     </span>
 
@@ -2874,7 +2967,7 @@ export default function GeneralAIChat({
                     void sendMessage(suggestion);
                   }}
                   disabled={loading}
-                  className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-[#c9ad50]/10 hover:text-white disabled:opacity-50"
+                  className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
                 >
                   {suggestion}
                 </button>
@@ -2889,7 +2982,7 @@ export default function GeneralAIChat({
                   updateStudyToolsOpen(false);
                   inputRef.current?.focus();
                 }}
-                className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-[#c9ad50]/10 hover:text-white"
+                className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-left text-sm font-bold text-slate-200 transition hover:bg-white/[0.04] hover:text-white"
               >
                 ✦ Create an image
               </button>

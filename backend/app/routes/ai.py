@@ -8,6 +8,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from urllib.request import urlopen
 from xml.etree import ElementTree
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -789,10 +790,9 @@ def generate_image(
     """
     Generate one image for General AI or Room AI.
 
-    The generated image is returned as a data URL so the frontend can
-    display it immediately. Conversation messages store a lightweight
-    record of the request without putting the full base64 image in the
-    database.
+    The generated image is returned immediately and is also saved
+    through StudySnap's secure attachment storage so it remains available
+    when the conversation is reopened.
     """
 
     clean_prompt = data.prompt.strip()
@@ -900,15 +900,63 @@ Student request:
                 "The image response did not contain image data."
             )
 
+        if image_b64:
+            try:
+                image_bytes = base64.b64decode(
+                    image_b64,
+                    validate=True,
+                )
+            except Exception as error:
+                raise RuntimeError(
+                    "The generated image data was invalid."
+                ) from error
+        else:
+            try:
+                with urlopen(
+                    str(image_url),
+                    timeout=60.0,
+                ) as image_response:
+                    image_bytes = image_response.read(
+                        25 * 1024 * 1024 + 1
+                    )
+            except Exception as error:
+                raise RuntimeError(
+                    "StudySnap could not retrieve the generated image."
+                ) from error
+
+        if not image_bytes:
+            raise RuntimeError(
+                "The generated image was empty."
+            )
+
+        if len(image_bytes) > 25 * 1024 * 1024:
+            raise RuntimeError(
+                "The generated image was too large to save."
+            )
+
         saved_user_message = None
         saved_ai_message = None
 
         if conversation is not None:
+            generated_filename = (
+                "studysnap-generated-image.png"
+            )
+
+            stored_filename, stored_path = (
+                store_ai_attachment(
+                    data=image_bytes,
+                    filename=generated_filename,
+                    owner_id=current_user.id,
+                    conversation_id=conversation.id,
+                    content_type="image/png",
+                )
+            )
+
             saved_user_message = AIMessage(
                 conversation_id=conversation.id,
                 role="user",
                 content=(
-                    "[Create image] "
+                    "Create an image: "
                     + clean_prompt
                 ),
             )
@@ -916,10 +964,21 @@ Student request:
             saved_ai_message = AIMessage(
                 conversation_id=conversation.id,
                 role="assistant",
-                content=(
-                    "[Generated image]\n\n"
-                    f"Prompt: {clean_prompt}"
+                content="Image created",
+                attachment_filename=(
+                    generated_filename
                 ),
+                attachment_stored_filename=(
+                    stored_filename
+                ),
+                attachment_file_path=stored_path,
+                attachment_file_size=len(
+                    image_bytes
+                ),
+                attachment_content_type=(
+                    "image/png"
+                ),
+                attachment_kind="image",
             )
 
             db.add(saved_user_message)
@@ -959,32 +1018,16 @@ Student request:
                 else None
             ),
             "user_message": (
-                {
-                    "id": saved_user_message.id,
-                    "conversation_id": (
-                        saved_user_message.conversation_id
-                    ),
-                    "role": saved_user_message.role,
-                    "content": saved_user_message.content,
-                    "created_at": (
-                        saved_user_message.created_at
-                    ),
-                }
+                serialize_ai_message(
+                    saved_user_message
+                )
                 if saved_user_message
                 else None
             ),
             "assistant_message": (
-                {
-                    "id": saved_ai_message.id,
-                    "conversation_id": (
-                        saved_ai_message.conversation_id
-                    ),
-                    "role": saved_ai_message.role,
-                    "content": saved_ai_message.content,
-                    "created_at": (
-                        saved_ai_message.created_at
-                    ),
-                }
+                serialize_ai_message(
+                    saved_ai_message
+                )
                 if saved_ai_message
                 else None
             ),
