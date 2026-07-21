@@ -155,7 +155,7 @@ function NextStepCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#c9ad50]">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                 Best next step
               </p>
 
@@ -246,7 +246,7 @@ function ContinueRow({
               />
             </div>
 
-            <span className="w-9 text-right text-[10px] font-black text-[#c9ad50]">
+            <span className="w-9 text-right text-[10px] font-black text-slate-300">
               {item.progress_percent}%
             </span>
           </>
@@ -282,7 +282,7 @@ function ContinueLearningSection({
     return (
       <section className="rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-[#c9ad50]">
+          <h2 className="flex items-center gap-2 text-lg font-black text-slate-300">
             <span>📖</span>
             Continue Learning
           </h2>
@@ -318,7 +318,7 @@ function ContinueLearningSection({
               onClick={() =>
                 setExpanded((current) => !current)
               }
-              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c]"
+              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c]"
             >
               {expanded
                 ? "Show less"
@@ -704,7 +704,7 @@ function LearningFeedSection({
               type="button"
               onClick={handleViewAll}
               disabled={loadingMore}
-              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
+              className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
             >
               {loadingMore
                 ? "Loading activity..."
@@ -728,7 +728,7 @@ function LearningFeedSection({
                   type="button"
                   onClick={onLoadMore}
                   disabled={loadingMore}
-                  className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-[#c9ad50]/[0.18] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
+                  className="rounded-xl border border-white/[0.075] bg-white/[0.035] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/[0.13] hover:text-[#dfce8c] disabled:cursor-wait disabled:opacity-50"
                 >
                   {loadingMore
                     ? "Loading older activity..."
@@ -824,14 +824,14 @@ export default function SmartDashboardCenter({
           role="status"
           className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2.5"
         >
-          <p className="text-xs text-amber-100">
+          <p className="text-xs text-slate-300">
             {error} Showing the latest saved dashboard data.
           </p>
 
           <button
             type="button"
             onClick={onRetry}
-            className="shrink-0 text-[10px] font-black text-[#c9ad50]"
+            className="shrink-0 text-[10px] font-black text-slate-300"
           >
             Refresh
           </button>

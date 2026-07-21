@@ -862,14 +862,14 @@ export default function AppShell({
           }}
           className={`flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] backdrop-blur-xl transition ${
             active
-              ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.13] text-[#f2e8b6]"
+              ? "border-white/[0.10] bg-white/[0.055] text-white"
               : "border-white/[0.055] bg-white/[0.025] text-slate-200 hover:border-white/[0.11] hover:bg-white/[0.065] hover:text-white"
           }`}
         >
           <span
             className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${
               active
-                ? "bg-[#c9ad50] text-[#111317]"
+                ? "bg-white/[0.08] text-[#d6b84a]"
                 : "bg-white/[0.06] text-slate-200"
             }`}
           >
@@ -907,7 +907,7 @@ export default function AppShell({
           aria-expanded={open}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-black transition ${
             sectionActive
-              ? "bg-[#c9ad50]/[0.09] text-[#ece8da]"
+              ? "bg-white/[0.055] text-white"
               : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
           }`}
         >
@@ -1033,16 +1033,16 @@ export default function AppShell({
                   primaryAction ? "-mt-4" : ""
                 } ${
                   active
-                    ? "text-[#e5d99c]"
+                    ? "text-slate-200"
                     : "text-slate-500 active:bg-white/[0.06] active:text-slate-200"
                 }`}
               >
                 <span
                   className={`relative grid shrink-0 place-items-center transition ${
                     primaryAction
-                      ? "h-12 w-12 rounded-2xl border border-[#d8bf62]/40 bg-[#c9ad50] text-[#111317] shadow-[0_10px_28px_rgba(0,0,0,0.42)]"
+                      ? "h-12 w-12 rounded-2xl border border-[#d6b84a]/30 bg-[#111418] text-[#d6b84a] shadow-[0_10px_28px_rgba(0,0,0,0.34)]"
                       : active
-                        ? "h-9 w-11 rounded-xl bg-[#c9ad50]/[0.13] text-[#ddcf8d]"
+                        ? "h-9 w-11 rounded-xl bg-white/[0.055] text-[#d6b84a]"
                         : "h-9 w-11 rounded-xl text-slate-400 group-active:bg-white/[0.07]"
                   }`}
                 >
@@ -1056,7 +1056,7 @@ export default function AppShell({
                 <span
                   className={`max-w-full truncate ${
                     primaryAction
-                      ? "text-[#e4d89c]"
+                      ? "text-[#d6b84a]"
                       : ""
                   }`}
                 >
@@ -1075,9 +1075,9 @@ export default function AppShell({
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#0b0f14] text-white">
+    <div className="min-h-screen overflow-x-hidden bg-[#050607] text-white">
       <aside
-        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.09] bg-[#0b1016]/[0.86] px-3 py-4 shadow-[18px_0_55px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition-transform duration-300 lg:flex lg:flex-col ${
+        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.065] bg-[#07090b] px-3 py-4 shadow-[12px_0_38px_rgba(0,0,0,0.24)] transition-transform duration-300 lg:flex lg:flex-col ${
           desktopSidebarOpen ? "lg:translate-x-0" : "lg:-translate-x-full"
         }`}
         aria-hidden={!desktopSidebarOpen}
@@ -1108,7 +1108,7 @@ export default function AppShell({
             aria-expanded={roomMenuOpen}
             aria-haspopup="menu"
             onClick={() => setRoomMenuOpen((current) => !current)}
-            className="w-full rounded-xl border border-white/[0.07] bg-white/[0.035] p-3 text-left transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.06]"
+            className="w-full rounded-xl border border-white/[0.065] bg-white/[0.025] p-3 text-left transition hover:border-white/[0.12] hover:bg-white/[0.05]"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -1234,7 +1234,7 @@ export default function AppShell({
         <div className="shrink-0 border-t border-white/10 pt-3">
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded-xl border border-[#c9ad50]/[0.16] bg-[#c9ad50]/[0.075] px-3 py-2.5 text-left transition hover:bg-[#c9ad50]/[0.11]"
+            className="flex w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 text-left transition hover:border-white/[0.12] hover:bg-white/[0.05]"
           >
             <span>
               <span className="block text-xs font-black text-[#ece8da]">
@@ -1251,7 +1251,7 @@ export default function AppShell({
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-[#c9ad50] text-sm font-black text-[#111317]">
+              <div className="grid h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.055] text-sm font-black text-[#d6b84a]">
                 {learnerAvatarUrl ? (
                   <img
                     src={learnerAvatarUrl}
@@ -1305,7 +1305,7 @@ export default function AppShell({
           desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.09] bg-[#020406]/[0.92] shadow-[0_16px_50px_rgba(0,0,0,0.58)] backdrop-blur-3xl">
+        <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.065] bg-[#030405]/[0.97] shadow-[0_10px_32px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
           <div className="flex h-[60px] items-center gap-1.5 px-2.5 sm:gap-2.5 sm:px-4 lg:h-[72px]">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 lg:w-[420px] lg:flex-none">
               <div className="relative shrink-0">
@@ -1544,7 +1544,7 @@ export default function AppShell({
               </div>
             </div>
 
-            <nav className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+            <nav className="hidden">
               {renderTopNavigation()}
             </nav>
 
@@ -1592,7 +1592,7 @@ export default function AppShell({
               <Link
                 href="/settings"
                 title="Profile and settings"
-                className="hidden h-11 w-11 overflow-hidden rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50] text-xs font-black text-[#111317] transition hover:bg-[#d5bb63] lg:grid"
+                className="hidden h-11 w-11 overflow-hidden rounded-full border border-white/[0.10] bg-white/[0.05] text-xs font-black text-[#d6b84a] transition hover:border-white/[0.18] hover:bg-white/[0.08] lg:grid"
               >
                 {learnerAvatarUrl ? (
                   <img
@@ -1630,7 +1630,7 @@ export default function AppShell({
 
               <section
                 data-mobile-room-shortcuts="true"
-                className="mt-5 rounded-[1.35rem] border border-[#c9ad50]/20 bg-[#c9ad50]/[0.055] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.055)]"
+                className="mt-5 rounded-[1.35rem] border border-white/[0.075] bg-white/[0.025] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -1692,7 +1692,7 @@ export default function AppShell({
                     onClick={() =>
                       setMobileMenuOpen(false)
                     }
-                    className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#ead675]/30 bg-[linear-gradient(145deg,#d8bd5a,#a88631)] px-4 py-3 text-sm font-black text-[#050608]"
+                    className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#d6b84a]/25 bg-[#111418] px-4 py-3 text-sm font-black text-[#d6b84a]"
                   >
                     <span className="text-lg">
                       +
@@ -1753,7 +1753,7 @@ export default function AppShell({
         <main className="mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
           {pathname !== "/dashboard" && title ? (
             <div className="mb-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                 {getPageKicker(pathname)}
               </p>
 

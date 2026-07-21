@@ -1169,3 +1169,256 @@ button {
     background: #12181e;
   }
 }
+
+/* StudySnap deep-black minimal-yellow foundation v1 */
+
+:root {
+  --background: #050607;
+  --background-soft: #090b0e;
+  --background-deep: #020304;
+  --foreground: #f4f4f2;
+  --muted: #92979f;
+
+  --card: #0d1013;
+  --card-strong: #090b0e;
+  --card-soft: rgba(255, 255, 255, 0.025);
+
+  --border: rgba(255, 255, 255, 0.065);
+  --border-strong: rgba(255, 255, 255, 0.11);
+
+  --gold: #d6b84a;
+  --gold-strong: #bea13c;
+  --gold-soft: #d8ca91;
+  --gold-fade: rgba(214, 184, 74, 0.07);
+}
+
+html {
+  color-scheme: dark;
+  background: #050607;
+}
+
+body,
+.premium-bg {
+  background:
+    radial-gradient(
+      circle at 50% -12%,
+      rgba(255, 255, 255, 0.025),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      #050607 0%,
+      #07090b 52%,
+      #030405 100%
+    );
+}
+
+::selection {
+  background: rgba(214, 184, 74, 0.18);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar-track {
+  background: #050607;
+}
+
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.premium-card,
+.premium-card-strong,
+.gold-card,
+.stat-card,
+.studysnap-glass-panel,
+.organizer-glass-page .premium-card,
+.organizer-glass-page .gold-card {
+  background: #0d1013;
+  border-color: rgba(255, 255, 255, 0.065);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 34px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.premium-card::before,
+.premium-card-strong::before,
+.gold-card::before,
+.stat-card::before {
+  display: none;
+}
+
+.premium-button {
+  background: #14181d;
+  color: #f5f5f3;
+  border-color: rgba(214, 184, 74, 0.20);
+  box-shadow: none;
+}
+
+.premium-button:hover {
+  background: #181d22;
+  border-color: rgba(214, 184, 74, 0.34);
+  box-shadow: none !important;
+}
+
+.premium-button-secondary {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+.premium-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.gold-chip,
+.tag-chip {
+  color: #d8ca91;
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(214, 184, 74, 0.16);
+  box-shadow: none;
+}
+
+.gold-chip:hover,
+.tag-chip:hover {
+  transform: none;
+  color: #e4d8a3 !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  border-color: rgba(214, 184, 74, 0.24) !important;
+  box-shadow: none;
+}
+
+.gold-border {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.gold-glow,
+.glow-title {
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.room-progress {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.room-progress > span {
+  background: #d6b84a;
+}
+
+.mode-pill-active {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(214, 184, 74, 0.20);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.subtle-dot {
+  background: #d6b84a;
+  box-shadow: none;
+}
+
+.topbar-glass {
+  background: rgba(3, 4, 5, 0.97);
+}
+
+.brand-mark {
+  background: #101317;
+  border-color: rgba(214, 184, 74, 0.18);
+  box-shadow: none;
+}
+
+a[href]:hover {
+  color: inherit;
+}
+
+button:not(:disabled):hover,
+[role="button"]:hover,
+.interactive-hover:hover {
+  transform: translateY(-1px);
+}
+
+aside nav a:hover {
+  transform: none !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+
+aside nav a:hover span:first-child {
+  color: inherit !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: none !important;
+}
+
+aside nav a:hover span:last-child {
+  color: #ffffff !important;
+  text-shadow: none;
+}
+
+main a[href]:hover,
+main button:not(:disabled):hover {
+  filter: none;
+  box-shadow: none;
+}
+
+main a[href][class*="rounded"]:hover,
+main button[class*="rounded"]:not(:disabled):hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.22) !important;
+}
+
+main [class*="rounded-2xl"]:hover {
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+main a[href]:hover span,
+main a[href]:hover p,
+main a[href]:hover h3,
+main a[href]:hover h4 {
+  color: inherit;
+}
+
+main a[href]:focus-visible,
+main button:not(:disabled):focus-visible,
+aside nav a:focus-visible {
+  outline: 2px solid rgba(214, 184, 74, 0.62);
+  outline-offset: 3px;
+}
+
+input,
+textarea,
+select {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: none;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(214, 184, 74, 0.34) !important;
+  box-shadow:
+    0 0 0 3px rgba(214, 184, 74, 0.065) !important;
+}
+
+.fire-icon {
+  filter: none;
+}
+
+.empty-state {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.02);
+}

@@ -323,7 +323,7 @@ function GeneralAIStartCard({
 
         <form
           onSubmit={onSubmit}
-          className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition focus-within:border-[#c9ad50]/[0.24]"
+          className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition focus-within:border-white/[0.16]"
         >
           <input
             value={prompt}
@@ -337,7 +337,7 @@ function GeneralAIStartCard({
             onClick={openChatAttachmentPicker}
             aria-label="Attach a file to StudySnap AI"
             title="Attach a file to StudySnap AI"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-[#c9ad50]/[0.22] hover:bg-[#c9ad50]/[0.08] hover:text-[#cec18d]"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
           >
             +
           </button>
@@ -390,7 +390,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
 
         <Link
           href="/progress"
-          className="text-xs font-black text-[#c9ad50] hover:text-[#cec18d]"
+          className="text-xs font-black text-slate-300 hover:text-white"
         >
           View all
         </Link>
@@ -402,7 +402,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
             <Link
               key={item.id}
               href={item.href}
-              className={`group gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center ${
+              className={`group gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-white/[0.13] hover:bg-white/[0.045] sm:grid-cols-[minmax(0,1fr)_190px] sm:items-center ${
                 index >= 2 ? "hidden sm:grid" : "grid"
               }`}
             >
@@ -436,7 +436,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
                   {item.percent}%
                 </span>
 
-                <span className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-slate-200 group-hover:border-[#c9ad50]/[0.20] group-hover:text-[#cec18d]">
+                <span className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-slate-200 group-hover:border-white/[0.14] group-hover:text-white">
                   Continue
                 </span>
               </div>
@@ -472,7 +472,7 @@ function RecentActivityCard({ items }: { items: ActivityItem[] }) {
 
         <Link
           href="/study-rooms"
-          className="text-xs font-black text-[#c9ad50] hover:text-[#cec18d]"
+          className="text-xs font-black text-slate-300 hover:text-white"
         >
           View rooms
         </Link>
@@ -613,7 +613,7 @@ function DashboardRightPanel({
             </p>
           </div>
 
-          <span className="flex shrink-0 items-center gap-2 text-xs font-black text-[#c9ad50]">
+          <span className="flex shrink-0 items-center gap-2 text-xs font-black text-slate-300">
             {focusItems.length} steps
             <span className="text-lg text-slate-500">⌄</span>
           </span>
@@ -644,7 +644,7 @@ function DashboardRightPanel({
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Today&apos;s Focus</h2>
 
-          <span className="text-xs font-black text-[#c9ad50]">
+          <span className="text-xs font-black text-slate-300">
             {focusItems.length} steps
           </span>
         </div>
@@ -683,7 +683,7 @@ function DashboardRightPanel({
         </div>
 
         <span className="flex shrink-0 items-center gap-2">
-          <span className="text-lg font-black text-[#c9ad50]">
+          <span className="text-lg font-black text-slate-300">
             {displayScore}%
           </span>
 
@@ -695,7 +695,7 @@ function DashboardRightPanel({
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">🔥 Study Streak</h2>
 
-          <Link href="/progress" className="text-xs font-black text-[#c9ad50]">
+          <Link href="/progress" className="text-xs font-black text-slate-300">
             Progress
           </Link>
         </div>
@@ -719,7 +719,7 @@ function DashboardRightPanel({
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Progress Overview</h2>
 
-          <span className="text-xs font-black text-[#c9ad50]">
+          <span className="text-xs font-black text-slate-300">
             {displayScore}%
           </span>
         </div>
@@ -760,7 +760,7 @@ function DashboardRightPanel({
         <div className="flex items-center justify-between">
           <h2 className="font-black text-white">Recent PDFs</h2>
 
-          <Link href={roomHref} className="text-xs font-black text-[#c9ad50]">
+          <Link href={roomHref} className="text-xs font-black text-slate-300">
             View room
           </Link>
         </div>
