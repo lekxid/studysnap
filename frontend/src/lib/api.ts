@@ -1,4 +1,4 @@
-const API_BASE = "/backend";
+import { API_BASE, getWebSocketBaseUrl } from "./apiBase";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -94,7 +94,101 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   return res.text();
 }
 
-export async function signup(name: string, email: string, password: string) {
+
+export async function getProtectedFileBlobUrl(
+  path: string
+): Promise<string> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}${path}`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    const message = await readResponseError(
+      response,
+      "The file could not be opened."
+    );
+
+    throw new Error(message);
+  }
+
+  return URL.createObjectURL(
+    await response.blob()
+  );
+}
+
+export async function hideAIAttachmentFromFeed(
+  messageId: number
+): Promise<{
+  id: number;
+  hidden_from_feed: boolean;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}/feed?hidden=true`,
+    {
+      method: "PATCH",
+    }
+  ) as Promise<{
+    id: number;
+    hidden_from_feed: boolean;
+  }>;
+}
+
+export async function pinAIAttachment(
+  messageId: number,
+  pinned: boolean
+): Promise<{
+  id: number;
+  is_pinned: boolean;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}/pin?pinned=${String(
+      pinned
+    )}`,
+    {
+      method: "PATCH",
+    }
+  ) as Promise<{
+    id: number;
+    is_pinned: boolean;
+  }>;
+}
+
+export async function deleteAIAttachment(
+  messageId: number
+): Promise<{
+  id: number;
+  conversation_id: number;
+  deleted: boolean;
+  message: string;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    id: number;
+    conversation_id: number;
+    deleted: boolean;
+    message: string;
+  }>;
+}
+
+export async function signup(
+  name: string,
+  email: string,
+  password: string,
+  inviteCode: string,
+) {
   return apiFetch("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify({
@@ -120,28 +214,259 @@ export async function forgotPassword(email: string) {
   });
 }
 
+export async function resetPassword(
+  token: string,
+  password: string,
+) {
+  return apiFetch("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      token,
+      password,
+    }),
+  });
+}
+
 export type UserProfile = {
   id: number;
   email: string;
   full_name: string;
   learning_mode: string;
+  greeting_emoji?: string | null;
+  avatar_url?: string | null;
 };
+
+export const PROFILE_UPDATED_EVENT =
+  "studysnap:profile-updated";
 
 export async function getCurrentUser(): Promise<UserProfile> {
   return apiFetch("/api/auth/me");
 }
 
 export async function updateCurrentUserProfile(
-  fullName: string
+  fullName: string,
+  greetingEmoji?: string | null
 ): Promise<UserProfile> {
   return apiFetch("/api/users/me/profile", {
     method: "PUT",
-    body: JSON.stringify({ full_name: fullName }),
+    body: JSON.stringify({
+      full_name: fullName,
+      greeting_emoji: greetingEmoji,
+    }),
   });
+}
+
+export async function uploadCurrentUserAvatar(
+  file: File
+): Promise<UserProfile> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiFetch("/api/users/me/avatar", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function removeCurrentUserAvatar(): Promise<void> {
+  await apiFetch("/api/users/me/avatar", {
+    method: "DELETE",
+  });
+}
+
+export async function getCurrentUserAvatarBlob(): Promise<Blob | null> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/users/me/avatar`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+      cache: "no-store",
+    }
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await readResponseError(
+      response,
+      "Could not load profile picture."
+    );
+
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
+export function announceProfileUpdated(
+  profile?: UserProfile
+) {
+  if (typeof window === "undefined") return;
+
+  if (profile) {
+    localStorage.setItem(
+      "studysnap_user",
+      JSON.stringify(profile)
+    );
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(PROFILE_UPDATED_EVENT, {
+      detail: profile,
+    })
+  );
 }
 
 export async function getDashboard() {
   return apiFetch("/api/dashboard");
+}
+
+export type DashboardActivityType =
+  | "file"
+  | "room"
+  | "note"
+  | "quiz"
+  | "concept"
+  | "ai"
+  | "group"
+  | "progress"
+  | "plan";
+
+export type DashboardMetadata = Record<
+  string,
+  unknown
+>;
+
+export type DashboardNextStep = {
+  id: string;
+  type: DashboardActivityType;
+  title: string;
+  description: string;
+  icon: string;
+  reason: string;
+  action_label: string;
+  action_href: string;
+  room_id: number | null;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardAttentionItem = {
+  id: string;
+  type: DashboardActivityType;
+  priority: number;
+  title: string;
+  description: string;
+  icon: string;
+  reason: string;
+  room_id: number | null;
+  action_label: string;
+  action_href: string;
+  created_at: string;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardContinueItem = {
+  id: string;
+  type: DashboardActivityType;
+  title: string;
+  description: string;
+  icon: string;
+  room_id: number | null;
+  room_name: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  action_label: string;
+  action_href: string;
+  progress_percent: number | null;
+  last_active_at: string;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardFeedItem = {
+  id: string;
+  type: DashboardActivityType;
+  event: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  icon: string;
+  room_id: number | null;
+  room_name: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  actor_name: string | null;
+  action_label: string;
+  action_href: string;
+  priority: number;
+  session_id: string | null;
+  dedupe_key: string | null;
+  metadata: DashboardMetadata;
+};
+
+export type DashboardEmptyState = {
+  is_empty: boolean;
+  title: string;
+  description: string;
+};
+
+export type SmartDashboardResponse = {
+  generated_at: string;
+  next_step: DashboardNextStep;
+  needs_attention: DashboardAttentionItem[];
+  continue_learning: DashboardContinueItem[];
+  group_activity: DashboardFeedItem[];
+  feed: DashboardFeedItem[];
+  pinned_feed?: DashboardFeedItem[];
+  unread_group_count: number;
+  next_cursor: string | null;
+  has_more: boolean;
+  empty_states: {
+    needs_attention: DashboardEmptyState;
+    continue_learning: DashboardEmptyState;
+    group_activity: DashboardEmptyState;
+    feed: DashboardEmptyState;
+  };
+  summary: {
+    accessible_rooms: number;
+    materials: number;
+    notes: number;
+    quizzes: number;
+    quiz_attempts: number;
+    ai_conversations: number;
+    weak_topics: number;
+    unread_group_messages: number;
+  };
+};
+
+export type SmartDashboardOptions = {
+  limit?: number;
+  cursor?: string | null;
+};
+
+export async function getSmartDashboard(
+  options: SmartDashboardOptions = {}
+): Promise<SmartDashboardResponse> {
+  const params = new URLSearchParams();
+
+  params.set(
+    "limit",
+    String(options.limit || 20)
+  );
+
+  if (options.cursor) {
+    params.set("cursor", options.cursor);
+  }
+
+  return apiFetch(
+    `/api/dashboard/smart?${params.toString()}`
+  ) as Promise<SmartDashboardResponse>;
 }
 
 export async function getLearningInsights() {
@@ -175,7 +500,9 @@ export async function askAi(question: string, context?: string) {
 export async function askAiWithImage(
   question: string,
   image: File,
-  options: { studyRoomId?: number; conversationId?: number | null } = {}
+  options: { studyRoomId?: number; conversationId?: number | null
+    signal?: AbortSignal;
+  } = {}
 ) {
   const formData = new FormData();
   formData.append("question", question || "Describe this image clearly.");
@@ -191,6 +518,7 @@ export async function askAiWithImage(
 
   return apiFetch("/api/ai/ask-image", {
     method: "POST",
+    signal: options.signal,
     body: formData,
   });
 }
@@ -249,12 +577,22 @@ export type AIConversation = {
   updated_at: string;
 };
 
+export type AIAttachment = {
+  filename: string;
+  file_size: number | null;
+  content_type: string | null;
+  kind: "image" | "file";
+  hidden_from_feed: boolean;
+  url: string;
+};
+
 export type AIMessage = {
   id: number;
   conversation_id: number;
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  attachment?: AIAttachment | null;
 };
 
 export type GenerateAIImageSize =
@@ -287,6 +625,65 @@ export type GenerateAIImageResponse = {
   assistant_message?: AIMessage | null;
 };
 
+export async function getAIAttachmentDataUrl(
+  messageId: number
+): Promise<string> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/ai/attachments/${messageId}`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "The saved image could not be opened."
+    );
+  }
+
+  const imageBlob = await response.blob();
+
+  return new Promise<string>(
+    (resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const value = String(
+          reader.result || ""
+        );
+
+        if (!value) {
+          reject(
+            new Error(
+              "The saved image was empty."
+            )
+          );
+          return;
+        }
+
+        resolve(value);
+      };
+
+      reader.onerror = () => {
+        reject(
+          new Error(
+            "The saved image could not be read."
+          )
+        );
+      };
+
+      reader.readAsDataURL(imageBlob);
+    }
+  );
+}
+
+
 export async function generateAIImage(
   prompt: string,
   options: GenerateAIImageOptions = {}
@@ -315,6 +712,86 @@ export async function generateAIImage(
       quality: options.quality || "medium",
     }),
   }) as Promise<GenerateAIImageResponse>;
+}
+
+
+export type EditAIImageOptions =
+  GenerateAIImageOptions & {
+    identityImage?: File | null;
+  };
+
+export async function editAIImage(
+  prompt: string,
+  image: File,
+  options: EditAIImageOptions = {}
+): Promise<GenerateAIImageResponse> {
+  const cleanPrompt = prompt.trim();
+
+  if (!cleanPrompt) {
+    throw new Error(
+      "Describe how you want StudySnap to change the image."
+    );
+  }
+
+  const formData = new FormData();
+
+  formData.append(
+    "prompt",
+    cleanPrompt
+  );
+
+  formData.append(
+    "image",
+    image
+  );
+
+  if (
+    options.identityImage &&
+    options.identityImage !== image
+  ) {
+    formData.append(
+      "identity_image",
+      options.identityImage
+    );
+  }
+
+  formData.append(
+    "size",
+    options.size || "1024x1024"
+  );
+
+  formData.append(
+    "quality",
+    options.quality || "high"
+  );
+
+  if (
+    typeof options.conversationId ===
+    "number"
+  ) {
+    formData.append(
+      "conversation_id",
+      String(options.conversationId)
+    );
+  }
+
+  if (
+    typeof options.studyRoomId ===
+    "number"
+  ) {
+    formData.append(
+      "study_room_id",
+      String(options.studyRoomId)
+    );
+  }
+
+  return apiFetch(
+    "/api/ai/edit-image",
+    {
+      method: "POST",
+      body: formData,
+    }
+  ) as Promise<GenerateAIImageResponse>;
 }
 
 export type CreateAIConversationOptions = {
@@ -483,84 +960,200 @@ export async function recordAIConversationExchange(
   });
 }
 
+export async function cancelAIMessage(
+  requestId: string
+) {
+  return apiFetch(
+    "/api/ai/messages/cancel",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        request_id: requestId,
+      }),
+    }
+  );
+}
+
+export type StreamAIMessageOptions = {
+  signal?: AbortSignal;
+  onConnected?: () => void;
+  requestId?: string;
+};
+
 export async function streamAIMessage(
   conversationId: number,
   content: string,
   mode = "explain",
   onToken: (token: string) => void,
-  context = ""
+  context = "",
+  options: StreamAIMessageOptions = {},
 ) {
   const token = getToken();
 
   const headers = new Headers();
-  headers.set("Content-Type", "application/json");
+
+  headers.set(
+    "Content-Type",
+    "application/json"
+  );
+
+  headers.set(
+    "Accept",
+    "text/event-stream"
+  );
 
   if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
   }
 
-  const res = await fetch(`${API_BASE}/api/ai/messages/stream`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      content,
-      mode,
-      context,
-    }),
-  });
+  const res = await fetch(
+    `${API_BASE}/api/ai/messages/stream`,
+    {
+      method: "POST",
+      headers,
+      cache: "no-store",
+      signal: options.signal,
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        content,
+        mode,
+        context,
+        request_id:
+          options.requestId || null,
+      }),
+    }
+  );
 
   if (!res.ok) {
-    const message = await readResponseError(
-      res,
-      "Streaming request failed"
-    );
+    const message =
+      await readResponseError(
+        res,
+        "Streaming request failed"
+      );
+
     throw new Error(message);
   }
 
   if (!res.body) {
     throw new Error(
-      "Streaming response did not include a readable body."
+      "Streaming response did not "
+      + "include a readable body."
     );
   }
 
+  options.onConnected?.();
+
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+
   let buffer = "";
+  let finished = false;
 
-  while (true) {
-    const { value, done } = await reader.read();
+  function processEvent(
+    eventText: string
+  ) {
+    const normalized =
+      eventText.replace(
+        /\r\n/g,
+        "\n"
+      );
 
-    if (done) break;
+    for (
+      const line
+      of normalized.split("\n")
+    ) {
+      if (
+        !line.startsWith("data:")
+      ) {
+        continue;
+      }
 
-    buffer += decoder.decode(value, { stream: true });
+      const rawData =
+        line.slice(5).trimStart();
 
-    const events = buffer.split("\n\n");
-    buffer = events.pop() || "";
+      if (rawData === "[DONE]") {
+        finished = true;
+        return;
+      }
 
-    for (const event of events) {
-      const lines = event.split("\n");
+      try {
+        const parsed =
+          JSON.parse(rawData);
 
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-
-        const rawData = line.slice(6);
-
-        if (rawData === "[DONE]") {
-          return;
+        if (
+          typeof parsed === "string"
+        ) {
+          onToken(parsed);
         }
-
-        try {
-          const parsedToken = JSON.parse(rawData);
-
-          if (typeof parsedToken === "string") {
-            onToken(parsedToken);
-          }
-        } catch {
+      } catch {
+        if (rawData) {
           onToken(rawData);
         }
       }
     }
+  }
+
+  while (!finished) {
+    const {
+      value,
+      done,
+    } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(
+        value,
+        {
+          stream: !done,
+        }
+      );
+    }
+
+    buffer = buffer.replace(
+      /\r\n/g,
+      "\n"
+    );
+
+    let boundary =
+      buffer.indexOf("\n\n");
+
+    while (boundary !== -1) {
+      const eventText =
+        buffer.slice(0, boundary);
+
+      buffer =
+        buffer.slice(boundary + 2);
+
+      processEvent(eventText);
+
+      if (finished) {
+        break;
+      }
+
+      boundary =
+        buffer.indexOf("\n\n");
+    }
+
+    if (done) {
+      buffer += decoder.decode();
+
+      const remaining =
+        buffer.trim();
+
+      if (remaining) {
+        processEvent(remaining);
+      }
+
+      break;
+    }
+  }
+
+  try {
+    await reader.cancel();
+  } catch {
+    // Stream already closed.
   }
 }
 
@@ -593,6 +1186,224 @@ export type StudyRoom = {
 
 export async function getStudyRooms(): Promise<StudyRoom[]> {
   return apiFetch("/api/study-rooms") as Promise<StudyRoom[]>;
+}
+
+export async function getStudyRoom(
+  id: number
+): Promise<StudyRoom> {
+  return apiFetch(
+    `/api/study-rooms/${id}`
+  ) as Promise<StudyRoom>;
+}
+
+export type RoomInvitationRole =
+  | "member"
+  | "viewer"
+  | "ai_tutor";
+
+export type RoomEmailInvitationStatus =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "revoked"
+  | "expired";
+
+export type RoomInviteLinkStatus =
+  | "active"
+  | "revoked"
+  | "expired"
+  | "exhausted";
+
+export type RoomEmailInvitation = {
+  id: number;
+  room_id: number;
+  invited_by_user_id: number;
+  invited_email: string;
+  role: RoomInvitationRole;
+  status: RoomEmailInvitationStatus;
+  expires_at: string | null;
+  accepted_by_user_id: number | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  revoked_at: string | null;
+  created_at: string | null;
+};
+
+export type RoomInviteLink = {
+  id: number;
+  room_id: number;
+  created_by_user_id: number;
+  role: RoomInvitationRole;
+  status: RoomInviteLinkStatus;
+  expires_at: string | null;
+  max_uses: number | null;
+  use_count: number;
+  revoked_at: string | null;
+  created_at: string | null;
+};
+
+export type RoomInvitationList = {
+  room_id: number;
+  email_invitations: RoomEmailInvitation[];
+  share_links: RoomInviteLink[];
+};
+
+export type CreateRoomEmailInvitationResponse = {
+  invitation: RoomEmailInvitation;
+  delivery: {
+    status: string;
+    message: string;
+  };
+  accept_token: string;
+  accept_api_path: string;
+  frontend_accept_url: string;
+};
+
+export type CreateRoomInviteLinkResponse = {
+  link: RoomInviteLink;
+  share_token: string;
+  join_api_path: string;
+  share_url: string;
+};
+
+export type RoomInvitationMembership = {
+  room_id: number;
+  user_id: number;
+  role: string;
+  status: string;
+};
+
+export type RoomInvitationJoinResponse = {
+  message: string;
+  already_member: boolean;
+  room: {
+    id: number;
+    name: string;
+    subject: string | null;
+  };
+  membership: RoomInvitationMembership;
+  link_status?: RoomInviteLinkStatus;
+};
+
+export async function getRoomInvitations(
+  roomId: number
+): Promise<RoomInvitationList> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}`
+  ) as Promise<RoomInvitationList>;
+}
+
+export async function createRoomEmailInvitation(
+  roomId: number,
+  email: string,
+  role: RoomInvitationRole = "member",
+  expiresInDays = 7
+): Promise<CreateRoomEmailInvitationResponse> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/email`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        role,
+        expires_in_days: expiresInDays,
+      }),
+    }
+  ) as Promise<CreateRoomEmailInvitationResponse>;
+}
+
+export async function revokeRoomEmailInvitation(
+  roomId: number,
+  invitationId: number
+): Promise<{
+  message: string;
+  invitation: RoomEmailInvitation;
+}> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/email/${invitationId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    message: string;
+    invitation: RoomEmailInvitation;
+  }>;
+}
+
+export async function createRoomInviteLink(
+  roomId: number,
+  role: RoomInvitationRole = "member",
+  expiresInDays = 7,
+  maxUses: number | null = null
+): Promise<CreateRoomInviteLinkResponse> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/links`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        role,
+        expires_in_days: expiresInDays,
+        max_uses: maxUses,
+      }),
+    }
+  ) as Promise<CreateRoomInviteLinkResponse>;
+}
+
+export async function revokeRoomInviteLink(
+  roomId: number,
+  linkId: number
+): Promise<{
+  message: string;
+  link: RoomInviteLink;
+}> {
+  return apiFetch(
+    `/api/room-invitations/rooms/${roomId}/links/${linkId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    message: string;
+    link: RoomInviteLink;
+  }>;
+}
+
+export async function acceptRoomEmailInvitation(
+  token: string
+): Promise<RoomInvitationJoinResponse> {
+  return apiFetch(
+    `/api/room-invitations/email/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomInvitationJoinResponse>;
+}
+
+export async function declineRoomEmailInvitation(
+  token: string
+): Promise<{
+  message: string;
+  invitation: RoomEmailInvitation;
+}> {
+  return apiFetch(
+    `/api/room-invitations/email/${encodeURIComponent(token)}/decline`,
+    {
+      method: "POST",
+    }
+  ) as Promise<{
+    message: string;
+    invitation: RoomEmailInvitation;
+  }>;
+}
+
+export async function joinRoomWithInviteLink(
+  token: string
+): Promise<RoomInvitationJoinResponse> {
+  return apiFetch(
+    `/api/room-invitations/links/${encodeURIComponent(token)}/join`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomInvitationJoinResponse>;
 }
 
 export type RoomFoundationAction = {
@@ -867,6 +1678,158 @@ export async function generateQuizFromContent(
 
 export async function getPDFs(studyRoomId: number) {
   return apiFetch(`/api/pdfs/${studyRoomId}`);
+}
+
+export type StudyMaterialItem = {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string | null;
+  material_type: string;
+  processing_status: string;
+  preview_available: boolean;
+  purpose_category: string | null;
+  content_category: string | null;
+  detected_topic: string | null;
+  intelligence_summary: string | null;
+  classification_confidence: number | null;
+  intelligence_status:
+    | "pending"
+    | "processing"
+    | "ready"
+    | "failed";
+  intelligence_error: string | null;
+  analyzed_at: string | null;
+  study_room_id: number;
+  created_by_user_id: number;
+  created_at: string;
+  last_opened_at: string | null;
+};
+
+export type StudyMaterialListResponse = {
+  study_room_id: number;
+  materials: StudyMaterialItem[];
+};
+
+export async function getStudyMaterials(
+  studyRoomId: number
+): Promise<StudyMaterialListResponse> {
+  return apiFetch(
+    `/api/materials/room/${studyRoomId}`
+  ) as Promise<StudyMaterialListResponse>;
+}
+
+export async function openStudyMaterial(
+  materialId: number,
+  fallbackFilename: string
+) {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+  }
+
+  const previewWindow = window.open(
+    "about:blank",
+    "_blank"
+  );
+
+  if (previewWindow) {
+    previewWindow.opener = null;
+    previewWindow.document.title =
+      `Opening ${fallbackFilename}`;
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  if (!response.ok) {
+    previewWindow?.close();
+
+    const message = await readResponseError(
+      response,
+      "The material could not be opened."
+    );
+
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const objectUrl =
+    window.URL.createObjectURL(blob);
+
+  if (previewWindow) {
+    previewWindow.location.replace(objectUrl);
+  } else {
+    const link = document.createElement("a");
+
+    link.href = objectUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(objectUrl);
+  }, 5 * 60 * 1000);
+}
+
+
+export async function downloadStudyMaterial(
+  materialId: number,
+  fallbackFilename: string
+) {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  await downloadPdfResponse(
+    response,
+    fallbackFilename || `studysnap-material-${materialId}`
+  );
+}
+
+export async function analyzeStudyMaterial(
+  materialId: number
+): Promise<StudyMaterialItem> {
+  return apiFetch(
+    `/api/materials/${materialId}/analyze`,
+    {
+      method: "POST",
+    }
+  ) as Promise<StudyMaterialItem>;
+}
+
+
+export async function deleteStudyMaterial(
+  materialId: number
+) {
+  return apiFetch(`/api/materials/${materialId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function deletePDF(pdfId: number) {
@@ -1327,6 +2290,289 @@ export async function logoutAllSessions() {
   });
 }
 
+export type AskAIWithFilesResponse = {
+  answer: string;
+  count: number;
+  attachments: AIMessage[];
+  assistant_message?: AIMessage | null;
+};
+
+export type SmartOrganizerItem = {
+  filename: string;
+  material_type: string;
+  topic: string;
+  room: StudyRoom;
+  saved_as: string;
+  saved_id: number;
+  generated_flashcards: number;
+  generated_quizzes: number;
+  generated_quiz_questions: number;
+};
+
+export type SmartOrganizerResult = {
+  organized_count: number;
+  rooms: StudyRoom[];
+  generated_flashcards: number;
+  generated_quizzes: number;
+  generated_quiz_questions: number;
+  items: SmartOrganizerItem[];
+};
+
+export async function organizeFilesIntoStudyRooms(
+  files: File[]
+): Promise<SmartOrganizerResult> {
+  if (!files.length) {
+    throw new Error(
+      "Choose at least one file to create a study room."
+    );
+  }
+
+  const formData = new FormData();
+
+  files.forEach((file) => {
+    formData.append("files", file, file.name);
+  });
+
+  formData.append("assignments_json", "{}");
+
+  return apiFetch(
+    "/api/smart-organizer/organize",
+    {
+      method: "POST",
+      body: formData,
+    }
+  ) as Promise<SmartOrganizerResult>;
+}
+
+export function askAiWithFiles({
+  question,
+  files,
+  conversationId,
+  studyRoomId,
+  onProgress,
+  signal,
+}: {
+  question: string;
+  files: File[];
+  conversationId?: number | null;
+  studyRoomId?: number | null;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<AskAIWithFilesResponse> {
+  return new Promise((resolve, reject) => {
+    if (!files.length) {
+      reject(
+        new Error("Choose at least one file.")
+      );
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+    const formData = new FormData();
+
+    formData.append(
+      "question",
+      question.trim() ||
+        "Explain these files clearly."
+    );
+
+    files.forEach((file) => {
+      formData.append(
+        "files",
+        file,
+        file.name
+      );
+    });
+
+    if (
+      typeof conversationId === "number"
+    ) {
+      formData.append(
+        "conversation_id",
+        String(conversationId)
+      );
+    }
+
+    if (
+      typeof studyRoomId === "number"
+    ) {
+      formData.append(
+        "study_room_id",
+        String(studyRoomId)
+      );
+    }
+
+    xhr.open(
+      "POST",
+      `${API_BASE}/api/ai/ask-files`
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`
+      );
+    }
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) return;
+
+        onProgress?.(
+          Math.min(
+            99,
+            Math.max(
+              0,
+              Math.round(
+                (event.loaded /
+                  event.total) *
+                  100
+              )
+            )
+          )
+        );
+      }
+    );
+
+    xhr.addEventListener("load", () => {
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300
+      ) {
+        onProgress?.(100);
+
+        try {
+          resolve(
+            JSON.parse(
+              xhr.responseText
+            ) as AskAIWithFilesResponse
+          );
+        } catch {
+          reject(
+            new Error(
+              "StudySnap returned an unreadable response."
+            )
+          );
+        }
+
+        return;
+      }
+
+      try {
+        const data = JSON.parse(
+          xhr.responseText
+        ) as {
+          detail?: string;
+          message?: string;
+        };
+
+        reject(
+          new Error(
+            data.detail ||
+              data.message ||
+              "The files could not be uploaded."
+          )
+        );
+      } catch {
+        reject(
+          new Error(
+            xhr.responseText ||
+              "The files could not be uploaded."
+          )
+        );
+      }
+    });
+
+    xhr.addEventListener(
+      "error",
+      () => {
+        reject(
+          new Error(
+            "The upload was interrupted."
+          )
+        );
+      }
+    );
+
+    xhr.addEventListener(
+      "abort",
+      () => {
+        reject(
+          new DOMException(
+            "The upload was cancelled.",
+            "AbortError"
+          )
+        );
+      }
+    );
+
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+
+      signal.addEventListener(
+        "abort",
+        () => xhr.abort(),
+        { once: true }
+      );
+    }
+
+    xhr.send(formData);
+  });
+}
+
+
+export type AskAIWithFileResponse = {
+  answer: string;
+  filename?: string;
+  file_kind?: string;
+  user_message?: AIMessage | null;
+  assistant_message?: AIMessage | null;
+};
+
+export async function askAiWithFile(
+  question: string,
+  file: File,
+  options: {
+    conversationId?: number | null;
+    studyRoomId?: number | null;
+    signal?: AbortSignal;
+  } = {},
+): Promise<AskAIWithFileResponse> {
+  const formData = new FormData();
+
+  formData.append(
+    "question",
+    question.trim() || "Summarize this file clearly.",
+  );
+
+  formData.append("file", file, file.name);
+
+  if (typeof options.conversationId === "number") {
+    formData.append(
+      "conversation_id",
+      String(options.conversationId),
+    );
+  }
+
+  if (typeof options.studyRoomId === "number") {
+    formData.append(
+      "study_room_id",
+      String(options.studyRoomId),
+    );
+  }
+
+  return apiFetch("/api/ai/ask-file", {
+    method: "POST",
+    signal: options.signal,
+    body: formData,
+  }) as Promise<AskAIWithFileResponse>;
+}
+
 export type UniversalMaterialUploadResponse = {
   id: number;
   original_filename: string;
@@ -1364,6 +2610,289 @@ export type UniversalMaterialListItem = {
   created_at?: string | null;
   last_opened_at?: string | null;
 };
+
+
+export type ResumableUploadSession = {
+  upload_id: string;
+  study_room_id: number;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  chunk_size: number;
+  total_chunks: number;
+  uploaded_chunks: number[];
+  uploaded_bytes?: number;
+};
+
+export async function startResumableMaterialUpload({
+  file,
+  studyRoomId,
+}: {
+  file: File;
+  studyRoomId: number;
+}): Promise<ResumableUploadSession> {
+  return apiFetch(
+    "/api/materials/resumable/start",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        study_room_id: studyRoomId,
+        filename: file.name,
+        file_size: file.size,
+        content_type:
+          file.type ||
+          "application/octet-stream",
+      }),
+    }
+  ) as Promise<ResumableUploadSession>;
+}
+
+export async function getResumableMaterialUpload(
+  uploadId: string
+): Promise<ResumableUploadSession> {
+  return apiFetch(
+    `/api/materials/resumable/${uploadId}`
+  ) as Promise<ResumableUploadSession>;
+}
+
+function uploadMaterialChunk({
+  uploadId,
+  chunkIndex,
+  chunk,
+  signal,
+}: {
+  uploadId: string;
+  chunkIndex: number;
+  chunk: Blob;
+  signal?: AbortSignal;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+
+    xhr.open(
+      "PUT",
+      `${API_BASE}/api/materials/resumable/${uploadId}/chunks/${chunkIndex}`
+    );
+
+    xhr.setRequestHeader(
+      "Content-Type",
+      "application/octet-stream"
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`
+      );
+    }
+
+    xhr.addEventListener("load", () => {
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300
+      ) {
+        resolve();
+        return;
+      }
+
+      let message =
+        `Chunk upload failed with status ${xhr.status}.`;
+
+      try {
+        const body = JSON.parse(
+          xhr.responseText
+        ) as {
+          detail?: string;
+        };
+
+        if (
+          typeof body.detail === "string"
+        ) {
+          message = body.detail;
+        }
+      } catch {
+        // Keep fallback.
+      }
+
+      reject(new Error(message));
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(
+        new Error(
+          "The upload could not reach StudySnap."
+        )
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(
+        new DOMException(
+          "Upload paused.",
+          "AbortError"
+        )
+      );
+    });
+
+    const abort = () => xhr.abort();
+
+    signal?.addEventListener(
+      "abort",
+      abort,
+      { once: true }
+    );
+
+    xhr.addEventListener("loadend", () => {
+      signal?.removeEventListener(
+        "abort",
+        abort
+      );
+    });
+
+    xhr.send(chunk);
+  });
+}
+
+export async function completeResumableMaterialUpload(
+  uploadId: string
+): Promise<UniversalMaterialUploadResponse> {
+  return apiFetch(
+    `/api/materials/resumable/${uploadId}/complete`,
+    {
+      method: "POST",
+    }
+  ) as Promise<UniversalMaterialUploadResponse>;
+}
+
+export async function cancelResumableMaterialUpload(
+  uploadId: string
+): Promise<void> {
+  await apiFetch(
+    `/api/materials/resumable/${uploadId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export async function uploadResumableMaterial({
+  file,
+  studyRoomId,
+  existingUploadId,
+  onProgress,
+  onSession,
+  signal,
+}: {
+  file: File;
+  studyRoomId: number;
+  existingUploadId?: string;
+  onProgress?: (percent: number) => void;
+  onSession?: (uploadId: string) => void;
+  signal?: AbortSignal;
+}): Promise<UniversalMaterialUploadResponse> {
+  const session = existingUploadId
+    ? await getResumableMaterialUpload(
+        existingUploadId
+      )
+    : await startResumableMaterialUpload({
+        file,
+        studyRoomId,
+      });
+
+  onSession?.(session.upload_id);
+
+  const uploaded = new Set(
+    session.uploaded_chunks ?? []
+  );
+
+  const chunkSize = session.chunk_size;
+  const totalChunks = session.total_chunks;
+
+  let uploadedBytes =
+    session.uploaded_bytes ??
+    Array.from(uploaded).reduce(
+      (total, chunkIndex) => {
+        const start =
+          chunkIndex * chunkSize;
+
+        const end = Math.min(
+          file.size,
+          start + chunkSize
+        );
+
+        return total + (end - start);
+      },
+      0
+    );
+
+  onProgress?.(
+    Math.min(
+      99,
+      Math.round(
+        (uploadedBytes / file.size) * 100
+      )
+    )
+  );
+
+  for (
+    let chunkIndex = 0;
+    chunkIndex < totalChunks;
+    chunkIndex += 1
+  ) {
+    if (signal?.aborted) {
+      throw new DOMException(
+        "Upload paused.",
+        "AbortError"
+      );
+    }
+
+    if (uploaded.has(chunkIndex)) {
+      continue;
+    }
+
+    const start =
+      chunkIndex * chunkSize;
+
+    const end = Math.min(
+      file.size,
+      start + chunkSize
+    );
+
+    const chunk = file.slice(
+      start,
+      end
+    );
+
+    await uploadMaterialChunk({
+      uploadId: session.upload_id,
+      chunkIndex,
+      chunk,
+      signal,
+    });
+
+    uploadedBytes += chunk.size;
+
+    onProgress?.(
+      Math.min(
+        99,
+        Math.round(
+          (uploadedBytes / file.size) * 100
+        )
+      )
+    );
+  }
+
+  const result =
+    await completeResumableMaterialUpload(
+      session.upload_id
+    );
+
+  onProgress?.(100);
+
+  return result;
+}
+
 
 export function uploadUniversalMaterial({
   file,
@@ -1507,4 +3036,720 @@ export async function deleteUniversalMaterial(
       method: "DELETE",
     }
   );
+}
+
+
+// =========================================================
+// Study Together shared room messages
+// =========================================================
+
+export type RoomMessageSender = {
+  id: number;
+  full_name: string;
+  email: string;
+};
+
+export type RoomMessage = {
+  id: number;
+  room_id: number;
+  sender_id: number | null;
+  sender: RoomMessageSender | null;
+  message_type: string;
+  content: string;
+  reply_to_message_id: number | null;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+  edited_at: string | null;
+  deleted_at: string | null;
+  is_deleted: boolean;
+};
+
+export async function getRoomMessages(
+  studyRoomId: number,
+  options: {
+    beforeId?: number;
+    limit?: number;
+  } = {}
+): Promise<RoomMessage[]> {
+  const params = new URLSearchParams();
+
+  if (
+    typeof options.beforeId === "number" &&
+    options.beforeId > 0
+  ) {
+    params.set(
+      "before_id",
+      String(options.beforeId)
+    );
+  }
+
+  params.set(
+    "limit",
+    String(options.limit ?? 50)
+  );
+
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}?${params.toString()}`
+  ) as Promise<RoomMessage[]>;
+}
+
+export async function createRoomMessage(
+  studyRoomId: number,
+  content: string,
+  replyToMessageId?: number | null
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        reply_to_message_id:
+          replyToMessageId ?? null,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
+export async function downloadUniversalMaterial(
+  materialId: number,
+  filename: string
+): Promise<void> {
+  const token = getToken();
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    let body: unknown = null;
+
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    throw new Error(
+      getErrorMessage(body) ||
+        "The file could not be downloaded."
+    );
+  }
+
+  const blob = await response.blob();
+  const objectUrl =
+    window.URL.createObjectURL(blob);
+
+  const link =
+    document.createElement("a");
+
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(
+    objectUrl
+  );
+}
+
+export async function createRoomAttachmentMessage(
+  studyRoomId: number,
+  materialId: number,
+  content = "",
+  replyToMessageId?: number | null
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/attachments`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        material_id: materialId,
+        content,
+        reply_to_message_id:
+          replyToMessageId ?? null,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
+export type RoomAIMessageResult = {
+  invitation_message: RoomMessage;
+  ai_message: RoomMessage;
+};
+
+export async function askRoomAI(
+  studyRoomId: number,
+  sourceMessageId: number,
+  invocationType: "ask_ai" | "mention" =
+    "ask_ai"
+): Promise<RoomAIMessageResult> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/ask-ai`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source_message_id: sourceMessageId,
+        invocation_type: invocationType,
+      }),
+    }
+  ) as Promise<RoomAIMessageResult>;
+}
+
+export async function updateRoomMessage(
+  studyRoomId: number,
+  messageId: number,
+  content: string
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/${messageId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        content,
+      }),
+    }
+  ) as Promise<RoomMessage>;
+}
+
+export async function deleteRoomAIInteraction(
+  studyRoomId: number,
+  messageId: number
+): Promise<{
+  messages: RoomMessage[];
+}> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/ai-interactions/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    messages: RoomMessage[];
+  }>;
+}
+
+export async function deleteRoomMessage(
+  studyRoomId: number,
+  messageId: number
+): Promise<RoomMessage> {
+  return apiFetch(
+    `/api/room-messages/rooms/${studyRoomId}/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<RoomMessage>;
+}
+
+
+
+// =========================================================
+// Study Together real-time room channel
+// =========================================================
+
+export type RoomRealtimeTicket = {
+  ticket: string;
+  expires_in_seconds: number;
+  expires_at: string;
+  websocket_path: string;
+  room_id: number;
+  user_id: number;
+  role: string;
+};
+
+export type RoomRealtimeEvent = {
+  event: string;
+  room_id: number;
+  event_id: string;
+  occurred_at: string;
+  actor_user_id: number | null;
+  data: Record<string, unknown>;
+};
+
+export async function createRoomRealtimeTicket(
+  studyRoomId: number
+): Promise<RoomRealtimeTicket> {
+  return apiFetch(
+    `/api/room-realtime/rooms/${studyRoomId}/ticket`,
+    {
+      method: "POST",
+    }
+  ) as Promise<RoomRealtimeTicket>;
+}
+
+export function buildRoomRealtimeWebSocketUrl(
+  ticketResponse: RoomRealtimeTicket
+): string {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "The room connection is only available in the browser."
+    );
+  }
+
+  const websocketBase = getWebSocketBaseUrl();
+
+  const params = new URLSearchParams({
+    ticket: ticketResponse.ticket,
+  });
+
+  return (
+    `${websocketBase}` +
+    `${ticketResponse.websocket_path}` +
+    `?${params.toString()}`
+  );
+}
+
+
+
+// =========================================================
+// Study Together real room members
+// =========================================================
+
+export type RoomMember = {
+  id: number;
+  room_id: number;
+  user_id: number;
+  full_name: string;
+  email: string | null;
+  role: string;
+  status: string;
+  joined_at: string | null;
+  last_active_at: string | null;
+  is_current_user: boolean;
+  is_owner: boolean;
+};
+
+export type RoomMemberListResponse = {
+  room_id: number;
+  current_user_role: string;
+  permissions: {
+    can_manage_members: boolean;
+  };
+  total: number;
+  members: RoomMember[];
+};
+
+export async function getRoomMembers(
+  studyRoomId: number
+): Promise<RoomMemberListResponse> {
+  return apiFetch(
+    `/api/room-members/rooms/${studyRoomId}`
+  ) as Promise<RoomMemberListResponse>;
+}
+
+// SMART_SCAN_API_V1
+// -----------------------------------------------------------------------------
+// Smart Scan uses StudySnap's existing authentication and API configuration.
+// Upload progress measures network transfer only. Recognition remains
+// request-based until durable processing jobs are introduced.
+// -----------------------------------------------------------------------------
+
+export type SmartScanPage = {
+  id: number;
+  scan_id: number;
+  page_number: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string;
+  width: number;
+  height: number;
+  rotation: number;
+  extracted_text: string;
+  ocr_confidence: number | null;
+  ocr_status: string;
+  ocr_error: string | null;
+  preview_url: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SmartScan = {
+  id: number;
+  owner_id: number;
+  study_room_id: number | null;
+  title: string;
+  status: string;
+  page_count: number;
+  extracted_text: string;
+  pdf_filename: string | null;
+  pdf_file_size: number | null;
+  pdf_url: string;
+  pages: SmartScanPage[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SmartScanRecognitionResponse = {
+  processed_count: number;
+  remaining_count: number;
+  scan: SmartScan;
+};
+
+export type SmartScanAskResponse = {
+  scan_id: number;
+  question: string;
+  answer: string;
+};
+
+export type SmartScanPageDeleteResponse = {
+  deleted: boolean;
+  page_id: number;
+  scan: SmartScan;
+};
+
+export type SmartScanDeleteResponse = {
+  deleted: boolean;
+  scan_id: number;
+  message: string;
+};
+
+export async function createSmartScan(
+  payload: {
+    title?: string;
+    study_room_id?: number | null;
+  } = {},
+): Promise<SmartScan> {
+  return apiFetch("/api/smart-scan", {
+    method: "POST",
+    body: JSON.stringify({
+      title: payload.title?.trim() || "New Scan",
+      study_room_id:
+        typeof payload.study_room_id === "number"
+          ? payload.study_room_id
+          : null,
+    }),
+  }) as Promise<SmartScan>;
+}
+
+export async function listSmartScans(): Promise<SmartScan[]> {
+  return apiFetch("/api/smart-scan") as Promise<SmartScan[]>;
+}
+
+export async function getSmartScan(
+  scanId: number,
+): Promise<SmartScan> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}`,
+  ) as Promise<SmartScan>;
+}
+
+export async function updateSmartScan(
+  scanId: number,
+  title: string,
+): Promise<SmartScan> {
+  return apiFetch(`/api/smart-scan/${scanId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: title.trim(),
+    }),
+  }) as Promise<SmartScan>;
+}
+
+export function uploadSmartScanPages({
+  scanId,
+  files,
+  onProgress,
+  signal,
+}: {
+  scanId: number;
+  files: File[];
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<SmartScan> {
+  return new Promise((resolve, reject) => {
+    if (!files.length) {
+      reject(new Error("Choose at least one image."));
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+    const formData = new FormData();
+
+    files.forEach((file) => {
+      formData.append("files", file, file.name);
+    });
+
+    xhr.open(
+      "POST",
+      `${API_BASE}/api/smart-scan/${scanId}/pages`,
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    const abortUpload = () => {
+      xhr.abort();
+    };
+
+    const removeAbortListener = () => {
+      signal?.removeEventListener(
+        "abort",
+        abortUpload,
+      );
+    };
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        const percent = Math.min(
+          99,
+          Math.max(
+            0,
+            Math.round(
+              (event.loaded / event.total) * 100,
+            ),
+          ),
+        );
+
+        onProgress?.(percent);
+      },
+    );
+
+    xhr.addEventListener("load", () => {
+      removeAbortListener();
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+
+        try {
+          resolve(
+            JSON.parse(xhr.responseText) as SmartScan,
+          );
+        } catch {
+          reject(
+            new Error(
+              "StudySnap returned an unreadable scan response.",
+            ),
+          );
+        }
+
+        return;
+      }
+
+      try {
+        reject(
+          new Error(
+            getErrorMessage(
+              JSON.parse(xhr.responseText),
+            ),
+          ),
+        );
+      } catch {
+        reject(
+          new Error(
+            xhr.responseText ||
+              "The scan pages could not be uploaded.",
+          ),
+        );
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      removeAbortListener();
+
+      reject(
+        new Error(
+          "The image upload was interrupted.",
+        ),
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      removeAbortListener();
+
+      reject(
+        new DOMException(
+          "The image upload was cancelled.",
+          "AbortError",
+        ),
+      );
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+
+      signal.addEventListener(
+        "abort",
+        abortUpload,
+        { once: true },
+      );
+    }
+
+    xhr.send(formData);
+  });
+}
+
+export async function recognizeSmartScanPages(
+  scanId: number,
+  pageIds: number[] | null = null,
+): Promise<SmartScanRecognitionResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/recognize`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        page_ids: pageIds,
+      }),
+    },
+  ) as Promise<SmartScanRecognitionResponse>;
+}
+
+export async function rotateSmartScanPage(
+  pageId: number,
+  rotation: number,
+): Promise<SmartScanPage> {
+  return apiFetch(
+    `/api/smart-scan/pages/${pageId}/rotation`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        rotation,
+      }),
+    },
+  ) as Promise<SmartScanPage>;
+}
+
+export async function reorderSmartScanPages(
+  scanId: number,
+  pageIds: number[],
+): Promise<SmartScan> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/reorder`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        page_ids: pageIds,
+      }),
+    },
+  ) as Promise<SmartScan>;
+}
+
+export async function deleteSmartScanPage(
+  pageId: number,
+): Promise<SmartScanPageDeleteResponse> {
+  return apiFetch(
+    `/api/smart-scan/pages/${pageId}`,
+    {
+      method: "DELETE",
+    },
+  ) as Promise<SmartScanPageDeleteResponse>;
+}
+
+export async function askSmartScan(
+  scanId: number,
+  question: string,
+): Promise<SmartScanAskResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/ask`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        question: question.trim(),
+      }),
+    },
+  ) as Promise<SmartScanAskResponse>;
+}
+
+export async function getSmartScanPageBlobUrl(
+  pageId: number,
+): Promise<string> {
+  return getProtectedFileBlobUrl(
+    `/api/smart-scan/pages/${pageId}/file`,
+  );
+}
+
+export async function getSmartScanPdfBlobUrl(
+  scanId: number,
+): Promise<string> {
+  return getProtectedFileBlobUrl(
+    `/api/smart-scan/${scanId}/pdf`,
+  );
+}
+
+export async function downloadSmartScanPdf(
+  scanId: number,
+  fallbackFilename = `studysnap-scan-${scanId}.pdf`,
+): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`,
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/smart-scan/${scanId}/pdf?download=true`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readResponseError(
+        response,
+        "The Smart Scan PDF could not be downloaded.",
+      ),
+    );
+  }
+
+  const contentDisposition =
+    response.headers.get("content-disposition") || "";
+
+  const filenameMatch =
+    contentDisposition.match(
+      /filename="?([^";]+)"?/i,
+    );
+
+  const filename =
+    filenameMatch?.[1] || fallbackFilename;
+
+  const blobUrl = window.URL.createObjectURL(
+    await response.blob(),
+  );
+
+  const link = document.createElement("a");
+
+  link.href = blobUrl;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+export async function deleteSmartScan(
+  scanId: number,
+): Promise<SmartScanDeleteResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}`,
+    {
+      method: "DELETE",
+    },
+  ) as Promise<SmartScanDeleteResponse>;
 }

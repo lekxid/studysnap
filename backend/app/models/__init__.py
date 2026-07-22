@@ -22,3 +22,15 @@ from app.models.room_member import RoomMember
 from app.models.room_event import RoomEvent
 from app.models.room_memory_bucket import RoomMemoryBucket
 from app.models.room_ai_output import RoomAIOutput
+
+from app.models.room_invitation import RoomInvitation
+from app.models.room_invite_link import RoomInviteLink
+from app.models.room_message import RoomMessage
+from app.models.dashboard_activity import DashboardActivity
+from app.models.user_resume_state import UserResumeState
+from app.models.room_read_state import RoomReadState
+
+from app.models.password_reset_token import PasswordResetToken
+
+from app.models.smart_scan import SmartScan, SmartScanPage
+from app.models.file_brain import FileBrainBatch, FileBrainItem

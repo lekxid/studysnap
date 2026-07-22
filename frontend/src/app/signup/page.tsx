@@ -1,16 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
+import { API_BASE } from "@/lib/apiBase";
 
 export default function SignupPage() {
+  const [nextPath, setNextPath] =
+    useState<string | null>(null);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const requestedNext =
+      new URLSearchParams(
+        window.location.search
+      ).get("next");
+
+    if (
+      requestedNext &&
+      requestedNext.startsWith("/") &&
+      !requestedNext.startsWith("//")
+    ) {
+      setNextPath(requestedNext);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -18,16 +41,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-        process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-        "";
-
-      if (!apiBase) {
-        throw new Error("API base URL is not set.");
-      }
-
-      const response = await fetch(`${apiBase}/api/auth/signup`, {
+      const response = await fetch(`${API_BASE}/api/auth/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -36,6 +50,7 @@ export default function SignupPage() {
           full_name: name,
           email,
           password,
+          invite_code: inviteCode,
           learning_mode: "clear",
         }),
       });
@@ -53,7 +68,21 @@ export default function SignupPage() {
         throw new Error(data?.detail || data?.message || "Signup failed.");
       }
 
-      window.location.href = "/login";
+      const loginParams =
+        new URLSearchParams({
+          email,
+          created: "1",
+        });
+
+      if (nextPath) {
+        loginParams.set(
+          "next",
+          nextPath
+        );
+      }
+
+      window.location.href =
+        `/login?${loginParams.toString()}`;
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
@@ -112,6 +141,21 @@ export default function SignupPage() {
           />
         </div>
 
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-200">
+            Invite code
+          </label>
+          <input
+            type="text"
+            className="w-full rounded-[1.2rem] border border-white/10 bg-slate-900/75 px-4 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-300/50 focus:ring-4 focus:ring-amber-300/10"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="Private beta code"
+            autoComplete="off"
+            required
+          />
+        </div>
+
         {error ? (
           <div className="rounded-[1.2rem] border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
             {error}
@@ -129,7 +173,13 @@ export default function SignupPage() {
         <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
           Already have an account?{" "}
           <Link
-            href="/login"
+            href={
+              nextPath
+                ? `/login?next=${encodeURIComponent(
+                    nextPath
+                  )}`
+                : "/login"
+            }
             className="font-bold text-amber-200 transition hover:text-amber-100"
           >
             Log in

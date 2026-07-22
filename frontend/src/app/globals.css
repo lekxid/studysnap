@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #071018;
-  --background-soft: #0d1724;
-  --background-deep: #050b12;
-  --foreground: #f7fafc;
-  --muted: #94a3b8;
+  --background: #080d12;
+  --background-soft: #0e151c;
+  --background-deep: #060a0e;
+  --foreground: #f1f3f5;
+  --muted: #8f9aa7;
 
-  --card: rgba(10, 18, 30, 0.8);
-  --card-strong: rgba(8, 14, 24, 0.94);
-  --card-soft: rgba(255, 255, 255, 0.03);
+  --card: rgba(15, 22, 29, 0.92);
+  --card-strong: rgba(10, 16, 22, 0.97);
+  --card-soft: rgba(255, 255, 255, 0.025);
 
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(244, 185, 66, 0.2);
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(210, 177, 63, 0.18);
 
-  --accent: #6d5efc;
-  --accent-strong: #5448f3;
-  --accent-soft: #a8b0ff;
+  --accent: #8277b8;
+  --accent-strong: #6e649d;
+  --accent-soft: #aaa7c4;
 
-  --electric: #5ce1ff;
-  --cyan-soft: rgba(92, 225, 255, 0.14);
+  --electric: #77aeb8;
+  --cyan-soft: rgba(119, 174, 184, 0.09);
 
-  --gold: #f4b942;
-  --gold-strong: #d89a1c;
-  --gold-soft: #fff0bf;
-  --gold-fade: rgba(244, 185, 66, 0.12);
+  --gold: #d6b84a;
+  --gold-strong: #b99a31;
+  --gold-soft: #eee3b8;
+  --gold-fade: rgba(214, 184, 74, 0.1);
 
   --success: #34d399;
   --danger: #fb7185;
@@ -57,11 +57,27 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   background:
-    radial-gradient(circle at 8% 12%, rgba(92, 225, 255, 0.08), transparent 20%),
-    radial-gradient(circle at 82% 10%, rgba(109, 94, 252, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 20%, rgba(244, 185, 66, 0.13), transparent 18%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, #071018 0%, #09111c 36%, #081019 72%, #050b12 100%);
+    radial-gradient(
+      circle at 8% 12%,
+      rgba(119, 174, 184, 0.035),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 82% 10%,
+      rgba(130, 119, 184, 0.055),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 88% 20%,
+      rgba(214, 184, 74, 0.055),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.03),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #080d12 0%, #0b1117 38%, #090f14 72%, #060a0e 100%);
 }
 
 a {
@@ -89,7 +105,7 @@ canvas {
 }
 
 ::selection {
-  background: rgba(244, 185, 66, 0.26);
+  background: rgba(214, 184, 74, 0.22);
   color: white;
 }
 
@@ -105,8 +121,8 @@ canvas {
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(
     180deg,
-    rgba(244, 185, 66, 0.45),
-    rgba(109, 94, 252, 0.45)
+    rgba(214, 184, 74, 0.34),
+    rgba(130, 119, 184, 0.24)
   );
   border-radius: 999px;
 }
@@ -114,8 +130,8 @@ canvas {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(
     180deg,
-    rgba(244, 185, 66, 0.65),
-    rgba(109, 94, 252, 0.6)
+    rgba(214, 184, 74, 0.48),
+    rgba(130, 119, 184, 0.36)
   );
 }
 
@@ -150,9 +166,9 @@ textarea::placeholder {
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: rgba(244, 185, 66, 0.5);
+  border-color: rgba(214, 184, 74, 0.38);
   box-shadow:
-    0 0 0 4px rgba(244, 185, 66, 0.12),
+    0 0 0 4px rgba(214, 184, 74, 0.09),
     0 10px 30px rgba(0, 0, 0, 0.18);
   background: linear-gradient(
     180deg,
@@ -180,18 +196,38 @@ button:active {
 
 .premium-bg {
   background:
-    radial-gradient(circle at 8% 12%, rgba(92, 225, 255, 0.08), transparent 20%),
-    radial-gradient(circle at 82% 10%, rgba(109, 94, 252, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 20%, rgba(244, 185, 66, 0.13), transparent 18%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 30%),
-    linear-gradient(180deg, #071018 0%, #09111c 36%, #081019 72%, #050b12 100%);
+    radial-gradient(
+      circle at 8% 12%,
+      rgba(119, 174, 184, 0.035),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 82% 10%,
+      rgba(130, 119, 184, 0.055),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 88% 20%,
+      rgba(214, 184, 74, 0.055),
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 255, 255, 0.03),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #080d12 0%, #0b1117 38%, #090f14 72%, #060a0e 100%);
 }
 
 .premium-card {
   position: relative;
   background:
     linear-gradient(180deg, rgba(13, 22, 36, 0.92), rgba(8, 14, 24, 0.94)),
-    linear-gradient(135deg, rgba(244, 185, 66, 0.05), rgba(255, 255, 255, 0.015));
+    linear-gradient(
+      135deg,
+      rgba(244, 185, 66, 0.05),
+      rgba(255, 255, 255, 0.015)
+    );
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
@@ -220,7 +256,11 @@ button:active {
   position: relative;
   background:
     linear-gradient(180deg, rgba(10, 18, 31, 0.96), rgba(6, 11, 20, 0.98)),
-    linear-gradient(135deg, rgba(244, 185, 66, 0.06), rgba(255, 255, 255, 0.012));
+    linear-gradient(
+      135deg,
+      rgba(244, 185, 66, 0.06),
+      rgba(255, 255, 255, 0.012)
+    );
   border: 1px solid rgba(244, 185, 66, 0.18);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
@@ -236,14 +276,13 @@ button:active {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background:
-    linear-gradient(
-      135deg,
-      rgba(244, 185, 66, 0.09),
-      transparent 32%,
-      transparent 72%,
-      rgba(92, 225, 255, 0.06)
-    );
+  background: linear-gradient(
+    135deg,
+    rgba(244, 185, 66, 0.09),
+    transparent 32%,
+    transparent 72%,
+    rgba(92, 225, 255, 0.06)
+  );
 }
 
 .premium-button {
@@ -325,7 +364,11 @@ button:active {
 .gold-card {
   position: relative;
   background:
-    linear-gradient(135deg, rgba(244, 185, 66, 0.14), rgba(255, 255, 255, 0.02)),
+    linear-gradient(
+      135deg,
+      rgba(244, 185, 66, 0.14),
+      rgba(255, 255, 255, 0.02)
+    ),
     linear-gradient(180deg, rgba(16, 25, 39, 0.96), rgba(8, 14, 24, 0.94));
   border: 1px solid rgba(244, 185, 66, 0.25);
   box-shadow:
@@ -406,7 +449,11 @@ button:active {
   border: 1px solid rgba(244, 185, 66, 0.15);
   background:
     linear-gradient(180deg, rgba(16, 24, 38, 0.96), rgba(9, 15, 25, 0.94)),
-    linear-gradient(135deg, rgba(244, 185, 66, 0.05), rgba(255, 255, 255, 0.012));
+    linear-gradient(
+      135deg,
+      rgba(244, 185, 66, 0.05),
+      rgba(255, 255, 255, 0.012)
+    );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 14px 36px rgba(0, 0, 0, 0.24);
@@ -418,8 +465,16 @@ button:active {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top right, rgba(244, 185, 66, 0.09), transparent 30%),
-    radial-gradient(circle at bottom left, rgba(92, 225, 255, 0.05), transparent 28%);
+    radial-gradient(
+      circle at top right,
+      rgba(244, 185, 66, 0.09),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at bottom left,
+      rgba(92, 225, 255, 0.05),
+      transparent 28%
+    );
 }
 
 .soft-scroll {
@@ -450,7 +505,7 @@ button:active {
     rgba(244, 185, 66, 0.16),
     rgba(109, 94, 252, 0.12)
   );
-  border: 1px solid rgba(244, 185, 66, 0.26);
+  border: 1px solid rgba(214, 184, 74, 0.22);
   color: #fff3cf;
   font-size: 0.82rem;
   font-weight: 700;
@@ -547,8 +602,11 @@ button:active {
 }
 
 .topbar-glass {
-  background:
-    linear-gradient(180deg, rgba(9, 15, 25, 0.88), rgba(9, 15, 25, 0.78));
+  background: linear-gradient(
+    180deg,
+    rgba(9, 15, 25, 0.88),
+    rgba(9, 15, 25, 0.78)
+  );
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -559,7 +617,11 @@ button:active {
   border-radius: 1rem;
   border: 1px solid rgba(244, 185, 66, 0.22);
   background:
-    radial-gradient(circle at 30% 30%, rgba(244, 185, 66, 0.24), transparent 40%),
+    radial-gradient(
+      circle at 30% 30%,
+      rgba(244, 185, 66, 0.24),
+      transparent 40%
+    ),
     linear-gradient(135deg, rgba(109, 94, 252, 0.92), rgba(49, 214, 255, 0.9));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
@@ -701,8 +763,11 @@ aside nav a {
 aside nav a:hover {
   transform: translateX(5px) scale(1.01) !important;
   border-color: rgba(250, 204, 21, 0.55) !important;
-  background:
-    linear-gradient(135deg, rgba(250, 204, 21, 0.24), rgba(34, 211, 238, 0.1)) !important;
+  background: linear-gradient(
+    135deg,
+    rgba(250, 204, 21, 0.24),
+    rgba(34, 211, 238, 0.1)
+  ) !important;
   color: rgb(254, 249, 195) !important;
   box-shadow:
     0 0 0 1px rgba(250, 204, 21, 0.18),
@@ -832,3 +897,1035 @@ main a[href]:hover h3,
 main a[href]:hover h4 {
   color: rgb(254, 249, 195);
 }
+
+/* =========================================================
+   Unified StudySnap colour system
+   Dashboard palette shared across the entire application
+   ========================================================= */
+
+.premium-bg {
+  background: #0b0f14;
+}
+
+.premium-card,
+.premium-card-strong,
+.gold-card,
+.stat-card {
+  background: #12181e;
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 14px 38px rgba(0, 0, 0, 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.premium-card::before,
+.premium-card-strong::before,
+.gold-card::before,
+.stat-card::before {
+  background: none;
+  opacity: 0;
+}
+
+.premium-button {
+  background: #c9ad50;
+  color: #111317;
+  border-color: rgba(201, 173, 80, 0.2);
+  box-shadow: none;
+}
+
+.premium-button:hover {
+  background: #d5bb63;
+  box-shadow: none;
+}
+
+.premium-button-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f1f3f5;
+  border-color: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
+}
+
+.premium-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(201, 173, 80, 0.2);
+}
+
+.gold-chip {
+  color: #cec18d;
+  background: rgba(201, 173, 80, 0.08);
+  border-color: rgba(201, 173, 80, 0.18);
+  box-shadow: none;
+}
+
+.gold-border {
+  border-color: rgba(255, 255, 255, 0.075);
+}
+
+.gold-glow {
+  box-shadow: none;
+}
+
+.tag-chip {
+  color: #cec18d;
+  background: rgba(201, 173, 80, 0.08);
+  border-color: rgba(201, 173, 80, 0.18);
+  box-shadow: none;
+}
+
+.mode-pill {
+  border-color: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mode-pill-active {
+  border-color: rgba(201, 173, 80, 0.2);
+  background: rgba(201, 173, 80, 0.12);
+  color: #ece8da;
+  box-shadow: none;
+}
+
+.room-progress > span {
+  background: #c9ad50;
+}
+
+.subtle-dot {
+  background: #c9ad50;
+  box-shadow: none;
+}
+
+.topbar-glass {
+  background: rgba(9, 13, 18, 0.96);
+}
+
+.brand-mark {
+  border-color: rgba(201, 173, 80, 0.18);
+  background: rgba(201, 173, 80, 0.08);
+}
+
+.glow-title {
+  text-shadow: none;
+}
+
+.fire-icon {
+  filter: none;
+}
+
+/* StudySnap mobile width safety */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+}
+
+.panel-title,
+.panel-muted {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .content-grid,
+  .hero-grid,
+  .premium-card,
+  .gold-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* Settings and Organizer mobile cleanup */
+@media (max-width: 639px) {
+  .settings-page {
+    gap: 0.85rem;
+  }
+
+  .settings-page > section,
+  .settings-page > div,
+  .settings-page .premium-card,
+  .settings-page .gold-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .settings-page .premium-card,
+  .settings-page .gold-card,
+  .settings-page section.rounded-\[1\.6rem\] {
+    border-radius: 1.15rem;
+    padding: 1rem;
+  }
+
+  .settings-tabs {
+    margin-inline: -0.25rem;
+    overflow: hidden;
+  }
+
+  .settings-tab-grid button {
+    min-width: 0;
+    padding: 0.65rem 0.25rem;
+    text-align: center;
+  }
+
+  .settings-tab-grid button > span,
+  .settings-tab-grid button p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-tab-grid button p:last-child,
+  .settings-tab-grid button .panel-muted {
+    display: none;
+  }
+
+  .settings-page input,
+  .settings-page select,
+  .settings-page textarea {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .settings-page .grid-cols-2,
+  .settings-page .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-page button {
+    overflow-wrap: anywhere;
+  }
+
+  .organizer-overview {
+    display: none;
+  }
+
+  .organizer-future {
+    display: none;
+  }
+
+  .organizer-upload-card,
+  .organizer-preview-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .organizer-upload-card input[type="file"] {
+    padding: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .organizer-upload-card input[type="file"]::file-selector-button {
+    max-width: 8rem;
+    margin-right: 0.6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .organizer-preview-card [class*="confidence"] {
+    align-self: flex-start;
+  }
+
+  .organizer-note summary {
+    list-style-position: inside;
+  }
+}
+
+/* StudySnap liquid glass polish */
+.studysnap-glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      rgba(255, 255, 255, 0.065),
+      transparent 38%
+    ),
+    linear-gradient(145deg, rgba(25, 32, 40, 0.78), rgba(8, 13, 20, 0.76));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 20px 60px rgba(0, 0, 0, 0.24);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  backdrop-filter: blur(24px) saturate(135%);
+}
+
+.organizer-glass-page .premium-card,
+.organizer-glass-page .gold-card {
+  border-color: rgba(255, 255, 255, 0.095);
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      rgba(201, 173, 80, 0.105),
+      transparent 38%
+    ),
+    linear-gradient(145deg, rgba(25, 32, 40, 0.8), rgba(8, 13, 20, 0.78));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 65px rgba(0, 0, 0, 0.26);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  backdrop-filter: blur(24px) saturate(135%);
+}
+
+.quiz-page,
+.quiz-page > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quiz-page input,
+.quiz-page textarea,
+.quiz-page select,
+.quiz-page button {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 639px) {
+  .quiz-page .studysnap-glass-panel {
+    border-radius: 1.25rem;
+  }
+
+  .quiz-page select,
+  .quiz-page input,
+  .quiz-page textarea {
+    width: 100%;
+    font-size: 1rem;
+  }
+
+  .organizer-glass-page .premium-card,
+  .organizer-glass-page .gold-card {
+    border-radius: 1.25rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.055),
+      0 16px 42px rgba(0, 0, 0, 0.22);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .studysnap-glass-panel,
+  .organizer-glass-page .premium-card,
+  .organizer-glass-page .gold-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: #12181e;
+  }
+}
+
+/* StudySnap deep-black minimal-yellow foundation v1 */
+
+:root {
+  --background: #050607;
+  --background-soft: #090b0e;
+  --background-deep: #020304;
+  --foreground: #f4f4f2;
+  --muted: #92979f;
+
+  --card: #0d1013;
+  --card-strong: #090b0e;
+  --card-soft: rgba(255, 255, 255, 0.025);
+
+  --border: rgba(255, 255, 255, 0.065);
+  --border-strong: rgba(255, 255, 255, 0.11);
+
+  --gold: #d6b84a;
+  --gold-strong: #bea13c;
+  --gold-soft: #d8ca91;
+  --gold-fade: rgba(214, 184, 74, 0.07);
+}
+
+html {
+  color-scheme: dark;
+  background: #050607;
+}
+
+body,
+.premium-bg {
+  background:
+    radial-gradient(
+      circle at 50% -12%,
+      rgba(255, 255, 255, 0.025),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #050607 0%, #07090b 52%, #030405 100%);
+}
+
+::selection {
+  background: rgba(214, 184, 74, 0.18);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar-track {
+  background: #050607;
+}
+
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.premium-card,
+.premium-card-strong,
+.gold-card,
+.stat-card,
+.studysnap-glass-panel,
+.organizer-glass-page .premium-card,
+.organizer-glass-page .gold-card {
+  background: #0d1013;
+  border-color: rgba(255, 255, 255, 0.065);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 34px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.premium-card::before,
+.premium-card-strong::before,
+.gold-card::before,
+.stat-card::before {
+  display: none;
+}
+
+.premium-button {
+  background: #14181d;
+  color: #f5f5f3;
+  border-color: rgba(214, 184, 74, 0.2);
+  box-shadow: none;
+}
+
+.premium-button:hover {
+  background: #181d22;
+  border-color: rgba(214, 184, 74, 0.34);
+  box-shadow: none !important;
+}
+
+.premium-button-secondary {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: none;
+}
+
+.premium-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.gold-chip,
+.tag-chip {
+  color: #d8ca91;
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(214, 184, 74, 0.16);
+  box-shadow: none;
+}
+
+.gold-chip:hover,
+.tag-chip:hover {
+  transform: none;
+  color: #e4d8a3 !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  border-color: rgba(214, 184, 74, 0.24) !important;
+  box-shadow: none;
+}
+
+.gold-border {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.gold-glow,
+.glow-title {
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.room-progress {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.room-progress > span {
+  background: #d6b84a;
+}
+
+.mode-pill-active {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(214, 184, 74, 0.2);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.subtle-dot {
+  background: #d6b84a;
+  box-shadow: none;
+}
+
+.topbar-glass {
+  background: rgba(3, 4, 5, 0.97);
+}
+
+.brand-mark {
+  background: #101317;
+  border-color: rgba(214, 184, 74, 0.18);
+  box-shadow: none;
+}
+
+a[href]:hover {
+  color: inherit;
+}
+
+button:not(:disabled):hover,
+[role="button"]:hover,
+.interactive-hover:hover {
+  transform: translateY(-1px);
+}
+
+aside nav a:hover {
+  transform: none !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+
+aside nav a:hover span:first-child {
+  color: inherit !important;
+  background: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: none !important;
+}
+
+aside nav a:hover span:last-child {
+  color: #ffffff !important;
+  text-shadow: none;
+}
+
+main a[href]:hover,
+main button:not(:disabled):hover {
+  filter: none;
+  box-shadow: none;
+}
+
+main a[href][class*="rounded"]:hover,
+main button[class*="rounded"]:not(:disabled):hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22) !important;
+}
+
+main [class*="rounded-2xl"]:hover {
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+main a[href]:hover span,
+main a[href]:hover p,
+main a[href]:hover h3,
+main a[href]:hover h4 {
+  color: inherit;
+}
+
+main a[href]:focus-visible,
+main button:not(:disabled):focus-visible,
+aside nav a:focus-visible {
+  outline: 2px solid rgba(214, 184, 74, 0.62);
+  outline-offset: 3px;
+}
+
+input,
+textarea,
+select {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(214, 184, 74, 0.34) !important;
+  box-shadow: 0 0 0 3px rgba(214, 184, 74, 0.065) !important;
+}
+
+.fire-icon {
+  filter: none;
+}
+
+.empty-state {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* STUDYSNAP_UNIFIED_UI_START */
+
+:root {
+  --studysnap-bg: #050607;
+  --studysnap-panel-top: rgba(18, 23, 29, 0.9);
+  --studysnap-panel-bottom: rgba(5, 8, 11, 0.82);
+  --studysnap-border: rgba(255, 255, 255, 0.085);
+  --studysnap-border-hover: rgba(255, 255, 255, 0.15);
+  --studysnap-muted: rgba(174, 188, 205, 0.86);
+  --studysnap-soft: rgba(205, 214, 225, 0.92);
+  --studysnap-gold: #c9ad50;
+}
+
+html {
+  background: var(--studysnap-bg);
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 48% -10%,
+      rgba(201, 173, 80, 0.035),
+      transparent 34rem
+    ),
+    linear-gradient(180deg, #050607, #030405);
+  color: #f8fafc;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.studysnap-shell-header {
+  background: linear-gradient(
+    180deg,
+    rgba(3, 4, 5, 0.985),
+    rgba(3, 4, 5, 0.94)
+  ) !important;
+  border-color: rgba(255, 255, 255, 0.075) !important;
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.42),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(24px) saturate(120%);
+}
+
+.studysnap-shell-sidebar {
+  background: linear-gradient(
+    180deg,
+    rgba(9, 12, 15, 0.975),
+    rgba(4, 6, 8, 0.985)
+  ) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  box-shadow:
+    18px 0 52px rgba(0, 0, 0, 0.3),
+    inset -1px 0 0 rgba(255, 255, 255, 0.025);
+}
+
+.studysnap-main-content {
+  background: radial-gradient(
+    circle at 50% 0,
+    rgba(255, 255, 255, 0.018),
+    transparent 34rem
+  );
+}
+
+.studysnap-top-navigation {
+  width: min(100%, 650px);
+  height: 58px;
+}
+
+.studysnap-top-navigation > * {
+  width: 100%;
+}
+
+.studysnap-glass-panel {
+  background: linear-gradient(
+    145deg,
+    var(--studysnap-panel-top),
+    var(--studysnap-panel-bottom)
+  ) !important;
+  border-color: var(--studysnap-border) !important;
+  box-shadow:
+    0 20px 58px rgba(0, 0, 0, 0.27),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(22px) saturate(115%);
+}
+
+.studysnap-glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.105) !important;
+}
+
+.studysnap-dashboard-readable {
+  color: #f8fafc;
+}
+
+.studysnap-dashboard-readable .studysnap-glass-panel .text-slate-500 {
+  color: var(--studysnap-muted);
+}
+
+.studysnap-dashboard-readable .studysnap-glass-panel .text-slate-400 {
+  color: var(--studysnap-soft);
+}
+
+.studysnap-dashboard-readable .studysnap-glass-panel h2 {
+  letter-spacing: -0.012em;
+}
+
+.studysnap-ai-workspace {
+  isolation: isolate;
+}
+
+.studysnap-ai-rail,
+.studysnap-chat-history,
+.studysnap-chat-surface,
+.studysnap-composer {
+  background: linear-gradient(
+    145deg,
+    rgba(16, 21, 27, 0.92),
+    rgba(4, 7, 10, 0.86)
+  ) !important;
+  border-color: var(--studysnap-border) !important;
+  box-shadow:
+    0 22px 62px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(24px) saturate(115%);
+}
+
+.studysnap-chat-surface {
+  min-width: 0;
+}
+
+.studysnap-composer {
+  box-shadow:
+    0 -18px 55px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.studysnap-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.studysnap-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.studysnap-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studysnap-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.studysnap-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@media (max-width: 767px) {
+  .studysnap-glass-panel {
+    border-radius: 1rem !important;
+    box-shadow:
+      0 14px 38px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .studysnap-dashboard-readable {
+    font-size: 0.95rem;
+  }
+
+  .studysnap-dashboard-readable h2 {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .studysnap-dashboard-readable p {
+    overflow-wrap: anywhere;
+  }
+
+  .studysnap-ai-rail {
+    border-radius: 0.95rem;
+  }
+
+  .studysnap-chat-surface {
+    border-radius: 1rem;
+  }
+
+  .studysnap-composer {
+    border-radius: 1rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studysnap-glass-panel,
+  .studysnap-ai-rail,
+  .studysnap-chat-surface,
+  .studysnap-composer {
+    transition: none !important;
+  }
+}
+
+/* STUDYSNAP_UNIFIED_UI_END */
+
+/* STUDYSNAP_MODERN_AI_START */
+
+.studysnap-ai-workspace {
+  background: radial-gradient(
+    circle at 50% -12rem,
+    rgba(201, 173, 80, 0.045),
+    transparent 34rem
+  );
+}
+
+.studysnap-ai-rail {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 21, 26, 0.94),
+    rgba(5, 8, 11, 0.92)
+  ) !important;
+
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.studysnap-ai-rail button {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.studysnap-ai-rail button:first-child {
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.studysnap-chat-surface {
+  background:
+    radial-gradient(
+      circle at 50% 0,
+      rgba(255, 255, 255, 0.022),
+      transparent 28rem
+    ),
+    linear-gradient(145deg, rgba(11, 15, 19, 0.94), rgba(3, 5, 7, 0.94)) !important;
+
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.studysnap-chat-surface p,
+.studysnap-chat-surface li {
+  line-height: 1.72;
+}
+
+.studysnap-composer {
+  background: linear-gradient(
+    145deg,
+    rgba(24, 30, 36, 0.96),
+    rgba(10, 14, 18, 0.96)
+  ) !important;
+
+  box-shadow:
+    0 18px 55px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.studysnap-composer textarea {
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.studysnap-composer textarea::placeholder {
+  color: rgba(148, 163, 184, 0.8);
+}
+
+@media (max-width: 640px) {
+  .studysnap-ai-workspace {
+    height: calc(100dvh - 8.75rem - env(safe-area-inset-bottom));
+  }
+
+  .studysnap-ai-rail {
+    border-radius: 0.95rem;
+  }
+
+  .studysnap-chat-surface {
+    border-radius: 0.95rem;
+  }
+
+  .studysnap-composer {
+    border-radius: 1rem !important;
+  }
+
+  .studysnap-composer textarea {
+    font-size: 16px;
+  }
+}
+
+/* STUDYSNAP_MODERN_AI_END */
+
+
+/* STUDYSNAP_COMPACT_RECREATE_COMPOSER_V2 */
+
+.studysnap-composer {
+  background: #1f1f1f !important;
+  border-color:
+    rgba(255, 255, 255, 0.09) !important;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04) !important;
+}
+
+.studysnap-composer textarea {
+  color: #f5f5f5 !important;
+  caret-color: #c9ad50;
+}
+
+.studysnap-composer textarea::placeholder {
+  color: #85858d !important;
+}
+
+.studysnap-composer select {
+  color-scheme: dark;
+}
+
+@media (max-width: 640px) {
+  .studysnap-composer {
+    border-radius: 1.35rem !important;
+    padding: 0.55rem !important;
+  }
+
+  .studysnap-composer textarea {
+    min-height: 3.25rem !important;
+    max-height: 9rem !important;
+    padding:
+      0.7rem 0.65rem !important;
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+}
+
+/* STUDYSNAP_COMPACT_RECREATE_COMPOSER_V2_END */
+
+
+/* STUDYSNAP_FULLSCREEN_GENERAL_AI_V1 */
+
+.studysnap-general-ai-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 180 !important;
+
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+
+  background: #000000 !important;
+
+  overscroll-behavior:
+    none;
+}
+
+.studysnap-ai-fullscreen-header {
+  min-height:
+    calc(
+      3.5rem +
+      env(safe-area-inset-top)
+    );
+
+  padding-top:
+    env(safe-area-inset-top);
+}
+
+.studysnap-ai-composer-dock {
+  padding-bottom:
+    max(
+      0.65rem,
+      env(safe-area-inset-bottom)
+    );
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-surface {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer {
+  background: #202020 !important;
+
+  border-color:
+    rgba(255, 255, 255, 0.09) !important;
+
+  box-shadow:
+    0 16px 45px
+      rgba(0, 0, 0, 0.42),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04) !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.45rem !important;
+
+    padding:
+      0.55rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer textarea {
+    min-height:
+      3rem !important;
+
+    max-height:
+      8.5rem !important;
+
+    font-size:
+      16px !important;
+  }
+}
+
+/* STUDYSNAP_FULLSCREEN_GENERAL_AI_V1_END */
+
+
+/* STUDYSNAP_COMPACT_TOOLS_POPOVER_V2 */
+
+.studysnap-tools-popover {
+  overscroll-behavior:
+    contain;
+
+  scrollbar-width:
+    thin;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.35rem !important;
+
+    padding:
+      0.4rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer textarea {
+    min-height:
+      2.625rem !important;
+
+    max-height:
+      7.5rem !important;
+
+    padding:
+      0.5rem 0.6rem !important;
+  }
+}
+
+/* STUDYSNAP_COMPACT_TOOLS_POPOVER_V2_END */

@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  usePathname,
-  useRouter,
-} from "next/navigation";
-import {
+  MouseEvent,
   ReactNode,
   useEffect,
   useMemo,
@@ -15,13 +13,18 @@ import {
 import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
 import {
+  clearProjectRoomId,
   getSavedProjectRoomId,
   PROJECT_ROOM_CHANGED_EVENT,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import {
+  getCurrentUser,
+  getCurrentUserAvatarBlob,
   getStudyRooms,
+  PROFILE_UPDATED_EVENT,
   signOutCurrentSession,
+  type UserProfile,
 } from "@/lib/api";
 
 type NavItem = {
@@ -50,6 +53,11 @@ const primaryNavItems: NavItem[] = [
     href: "/study-rooms/organize",
     label: "Smart Organizer",
     icon: "🗂️",
+  },
+  {
+    href: "/smart-scan",
+    label: "Smart Scan",
+    icon: "▧",
   },
 ];
 
@@ -86,6 +94,20 @@ const studyToolNavItems: NavItem[] = [
   },
 ];
 
+const mobileStudyToolNavItems: NavItem[] = [
+  {
+    href: "/study-rooms/organize",
+    label: "Smart Organizer",
+    icon: "🗂️",
+  },
+  {
+    href: "/smart-scan",
+    label: "Smart Scan",
+    icon: "▧",
+  },
+  ...studyToolNavItems,
+];
+
 const moreNavItems: NavItem[] = [
   {
     href: "/onboarding",
@@ -104,55 +126,143 @@ const moreNavItems: NavItem[] = [
   },
 ];
 
+const topNavItems: NavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: "⌂",
+  },
+  {
+    href: "/study-rooms",
+    label: "Study Rooms",
+    icon: "▣",
+  },
+  {
+    href: "/study-together",
+    label: "Study Together",
+    icon: "👥",
+  },
+  {
+    href: "/ai-tutor",
+    label: "AI Tutor",
+    icon: "✦",
+  },
+  {
+    href: "/progress",
+    label: "Progress",
+    icon: "▲",
+  },
+];
+
+type MobileNavIconName = "home" | "rooms" | "ask" | "together" | "profile";
+
+type MobileNavItem = {
+  href: string;
+  label: string;
+  icon: MobileNavIconName;
+};
+
+const mobileNavItems: MobileNavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    icon: "home",
+  },
+  {
+    href: "/study-rooms",
+    label: "Rooms",
+    icon: "rooms",
+  },
+  {
+    href: "/general-ai",
+    label: "Ask",
+    icon: "ask",
+  },
+  {
+    href: "/study-together",
+    label: "Together",
+    icon: "together",
+  },
+  {
+    href: "/settings",
+    label: "Profile",
+    icon: "profile",
+  },
+];
+
 const projectAwareNavHrefs = new Set([
   "/notes",
   "/flashcards",
   "/quizzes",
   "/planner",
+  "/ai-tutor",
 ]);
 
-function isNavItemActive(
-  pathname: string,
-  href: string
-) {
+function isNavItemActive(pathname: string, href: string, search?: string) {
+  if (
+    href === "/study-together" &&
+    /^\/study-rooms\/\d+/.test(pathname) &&
+    search === "together"
+  ) {
+    return true;
+  }
+
   if (href === "/study-rooms") {
+    if (/^\/study-rooms\/\d+/.test(pathname) && search === "together") {
+      return false;
+    }
+
+    return pathname === "/study-rooms" || /^\/study-rooms\/\d+/.test(pathname);
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isAnyNavItemActive(pathname: string, items: NavItem[]) {
+  return items.some((item) => isNavItemActive(pathname, item.href));
+}
+
+function isMobileNavItemActive(
+  pathname: string,
+  item: MobileNavItem,
+  search?: string,
+) {
+  if (item.icon === "ask") {
     return (
-      pathname === "/study-rooms" ||
-      /^\/study-rooms\/\d+/.test(pathname)
+      pathname.startsWith("/ai-tutor") || pathname.startsWith("/general-ai")
     );
   }
 
-  return (
-    pathname === href ||
-    pathname.startsWith(`${href}/`)
-  );
+  if (item.icon === "together") {
+    return (
+      pathname.startsWith("/study-together") ||
+      pathname.startsWith("/groups") ||
+      (/^\/study-rooms\/\d+/.test(pathname) && search === "together")
+    );
+  }
+
+  if (item.icon === "profile") {
+    return (
+      pathname.startsWith("/settings") || pathname.startsWith("/onboarding")
+    );
+  }
+
+  return isNavItemActive(pathname, item.href, search);
 }
 
-function isAnyNavItemActive(
-  pathname: string,
-  items: NavItem[]
-) {
-  return items.some((item) =>
-    isNavItemActive(pathname, item.href)
-  );
-}
-
-function getRoomIdFromStudyRoomPath(
-  pathname: string
-) {
-  const match = pathname.match(
-    /^\/study-rooms\/(\d+)/
-  );
+function getRoomIdFromStudyRoomPath(pathname: string) {
+  const match = pathname.match(/^\/study-rooms\/(\d+)/);
 
   const roomId = Number(match?.[1]);
 
-  return Number.isFinite(roomId) &&
-    roomId > 0
-    ? roomId
-    : null;
+  return Number.isFinite(roomId) && roomId > 0 ? roomId : null;
 }
 
 function getPageKicker(pathname: string) {
+  if (pathname.startsWith("/smart-scan")) {
+    return "Intelligent Capture";
+  }
+
   if (pathname.startsWith("/study-rooms")) {
     return "StudySnap Projects";
   }
@@ -181,7 +291,10 @@ function getPageKicker(pathname: string) {
     return "AI Memory";
   }
 
-  if (pathname.startsWith("/groups")) {
+  if (
+    pathname.startsWith("/study-together") ||
+    pathname.startsWith("/groups")
+  ) {
     return "Study Together";
   }
 
@@ -214,34 +327,21 @@ function getStoredUserName() {
     ];
 
     for (const key of possibleKeys) {
-      const raw =
-        localStorage.getItem(key);
+      const raw = localStorage.getItem(key);
 
       if (!raw) continue;
 
       const parsed = JSON.parse(raw);
 
-      if (
-        typeof parsed?.full_name ===
-          "string" &&
-        parsed.full_name.trim()
-      ) {
+      if (typeof parsed?.full_name === "string" && parsed.full_name.trim()) {
         return parsed.full_name.trim();
       }
 
-      if (
-        typeof parsed?.name ===
-          "string" &&
-        parsed.name.trim()
-      ) {
+      if (typeof parsed?.name === "string" && parsed.name.trim()) {
         return parsed.name.trim();
       }
 
-      if (
-        typeof parsed?.email ===
-          "string" &&
-        parsed.email.trim()
-      ) {
+      if (typeof parsed?.email === "string" && parsed.email.trim()) {
         return parsed.email.trim();
       }
     }
@@ -264,101 +364,181 @@ function getInitials(name: string) {
 
   return parts
     .slice(0, 2)
-    .map((part) =>
-      part[0]?.toUpperCase()
-    )
+    .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function MobileNavIcon({ name }: { name: MobileNavIconName }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {name === "home" ? (
+        <>
+          <path d="M3 10.5 12 3l9 7.5" />
+          <path d="M5 9.5V21h14V9.5" />
+          <path d="M9 21v-7h6v7" />
+        </>
+      ) : null}
+
+      {name === "rooms" ? (
+        <>
+          <path d="M3.5 6.5h6l2 2h9v10a2 2 0 0 1-2 2h-15z" />
+          <path d="M3.5 6.5V5a2 2 0 0 1 2-2h3l2 2h8a2 2 0 0 1 2 2v1.5" />
+        </>
+      ) : null}
+
+      {name === "ask" ? (
+        <>
+          <path d="m12 3 1.25 4.05L17 8.5l-3.75 1.45L12 14l-1.25-4.05L7 8.5l3.75-1.45z" />
+          <path d="m18.5 14 .75 2.25L21.5 17l-2.25.75L18.5 20l-.75-2.25L15.5 17l2.25-.75z" />
+          <path d="m5.5 14 .55 1.45 1.45.55-1.45.55L5.5 18l-.55-1.45L3.5 16l1.45-.55z" />
+        </>
+      ) : null}
+
+      {name === "together" ? (
+        <>
+          <circle cx="9" cy="8" r="3" />
+          <circle cx="17" cy="9" r="2.5" />
+          <path d="M3.5 20c.3-4 2.2-6 5.5-6s5.2 2 5.5 6" />
+          <path d="M14 14.5c3.9-.8 6.2 1 6.5 4.5" />
+        </>
+      ) : null}
+
+      {name === "profile" ? (
+        <>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4.5 21c.45-4.7 3-7 7.5-7s7.05 2.3 7.5 7" />
+        </>
+      ) : null}
+    </svg>
+  );
 }
 
 export default function AppShell({
   title,
   subtitle,
   children,
+  rightPanel,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  rightPanel?: ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [
-    mobileMenuOpen,
-    setMobileMenuOpen,
-  ] = useState(false);
-
-  const [
-    desktopSidebarOpen,
-    setDesktopSidebarOpen,
-  ] = useState(true);
-
-  const [
-    roomMenuOpen,
-    setRoomMenuOpen,
-  ] = useState(false);
-
-  const [
-    studyToolsOpen,
-    setStudyToolsOpen,
-  ] = useState(() =>
-    isAnyNavItemActive(
-      pathname,
-      studyToolNavItems
-    )
+  const [activeQueryTab, setActiveQueryTab] = useState<string | undefined>(
+    undefined,
   );
 
-  const [moreOpen, setMoreOpen] =
-    useState(() =>
-      isAnyNavItemActive(
-        pathname,
-        moreNavItems
-      )
-    );
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [brandMenuOpen, setBrandMenuOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
-  const [
-    activeProjectRoomId,
-    setActiveProjectRoomId,
-  ] = useState<number | null>(null);
+  const [roomMenuOpen, setRoomMenuOpen] = useState(false);
 
-  const [
-    studyRooms,
-    setStudyRooms,
-  ] = useState<RoomSummary[]>([]);
-
-  const [
-    roomsLoading,
-    setRoomsLoading,
-  ] = useState(true);
-
-  const [roomsError, setRoomsError] =
-    useState("");
-
-  const [
-    learnerName,
-    setLearnerName,
-  ] = useState(
-    "StudySnap Learner"
+  const [studyToolsOpen, setStudyToolsOpen] = useState(() =>
+    isAnyNavItemActive(pathname, studyToolNavItems),
   );
+
+  const [moreOpen, setMoreOpen] = useState(() =>
+    isAnyNavItemActive(pathname, moreNavItems),
+  );
+
+  const [activeProjectRoomId, setActiveProjectRoomId] = useState<number | null>(
+    null,
+  );
+
+  const [studyRooms, setStudyRooms] = useState<RoomSummary[]>([]);
+
+  const [roomsLoading, setRoomsLoading] = useState(true);
+
+  const [roomsError, setRoomsError] = useState("");
+
+  const [learnerName, setLearnerName] = useState("StudySnap Learner");
+  const [learnerAvatarUrl, setLearnerAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedSidebarState =
-      window.localStorage.getItem(
-        "studysnap:desktop-sidebar-open"
-      );
+    const savedSidebarState = window.localStorage.getItem(
+      "studysnap:desktop-sidebar-open",
+    );
 
-    if (
-      savedSidebarState !== null
-    ) {
-      setDesktopSidebarOpen(
-        savedSidebarState !== "false"
-      );
+    if (savedSidebarState !== null) {
+      setDesktopSidebarOpen(savedSidebarState !== "false");
     }
   }, []);
 
   useEffect(() => {
-    setLearnerName(
-      getStoredUserName()
-    );
+    let cancelled = false;
+    let activeObjectUrl: string | null = null;
+
+    async function loadProfile(suppliedProfile?: UserProfile) {
+      try {
+        const profile = suppliedProfile ?? (await getCurrentUser());
+
+        if (cancelled) return;
+
+        setLearnerName(profile.full_name?.trim() || getStoredUserName());
+
+        if (!profile.avatar_url) {
+          setLearnerAvatarUrl((current) => {
+            if (current) URL.revokeObjectURL(current);
+            return null;
+          });
+          return;
+        }
+
+        const avatarBlob = await getCurrentUserAvatarBlob();
+
+        if (cancelled) return;
+
+        const nextObjectUrl = avatarBlob
+          ? URL.createObjectURL(avatarBlob)
+          : null;
+
+        activeObjectUrl = nextObjectUrl;
+
+        setLearnerAvatarUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return nextObjectUrl;
+        });
+      } catch (error) {
+        console.error("Could not load shell profile.", error);
+
+        if (!cancelled) {
+          setLearnerName(getStoredUserName());
+        }
+      }
+    }
+
+    function handleProfileUpdated(event: Event) {
+      const profileEvent = event as CustomEvent<UserProfile | undefined>;
+
+      void loadProfile(profileEvent.detail);
+    }
+
+    void loadProfile();
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
+
+    return () => {
+      cancelled = true;
+
+      window.removeEventListener(PROFILE_UPDATED_EVENT, handleProfileUpdated);
+
+      if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -369,24 +549,29 @@ export default function AppShell({
         setRoomsLoading(true);
         setRoomsError("");
 
-        const rooms =
-          await getStudyRooms();
+        const rooms = await getStudyRooms();
 
         if (cancelled) return;
 
-        setStudyRooms(
-          rooms.map((room) => ({
-            id: room.id,
-            name:
-              room.name?.trim() ||
-              `Room #${room.id}`,
-          }))
-        );
+        const roomSummaries = rooms.map((room) => ({
+          id: room.id,
+          name: room.name?.trim() || `Room #${room.id}`,
+        }));
+
+        setStudyRooms(roomSummaries);
+
+        const savedRoomId = getSavedProjectRoomId();
+
+        if (
+          savedRoomId !== null &&
+          !roomSummaries.some((room) => room.id === savedRoomId)
+        ) {
+          clearProjectRoomId();
+          setActiveProjectRoomId(null);
+        }
       } catch {
         if (!cancelled) {
-          setRoomsError(
-            "Rooms could not be loaded."
-          );
+          setRoomsError("Rooms could not be loaded.");
         }
       } finally {
         if (!cancelled) {
@@ -403,131 +588,126 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
-    const roomIdFromPath =
-      getRoomIdFromStudyRoomPath(
-        pathname
-      );
+    const tab =
+      typeof window !== "undefined"
+        ? (new URLSearchParams(window.location.search).get("tab") ?? undefined)
+        : undefined;
 
-    if (
-      roomIdFromPath !== null
-    ) {
-      const savedRoomId =
-        saveProjectRoomId(
-          roomIdFromPath
-        );
+    setActiveQueryTab(tab);
+  }, [pathname]);
 
-      setActiveProjectRoomId(
-        savedRoomId
-      );
+  useEffect(() => {
+    const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
+
+    if (roomIdFromPath !== null) {
+      const savedRoomId = saveProjectRoomId(roomIdFromPath);
+
+      setActiveProjectRoomId(savedRoomId);
     } else {
-      setActiveProjectRoomId(
-        getSavedProjectRoomId()
-      );
+      setActiveProjectRoomId(getSavedProjectRoomId());
     }
 
-    if (
-      isAnyNavItemActive(
-        pathname,
-        studyToolNavItems
-      )
-    ) {
+    if (isAnyNavItemActive(pathname, studyToolNavItems)) {
       setStudyToolsOpen(true);
     }
 
-    if (
-      isAnyNavItemActive(
-        pathname,
-        moreNavItems
-      )
-    ) {
+    if (isAnyNavItemActive(pathname, moreNavItems)) {
       setMoreOpen(true);
     }
 
     setRoomMenuOpen(false);
+    setMobileMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    function handleProjectRoomChanged(
-      event: Event
+    if (
+      pathname !== "/dashboard" ||
+      typeof window === "undefined"
     ) {
-      const roomEvent =
-        event as CustomEvent<{
-          roomId?: number;
-        }>;
+      return;
+    }
 
-      const nextRoomId =
-        roomEvent.detail?.roomId ??
-        getSavedProjectRoomId();
+    const shouldScroll =
+      window.sessionStorage.getItem(
+        "studysnap:scroll-dashboard-top",
+      ) === "1";
 
-      setActiveProjectRoomId(
-        nextRoomId
-      );
+    if (!shouldScroll) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(
+      "studysnap:scroll-dashboard-top",
+    );
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      });
+    });
+  }, [pathname]);
+
+  useEffect(() => {
+    function handleProjectRoomChanged(event: Event) {
+      const roomEvent = event as CustomEvent<{
+        roomId?: number | null;
+      }>;
+
+      const nextRoomId = roomEvent.detail?.roomId ?? getSavedProjectRoomId();
+
+      setActiveProjectRoomId(nextRoomId);
     }
 
     window.addEventListener(
       PROJECT_ROOM_CHANGED_EVENT,
-      handleProjectRoomChanged
+      handleProjectRoomChanged,
     );
 
     return () => {
       window.removeEventListener(
         PROJECT_ROOM_CHANGED_EVENT,
-        handleProjectRoomChanged
+        handleProjectRoomChanged,
       );
     };
   }, []);
 
-  const learnerInitials =
-    useMemo(() => {
-      return getInitials(
-        learnerName
-      );
-    }, [learnerName]);
+  const learnerInitials = useMemo(() => {
+    return getInitials(learnerName);
+  }, [learnerName]);
+
+  function resolveTopNavHref(item: NavItem) {
+    if (item.label === "Study Together") {
+      return "/study-together";
+    }
+
+    if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+    }
+
+    return item.href;
+  }
 
   const activeRoom = useMemo(() => {
-    if (
-      activeProjectRoomId === null
-    ) {
+    if (activeProjectRoomId === null) {
       return null;
     }
 
-    return (
-      studyRooms.find(
-        (room) =>
-          room.id ===
-          activeProjectRoomId
-      ) ?? null
-    );
-  }, [
-    activeProjectRoomId,
-    studyRooms,
-  ]);
+    return studyRooms.find((room) => room.id === activeProjectRoomId) ?? null;
+  }, [activeProjectRoomId, studyRooms]);
 
   const recentRooms = useMemo(() => {
-    const currentRoom =
-      studyRooms.find(
-        (room) =>
-          room.id ===
-          activeProjectRoomId
-      );
+    const currentRoom = studyRooms.find(
+      (room) => room.id === activeProjectRoomId,
+    );
 
-    const otherRooms =
-      studyRooms.filter(
-        (room) =>
-          room.id !==
-          activeProjectRoomId
-      );
+    const otherRooms = studyRooms.filter(
+      (room) => room.id !== activeProjectRoomId,
+    );
 
-    return [
-      ...(currentRoom
-        ? [currentRoom]
-        : []),
-      ...otherRooms,
-    ].slice(0, 6);
-  }, [
-    activeProjectRoomId,
-    studyRooms,
-  ]);
+    return [...(currentRoom ? [currentRoom] : []), ...otherRooms].slice(0, 6);
+  }, [activeProjectRoomId, studyRooms]);
 
   const currentRoomLabel =
     activeRoom?.name ||
@@ -535,37 +715,80 @@ export default function AppShell({
       ? `Room #${activeProjectRoomId}`
       : "Choose a study room");
 
-  function getConnectedHref(
-    href: string
-  ) {
-    if (
-      !projectAwareNavHrefs.has(
-        href
-      ) ||
-      activeProjectRoomId === null
-    ) {
+  const dashboardRoomTools =
+    activeProjectRoomId === null
+      ? []
+      : [
+          {
+            label: "Overview",
+            icon: "🏠",
+            href: `/study-rooms/${activeProjectRoomId}`,
+          },
+          {
+            label: "Materials",
+            icon: "📚",
+            href: `/study-rooms/${activeProjectRoomId}?tab=materials`,
+          },
+          {
+            label: "Notes",
+            icon: "📝",
+            href: `/study-rooms/${activeProjectRoomId}?tab=notes`,
+          },
+          {
+            label: "AI Tutor",
+            icon: "🤖",
+            href: `/study-rooms/${activeProjectRoomId}?tab=ai`,
+          },
+          {
+            label: "Practice",
+            icon: "🧠",
+            href: `/study-rooms/${activeProjectRoomId}?tab=practice`,
+          },
+          {
+            label: "Together",
+            icon: "👥",
+            href: `/study-rooms/${activeProjectRoomId}?tab=together`,
+          },
+          {
+            label: "Progress",
+            icon: "📈",
+            href: `/study-rooms/${activeProjectRoomId}?tab=progress`,
+          },
+        ];
+
+  function getConnectedHref(href: string) {
+    if (!projectAwareNavHrefs.has(href) || activeProjectRoomId === null) {
       return href;
+    }
+
+    if (href === "/ai-tutor") {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
     }
 
     return `${href}?roomId=${activeProjectRoomId}`;
   }
 
-  function handleChooseRoom(
-    room: RoomSummary
-  ) {
-    const savedRoomId =
-      saveProjectRoomId(room.id);
+  function getMobileNavHref(item: MobileNavItem) {
+    if (item.icon === "profile") {
+      return "/settings?tab=profile&focus=account";
+    }
 
-    setActiveProjectRoomId(
-      savedRoomId
-    );
+    if (item.href === "/general-ai" && activeProjectRoomId !== null) {
+      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+    }
+
+    return item.href;
+  }
+
+  function handleChooseRoom(room: RoomSummary) {
+    const savedRoomId = saveProjectRoomId(room.id);
+
+    setActiveProjectRoomId(savedRoomId);
 
     setRoomMenuOpen(false);
     setMobileMenuOpen(false);
 
-    router.push(
-      `/study-rooms/${room.id}`
-    );
+    router.push(`/study-rooms/${room.id}`);
   }
 
   async function handleLogout() {
@@ -574,76 +797,105 @@ export default function AppShell({
     router.push("/login");
   }
 
-  function toggleDesktopSidebar() {
-    setDesktopSidebarOpen(
-      (current) => {
-        const next = !current;
+  function handleHomeNavigation(
+    event: MouseEvent<HTMLAnchorElement>,
+  ) {
+    setBrandMenuOpen(false);
+    setMobileMenuOpen(false);
+    setRoomMenuOpen(false);
 
-        window.localStorage.setItem(
-          "studysnap:desktop-sidebar-open",
-          String(next)
-        );
+    if (typeof window === "undefined") {
+      return;
+    }
 
-        if (!next) {
-          setRoomMenuOpen(false);
-        }
+    if (pathname === "/dashboard") {
+      event.preventDefault();
 
-        return next;
-      }
+      window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: "smooth",
+        });
+      });
+
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      "studysnap:scroll-dashboard-top",
+      "1",
     );
   }
 
-  function renderNavItems(
-    items: NavItem[],
-    closeMobile = false
-  ) {
-    return items.map((item) => {
-      const active =
-        isNavItemActive(
-          pathname,
-          item.href
-        );
+  function toggleDesktopSidebar() {
+    setDesktopSidebarOpen((current) => {
+      const next = !current;
 
-      const connectedHref =
-        getConnectedHref(
-          item.href
-        );
+      window.localStorage.setItem(
+        "studysnap:desktop-sidebar-open",
+        String(next),
+      );
+
+      if (!next) {
+        setRoomMenuOpen(false);
+      }
+
+      return next;
+    });
+  }
+
+  function renderNavItems(items: NavItem[], closeMobile = false) {
+    return items.map((item) => {
+      const active = isNavItemActive(pathname, item.href);
+
+      const connectedHref = getConnectedHref(item.href);
 
       return (
         <Link
           key={item.href}
           href={connectedHref}
-          aria-current={
-            active
-              ? "page"
-              : undefined
-          }
-          onClick={() => {
-            if (closeMobile) {
-              setMobileMenuOpen(
-                false
+          aria-current={active ? "page" : undefined}
+          onClick={(event) => {
+            if (item.href === "/dashboard") {
+              handleHomeNavigation(event);
+            }
+
+            if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
+              event.preventDefault();
+
+              if (closeMobile) {
+                setMobileMenuOpen(false);
+              }
+
+              window.location.assign(
+                `/study-rooms/${activeProjectRoomId}?tab=ai`,
               );
+
+              return;
+            }
+
+            if (closeMobile) {
+              setMobileMenuOpen(false);
             }
           }}
-          className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+          className={`flex min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] backdrop-blur-xl transition ${
             active
-              ? "border border-yellow-300/50 bg-yellow-300/20 text-yellow-100 shadow-[0_0_32px_rgba(250,204,21,0.18)]"
-              : "text-slate-200 hover:bg-white/[0.06] hover:text-white"
+              ? "border-white/[0.10] bg-white/[0.055] text-white"
+              : "border-white/[0.055] bg-white/[0.025] text-slate-200 hover:border-white/[0.11] hover:bg-white/[0.065] hover:text-white"
           }`}
         >
           <span
-            className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg ${
+            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-base ${
               active
-                ? "bg-yellow-300 text-black"
+                ? "bg-white/[0.08] text-[#d6b84a]"
                 : "bg-white/[0.06] text-slate-200"
             }`}
           >
             {item.icon}
           </span>
 
-          <span className="min-w-0 flex-1 truncate">
-            {item.label}
-          </span>
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
         </Link>
       );
     });
@@ -664,21 +916,17 @@ export default function AppShell({
     onToggle: () => void;
     closeMobile?: boolean;
   }) {
-    const sectionActive =
-      isAnyNavItemActive(
-        pathname,
-        items
-      );
+    const sectionActive = isAnyNavItemActive(pathname, items);
 
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-1.5">
+      <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_35px_rgba(0,0,0,0.16)] backdrop-blur-2xl">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={open}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-black transition ${
             sectionActive
-              ? "bg-yellow-300/10 text-yellow-100"
+              ? "bg-white/[0.055] text-white"
               : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
           }`}
         >
@@ -686,15 +934,11 @@ export default function AppShell({
             {icon}
           </span>
 
-          <span className="min-w-0 flex-1">
-            {sectionTitle}
-          </span>
+          <span className="min-w-0 flex-1">{sectionTitle}</span>
 
           <span
             className={`text-xs transition-transform ${
-              open
-                ? "rotate-180"
-                : ""
+              open ? "rotate-180" : ""
             }`}
           >
             ▾
@@ -703,50 +947,157 @@ export default function AppShell({
 
         {open ? (
           <div className="mt-1 space-y-1">
-            {renderNavItems(
-              items,
-              closeMobile
-            )}
+            {renderNavItems(items, closeMobile)}
           </div>
         ) : null}
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen overflow-x-hidden bg-[#05080d] text-white">
-      <aside
-        className={`fixed left-0 top-0 z-40 hidden h-screen w-[280px] overflow-hidden border-r border-white/10 bg-[#061018] px-4 py-5 transition-transform duration-300 lg:flex lg:flex-col ${
-          desktopSidebarOpen
-            ? "lg:translate-x-0"
-            : "lg:-translate-x-full"
-        }`}
-        aria-hidden={
-          !desktopSidebarOpen
-        }
-      >
-        <div className="flex shrink-0 items-center justify-between gap-3">
-          <Link
-            href="/dashboard"
-            className="flex min-w-0 items-center gap-3"
-          >
-            <span className="text-4xl text-yellow-300">
-              ★
-            </span>
+  function renderTopNavigation() {
+    return topNavItems.map((item) => {
+      const active = isNavItemActive(pathname, item.href, activeQueryTab);
 
-            <span className="truncate text-2xl font-black tracking-tight text-white">
-              StudySnap{" "}
-              <span className="text-yellow-300">
-                AI
-              </span>
+      return (
+        <Link
+          key={item.href}
+          href={resolveTopNavHref(item)}
+          title={item.label}
+          aria-current={active ? "page" : undefined}
+          onClick={(event) => {
+            if (item.href === "/dashboard") {
+              handleHomeNavigation(event);
+            }
+          }}
+          className={`group relative flex h-[72px] min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition ${
+            active
+              ? "text-[#cec18d]"
+              : "text-slate-400 hover:bg-white/[0.035] hover:text-white"
+          }`}
+        >
+          <span
+            className={`grid h-9 w-9 place-items-center rounded-xl text-base transition ${
+              active
+                ? "bg-[#c9ad50] text-[#111317] shadow-[0_8px_22px_rgba(0,0,0,0.18)]"
+                : "bg-white/[0.04] group-hover:bg-white/[0.08]"
+            }`}
+          >
+            {item.icon}
+          </span>
+
+          <span className="hidden text-[10px] font-black xl:block">
+            {item.label}
+          </span>
+
+          <span
+            className={`absolute bottom-0 left-3 right-3 h-[3px] rounded-full ${
+              active ? "bg-[#c9ad50]" : "bg-transparent"
+            }`}
+          />
+        </Link>
+      );
+    });
+  }
+
+  function renderMobileBottomNavigation() {
+    return (
+      <nav
+        aria-label="Primary mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[#090d12]/[0.98] pb-[env(safe-area-inset-bottom)] shadow-[0_-16px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl lg:hidden"
+      >
+        <div className="mx-auto grid h-[70px] max-w-lg grid-cols-5 items-end px-1.5">
+          {mobileNavItems.map((item) => {
+            const active = isMobileNavItemActive(
+              pathname,
+              item,
+              activeQueryTab,
+            );
+
+            const primaryAction = item.icon === "ask";
+
+            return (
+              <Link
+                key={item.href}
+                href={getMobileNavHref(item)}
+                onClick={(event) => {
+                  if (item.icon === "profile") {
+                    event.preventDefault();
+
+                    window.location.assign(
+                      "/settings?tab=profile&focus=account",
+                    );
+
+                    return;
+                  }
+
+                  if (item.icon === "home") {
+                    handleHomeNavigation(event);
+                  }
+                }}
+                aria-current={active ? "page" : undefined}
+                className={`group relative flex min-w-0 flex-col items-center justify-end gap-1 rounded-2xl px-1 pb-2 pt-2 text-[10px] font-black transition ${
+                  primaryAction ? "-mt-4" : ""
+                } ${
+                  active
+                    ? "text-slate-200"
+                    : "text-slate-500 active:bg-white/[0.06] active:text-slate-200"
+                }`}
+              >
+                <span
+                  className={`relative grid shrink-0 place-items-center transition ${
+                    primaryAction
+                      ? "h-12 w-12 rounded-2xl border border-[#d6b84a]/30 bg-[#111418] text-[#d6b84a] shadow-[0_10px_28px_rgba(0,0,0,0.34)]"
+                      : active
+                        ? "h-9 w-11 rounded-xl bg-white/[0.055] text-[#d6b84a]"
+                        : "h-9 w-11 rounded-xl text-slate-400 group-active:bg-white/[0.07]"
+                  }`}
+                >
+                  <MobileNavIcon name={item.icon} />
+
+                  {primaryAction ? (
+                    <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/20" />
+                  ) : null}
+                </span>
+
+                <span
+                  className={`max-w-full truncate ${
+                    primaryAction ? "text-[#d6b84a]" : ""
+                  }`}
+                >
+                  {item.label}
+                </span>
+
+                {active && !primaryAction ? (
+                  <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#c9ad50]" />
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-[#050607] text-white">
+      <aside
+        className={`fixed bottom-0 left-0 top-[72px] z-40 hidden w-[264px] overflow-hidden border-r border-white/[0.065] bg-[#07090b] px-3 py-4 shadow-[12px_0_38px_rgba(0,0,0,0.24)] transition-transform duration-300 lg:flex lg:flex-col ${
+          desktopSidebarOpen ? "lg:translate-x-0" : "lg:-translate-x-full"
+        }`}
+        aria-hidden={!desktopSidebarOpen}
+      >
+        <div className="hidden">
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
+            <span className="text-3xl text-[#c9ad50]">★</span>
+
+            <span className="truncate text-xl font-black tracking-tight text-white">
+              StudySnap <span className="text-[#c9ad50]">AI</span>
             </span>
           </Link>
 
           <button
             type="button"
-            onClick={
-              toggleDesktopSidebar
-            }
+            onClick={toggleDesktopSidebar}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-sm font-black text-slate-300 transition hover:bg-white/[0.1] hover:text-white"
             aria-label="Close sidebar"
             title="Close sidebar"
@@ -755,20 +1106,13 @@ export default function AppShell({
           </button>
         </div>
 
-        <div className="relative mt-5 shrink-0">
+        <div className="relative mt-1 shrink-0">
           <button
             type="button"
-            aria-expanded={
-              roomMenuOpen
-            }
+            aria-expanded={roomMenuOpen}
             aria-haspopup="menu"
-            onClick={() =>
-              setRoomMenuOpen(
-                (current) =>
-                  !current
-              )
-            }
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-left transition hover:border-yellow-300/25 hover:bg-white/[0.06]"
+            onClick={() => setRoomMenuOpen((current) => !current)}
+            className="w-full rounded-xl border border-white/[0.065] bg-white/[0.025] p-3 text-left transition hover:border-white/[0.12] hover:bg-white/[0.05]"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -789,9 +1133,7 @@ export default function AppShell({
 
               <span
                 className={`shrink-0 text-sm text-slate-400 transition-transform ${
-                  roomMenuOpen
-                    ? "rotate-180"
-                    : ""
+                  roomMenuOpen ? "rotate-180" : ""
                 }`}
               >
                 ▾
@@ -802,7 +1144,7 @@ export default function AppShell({
           {roomMenuOpen ? (
             <div
               role="menu"
-              className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#08131d] p-2 shadow-2xl shadow-black/60"
+              className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#12181e] p-2 shadow-2xl shadow-black/60"
             >
               <p className="px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                 Switch study room
@@ -810,8 +1152,7 @@ export default function AppShell({
 
               {roomsLoading ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
-                  Loading your
-                  rooms...
+                  Loading your rooms...
                 </p>
               ) : roomsError ? (
                 <p className="rounded-xl px-3 py-3 text-xs text-red-200">
@@ -819,55 +1160,37 @@ export default function AppShell({
                 </p>
               ) : recentRooms.length ? (
                 <div className="space-y-1">
-                  {recentRooms.map(
-                    (room) => {
-                      const selected =
-                        room.id ===
-                        activeProjectRoomId;
+                  {recentRooms.map((room) => {
+                    const selected = room.id === activeProjectRoomId;
 
-                      return (
-                        <button
-                          key={
-                            room.id
-                          }
-                          type="button"
-                          role="menuitem"
-                          onClick={() =>
-                            handleChooseRoom(
-                              room
-                            )
-                          }
-                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
-                            selected
-                              ? "bg-yellow-300 text-black"
-                              : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleChooseRoom(room)}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
+                          selected
+                            ? "bg-[#c9ad50] text-[#111317]"
+                            : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                        }`}
+                      >
+                        <span
+                          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                            selected ? "bg-black/15" : "bg-white/[0.06]"
                           }`}
                         >
-                          <span
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
-                              selected
-                                ? "bg-black/15"
-                                : "bg-white/[0.06]"
-                            }`}
-                          >
-                            📚
-                          </span>
+                          📚
+                        </span>
 
-                          <span className="min-w-0 flex-1 truncate">
-                            {
-                              room.name
-                            }
-                          </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {room.name}
+                        </span>
 
-                          {selected ? (
-                            <span>
-                              ✓
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    }
-                  )}
+                        {selected ? <span>✓</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="rounded-xl px-3 py-3 text-xs text-slate-400">
@@ -878,15 +1201,10 @@ export default function AppShell({
               <div className="mt-2 border-t border-white/10 pt-2">
                 <Link
                   href="/study-rooms"
-                  onClick={() =>
-                    setRoomMenuOpen(
-                      false
-                    )
-                  }
+                  onClick={() => setRoomMenuOpen(false)}
                   className="flex items-center justify-center rounded-xl bg-white/[0.06] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.1]"
                 >
-                  View all study
-                  rooms →
+                  View all study rooms →
                 </Link>
               </div>
             </div>
@@ -894,24 +1212,15 @@ export default function AppShell({
         </div>
 
         <nav className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="space-y-1.5">
-            {renderNavItems(
-              primaryNavItems
-            )}
-          </div>
+          <div className="space-y-1.5">{renderNavItems(primaryNavItems)}</div>
 
           <div className="mt-3">
             {renderExpandableNav({
               title: "Study Tools",
               icon: "✦",
-              items:
-                studyToolNavItems,
+              items: studyToolNavItems,
               open: studyToolsOpen,
-              onToggle: () =>
-                setStudyToolsOpen(
-                  (current) =>
-                    !current
-                ),
+              onToggle: () => setStudyToolsOpen((current) => !current),
             })}
           </div>
 
@@ -921,11 +1230,7 @@ export default function AppShell({
               icon: "•••",
               items: moreNavItems,
               open: moreOpen,
-              onToggle: () =>
-                setMoreOpen(
-                  (current) =>
-                    !current
-                ),
+              onToggle: () => setMoreOpen((current) => !current),
             })}
           </div>
         </nav>
@@ -933,28 +1238,33 @@ export default function AppShell({
         <div className="shrink-0 border-t border-white/10 pt-3">
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded-xl border border-yellow-300/15 bg-yellow-300/10 px-3 py-2.5 text-left transition hover:bg-yellow-300/15"
+            className="flex w-full items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 text-left transition hover:border-white/[0.12] hover:bg-white/[0.05]"
           >
             <span>
-              <span className="block text-xs font-black text-yellow-100">
+              <span className="block text-xs font-black text-[#ece8da]">
                 StudySnap Premium
               </span>
 
               <span className="mt-0.5 block text-[10px] text-slate-400">
-                More AI and study
-                tools
+                More AI and study tools
               </span>
             </span>
 
-            <span className="text-yellow-200">
-              →
-            </span>
+            <span className="text-[#cec18d]">→</span>
           </button>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-yellow-300 text-sm font-black text-black">
-                {learnerInitials}
+              <div className="grid h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.055] text-sm font-black text-[#d6b84a]">
+                {learnerAvatarUrl ? (
+                  <img
+                    src={learnerAvatarUrl}
+                    alt={`${learnerName} profile`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="place-self-center">{learnerInitials}</span>
+                )}
               </div>
 
               <div className="min-w-0 flex-1">
@@ -972,10 +1282,8 @@ export default function AppShell({
               <Link
                 href="/settings"
                 className={`rounded-xl px-3 py-2 text-center text-xs font-black transition ${
-                  pathname.startsWith(
-                    "/settings"
-                  )
-                    ? "bg-yellow-300 text-black"
+                  pathname.startsWith("/settings")
+                    ? "bg-[#c9ad50] text-[#111317]"
                     : "bg-white/[0.06] text-slate-200 hover:bg-white/[0.09]"
                 }`}
               >
@@ -995,189 +1303,466 @@ export default function AppShell({
       </aside>
 
       <div
-        className={`min-w-0 transition-[margin] duration-300 ${
-          desktopSidebarOpen
-            ? "lg:ml-[280px]"
-            : "lg:ml-0"
+        className={`min-w-0 pt-[60px] transition-[margin] duration-300 lg:pt-[72px] ${
+          desktopSidebarOpen ? "lg:ml-[264px]" : "lg:ml-0"
         }`}
       >
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05080d]/86 backdrop-blur-xl">
-          <div className="mx-auto max-w-[1380px] px-5 py-4">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div className="min-w-0">
-                {!desktopSidebarOpen ? (
-                  <button
-                    type="button"
-                    onClick={
-                      toggleDesktopSidebar
-                    }
-                    className="mb-3 hidden items-center gap-2 rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20 lg:inline-flex"
-                    aria-label="Open sidebar"
-                    title="Open sidebar"
-                  >
-                    ☰ Navigation
-                  </button>
-                ) : null}
-
+        <header className="studysnap-shell-header fixed left-0 right-0 top-0 z-50 border-b border-white/[0.065] bg-[#030405]/[0.97] shadow-[0_10px_32px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
+          <div className="flex h-[60px] items-center gap-1.5 px-2.5 sm:gap-2.5 sm:px-4 lg:h-[72px]">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 xl:w-[360px] xl:flex-none">
+              <div className="relative shrink-0">
                 <button
                   type="button"
-                  onClick={() =>
-                    setMobileMenuOpen(
-                      (current) =>
-                        !current
-                    )
-                  }
-                  className="mb-3 inline-flex rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white lg:hidden"
+                  title="StudySnap menu"
+                  aria-label="Open StudySnap menu"
+                  aria-haspopup="menu"
+                  aria-expanded={brandMenuOpen}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setBrandMenuOpen((current) => !current);
+                  }}
+                  className="group block"
                 >
-                  ☰ Menu
+                  <span className="relative grid h-10 w-[54px] place-items-center overflow-hidden rounded-[14px] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(20,25,31,0.98),rgba(2,4,6,0.99))] shadow-[0_12px_32px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.09)] transition group-active:scale-95">
+                    <span className="pointer-events-none absolute inset-[2px] rounded-[12px] border border-white/[0.05]" />
+
+                    <span className="relative -translate-x-1 text-[22px] font-black leading-none tracking-[-0.12em] text-[#e3cf79]">
+                      S
+                    </span>
+
+                    <span className="absolute bottom-[7px] right-[6px] text-[8px] font-black tracking-[-0.04em] text-[#aa9857]">
+                      AI
+                    </span>
+                  </span>
                 </button>
 
-                <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">
-                  {getPageKicker(
-                    pathname
-                  )}
-                </p>
+                {brandMenuOpen ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close StudySnap menu"
+                      onClick={() => setBrandMenuOpen(false)}
+                      className="fixed inset-0 z-[55] cursor-default bg-transparent"
+                    />
 
-                <h1 className="mt-2 text-[2.35rem] font-black leading-none tracking-tight text-white">
-                  {title}
-                </h1>
+                    <div
+                      role="menu"
+                      className="absolute left-0 top-12 z-[60] w-[min(18rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.25rem] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(18,24,30,0.98),rgba(3,6,9,0.98))] p-2 shadow-[0_26px_80px_rgba(0,0,0,0.76),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl"
+                    >
+                      <div className="mb-2 flex items-center gap-3 rounded-[1rem] border border-white/[0.08] bg-white/[0.035] p-3">
+                        <div className="grid h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-[#c9ad50] text-xs font-black text-black">
+                          {learnerAvatarUrl ? (
+                            <img
+                              src={learnerAvatarUrl}
+                              alt={`${learnerName} profile`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="place-self-center">
+                              {learnerInitials}
+                            </span>
+                          )}
+                        </div>
 
-                {subtitle ? (
-                  <p className="mt-2 max-w-4xl text-base leading-7 text-slate-400">
-                    {subtitle}
-                  </p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-white">
+                            {learnerName}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-500">
+                            StudySnap AI
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Link
+                          href="/dashboard"
+                          role="menuitem"
+                          onClick={handleHomeNavigation}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ⌂
+                          </span>
+                          Home
+                        </Link>
+
+                        <Link
+                          href="/general-ai"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="w-5 text-center text-[#d9c575]"
+                          >
+                            ✦
+                          </span>
+                          AI Tutor
+                        </Link>
+
+                        <Link
+                          href="/study-rooms"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ▦
+                          </span>
+                          Rooms
+                        </Link>
+
+                        <Link
+                          href="/settings"
+                          role="menuitem"
+                          onClick={() => setBrandMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
+                        >
+                          <span aria-hidden="true" className="w-5 text-center">
+                            ⚙
+                          </span>
+                          Settings
+                        </Link>
+                      </div>
+
+                      <details className="group mt-1 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.06]">
+                          <span className="flex items-center gap-3">
+                            <span
+                              aria-hidden="true"
+                              className="w-5 text-center text-[#d9c575]"
+                            >
+                              ◈
+                            </span>
+                            Plans & access
+                          </span>
+
+                          <span
+                            aria-hidden="true"
+                            className="text-xs text-slate-500 transition group-open:rotate-180"
+                          >
+                            ▾
+                          </span>
+                        </summary>
+
+                        <div className="border-t border-white/[0.07] p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Core model
+                              </span>
+
+                              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-300">
+                                Included
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Advanced models
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                More messages & uploads
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="max-w-[10.5rem] text-xs font-bold leading-4 text-slate-300">
+                                Advanced images + Thinking
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Expanded memory
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="max-w-[10.5rem] text-xs font-bold leading-4 text-slate-300">
+                                Coding tools & deep research
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2">
+                              <span className="text-xs font-bold text-slate-300">
+                                Early access
+                              </span>
+
+                              <span className="text-[10px] font-bold text-slate-500">
+                                Coming soon
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+
+                      <div className="my-2 border-t border-white/[0.08]" />
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setBrandMenuOpen(false);
+                          void handleLogout();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-300 transition hover:bg-red-500/10"
+                      >
+                        <span aria-hidden="true" className="w-5 text-center">
+                          ↪
+                        </span>
+                        Sign out
+                      </button>
+                    </div>
+                  </>
                 ) : null}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <div className="min-w-0 flex-1">
                 <CommandBar />
-
-                <div className="grid h-12 min-w-12 place-items-center rounded-xl border border-white/10 bg-white/[0.04] px-3">
-                  <NotificationBell />
-                </div>
-
-                <Link
-                  href="/settings"
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
-                >
-                  Settings
-                </Link>
               </div>
+            </div>
+
+            <nav
+              aria-label="Main navigation"
+              className="studysnap-top-navigation hidden min-w-0 flex-1 items-center justify-center xl:flex"
+            >
+              {renderTopNavigation()}
+            </nav>
+
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 xl:w-[176px] xl:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setBrandMenuOpen(false);
+                  setMobileMenuOpen((current) => !current);
+                }}
+                title="Room tools"
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border shadow-[0_10px_28px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl transition active:scale-95 lg:hidden ${
+                  mobileMenuOpen
+                    ? "border-[#d8bd60]/45 bg-[#c9ad50]/15"
+                    : "border-white/[0.11] bg-[#0c1117]/90 active:bg-white/[0.1]"
+                }`}
+                aria-label={
+                  mobileMenuOpen ? "Close room tools" : "Open room tools"
+                }
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? (
+                  <span className="text-lg font-black text-[#e8d98f]">×</span>
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="grid grid-cols-2 gap-[4px]"
+                  >
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                  </span>
+                )}
+              </button>
+
+              <div className="grid h-10 min-w-10 place-items-center rounded-[14px] border border-white/[0.11] bg-[#0c1117]/90 px-2 shadow-[0_10px_28px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl sm:h-11 sm:min-w-11">
+                <NotificationBell />
+              </div>
+
+              <Link
+                href="/settings"
+                title="Profile and settings"
+                className="hidden h-11 w-11 overflow-hidden rounded-full border border-white/[0.10] bg-white/[0.05] text-xs font-black text-[#d6b84a] transition hover:border-white/[0.18] hover:bg-white/[0.08] lg:grid"
+              >
+                {learnerAvatarUrl ? (
+                  <img
+                    src={learnerAvatarUrl}
+                    alt={`${learnerName} profile`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="place-self-center">{learnerInitials}</span>
+                )}
+              </Link>
             </div>
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[72vh] overflow-y-auto border-t border-white/10 bg-[#061018] px-4 py-4 lg:hidden">
-              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  Current room
-                </p>
-
-                <p className="mt-1 text-sm font-black text-white">
-                  {currentRoomLabel}
-                </p>
-
-                <Link
-                  href={
-                    activeProjectRoomId
-                      ? `/study-rooms/${activeProjectRoomId}`
-                      : "/study-rooms"
-                  }
-                  onClick={() =>
-                    setMobileMenuOpen(
-                      false
-                    )
-                  }
-                  className="mt-3 inline-flex rounded-xl bg-yellow-300 px-3 py-2 text-xs font-black text-black"
-                >
-                  {activeProjectRoomId
-                    ? "Open room"
-                    : "Choose a room"}
-                </Link>
-              </div>
-
-              <nav className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {renderNavItems(
-                    primaryNavItems,
-                    true
-                  )}
+            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.1] bg-[#020406]/[0.91] px-3 py-4 shadow-[0_32px_90px_rgba(0,0,0,0.76)] backdrop-blur-3xl lg:hidden">
+              <div className="flex items-start justify-between gap-4 px-2">
+                <div>
+                  <p className="text-sm font-black text-white">Room tools</p>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.055] text-lg text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl active:bg-white/[0.11]"
+                  aria-label="Close more menu"
+                >
+                  ×
+                </button>
+              </div>
+
+              <section
+                data-mobile-room-shortcuts="true"
+                className="mt-5 rounded-[1.35rem] border border-white/[0.075] bg-white/[0.025] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b7a45c]">
+                      Current room
+                    </p>
+
+                    <p className="mt-1 truncate text-sm font-black text-white">
+                      {currentRoomLabel}
+                    </p>
+                  </div>
+
+                  <Link
+                    href={
+                      activeProjectRoomId !== null
+                        ? `/study-rooms/${activeProjectRoomId}`
+                        : "/study-rooms"
+                    }
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="shrink-0 rounded-full border border-[#d9c568]/25 bg-[#c9ad50]/10 px-3 py-1.5 text-[10px] font-black text-[#e7d994]"
+                  >
+                    {activeProjectRoomId !== null ? "Open" : "Choose"}
+                  </Link>
+                </div>
+
+                {activeProjectRoomId !== null ? (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {dashboardRoomTools.map((tool) => (
+                      <Link
+                        key={tool.label}
+                        href={tool.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex min-h-[72px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-white/[0.085] bg-[#080c10]/80 px-1.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] active:border-[#c9ad50]/35 active:bg-[#c9ad50]/10"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="text-xl leading-none"
+                        >
+                          {tool.icon}
+                        </span>
+
+                        <span className="w-full truncate text-[9px] font-black text-slate-200">
+                          {tool.label}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <Link
+                    href="/study-rooms"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#d6b84a]/25 bg-[#111418] px-4 py-3 text-sm font-black text-[#d6b84a]"
+                  >
+                    <span className="text-lg">+</span>
+                    Choose a room
+                  </Link>
+                )}
+              </section>
+
+              <p className="mt-5 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                Tools
+              </p>
+
+              <div className="mt-2">
                 {renderExpandableNav({
-                  title:
-                    "Study Tools",
+                  title: "Study Tools",
                   icon: "✦",
-                  items:
-                    studyToolNavItems,
-                  open:
-                    studyToolsOpen,
-                  onToggle: () =>
-                    setStudyToolsOpen(
-                      (current) =>
-                        !current
-                    ),
+                  items: mobileStudyToolNavItems,
+                  open: studyToolsOpen,
+                  onToggle: () => setStudyToolsOpen((current) => !current),
                   closeMobile: true,
                 })}
+              </div>
 
+              <div className="mt-2">
                 {renderExpandableNav({
                   title: "More",
                   icon: "•••",
-                  items:
-                    moreNavItems,
+                  items: moreNavItems,
                   open: moreOpen,
-                  onToggle: () =>
-                    setMoreOpen(
-                      (current) =>
-                        !current
-                    ),
+                  onToggle: () => setMoreOpen((current) => !current),
                   closeMobile: true,
                 })}
+              </div>
 
-                <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                  <Link
-                    href="/settings"
-                    onClick={() =>
-                      setMobileMenuOpen(
-                        false
-                      )
-                    }
-                    className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-black ${
-                      pathname.startsWith(
-                        "/settings"
-                      )
-                        ? "bg-yellow-300 text-black"
-                        : "bg-white/[0.05] text-white"
-                    }`}
-                  >
-                    <span>⚙</span>
-                    <span>
-                      Settings
-                    </span>
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={
-                      handleLogout
-                    }
-                    className="flex items-center gap-3 rounded-2xl bg-white/[0.05] px-3 py-3 text-left text-sm font-black text-white"
-                  >
-                    <span>↪</span>
-                    <span>
-                      Logout
-                    </span>
-                  </button>
-                </div>
-              </nav>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void handleLogout();
+                }}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 active:bg-red-500/20"
+              >
+                <span aria-hidden="true">↪</span>
+                Sign out
+              </button>
             </div>
           ) : null}
         </header>
 
-        <main className="mx-auto max-w-[1380px] px-5 py-5">
-          {children}
+        <main className="studysnap-main-content mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
+          {pathname !== "/dashboard" && title ? (
+            <div className="mb-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                {getPageKicker(pathname)}
+              </p>
+
+              <h1 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">
+                {title}
+              </h1>
+
+              {subtitle ? (
+                <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-400">
+                  {subtitle}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {rightPanel ? (
+            <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0">{children}</div>
+
+              <aside className="hidden min-w-0 xl:block">
+                <div className="sticky top-[5.75rem]">{rightPanel}</div>
+              </aside>
+            </div>
+          ) : (
+            <div className="min-w-0 max-w-full">{children}</div>
+          )}
         </main>
       </div>
+
+      {renderMobileBottomNavigation()}
     </div>
   );
 }

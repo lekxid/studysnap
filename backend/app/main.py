@@ -20,18 +20,25 @@ from app.routes.pdf_documents import router as pdf_documents_router
 from app.routes.search import router as search_router
 from app.routes.brain import router as brain_router
 from app.routes.smart_organizer import router as smart_organizer_router
+from app.routes.file_brain import router as file_brain_router
+from app.routes.file_brain_uploads import router as file_brain_uploads_router
+from app.routes.smart_scan import router as smart_scan_router
 from app.routes.users import router as users_router
 from app.routes.sessions import router as sessions_router
 from app.routes.integrations import router as integrations_router
 from app.routes.room_foundation import router as room_foundation_router
 from app.routes.materials import router as materials_router
+from app.routes.room_invitations import router as room_invitations_router
+from app.routes.room_messages import router as room_messages_router
+from app.routes.room_members import router as room_members_router
+from app.routes.room_realtime import router as room_realtime_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,11 +60,27 @@ app.include_router(pdf_documents_router, prefix="/api/pdfs")
 app.include_router(search_router, prefix="/api/search")
 app.include_router(brain_router, prefix="/api/brain")
 app.include_router(smart_organizer_router, prefix="/api/smart-organizer")
+app.include_router(file_brain_router, prefix="/api/file-brain")
+app.include_router(file_brain_uploads_router, prefix="/api/file-brain")
+app.include_router(
+    smart_scan_router,
+    prefix="/api/smart-scan",
+)
 app.include_router(users_router, prefix="/api/users")
 app.include_router(sessions_router, prefix="/api/sessions")
 app.include_router(integrations_router, prefix="/api/integrations")
 app.include_router(room_foundation_router, prefix="/api/room-foundation")
+app.include_router(room_members_router, prefix="/api/room-members")
+app.include_router(room_realtime_router, prefix="/api/room-realtime")
 app.include_router(materials_router, prefix="/api/materials")
+app.include_router(
+    room_invitations_router,
+    prefix="/api/room-invitations",
+)
+app.include_router(
+    room_messages_router,
+    prefix="/api/room-messages",
+)
 
 
 @app.get("/")

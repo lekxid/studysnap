@@ -2,14 +2,12 @@
 
 import { useRef, useState } from "react";
 import { getToken } from "@/lib/api";
+import { API_BASE } from "@/lib/apiBase";
 
 type PDFUploaderProps = {
   studyRoomId: number;
   onUploaded?: () => void;
 };
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://192.168.133.130:8000";
 
 export default function PDFUploader({
   studyRoomId,

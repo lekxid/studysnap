@@ -315,7 +315,7 @@ export default function ProjectWorkspace({
   quizzesCount,
   progress,
   continueItems,
-  
+
   smartSuggestion,
   searchQuery,
   searchResults,
@@ -328,6 +328,9 @@ export default function ProjectWorkspace({
   onOpenSearchResult,
   children,
 }: Props) {
+  const [roomToolsOpen, setRoomToolsOpen] =
+    useState(true);
+
   const [brainInsights, setBrainInsights] = useState<BrainInsights | null>(null);
   const [brainLoading, setBrainLoading] = useState(false);
 
@@ -377,11 +380,11 @@ export default function ProjectWorkspace({
   const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-[1.7rem] border border-yellow-300/20 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.13),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+    <div className="min-w-0 max-w-full space-y-3 sm:space-y-5">
+      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onBack}
@@ -394,53 +397,53 @@ export default function ProjectWorkspace({
                 Your Study Room
               </span>
 
-              <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
+              <span className="min-w-0 max-w-full break-words rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
                 {subject}
               </span>
             </div>
 
-            <h1 className="max-w-5xl text-4xl font-black leading-tight tracking-tight text-white">
+            <h1 className="max-w-5xl break-words text-2xl font-black leading-tight tracking-tight text-white sm:text-4xl">
               {title}
             </h1>
 
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-300">
+            <p className="mt-2 hidden max-w-4xl text-sm leading-6 text-slate-300 sm:block">
               {description ||
                 "Your materials, notes, AI Tutor, concept cards, quizzes, planner, progress, and future Study Together stay connected in this room."}
             </p>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:flex-row">
               <button
                 type="button"
                 onClick={() => onChangeTab("overview")}
-                className="rounded-2xl bg-yellow-300 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-200"
+                className="rounded-xl bg-yellow-300 px-3 py-2.5 text-xs font-black text-black transition hover:bg-yellow-200 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                🏠 Open overview
+                🏠 Overview
               </button>
 
               <button
                 type="button"
                 onClick={() => onChangeTab("materials")}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.08] sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                📚 Add study material
+                📚 Add
               </button>
 
               <button
                 type="button"
                 onClick={() => onChangeTab("ai")}
-                className="rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15"
+                className="rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2.5 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/15 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
               >
-                🤖 Ask AI Tutor
+                ✦ Ask AI
               </button>
             </div>
           </div>
 
-          <aside className="grid gap-3 sm:grid-cols-4 xl:w-[500px] xl:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+          <aside className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:w-[500px] xl:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Progress
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{safeProgress}%</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{safeProgress}%</p>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-yellow-300"
@@ -449,25 +452,25 @@ export default function ProjectWorkspace({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Materials
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{materialsCount}</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{materialsCount}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Notes
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{notesCount}</p>
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{notesCount}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                 Practice
               </p>
-              <p className="mt-3 text-3xl font-black text-white">
+              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">
                 {conceptCardsCount + quizzesCount}
               </p>
             </div>
@@ -483,22 +486,61 @@ export default function ProjectWorkspace({
             : "grid-cols-1",
         ].join(" ")}
       >
-        <div className="space-y-5">
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+        <div className="min-w-0 space-y-5">
+          <section data-collapsible-room-tools="true" className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfcd7e]">
+              ✦
+            </span>
+
+            <div className="min-w-0">
+              <h2 className="text-xl font-black text-white">
+                Room tools
+              </h2>
+
+              <p className="mt-0.5 text-xs text-slate-500">
+                Search and open workspace tools
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setRoomToolsOpen(
+                (current) => !current
+              )
+            }
+            aria-expanded={roomToolsOpen}
+            aria-controls="room-tools-content"
+            className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.045] px-3 text-xs font-black text-slate-300 active:bg-white/[0.1]"
+          >
+            <span aria-hidden="true">
+              {roomToolsOpen ? "−" : "+"}
+            </span>
+
+            <span>
+              {roomToolsOpen ? "Hide" : "Show"}
+            </span>
+          </button>
+        </div>
+
+        {roomToolsOpen ? (
+          <div
+            id="room-tools-content"
+            className="mt-4"
+          >
+
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Room Workspace
-                </p>
-                <h2 className="mt-1 text-xl font-black text-white">
-                  Everything you need is here
-                </h2>
+              <div className="min-w-0">
+
               </div>
 
               <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
               {roomTabs.map((tab) => (
                 <TabButton
                   key={tab.key}
@@ -508,7 +550,24 @@ export default function ProjectWorkspace({
                 />
               ))}
             </div>
-          </section>
+
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              setRoomToolsOpen(true)
+            }
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c9ad50]/25 bg-[#c9ad50]/[0.055] px-4 py-3 text-sm font-black text-[#ddce89]"
+          >
+            <span aria-hidden="true">
+              +
+            </span>
+
+            Show room tools
+          </button>
+        )}
+      </section>
 
           <ProjectSearchResults
             query={searchQuery}
@@ -518,7 +577,7 @@ export default function ProjectWorkspace({
             onOpenResult={onOpenSearchResult}
           />
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-3 sm:p-4">
             {children}
           </section>
         </div>
@@ -600,18 +659,18 @@ export default function ProjectWorkspace({
             </button>
           </section>
 
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
                   Your AI Tutor
                 </p>
-                <h3 className="mt-1 text-xl font-black text-white">
+                <h3 className="mt-1 break-words text-xl font-black text-white">
                   What your AI Tutor knows
                 </h3>
               </div>
 
-              <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
+              <span className="shrink-0 self-start rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
                 {brainLoading ? "Loading" : `${masteryPercent}% mastery`}
               </span>
             </div>
@@ -719,8 +778,8 @@ export default function ProjectWorkspace({
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] border border-yellow-300/20 bg-yellow-300/10 p-5">
-            <p className="text-lg font-black text-white">
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-yellow-300/20 bg-yellow-300/10 p-4 sm:p-5">
+            <p className="break-words text-lg font-black text-white">
               🏆 Connected study system
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">

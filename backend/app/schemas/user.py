@@ -5,6 +5,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: str
     password: str
+    invite_code: str | None = None
     learning_mode: str = "clear"
 
 
@@ -18,6 +19,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     full_name: str
     learning_mode: str
+    greeting_emoji: str | None = "👋"
+    avatar_url: str | None = None
 
     class Config:
         from_attributes = True

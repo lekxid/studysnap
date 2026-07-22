@@ -1,15 +1,69 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import AuthShell from "@/components/auth/AuthShell";
 
 export default function LoginPage() {
+  const [nextPath, setNextPath] =
+    useState<string | null>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] =
+    useState(false);
+
+  const [notice, setNotice] =
+    useState("");
+
+  useEffect(() => {
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const requestedNext =
+      params.get("next");
+
+    setSessionExpired(
+      params.get("expired") === "1"
+    );
+
+    const emailFromLink =
+      params.get("email");
+
+    if (emailFromLink) {
+      setEmail(emailFromLink);
+    }
+
+    if (params.get("welcome") === "1") {
+      setNotice(
+        "Welcome to StudySnap. Your email is ready—enter your password to open your workspace."
+      );
+    } else if (params.get("reset") === "1") {
+      setNotice(
+        "Your password was changed successfully. Sign in with your new password."
+      );
+    } else if (params.get("created") === "1") {
+      setNotice(
+        "Your account was created. Check your email for the StudySnap welcome and getting-started guide."
+      );
+    }
+
+    if (
+      requestedNext &&
+      requestedNext.startsWith("/") &&
+      !requestedNext.startsWith("//")
+    ) {
+      setNextPath(requestedNext);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -17,16 +71,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-        process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-        "";
-
-      if (!apiBase) {
-        throw new Error("API base URL is not set.");
-      }
-
-      const response = await fetch(`${apiBase}/api/auth/login`, {
+      const response = await fetch("/backend/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -50,11 +95,44 @@ export default function LoginPage() {
         throw new Error(data?.detail || data?.message || "Login failed.");
       }
 
-      if (data?.access_token) {
-        localStorage.setItem("token", data.access_token);
+      const accessTokenCandidates = [
+        data?.access_token,
+        data?.token,
+        data?.accessToken,
+      ];
+
+      const accessToken =
+        accessTokenCandidates.find(
+          (value) =>
+            typeof value === "string" &&
+            value.trim().length > 0
+        )?.trim() || "";
+
+      if (!accessToken) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Login response did not include an access token."
+        );
       }
 
-      window.location.href = "/dashboard";
+      localStorage.setItem(
+        "token",
+        accessToken
+      );
+
+      const savedToken =
+        localStorage.getItem("token");
+
+      if (!savedToken) {
+        throw new Error(
+          "StudySnap could not save your login session."
+        );
+      }
+
+      window.location.replace(
+        nextPath || "/dashboard"
+      );
     } catch (err: any) {
       setError(err?.message || "Something went wrong.");
     } finally {
@@ -68,6 +146,18 @@ export default function LoginPage() {
       title="Sign in"
       subtitle="Continue your study streak and jump back into your connected StudySnap workspace."
     >
+      {sessionExpired ? (
+        <div className="mb-5 rounded-[1.2rem] border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">
+          Your session expired. Sign in again to continue.
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className="mb-5 rounded-[1.2rem] border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-semibold leading-6 text-cyan-100">
+          {notice}
+        </div>
+      ) : null}
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-bold text-slate-200">
@@ -124,7 +214,13 @@ export default function LoginPage() {
         <div className="premium-card gold-border rounded-[1.4rem] px-4 py-3.5 text-center text-sm text-slate-300">
           New to StudySnap?{" "}
           <Link
-            href="/signup"
+            href={
+              nextPath
+                ? `/signup?next=${encodeURIComponent(
+                    nextPath
+                  )}`
+                : "/signup"
+            }
             className="font-bold text-amber-200 transition hover:text-amber-100"
           >
             Create an account

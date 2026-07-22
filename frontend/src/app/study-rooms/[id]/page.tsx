@@ -14,20 +14,29 @@ import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
 import StudyTogetherWorkspace from "@/features/projects/StudyTogetherWorkspace";
-import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
+import {
+  clearProjectRoomId,
+  saveProjectRoomId,
+} from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
   deletePDF,
+  analyzeStudyMaterial,
+  deleteStudyMaterial,
+  downloadStudyMaterial,
+  openStudyMaterial,
   getFlashcards,
   getNotes,
   getPDFs,
   getQuizzes,
+  getStudyMaterials,
   getRoomFoundation,
-  getStudyRooms,
+  getStudyRoom,
   retrieveBrain,
   summarizePDF,
   type BrainSource,
   type RoomFoundation,
+  type StudyMaterialItem,
 } from "@/lib/api";
 
 type StudyRoom = {
@@ -35,6 +44,7 @@ type StudyRoom = {
   name: string;
   subject: string;
   description?: string | null;
+  role?: string;
 };
 
 type PDFDocument = {
@@ -114,13 +124,13 @@ function RoomGuide({
   ];
 
   return (
-    <section className="rounded-[1.5rem] border border-yellow-300/15 bg-[linear-gradient(135deg,rgba(250,204,21,0.08),rgba(14,165,233,0.05),rgba(2,6,23,0.92))] p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+    <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-[#cec18d]">
             How StudySnap helps in this room
           </p>
-          <h2 className="mt-2 text-2xl font-black text-white">
+          <h2 className="mt-2 break-words text-2xl font-black text-white">
             One connected study workspace
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
@@ -130,19 +140,19 @@ function RoomGuide({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
-          <p className="font-black">{status}</p>
-          <p className="mt-1 text-xs text-emerald-100/70">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm text-slate-200">
+          <p className="break-words font-black">{status}</p>
+          <p className="mt-1 break-words text-xs text-slate-400">
             AI Memory: {sources.map((source) => source.replaceAll("_", " ")).join(" + ")}
           </p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-4">
+      <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((step) => (
           <div
             key={step.title}
-            className="rounded-2xl border border-white/10 bg-black/25 p-4"
+            className="min-w-0 rounded-2xl border border-white/10 bg-[#0f151b] p-4"
           >
             <div className="text-2xl">{step.icon}</div>
             <h3 className="mt-3 text-sm font-black text-white">{step.title}</h3>
@@ -285,12 +295,18 @@ export default function StudyRoomDetailPage() {
   }, [activeRoomTab, resumeRoomId, studyRoomId]);
 
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
+  const [studyMaterials, setStudyMaterials] =
+    useState<StudyMaterialItem[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [conceptCards, setConceptCards] = useState<ConceptCardItem[]>([]);
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
 
   const [loadingRoom, setLoadingRoom] = useState(true);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
+  const [
+    loadingStudyMaterials,
+    setLoadingStudyMaterials,
+  ] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [loadingPractice, setLoadingPractice] = useState(false);
   const [loadingFoundation, setLoadingFoundation] = useState(false);
@@ -312,6 +328,12 @@ export default function StudyRoomDetailPage() {
     useState(0);
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const materialSectionRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const studyTogetherSectionRef =
+    useRef<HTMLDivElement | null>(null);
 
   const requestedTab =
     searchParams.get("tab");
@@ -349,12 +371,17 @@ export default function StudyRoomDetailPage() {
   function openProjectAi() {
     changeRoomTab("ai");
 
-    setTimeout(() => {
+    const aiTutorUrl =
+      `/study-rooms/${studyRoomId}?tab=ai`;
+
+    router.push(aiTutorUrl);
+
+    window.setTimeout(() => {
       aiSectionRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
-    }, 100);
+    }, 150);
   }
 
   function openMaterials() {
@@ -378,12 +405,19 @@ export default function StudyRoomDetailPage() {
       Number.isFinite(parsedMaterialId) &&
       parsedMaterialId > 0;
 
-    const shouldOpenAi =
-      requestedTab === "ai" ||
-      hasRequestedMaterial;
+    if (requestedTab === "together") {
+      setActiveRoomTab("together");
 
-    if (!shouldOpenAi) {
-      return;
+      const timer = window.setTimeout(() => {
+        studyTogetherSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 180);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
     }
 
     if (hasRequestedMaterial) {
@@ -391,8 +425,30 @@ export default function StudyRoomDetailPage() {
         id: parsedMaterialId,
         name:
           requestedMaterialName?.trim() ||
-          "Selected material",
+          `Material ${parsedMaterialId}`,
       });
+
+      setActiveRoomTab("materials");
+
+      const timer = window.setTimeout(() => {
+        materialSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 180);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+
+    if (requestedTab === "materials") {
+      setActiveRoomTab("materials");
+      return;
+    }
+
+    if (requestedTab !== "ai") {
+      return;
     }
 
     setActiveRoomTab("ai");
@@ -673,6 +729,7 @@ export default function StudyRoomDetailPage() {
 
   async function loadRoom() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) {
+      setRoom(null);
       setError("Invalid project.");
       setLoadingRoom(false);
       return;
@@ -681,20 +738,42 @@ export default function StudyRoomDetailPage() {
     try {
       setLoadingRoom(true);
       setError("");
+      setRoom(null);
 
-      const data = await getStudyRooms();
-      const rooms = Array.isArray(data) ? data : [];
-      const foundRoom = rooms.find((item: StudyRoom) => item.id === studyRoomId);
+      const loadedRoom =
+        await getStudyRoom(studyRoomId);
 
-      if (!foundRoom) {
-        setRoom(null);
-        setError("Project not found.");
+      setRoom(loadedRoom);
+      saveProjectRoomId(studyRoomId);
+    } catch (err) {
+      setRoom(null);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load project.";
+
+      const normalizedMessage =
+        message.toLowerCase();
+
+      if (
+        normalizedMessage.includes(
+          "study room not found"
+        ) ||
+        normalizedMessage.includes(
+          "room not found"
+        )
+      ) {
+        clearProjectRoomId();
+
+        router.replace(
+          "/study-rooms?notice=room-not-found"
+        );
+
         return;
       }
 
-      setRoom(foundRoom);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project.");
+      setError(message);
     } finally {
       setLoadingRoom(false);
     }
@@ -714,13 +793,99 @@ export default function StudyRoomDetailPage() {
     }
   }
 
+  async function loadStudyMaterials() {
+    if (!studyRoomId || Number.isNaN(studyRoomId)) {
+      return;
+    }
+
+    try {
+      setLoadingStudyMaterials(true);
+
+      const data = await getStudyMaterials(
+        studyRoomId
+      );
+
+      const loadedMaterials =
+        Array.isArray(data.materials)
+          ? data.materials
+          : [];
+
+      setStudyMaterials(loadedMaterials);
+
+      const pendingMaterials =
+        loadedMaterials
+          .filter(
+            (material) =>
+              material.intelligence_status ===
+              "pending"
+          )
+          .slice(0, 8);
+
+      void (async () => {
+        for (const material of pendingMaterials) {
+          try {
+            const analyzed =
+              await analyzeStudyMaterial(
+                material.id
+              );
+
+            setStudyMaterials((current) =>
+              current.map((item) =>
+                item.id === analyzed.id
+                  ? analyzed
+                  : item
+              )
+            );
+          } catch {
+            // Keep the original file available when
+            // intelligence analysis is unavailable.
+          }
+        }
+      })();
+    } catch {
+      setStudyMaterials([]);
+    } finally {
+      setLoadingStudyMaterials(false);
+    }
+  }
+
   async function loadNotes() {
     if (!studyRoomId || Number.isNaN(studyRoomId)) return;
 
     try {
       setLoadingNotes(true);
       const data = await getNotes(studyRoomId);
-      setNotes(Array.isArray(data) ? data : []);
+      const loadedNotes: NoteItem[] =
+        Array.isArray(data) ? data : [];
+
+      const realNotes = loadedNotes.filter(
+        (note) => {
+          const title = (
+            note.title || ""
+          ).trim();
+
+          const content = (
+            note.content || ""
+          ).trim();
+
+          const generatedTitle =
+            /^Uploaded (image|word|slides|spreadsheet|file):/i.test(
+              title
+            );
+
+          const generatedContent =
+            content.startsWith(
+              "StudySnap saved this "
+            );
+
+          return !(
+            generatedTitle &&
+            generatedContent
+          );
+        }
+      );
+
+      setNotes(realNotes);
     } catch {
       setNotes([]);
     } finally {
@@ -782,6 +947,72 @@ export default function StudyRoomDetailPage() {
     }
   }
 
+  async function handleOpenStudyMaterial(
+    materialId: number,
+    filename: string
+  ) {
+    try {
+      await openStudyMaterial(
+        materialId,
+        filename
+      );
+
+      await loadStudyMaterials();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be opened."
+      );
+    }
+  }
+
+  async function handleDownloadStudyMaterial(
+    materialId: number,
+    filename: string
+  ) {
+    try {
+      await downloadStudyMaterial(
+        materialId,
+        filename
+      );
+
+      await loadStudyMaterials();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be downloaded."
+      );
+    }
+  }
+
+  async function handleDeleteStudyMaterial(
+    materialId: number
+  ) {
+    if (!confirm("Delete this material?")) {
+      return;
+    }
+
+    try {
+      await deleteStudyMaterial(materialId);
+      await loadStudyMaterials();
+
+      if (
+        selectedUniversalMaterial?.id ===
+        materialId
+      ) {
+        setSelectedUniversalMaterial(null);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Material could not be deleted."
+      );
+    }
+  }
+
   async function handleSummarize(pdfId: number) {
     try {
       setSummarizingId(pdfId);
@@ -801,21 +1032,32 @@ export default function StudyRoomDetailPage() {
 
   useEffect(() => {
     if (!ready) return;
-    saveProjectRoomId(studyRoomId);
-    loadRoom();
-    loadPdfs();
-    loadNotes();
-    loadPractice();
-    loadRoomFoundation();
+
+    void loadRoom();
   }, [ready, studyRoomId]);
 
+  useEffect(() => {
+    if (
+      !ready ||
+      room?.id !== studyRoomId
+    ) {
+      return;
+    }
+
+    void loadPdfs();
+    void loadStudyMaterials();
+    void loadNotes();
+    void loadPractice();
+    void loadRoomFoundation();
+  }, [ready, room?.id, studyRoomId]);
+
   if (!ready) {
-    return <div className="min-h-screen bg-black p-6 text-white">Checking authentication...</div>;
+    return <div className="min-h-screen bg-[#0b0f14] p-6 text-white">Checking authentication...</div>;
   }
 
   function renderOverviewTab() {
     return (
-      <div className="space-y-5">
+      <div className="min-w-0 max-w-full space-y-5">
         <RoomGuide
           foundation={roomFoundation}
           loading={loadingFoundation}
@@ -823,8 +1065,8 @@ export default function StudyRoomDetailPage() {
         />
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
               Recent Materials
             </p>
             <h3 className="mt-2 text-xl font-black text-white">
@@ -842,7 +1084,7 @@ export default function StudyRoomDetailPage() {
                       setSummaryTitle(pdf.original_filename);
                       setActiveRoomTab("materials");
                     }}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
+                    className="min-w-0 w-full overflow-hidden break-words rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
                   >
                     📕 {pdf.original_filename}
                   </button>
@@ -855,8 +1097,8 @@ export default function StudyRoomDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
               Recent Notes
             </p>
             <h3 className="mt-2 text-xl font-black text-white">
@@ -868,7 +1110,7 @@ export default function StudyRoomDetailPage() {
                 notes.slice(0, 3).map((note) => (
                   <div
                     key={note.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                    className="min-w-0 max-w-full rounded-xl border border-white/10 bg-white/[0.04] p-3"
                   >
                     <p className="line-clamp-1 text-sm font-black text-white">
                       📝 {note.title || "Untitled Note"}
@@ -888,22 +1130,22 @@ export default function StudyRoomDetailPage() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-5">
-            <p className="text-sm font-black text-yellow-100">Pinned Items</p>
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] p-4 sm:p-5">
+            <p className="text-sm font-black text-[#ece8da]">Pinned Items</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Pin PDFs, notes, concept cards, and quizzes here later.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-5">
-            <p className="text-sm font-black text-cyan-100">Room Activity</p>
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
+            <p className="text-sm font-black text-slate-200">Room Activity</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Uploads, AI actions, summaries, and Study Together updates will appear here.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/10 p-5">
-            <p className="text-sm font-black text-emerald-100">
+          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 sm:p-5">
+            <p className="text-sm font-black text-slate-200">
               Study Together Preview
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
@@ -918,15 +1160,67 @@ export default function StudyRoomDetailPage() {
   function renderMaterialsTab() {
     return (
       <div className="space-y-5">
+        {selectedUniversalMaterial ? (
+          <section
+            ref={materialSectionRef}
+            className="scroll-mt-24 rounded-2xl border border-[#c9ad50]/[0.20] bg-black p-4 shadow-[0_14px_45px_rgba(0,0,0,0.35)] sm:p-5"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-white/[0.045] text-2xl">
+                📄
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c9ad50]">
+                  Selected for review
+                </p>
+
+                <h2 className="mt-1 break-words text-lg font-black text-[#ece8da]">
+                  {selectedUniversalMaterial.name}
+                </h2>
+
+                <p className="mt-1 text-sm leading-6 text-slate-400">
+                  StudySnap opened this exact upload from your dashboard.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openProjectAi}
+                className="shrink-0 rounded-xl bg-[#c9ad50] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#d5bb63]"
+              >
+                Study with AI
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <RoomMaterialsTab
           studyRoomId={studyRoomId}
           pdfs={pdfs}
+          studyMaterials={studyMaterials}
           notes={notes}
           conceptCards={conceptCards}
           quizzes={quizzes}
           loadingPdfs={loadingPdfs}
+          loadingStudyMaterials={
+            loadingStudyMaterials
+          }
           loadingNotes={loadingNotes}
           loadingPractice={loadingPractice}
+          selectedStudyMaterialId={
+            selectedUniversalMaterial?.id ??
+            null
+          }
+          onOpenStudyMaterial={
+            handleOpenStudyMaterial
+          }
+          onDownloadStudyMaterial={
+            handleDownloadStudyMaterial
+          }
+          onDeleteStudyMaterial={
+            handleDeleteStudyMaterial
+          }
           selectedPdfId={selectedPdfId}
           selectedPdfTitle={selectedPdfTitle}
           onSelectPdf={(pdfId, title) => {
@@ -948,10 +1242,10 @@ export default function StudyRoomDetailPage() {
         />
 
         {summary ? (
-          <section className="rounded-[1.5rem] border border-yellow-400/20 bg-[#0a1022] p-6">
+          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/[0.07] bg-[#12181e] p-4 sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300/80">
+                <p className="text-sm font-black uppercase tracking-[0.3em] text-[#c9ad50]/80">
                   Material Summary
                 </p>
 
@@ -963,13 +1257,13 @@ export default function StudyRoomDetailPage() {
               <button
                 type="button"
                 onClick={openProjectAi}
-                className="rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+                className="rounded-2xl border border-[#c9ad50]/[0.16] bg-white/[0.045] px-4 py-3 text-sm font-black text-[#ece8da] transition hover:bg-[#c9ad50]/20"
               >
                 Study this with AI Tutor
               </button>
             </div>
 
-            <pre className="mt-6 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black p-5 text-sm leading-7 text-white/80">
+            <pre className="mt-6 min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] rounded-xl bg-black p-4 text-sm leading-7 text-white/80 sm:max-h-[520px] sm:p-5">
               {summary}
             </pre>
           </section>
@@ -980,10 +1274,10 @@ export default function StudyRoomDetailPage() {
 
   function renderNotesTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-200">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
               Room Notes
             </p>
             <h2 className="mt-2 text-2xl font-black text-white">
@@ -997,14 +1291,14 @@ export default function StudyRoomDetailPage() {
 
           <Link
             href={`/notes?roomId=${studyRoomId}`}
-            className="rounded-2xl bg-yellow-300 px-5 py-3 text-center text-sm font-black text-black transition hover:bg-yellow-200"
+            className="rounded-2xl bg-[#c9ad50] px-5 py-3 text-center text-sm font-black text-black transition hover:bg-[#d5bb63]"
           >
             Open full Notes page
           </Link>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+          <div className="rounded-2xl border border-white/10 bg-[#0f151b] p-5">
             <p className="text-sm font-black text-white">Quick note</p>
             <p className="mt-2 text-sm leading-6 text-slate-400">
               Use the full Notes page for editing now. Next, we can add inline
@@ -1012,13 +1306,13 @@ export default function StudyRoomDetailPage() {
             </p>
             <Link
               href={`/notes?roomId=${studyRoomId}`}
-              className="mt-4 inline-flex rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100"
+              className="mt-4 inline-flex rounded-xl border border-white/[0.07] bg-[#12181e] px-4 py-3 text-sm font-black text-slate-200"
             >
               Create note →
             </Link>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+          <div className="rounded-2xl border border-white/10 bg-[#0f151b] p-5">
             <p className="text-sm font-black text-white">Recent notes</p>
 
             <div className="mt-4 space-y-3">
@@ -1029,7 +1323,7 @@ export default function StudyRoomDetailPage() {
                   <Link
                     key={note.id}
                     href={`/notes?roomId=${studyRoomId}&noteId=${note.id}`}
-                    className="block rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-cyan-300/25 hover:bg-cyan-300/10"
+                    className="block rounded-xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-white/[0.08] hover:bg-[#12181e]"
                   >
                     <p className="line-clamp-1 text-sm font-black text-white">
                       {note.title || "Untitled Note"}
@@ -1054,36 +1348,22 @@ export default function StudyRoomDetailPage() {
   function renderAiTab() {
     return (
       <div ref={aiSectionRef} className="scroll-mt-8">
-        <div className="mb-4">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
-            AI Tutor
-          </p>
-          <h2 className="mt-2 text-xl font-black text-white">
-            Ask one AI about this whole room
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Ask about PDFs, notes, concept cards, quizzes, summaries, weak
-            concepts, and study plans.
-          </p>
-        </div>
-
         <CompactProjectAI
           studyRoomId={studyRoomId}
           projectTitle={roomTitle}
           focusComposerToken={aiComposerFocusToken}
-            selectedMaterial={
-              selectedUniversalMaterial
-            }        />
+          selectedMaterial={selectedUniversalMaterial}
+        />
       </div>
     );
   }
 
   function renderPracticeTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
               Practice
             </p>
             <h2 className="mt-2 text-2xl font-black text-white">
@@ -1095,7 +1375,7 @@ export default function StudyRoomDetailPage() {
             </p>
           </div>
 
-          <span className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-100">
+          <span className="rounded-2xl border border-white/[0.07] bg-[#12181e] px-4 py-3 text-sm font-black text-slate-200">
             {loadingPractice ? "Loading practice..." : "Practice ready"}
           </span>
         </div>
@@ -1103,7 +1383,7 @@ export default function StudyRoomDetailPage() {
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <Link
             href={`/flashcards?roomId=${studyRoomId}`}
-            className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-yellow-300/30 hover:bg-yellow-300/10"
+            className="rounded-2xl border border-white/10 bg-[#0f151b] p-5 transition hover:border-[#c9ad50]/[0.18] hover:bg-white/[0.045]"
           >
             <p className="text-3xl">🧠</p>
             <h3 className="mt-3 text-xl font-black text-white">
@@ -1116,7 +1396,7 @@ export default function StudyRoomDetailPage() {
 
           <Link
             href={`/quizzes?roomId=${studyRoomId}`}
-            className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-cyan-300/30 hover:bg-cyan-300/10"
+            className="rounded-2xl border border-white/10 bg-[#0f151b] p-5 transition hover:border-[#c9ad50]/[0.16] hover:bg-[#12181e]"
           >
             <p className="text-3xl">🧾</p>
             <h3 className="mt-3 text-xl font-black text-white">Quizzes</h3>
@@ -1134,8 +1414,8 @@ export default function StudyRoomDetailPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-5">
-            <p className="font-black text-emerald-100">AI practice plan</p>
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.035] p-5">
+            <p className="font-black text-slate-200">AI practice plan</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Soon: AI Tutor will recommend what to review next from this room.
             </p>
@@ -1147,26 +1427,36 @@ export default function StudyRoomDetailPage() {
 
   function renderStudyTogetherTab() {
     return (
-      <StudyTogetherWorkspace
-        studyRoomId={studyRoomId}
-        roomTitle={roomTitle}
-        materialsCount={pdfs.length}
-        notesCount={notes.length}
-        conceptCardsCount={conceptCards.length}
-        quizzesCount={quizzes.length}
-        onOpenMaterials={openMaterials}
-        onOpenNotes={() =>
-          setActiveRoomTab("notes")
-        }
-        onOpenAiTutor={openProjectAi}
-      />
+      <div
+        ref={studyTogetherSectionRef}
+        className="scroll-mt-8"
+      >
+        <StudyTogetherWorkspace
+          studyRoomId={studyRoomId}
+          roomTitle={roomTitle}
+          currentUserRole={
+            roomFoundation?.user_role ||
+            room?.role ||
+            "member"
+          }
+          materialsCount={pdfs.length}
+          notesCount={notes.length}
+          conceptCardsCount={conceptCards.length}
+          quizzesCount={quizzes.length}
+          onOpenMaterials={openMaterials}
+          onOpenNotes={() =>
+            setActiveRoomTab("notes")
+          }
+          onOpenAiTutor={openProjectAi}
+        />
+      </div>
     );
   }
 
   function renderProgressTab() {
     return (
-      <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5">
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
+        <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
           Progress
         </p>
         <h2 className="mt-2 text-2xl font-black text-white">
@@ -1185,7 +1475,7 @@ export default function StudyRoomDetailPage() {
           ].map(([label, value]) => (
             <div
               key={String(label)}
-              className="rounded-2xl border border-white/10 bg-black/20 p-5"
+              className="rounded-2xl border border-white/10 bg-[#0f151b] p-5"
             >
               <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                 {label}
@@ -1195,8 +1485,8 @@ export default function StudyRoomDetailPage() {
           ))}
         </div>
 
-        <div className="mt-5 rounded-2xl border border-yellow-300/15 bg-yellow-300/10 p-5">
-          <p className="font-black text-yellow-100">Next progress upgrade</p>
+        <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.045] p-5">
+          <p className="font-black text-[#ece8da]">Next progress upgrade</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             Add concept heatmap, quiz history, confidence tracking, time-to-answer,
             and smart retry analytics.
@@ -1222,7 +1512,7 @@ export default function StudyRoomDetailPage() {
       subtitle={room ? `Subject: ${roomSubject} • Connected study room` : "Connected study room"}
     >
       {loadingRoom ? (
-        <section className="rounded-3xl border border-white/10 bg-[#0a1022] p-6 text-white/70">
+        <section className="rounded-3xl border border-white/10 bg-[#12181e] p-6 text-white/70">
           Loading room...
         </section>
       ) : null}

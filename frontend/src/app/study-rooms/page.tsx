@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
+  clearProjectRoomId,
   getSavedProjectRoomId,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
@@ -27,7 +28,9 @@ type StudyRoom = {
 
 function getRoomDescription(room: StudyRoom | null) {
   if (!room) return "No room selected yet.";
-  return room.description?.trim() || "Open this topic workspace and start learning.";
+  return (
+    room.description?.trim() || "Open this topic workspace and start learning."
+  );
 }
 
 export default function StudyRoomsPage() {
@@ -36,8 +39,8 @@ export default function StudyRoomsPage() {
 
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const [openRoomMenuId, setOpenRoomMenuId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
-  const [showAllRooms, setShowAllRooms] = useState(false);
 
   const [newName, setNewName] = useState("");
   const [newSubject, setNewSubject] = useState("");
@@ -66,7 +69,8 @@ export default function StudyRoomsPage() {
 
       const savedRoomId = getSavedProjectRoomId();
       const savedRoomExists =
-        savedRoomId !== null && roomList.some((room) => room.id === savedRoomId);
+        savedRoomId !== null &&
+        roomList.some((room) => room.id === savedRoomId);
 
       const nextSelectedId =
         savedRoomExists && savedRoomId !== null
@@ -121,6 +125,7 @@ export default function StudyRoomsPage() {
   }, [rooms, query]);
 
   function selectRoom(roomId: number) {
+    setOpenRoomMenuId(null);
     setSelectedRoomId(roomId);
     saveProjectRoomId(roomId);
     setMessage("Room selected.");
@@ -128,8 +133,39 @@ export default function StudyRoomsPage() {
   }
 
   function openRoom(roomId: number) {
+    setOpenRoomMenuId(null);
     saveProjectRoomId(roomId);
     router.push(`/study-rooms/${roomId}`);
+  }
+
+  function startRenameRoom(room: StudyRoom) {
+    setOpenRoomMenuId(null);
+    setSelectedRoomId(room.id);
+    saveProjectRoomId(room.id);
+
+    setEditName(room.name || "");
+    setEditSubject(room.subject || "");
+    setEditDescription(room.description || "");
+
+    window.setTimeout(() => {
+      const settingsPanel = document.getElementById("room-settings");
+
+      if (settingsPanel instanceof HTMLDetailsElement) {
+        settingsPanel.open = true;
+      }
+
+      settingsPanel?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      const nameInput = document.getElementById("room-settings-name");
+
+      if (nameInput instanceof HTMLInputElement) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }, 80);
   }
 
   async function handleCreateRoom() {
@@ -151,7 +187,7 @@ export default function StudyRoomsPage() {
       const created = (await createStudyRoom(
         newName.trim(),
         newSubject.trim(),
-        newDescription.trim() || undefined
+        newDescription.trim() || undefined,
       )) as StudyRoom;
 
       setRooms((current) => [created, ...current]);
@@ -191,11 +227,11 @@ export default function StudyRoomsPage() {
         selectedRoom.id,
         editName.trim(),
         editSubject.trim(),
-        editDescription.trim() || undefined
+        editDescription.trim() || undefined,
       )) as StudyRoom;
 
       setRooms((current) =>
-        current.map((room) => (room.id === updated.id ? updated : room))
+        current.map((room) => (room.id === updated.id ? updated : room)),
       );
 
       setSelectedRoomId(updated.id);
@@ -208,33 +244,42 @@ export default function StudyRoomsPage() {
     }
   }
 
-  async function handleDeleteRoom() {
-    if (!selectedRoom) return;
-
+  async function handleDeleteRoom(room: StudyRoom) {
     const confirmed = window.confirm(
-      `Delete "${selectedRoom.name}"? This cannot be undone.`
+      `Delete "${room.name}"? This cannot be undone.`,
     );
 
     if (!confirmed) return;
+
+    setOpenRoomMenuId(null);
 
     try {
       setDeleting(true);
       setError("");
       setMessage("");
 
-      await deleteStudyRoom(selectedRoom.id);
+      await deleteStudyRoom(room.id);
 
-      const nextRooms = rooms.filter((room) => room.id !== selectedRoom.id);
-      const nextSelectedId = nextRooms[0]?.id || null;
+      const nextRooms = rooms.filter((item) => item.id !== room.id);
+
+      const deletedCurrentRoom = selectedRoomId === room.id;
+
+      const nextSelectedId = deletedCurrentRoom
+        ? (nextRooms[0]?.id ?? null)
+        : selectedRoomId;
 
       setRooms(nextRooms);
       setSelectedRoomId(nextSelectedId);
 
-      if (nextSelectedId !== null) {
-        saveProjectRoomId(nextSelectedId);
+      if (deletedCurrentRoom) {
+        if (nextSelectedId !== null) {
+          saveProjectRoomId(nextSelectedId);
+        } else {
+          clearProjectRoomId();
+        }
       }
 
-      setMessage("Room deleted.");
+      setMessage(`"${room.name}" deleted.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete room.");
     } finally {
@@ -244,287 +289,298 @@ export default function StudyRoomsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
   }
 
   return (
-    <AppShell
-      title="Study Rooms"
-      subtitle="Choose a room, create a topic, or send materials to Smart Organizer."
-    >
-      <div className="space-y-5">
-        {(error || message) ? (
-          <section
-            className={`rounded-[1.5rem] border p-4 text-sm font-bold ${
+    <AppShell title="Rooms">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
+        {error || message ? (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-bold ${
               error
                 ? "border-red-400/20 bg-red-500/10 text-red-200"
                 : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
             }`}
           >
             {error || message}
-          </section>
+          </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="premium-card gold-border rounded-[2rem] p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="gold-chip mb-3">Your rooms</div>
-                <h2 className="text-3xl font-black text-white">
-                  Pick a topic to study
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  Each room connects materials, notes, AI, concept cards,
-                  quizzes, planner, progress, and future Study Together.
-                </p>
-              </div>
+        <section className="rounded-[1.6rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(16,22,28,0.94),rgba(3,6,9,0.98))] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-3xl sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-black text-white">Study rooms</h2>
+
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {rooms.length} room{rooms.length === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href="/study-rooms/organize"
+                title="Smart Organizer"
+                aria-label="Open Smart Organizer"
+                className="grid h-10 w-10 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfce83] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+              >
+                ✦
+              </Link>
 
               <button
                 type="button"
                 onClick={loadRooms}
                 disabled={loading}
-                className="rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
+                title="Refresh rooms"
+                aria-label="Refresh rooms"
+                className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.1] bg-white/[0.045] text-base text-slate-300 disabled:opacity-50"
               >
-                {loading ? "Refreshing..." : "Refresh"}
+                {loading ? "…" : "↻"}
               </button>
             </div>
+          </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
-                <p className="kpi-label">Rooms</p>
-                <p className="mt-2 text-2xl font-black text-cyan-300">
-                  {rooms.length}
-                </p>
-              </div>
+          <div className="relative mt-4">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+            >
+              ⌕
+            </span>
 
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
-                <p className="kpi-label">Selected</p>
-                <p className="mt-2 line-clamp-1 text-lg font-black text-yellow-200">
-                  {selectedRoom?.name || "None"}
-                </p>
-              </div>
+            <input
+              className="w-full rounded-[1.1rem] border border-white/[0.1] bg-[#030609]/85 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/35"
+              placeholder="Search rooms"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        </section>
 
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
-                <p className="kpi-label">Subject</p>
-                <p className="mt-2 line-clamp-1 text-lg font-black text-violet-200">
-                  {selectedRoom?.subject || "Not set"}
-                </p>
-              </div>
+        {filteredRooms.length === 0 ? (
+          <section className="rounded-[1.5rem] border border-dashed border-white/[0.12] bg-white/[0.025] px-5 py-10 text-center">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/[0.1] bg-white/[0.04] text-xl">
+              ▦
             </div>
 
-            <div className="mt-5">
-              <input
-                className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
-                placeholder="Search rooms like Anatomy, Cardiology, Linux..."
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
+            <h3 className="mt-4 text-base font-black text-white">
+              {rooms.length === 0 ? "No rooms yet" : "No matching rooms"}
+            </h3>
 
-            {filteredRooms.length === 0 ? (
-              <div className="empty-state mt-5">
-                {rooms.length === 0
-                  ? "No rooms yet. Create your first topic workspace."
-                  : "No rooms match your search."}
-              </div>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
-                  <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                    Choose from all rooms
-                  </label>
+            <p className="mt-1 text-sm text-slate-500">
+              {rooms.length === 0
+                ? "Open New room below to create one."
+                : "Try another search."}
+            </p>
+          </section>
+        ) : (
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {filteredRooms.map((room) => {
+              const active = room.id === selectedRoomId;
 
-                  <select
-                    className="mt-3 w-full rounded-[1.2rem] border border-white/10 bg-slate-950/80 px-4 py-3.5 text-white outline-none"
-                    value={selectedRoomId ?? ""}
-                    onChange={(event) => selectRoom(Number(event.target.value))}
+              return (
+                <article
+                  key={room.id}
+                  className={`group cursor-pointer focus-within:z-30 relative rounded-[1.4rem] border p-3 shadow-[0_16px_44px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:shadow-[0_22px_58px_rgba(0,0,0,0.38)] ${
+                    active
+                      ? "border-[#c9ad50]/35 bg-[#c9ad50]/[0.07]"
+                      : "border-white/[0.1] bg-[linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))]"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    data-room-card-link
+                    onClick={() => openRoom(room.id)}
+                    aria-label={`Open ${room.name}`}
+                    className="absolute inset-0 z-0 rounded-[1.4rem] outline-none transition focus-visible:ring-2 focus-visible:ring-[#c9ad50]/75 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
-                    {filteredRooms.map((room) => (
-                      <option
-                        key={room.id}
-                        value={room.id}
-                        className="bg-slate-950 text-white"
-                      >
-                        {room.name} — {room.subject || "No subject"}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="sr-only">Open {room.name}</span>
+                  </button>
+                  <div className="pointer-events-none relative z-10 flex items-start gap-3">
+                    <div
+                      aria-hidden="true"
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-base font-black text-[#e0ce80]"
+                    >
+                      {room.name.trim().charAt(0).toUpperCase() || "S"}
+                    </div>
 
-                  <div className="mt-4 rounded-[1.2rem] border border-yellow-300/20 bg-yellow-300/10 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-yellow-200">
-                          Selected room
-                        </p>
-                        <h3 className="mt-2 text-xl font-black text-white">
-                          {selectedRoom?.name || "No room selected"}
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <h3 className="truncate text-sm font-black text-white">
+                          {room.name}
                         </h3>
-                        <p className="mt-1 text-sm font-bold text-yellow-100">
-                          {selectedRoom?.subject || "Choose a subject"}
-                        </p>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">
-                          {getRoomDescription(selectedRoom)}
-                        </p>
+
+                        {active ? (
+                          <span
+                            aria-label="Selected room"
+                            className="text-xs text-[#dcca78]"
+                          >
+                            ✓
+                          </span>
+                        ) : null}
                       </div>
+
+                      <p className="mt-1 truncate text-xs font-bold text-slate-500">
+                        {room.subject || "Study room"}
+                      </p>
+
+                      <p className="mt-2 line-clamp-1 text-xs text-slate-400">
+                        {getRoomDescription(room)}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      data-room-menu-trigger
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        setOpenRoomMenuId((current) =>
+                          current === room.id
+                            ? null
+                            : room.id,
+                        );
+                      }}
+                      aria-label={`Room options for ${room.name}`}
+                      aria-haspopup="menu"
+                      aria-expanded={openRoomMenuId === room.id}
+                      aria-controls={`room-options-${room.id}`}
+                      className={`pointer-events-auto relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-lg font-black transition ${
+                        openRoomMenuId === room.id
+                          ? "border-[#c9ad50]/35 bg-[#c9ad50]/15 text-[#e3d285]"
+                          : "border-white/[0.1] bg-white/[0.045] text-slate-400 active:bg-white/[0.09]"
+                      }`}
+                    >
+                      ⋯
+                    </button>
+                  </div>
+
+                  {openRoomMenuId === room.id ? (
+                    <div
+                      id={`room-options-${room.id}`}
+                      role="menu"
+                      aria-label={`Options for ${room.name}`}
+                      className="pointer-events-auto absolute right-3 top-14 z-40 w-52 overflow-hidden rounded-2xl border border-white/[0.12] bg-[#080c10]/95 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-3xl"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => openRoom(room.id)}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-slate-100 transition hover:bg-white/[0.08]"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.055] text-sm"
+                        >
+                          ↗
+                        </span>
+                        Open room
+                      </button>
 
                       <button
                         type="button"
-                        onClick={() => selectedRoom && openRoom(selectedRoom.id)}
-                        disabled={!selectedRoom}
-                        className="rounded-xl border border-yellow-300/25 bg-yellow-300/15 px-5 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        role="menuitem"
+                        disabled={active}
+                        onClick={() => selectRoom(room.id)}
+                        className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
+                          active
+                            ? "cursor-default text-[#dfcf8b]"
+                            : "text-slate-100 hover:bg-white/[0.08]"
+                        }`}
                       >
-                        Open workspace →
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowAllRooms((current) => !current)}
-                    className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-white transition hover:bg-white/[0.08]"
-                  >
-                    {showAllRooms ? "Hide room list" : `Show all rooms (${filteredRooms.length})`}
-                  </button>
-                </div>
-
-                {showAllRooms ? (
-                  <div className="grid gap-3">
-                    {filteredRooms.map((room) => {
-                      const active = room.id === selectedRoomId;
-
-                      return (
-                        <div
-                          key={room.id}
-                          className={`rounded-[1.25rem] border p-4 transition ${
-                            active
-                              ? "border-yellow-300/35 bg-yellow-300/10"
-                              : "border-white/10 bg-white/[0.03] hover:border-yellow-300/25 hover:bg-white/[0.05]"
+                        <span
+                          aria-hidden="true"
+                          className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-sm ${
+                            active ? "bg-[#c9ad50]/15" : "bg-white/[0.055]"
                           }`}
                         >
-                          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                            <button
-                              type="button"
-                              onClick={() => selectRoom(room.id)}
-                              className="min-w-0 text-left"
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1 text-xs font-black text-yellow-100">
-                                  {room.subject || "No subject"}
-                                </span>
+                          ✓
+                        </span>
 
-                                {active ? (
-                                  <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-100">
-                                    Selected
-                                  </span>
-                                ) : null}
-                              </div>
+                        {active ? "Current room" : "Set as current"}
+                      </button>
 
-                              <h3 className="mt-3 text-lg font-black text-white">
-                                {room.name}
-                              </h3>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => startRenameRoom(room)}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-slate-100 transition hover:bg-white/[0.08]"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.055] text-sm"
+                        >
+                          ✎
+                        </span>
+                        Rename
+                      </button>
 
-                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">
-                                {room.description || "Open project workspace."}
-                              </p>
-                            </button>
+                      <div className="mt-1 border-t border-white/[0.08] pt-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={deleting}
+                          onClick={() => void handleDeleteRoom(room)}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-red-500/10 text-sm"
+                          >
+                            ⌫
+                          </span>
 
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => selectRoom(room.id)}
-                                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-white"
-                              >
-                                Select
-                              </button>
+                          {deleting ? "Deleting…" : "Delete room"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </section>
+        )}
 
-                              <button
-                                type="button"
-                                onClick={() => openRoom(room.id)}
-                                className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-2 text-sm font-black text-yellow-100"
-                              >
-                                Open →
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
+        <section className="grid gap-3 lg:grid-cols-3">
+          <details className="group overflow-hidden rounded-[1.4rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.92),rgba(3,6,9,0.97))] shadow-[0_18px_50px_rgba(0,0,0,0.3)]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4">
+              <span className="flex items-center gap-3 text-sm font-black text-white">
+                <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[#ddca78]">
+                  ＋
+                </span>
+                New room
+              </span>
 
-          <aside className="space-y-5">
-            <section className="premium-card gold-border rounded-[2rem] p-5">
-              <div className="gold-chip mb-3">Selected room</div>
-              <h3 className="line-clamp-2 text-2xl font-black text-white">
-                {selectedRoom?.name || "No room selected"}
-              </h3>
-              <p className="mt-2 text-sm font-bold text-yellow-200">
-                {selectedRoom?.subject || "Choose or create a subject"}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                {getRoomDescription(selectedRoom)}
-              </p>
+              <span className="text-xs text-slate-500 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
 
-              <button
-                type="button"
-                onClick={() => selectedRoom && openRoom(selectedRoom.id)}
-                disabled={!selectedRoom}
-                className="premium-button mt-5 w-full rounded-[1.2rem] px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Open workspace
-              </button>
-            </section>
-
-            <section className="premium-card gold-border rounded-[2rem] p-5">
-              <div className="gold-chip mb-3">Smart Organizer</div>
-              <h3 className="text-2xl font-black text-white">
-                Auto-organize materials
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                Upload many files and let StudySnap create rooms by topic.
-              </p>
-
-              <Link
-                href="/study-rooms/organize"
-                className="premium-button mt-5 inline-flex w-full justify-center rounded-[1.2rem] px-5 py-3 text-sm font-black"
-              >
-                Open Smart Organizer
-              </Link>
-            </section>
-          </aside>
-        </section>
-
-        <section className="grid gap-5 xl:grid-cols-2">
-          <section className="gold-card rounded-[2rem] p-5">
-            <div className="gold-chip mb-3">Create room</div>
-            <h3 className="text-2xl font-black text-white">
-              New topic workspace
-            </h3>
-
-            <div className="mt-5 grid gap-4">
+            <div className="grid gap-3 border-t border-white/[0.08] p-4">
               <input
-                className="rounded-[1.2rem] px-4 py-3.5"
-                placeholder="Room name, example: Cardiology"
+                className="rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                placeholder="Room name"
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
               />
 
               <input
-                className="rounded-[1.2rem] px-4 py-3.5"
-                placeholder="Subject, example: Heart Health"
+                className="rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                placeholder="Subject"
                 value={newSubject}
                 onChange={(event) => setNewSubject(event.target.value)}
               />
 
               <textarea
-                className="min-h-[90px] rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
-                placeholder="Short description"
+                className="min-h-[80px] rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                placeholder="Description (optional)"
                 value={newDescription}
                 onChange={(event) => setNewDescription(event.target.value)}
               />
@@ -533,66 +589,88 @@ export default function StudyRoomsPage() {
                 type="button"
                 onClick={handleCreateRoom}
                 disabled={savingNew}
-                className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-[#c9ad50] px-4 py-3 text-sm font-black text-black disabled:opacity-50"
               >
-                {savingNew ? "Creating..." : "Create room"}
+                {savingNew ? "Creating…" : "Create"}
               </button>
             </div>
-          </section>
+          </details>
 
-          <section className="premium-card gold-border rounded-[2rem] p-5">
-            <div className="gold-chip mb-3">Edit selected room</div>
-            <h3 className="text-2xl font-black text-white">
-              Rename or update subject
-            </h3>
+          <details
+            id="room-settings"
+            className="group overflow-hidden rounded-[1.4rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.92),rgba(3,6,9,0.97))] shadow-[0_18px_50px_rgba(0,0,0,0.3)]"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4">
+              <span className="flex min-w-0 items-center gap-3 text-sm font-black text-white">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.1] bg-white/[0.045] text-slate-300">
+                  ⚙
+                </span>
 
-            {!selectedRoom ? (
-              <div className="empty-state mt-5">Select a room first.</div>
-            ) : (
-              <div className="mt-5 grid gap-4">
-                <input
-                  className="rounded-[1.2rem] px-4 py-3.5"
-                  placeholder="Room name"
-                  value={editName}
-                  onChange={(event) => setEditName(event.target.value)}
-                />
+                <span className="truncate">Room settings</span>
+              </span>
 
-                <input
-                  className="rounded-[1.2rem] px-4 py-3.5"
-                  placeholder="Subject"
-                  value={editSubject}
-                  onChange={(event) => setEditSubject(event.target.value)}
-                />
+              <span className="text-xs text-slate-500 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
 
-                <textarea
-                  className="min-h-[90px] rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
-                  placeholder="Description"
-                  value={editDescription}
-                  onChange={(event) => setEditDescription(event.target.value)}
-                />
+            <div className="border-t border-white/[0.08] p-4">
+              {!selectedRoom ? (
+                <p className="text-sm text-slate-500">Select a room first.</p>
+              ) : (
+                <div className="grid gap-3">
+                  <p className="truncate text-sm font-black text-[#dfce83]">
+                    {selectedRoom.name}
+                  </p>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    id="room-settings-name"
+                    className="rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                    placeholder="Room name"
+                    value={editName}
+                    onChange={(event) => setEditName(event.target.value)}
+                  />
+
+                  <input
+                    className="rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                    placeholder="Subject"
+                    value={editSubject}
+                    onChange={(event) => setEditSubject(event.target.value)}
+                  />
+
+                  <textarea
+                    className="min-h-[80px] rounded-xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white outline-none"
+                    placeholder="Description"
+                    value={editDescription}
+                    onChange={(event) => setEditDescription(event.target.value)}
+                  />
+
                   <button
                     type="button"
                     onClick={handleUpdateRoom}
                     disabled={savingEdit}
-                    className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-xl bg-[#c9ad50] px-3 py-3 text-xs font-black text-black transition hover:bg-[#d3b95e] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {savingEdit ? "Saving..." : "Save changes"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDeleteRoom}
-                    disabled={deleting}
-                    className="rounded-[1.2rem] border border-red-300/20 bg-red-500/10 px-4 py-3.5 text-sm font-black text-red-100 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {deleting ? "Deleting..." : "Delete room"}
+                    {savingEdit ? "Saving…" : "Save changes"}
                   </button>
                 </div>
-              </div>
-            )}
-          </section>
+              )}
+            </div>
+          </details>
+
+          <Link
+            href="/study-rooms/organize"
+            className="flex items-center justify-between gap-3 rounded-[1.4rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.92),rgba(3,6,9,0.97))] px-4 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.3)]"
+          >
+            <span className="flex items-center gap-3 text-sm font-black text-white">
+              <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[#ddca78]">
+                ✦
+              </span>
+              Smart Organizer
+            </span>
+
+            <span className="text-slate-500">›</span>
+          </Link>
         </section>
       </div>
     </AppShell>

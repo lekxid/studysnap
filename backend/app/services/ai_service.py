@@ -1,9 +1,29 @@
 import json
+from functools import lru_cache
+
 from openai import OpenAI
 from app.config import settings
 from app.services.intent_understanding import get_intent_understanding_instructions
+from app.services.ai_runtime import (
+    current_information_instructions,
+    should_use_web_search,
+    web_search_tool,
+)
 
-client = OpenAI(api_key=settings.openai_api_key, timeout=30.0)
+@lru_cache(maxsize=1)
+def get_openai_client() -> OpenAI:
+    api_key = settings.openai_api_key.strip()
+
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not configured. "
+            "Configure it before using StudySnap AI features."
+        )
+
+    return OpenAI(
+        api_key=api_key,
+        timeout=30.0,
+    )
 
 
 def detect_mode(question: str):
@@ -27,7 +47,10 @@ def detect_mode(question: str):
     return "Clear Explain", question.strip()
 
 
-def build_studysnap_system_prompt(mode: str) -> str:
+def build_studysnap_system_prompt(
+    mode: str,
+    question: str = "",
+) -> str:
     return (
         f"You are StudySnap AI, an intelligent and supportive learning companion. "
         f"Current response mode: {mode}. "
@@ -70,6 +93,8 @@ def build_studysnap_system_prompt(mode: str) -> str:
         "Be encouraging without repeatedly using the student's name or giving unnecessary praise."
         + "\n\n"
         + get_intent_understanding_instructions()
+        + "\n\n"
+        + current_information_instructions(question)
     )
 
 
@@ -95,46 +120,137 @@ def build_studysnap_user_prompt(
     )
 
 
-def generate_studysnap_answer(question: str, context: str = "") -> str:
+def _configured_text_model() -> str:
+    return (
+        getattr(
+            settings,
+            "openai_model",
+            "",
+        )
+        or "gpt-4.1-mini"
+    )
+
+
+def _generate_current_web_answer(
+    *,
+    mode: str,
+    clean_question: str,
+    context: str,
+) -> str:
+    response = get_openai_client().responses.create(
+        model=_configured_text_model(),
+        instructions=build_studysnap_system_prompt(
+            mode,
+            clean_question,
+        ),
+        input=build_studysnap_user_prompt(
+            clean_question,
+            context,
+        ),
+        tools=[
+            web_search_tool(),
+        ],
+        tool_choice="auto",
+        max_output_tokens=1200,
+        store=False,
+    )
+
+    answer = (
+        getattr(
+            response,
+            "output_text",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not answer:
+        raise RuntimeError(
+            "OpenAI returned an empty current-information answer."
+        )
+
+    return answer
+
+
+def generate_studysnap_answer(
+    question: str,
+    context: str = "",
+) -> str:
     mode, clean_question = detect_mode(question)
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
+    if should_use_web_search(clean_question):
+        return _generate_current_web_answer(
+            mode=mode,
+            clean_question=clean_question,
+            context=context,
+        )
+
+    response = get_openai_client().chat.completions.create(
+        model=_configured_text_model(),
         messages=[
             {
                 "role": "system",
-                "content": build_studysnap_system_prompt(mode),
+                "content": build_studysnap_system_prompt(
+                    mode,
+                    clean_question,
+                ),
             },
             {
                 "role": "user",
-                "content": build_studysnap_user_prompt(clean_question, context),
+                "content": build_studysnap_user_prompt(
+                    clean_question,
+                    context,
+                ),
             },
         ],
         temperature=0.7,
         max_tokens=1200,
     )
 
-    return response.choices[0].message.content or "No answer returned."
+    return (
+        response.choices[0].message.content
+        or "No answer returned."
+    )
 
 
 # ============================================================
-# NEW: TRUE STREAMING SUPPORT
+# TRUE STREAMING SUPPORT
 # ============================================================
 
-def stream_studysnap_answer(question: str, context: str = ""):
+def stream_studysnap_answer(
+    question: str,
+    context: str = "",
+):
     mode, clean_question = detect_mode(question)
 
-    stream = client.chat.completions.create(
-        model="gpt-4.1-mini",
+    if should_use_web_search(clean_question):
+        # Web-enabled Responses API calls are returned as one
+        # completed answer. StreamingResponse can still send
+        # this answer through the existing SSE route safely.
+        yield _generate_current_web_answer(
+            mode=mode,
+            clean_question=clean_question,
+            context=context,
+        )
+        return
+
+    stream = get_openai_client().chat.completions.create(
+        model=_configured_text_model(),
         stream=True,
         messages=[
             {
                 "role": "system",
-                "content": build_studysnap_system_prompt(mode),
+                "content": build_studysnap_system_prompt(
+                    mode,
+                    clean_question,
+                ),
             },
             {
                 "role": "user",
-                "content": build_studysnap_user_prompt(clean_question, context),
+                "content": build_studysnap_user_prompt(
+                    clean_question,
+                    context,
+                ),
             },
         ],
         temperature=0.7,
@@ -159,7 +275,7 @@ def generate_basic_flashcards(content: str) -> list[dict]:
     if not content.strip():
         return []
 
-    response = client.chat.completions.create(
+    response = get_openai_client().chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
@@ -319,7 +435,7 @@ def generate_basic_quiz(content: str) -> list[dict]:
     limited_text = text[:12000]
 
     try:
-        response = client.chat.completions.create(
+        response = get_openai_client().chat.completions.create(
             model="gpt-4.1-mini",
             response_format={"type": "json_object"},
             messages=[

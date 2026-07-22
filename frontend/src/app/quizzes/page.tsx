@@ -668,26 +668,27 @@ export default function QuizzesPage() {
       title="Quizzes"
       subtitle="Adaptive quiz practice with confidence, timing, smart retry, and Brain memory"
     >
+      <div className="quiz-page min-w-0 max-w-full overflow-x-clip">
       <ConnectedProjectBanner
         toolName="Quizzes"
         toolIcon="🧾"
         description="Your quiz answers, confidence, speed, weak areas, and strong areas now update StudySnap Brain automatically."
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+      <div className="mb-4 grid min-w-0 grid-cols-2 gap-2.5 sm:mb-6 sm:gap-4 md:grid-cols-4">
+        <div className="studysnap-glass-panel min-w-0 rounded-[1.35rem] p-3.5 sm:p-5">
           <p className="text-sm text-white/50">Quizzes</p>
           <p className="mt-2 text-3xl font-bold text-white">{quizzes.length}</p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="studysnap-glass-panel min-w-0 rounded-[1.35rem] p-3.5 sm:p-5">
           <p className="text-sm text-white/50">Current Room</p>
           <p className="mt-2 text-xl font-bold text-cyan-300">
             {selectedRoom ? selectedRoom.name : "No room selected"}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="studysnap-glass-panel min-w-0 rounded-[1.35rem] p-3.5 sm:p-5">
           <p className="text-sm text-white/50">Current Score</p>
           <p className="mt-2 text-3xl font-bold text-white">
             {submitted ? `${scorePercent}%` : "—"}
@@ -699,7 +700,7 @@ export default function QuizzesPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-5">
+        <div className="studysnap-glass-panel min-w-0 rounded-[1.35rem] p-3.5 sm:p-5">
           <p className="text-sm text-white/50">Heatmap</p>
           <p className="mt-2 text-sm font-bold text-green-300">
             {submitted ? `${strongCount} strong` : "Submit to view"}
@@ -725,8 +726,8 @@ export default function QuizzesPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+      <div className="grid min-w-0 max-w-full gap-4 sm:gap-6 lg:grid-cols-3">
+        <div className="studysnap-glass-panel min-w-0 max-w-full rounded-[1.5rem] p-4 sm:p-6">
           <h3 className="text-xl font-semibold text-cyan-300">
             Create Quick Quiz
           </h3>
@@ -835,11 +836,11 @@ export default function QuizzesPage() {
           </div>
         </div>
 
-        <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-semibold text-cyan-300">
+        <div className="min-w-0 max-w-full space-y-4 sm:space-y-6 lg:col-span-2">
+          <div className="studysnap-glass-panel min-w-0 max-w-full rounded-[1.5rem] p-4 sm:p-6">
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h3 className="break-words text-xl font-semibold text-cyan-200">
                   Smart Quiz Runner
                 </h3>
                 <p className="mt-1 text-sm text-white/50">
@@ -847,11 +848,11 @@ export default function QuizzesPage() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap sm:gap-3">
                 <button
                   type="button"
                   onClick={() => resetQuizRunner()}
-                  className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white transition hover:bg-white/5"
+                  className="w-full rounded-xl border border-white/15 bg-white/[0.035] px-3 py-2.5 text-sm font-semibold text-white backdrop-blur-xl transition hover:bg-white/[0.08] sm:w-auto sm:px-4"
                 >
                   Reset Score
                 </button>
@@ -860,7 +861,7 @@ export default function QuizzesPage() {
                   type="button"
                   onClick={shuffleQuestions}
                   disabled={!activeQuiz || totalQuestions < 2}
-                  className="rounded-xl border border-yellow-400/25 bg-yellow-400/10 px-4 py-2 font-semibold text-yellow-100 transition hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2.5 text-sm font-semibold text-yellow-100 transition hover:bg-yellow-300/20 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-4"
                 >
                   Shuffle
                 </button>
@@ -869,7 +870,7 @@ export default function QuizzesPage() {
                   type="button"
                   onClick={handleMorePractice}
                   disabled={!activeQuiz || generatingMore}
-                  className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-3 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/20 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-4"
                 >
                   {generatingMore ? "Creating..." : "More Practice"}
                 </button>
@@ -878,7 +879,7 @@ export default function QuizzesPage() {
                   type="button"
                   onClick={handleSubmitQuiz}
                   disabled={!activeQuiz || totalQuestions === 0 || submitting || submitted}
-                  className="rounded-xl bg-cyan-400 px-4 py-2 font-semibold text-black transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl bg-[#c9ad50] px-3 py-2.5 text-sm font-black text-[#111317] transition hover:bg-[#d5bb63] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-4"
                 >
                   {submitted ? "Saved" : submitting ? "Saving..." : "Submit Quiz"}
                 </button>
@@ -947,7 +948,7 @@ export default function QuizzesPage() {
               </div>
             ) : null}
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black p-6">
+            <div className="mt-5 min-w-0 max-w-full rounded-[1.35rem] border border-white/[0.08] bg-black/35 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] backdrop-blur-xl sm:mt-6 sm:p-6">
               {loadingQuizzes ? (
                 <p className="text-white/70">Loading quizzes...</p>
               ) : !activeQuiz ? (
@@ -962,7 +963,7 @@ export default function QuizzesPage() {
                 <div className="space-y-5">
                   <div>
                     <p className="text-sm text-white/50">Active Quiz</p>
-                    <h4 className="mt-1 text-2xl font-bold text-white">
+                    <h4 className="mt-1 break-words text-xl font-bold text-white sm:text-2xl">
                       {activeQuiz.title}
                     </h4>
                   </div>
@@ -1004,10 +1005,10 @@ export default function QuizzesPage() {
                     return (
                       <div
                         key={item.id}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-5"
+                        className="min-w-0 max-w-full rounded-[1.35rem] border border-white/[0.09] bg-white/[0.045] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-xl sm:p-5"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                          <h5 className="text-lg font-semibold text-cyan-300">
+                          <h5 className="min-w-0 flex-1 break-words text-base font-semibold leading-6 text-cyan-200 sm:text-lg">
                             {index + 1}. {item.question}
                           </h5>
 
@@ -1036,7 +1037,7 @@ export default function QuizzesPage() {
                                 key={option.letter}
                                 type="button"
                                 onClick={() => handleAnswer(item.id, option.letter)}
-                                className={`rounded-xl border px-4 py-3 text-left text-white transition ${
+                                className={`min-w-0 max-w-full break-words rounded-xl border px-3 py-3 text-left text-white [overflow-wrap:anywhere] transition sm:px-4 ${
                                   isCorrect
                                     ? "border-green-500 bg-green-500/10"
                                     : isWrong
@@ -1086,7 +1087,7 @@ export default function QuizzesPage() {
                               {isQuestionCorrect ? "Correct" : "Needs review"}
                             </p>
 
-                            <p className="mt-2 text-sm text-white/70">
+                            <p className="mt-2 break-words text-sm leading-6 text-white/70 [overflow-wrap:anywhere]">
                               Your answer:{" "}
                               <span className="font-bold text-white">
                                 {selected || "Not answered"}
@@ -1099,7 +1100,7 @@ export default function QuizzesPage() {
                               </span>
                             </p>
 
-                            <p className="mt-2 text-sm text-white/60">
+                            <p className="mt-2 break-words text-sm leading-6 text-white/60">
                               Confidence: {confidenceLabels[confidence]} · Time: {seconds || 0}s
                             </p>
 
@@ -1124,7 +1125,7 @@ export default function QuizzesPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-[#0a1022] p-6">
+          <div className="studysnap-glass-panel min-w-0 max-w-full rounded-[1.5rem] p-4 sm:p-6">
             <h3 className="text-xl font-semibold text-cyan-300">
               Saved Quizzes
             </h3>
@@ -1142,9 +1143,9 @@ export default function QuizzesPage() {
                 {quizzes.map((quiz, index) => (
                   <div
                     key={`${quiz.id}-${index}`}
-                    className="rounded-2xl border border-white/10 bg-black p-5"
+                    className="min-w-0 max-w-full rounded-[1.35rem] border border-white/[0.08] bg-black/30 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] backdrop-blur-xl sm:p-5"
                   >
-                    <h4 className="line-clamp-2 text-base font-semibold text-cyan-300">
+                    <h4 className="line-clamp-2 break-words text-base font-semibold text-cyan-200">
                       {quiz.title}
                     </h4>
 
@@ -1176,6 +1177,7 @@ export default function QuizzesPage() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </AppShell>
   );

@@ -1,7 +1,61 @@
+from __future__ import annotations
+
 from sqlalchemy.orm import Session
 
 from app.models.study_material import StudyMaterial
 from app.services.context.ranking import rank_items
+
+
+def clean_value(value: object | None) -> str:
+    return " ".join(
+        str(value or "").split()
+    ).strip()
+
+
+def has_semantic_context(
+    material: StudyMaterial,
+) -> bool:
+    return any(
+        clean_value(value)
+        for value in (
+            material.extracted_text,
+            material.intelligence_summary,
+            material.detected_topic,
+            material.content_category,
+            material.purpose_category,
+        )
+    )
+
+
+def searchable_material_text(
+    material: StudyMaterial,
+) -> str:
+    return " ".join(
+        filter(
+            None,
+            [
+                clean_value(
+                    material.original_filename
+                ),
+                clean_value(material.material_type),
+                clean_value(
+                    material.purpose_category
+                ),
+                clean_value(
+                    material.content_category
+                ),
+                clean_value(
+                    material.detected_topic
+                ),
+                clean_value(
+                    material.intelligence_summary
+                ),
+                clean_value(
+                    material.extracted_text
+                ),
+            ],
+        )
+    )
 
 
 def build_materials_context(
@@ -17,31 +71,30 @@ def build_materials_context(
     """
     Build safe universal-material context for StudySnap AI.
 
-    Only files with extracted text are included. Quarantined files are
-    deliberately excluded and are never treated as AI-readable context.
+    A selected material is placed first. Images can be understood
+    through their stored vision analysis even when they contain no
+    readable OCR text.
     """
 
     materials = (
         db.query(StudyMaterial)
         .filter(
-            StudyMaterial.study_room_id == study_room_id,
+            StudyMaterial.study_room_id
+            == study_room_id,
             StudyMaterial.owner_id == owner_id,
-            StudyMaterial.material_type != "quarantined",
-            StudyMaterial.extracted_text.isnot(None),
+            StudyMaterial.material_type
+            != "quarantined",
         )
         .order_by(StudyMaterial.id.desc())
         .limit(candidate_limit)
         .all()
     )
 
-    readable_materials = [
+    semantic_materials = [
         material
         for material in materials
-        if (material.extracted_text or "").strip()
+        if has_semantic_context(material)
     ]
-
-    if not readable_materials:
-        return ""
 
     focused_material = None
 
@@ -49,8 +102,9 @@ def build_materials_context(
         focused_material = next(
             (
                 material
-                for material in readable_materials
-                if material.id == focused_material_id
+                for material in materials
+                if material.id
+                == focused_material_id
             ),
             None,
         )
@@ -59,37 +113,39 @@ def build_materials_context(
             focused_material = (
                 db.query(StudyMaterial)
                 .filter(
-                    StudyMaterial.id == focused_material_id,
-                    StudyMaterial.study_room_id == study_room_id,
-                    StudyMaterial.owner_id == owner_id,
-                    StudyMaterial.material_type != "quarantined",
-                    StudyMaterial.extracted_text.isnot(None),
+                    StudyMaterial.id
+                    == focused_material_id,
+                    StudyMaterial.study_room_id
+                    == study_room_id,
+                    StudyMaterial.owner_id
+                    == owner_id,
+                    StudyMaterial.material_type
+                    != "quarantined",
                 )
                 .first()
             )
 
-            if focused_material and not (
-                focused_material.extracted_text or ""
-            ).strip():
-                focused_material = None
+    if (
+        not semantic_materials
+        and focused_material is None
+    ):
+        return ""
 
     ranked_materials = rank_items(
         query=question,
-        items=readable_materials,
-        text_getter=lambda material: " ".join(
-            [
-                material.original_filename or "",
-                material.material_type or "",
-                material.extracted_text or "",
-            ]
-        ),
+        items=semantic_materials,
+        text_getter=searchable_material_text,
         limit=limit,
     )
 
-    selected_materials = []
+    selected_materials: list[
+        StudyMaterial
+    ] = []
 
     if focused_material is not None:
-        selected_materials.append(focused_material)
+        selected_materials.append(
+            focused_material
+        )
 
     for material in ranked_materials:
         if any(
@@ -103,44 +159,98 @@ def build_materials_context(
         if len(selected_materials) >= limit:
             break
 
-    formatted_materials = []
+    formatted_materials: list[str] = []
 
     for material in selected_materials:
         filename = (
-            material.original_filename
+            clean_value(
+                material.original_filename
+            )
             or "Untitled material"
-        ).strip()
+        )
 
         material_type = (
-            material.material_type
+            clean_value(material.material_type)
             or "file"
-        ).strip()
+        )
 
-        extracted_text = (
+        purpose = clean_value(
+            material.purpose_category
+        )
+
+        category = clean_value(
+            material.content_category
+        )
+
+        topic = clean_value(
+            material.detected_topic
+        )
+
+        summary = clean_value(
+            material.intelligence_summary
+        )
+
+        extracted_text = clean_value(
             material.extracted_text
-            or ""
-        ).strip()
-
-        if not extracted_text:
-            continue
+        )
 
         if len(extracted_text) > content_limit:
             extracted_text = (
-                extracted_text[:content_limit].rstrip()
+                extracted_text[
+                    :content_limit
+                ].rstrip()
                 + "..."
             )
 
         focus_label = (
             "PRIMARY SELECTED MATERIAL"
-            if focused_material_id == material.id
+            if focused_material_id
+            == material.id
             else "ROOM MATERIAL"
         )
 
+        lines = [
+            focus_label,
+            f"MATERIAL ID: {material.id}",
+            f"FILE: {filename}",
+            f"TYPE: {material_type}",
+        ]
+
+        if purpose:
+            lines.append(
+                f"PURPOSE: {purpose}"
+            )
+
+        if category:
+            lines.append(
+                f"CATEGORY: {category}"
+            )
+
+        if topic:
+            lines.append(f"TOPIC: {topic}")
+
+        if summary:
+            lines.append(
+                "STORED IMAGE/DOCUMENT ANALYSIS:\n"
+                + summary
+            )
+
+        if extracted_text:
+            lines.append(
+                "READABLE OR EXTRACTED TEXT:\n"
+                + extracted_text
+            )
+
+        if (
+            not summary
+            and not extracted_text
+        ):
+            lines.append(
+                "No detailed content analysis is available."
+            )
+
         formatted_materials.append(
-            f"{focus_label}\n"
-            f"FILE: {filename}\n"
-            f"TYPE: {material_type}\n"
-            f"CONTENT:\n{extracted_text}"
+            "\n".join(lines)
         )
 
     return "\n\n---\n\n".join(

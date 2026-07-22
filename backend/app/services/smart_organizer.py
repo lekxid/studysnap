@@ -1,3 +1,4 @@
+import hashlib
 import re
 import uuid
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from app.models.quiz_question import QuizQuestion
 from app.models.pdf_document import PDFDocument
 from app.models.study_material import StudyMaterial
 from app.models.study_room import StudyRoom
+from app.storage import storage_path
+from app.services.material_intelligence import analyze_material
 from app.services.ai_service import generate_basic_flashcards, generate_basic_quiz
 
 
@@ -44,8 +47,10 @@ FILENAME_STOP_WORDS = {
     "version", "module", "lesson", "class",
 }
 
-PDF_UPLOAD_DIR = Path("uploads/pdfs")
-MATERIAL_UPLOAD_DIR = Path("uploads/materials")
+PDF_UPLOAD_DIR = storage_path("pdfs")
+MATERIAL_UPLOAD_DIR = storage_path(
+    "materials"
+)
 
 
 @dataclass
@@ -421,27 +426,17 @@ def save_generic_material(
         extracted_text=candidate.text,
         study_room_id=room_id,
         owner_id=owner_id,
+        sha256=hashlib.sha256(
+            candidate.contents
+        ).hexdigest(),
     )
 
     db.add(material)
     db.commit()
     db.refresh(material)
 
-    note = Note(
-        title=f"Uploaded {candidate.material_type}: {Path(candidate.filename).stem[:80]}",
-        content=(
-            f"StudySnap saved this {candidate.material_type} inside this room.\n\n"
-            f"File name: {candidate.filename}\n"
-            f"File type: {candidate.content_type or 'Unknown'}\n"
-            f"File size: {candidate.size} bytes\n\n"
-            "Next upgrade: show these materials directly inside the room and extract text from screenshots/images."
-        ),
-        study_room_id=room_id,
-        owner_id=owner_id,
-    )
-
-    db.add(note)
-    db.commit()
+    analyze_material(db, material)
+    db.refresh(material)
 
     return material
 

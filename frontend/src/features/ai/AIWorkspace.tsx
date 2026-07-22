@@ -101,7 +101,7 @@ export default function AIWorkspace() {
               {lesson.related_topics.map((topic, index) => (
                 <span
                   key={index}
-                  className="rounded-full bg-cyan-500/20 px-3 py-1 text-sm text-cyan-300"
+                  className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-sm text-amber-200"
                 >
                   {topic}
                 </span>

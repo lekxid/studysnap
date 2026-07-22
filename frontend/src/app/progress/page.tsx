@@ -89,7 +89,7 @@ function TopicCard({
   const color =
     tone === "weak"
       ? "border-red-300/20 bg-red-400/10 text-red-100"
-      : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
+      : "border-amber-300/20 bg-amber-300/10 text-amber-100";
 
   return (
     <div className={`rounded-[1.25rem] border p-4 ${color}`}>
@@ -107,7 +107,7 @@ function TopicCard({
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
         <div
           className={`h-full rounded-full ${
-            tone === "weak" ? "bg-red-300/80" : "bg-emerald-300/80"
+            tone === "weak" ? "bg-red-300/80" : "bg-amber-300/80"
           }`}
           style={{ width: `${Math.max(5, topic.accuracy)}%` }}
         />
@@ -130,7 +130,7 @@ function TrendBar({
     <div className="grid gap-2 text-center">
       <div className="flex h-36 items-end rounded-2xl border border-white/8 bg-white/[0.03] p-2">
         <div
-          className="w-full rounded-xl bg-gradient-to-t from-amber-300/80 to-cyan-300/80"
+          className="w-full rounded-xl bg-gradient-to-t from-amber-500/70 to-amber-200/90"
           style={{ height: `${value}%` }}
         />
       </div>
@@ -181,7 +181,7 @@ export default function ProgressPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#07101f] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -213,30 +213,30 @@ export default function ProgressPage() {
             </p>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-4">
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="kpi-label">Learning Index</p>
-                <p className="mt-3 text-2xl font-black text-cyan-300">
+                <p className="mt-3 text-2xl font-black text-amber-200">
                   {loading ? "..." : `${insights?.learning_index ?? 0}/1000`}
                 </p>
               </div>
 
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="kpi-label">Learning Score</p>
                 <p className="mt-3 text-2xl font-black text-amber-300">
                   {loading ? "..." : `${insights?.learning_score ?? 0}%`}
                 </p>
               </div>
 
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="kpi-label">Streak</p>
-                <p className="mt-3 text-2xl font-black text-emerald-300">
+                <p className="mt-3 text-2xl font-black text-amber-200">
                   🔥 {insights?.study_streak ?? 0}
                 </p>
               </div>
 
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="kpi-label">Confidence</p>
-                <p className="mt-3 text-2xl font-black text-violet-300">
+                <p className="mt-3 text-2xl font-black text-amber-200">
                   {insights?.average_confidence ?? 0}%
                 </p>
               </div>
@@ -277,13 +277,13 @@ export default function ProgressPage() {
             label="Reviews Today"
             value={String(insights?.cards_reviewed_today ?? 0)}
             detail="Quiz questions and flashcard reviews completed today."
-            tone="text-cyan-300"
+            tone="text-amber-200"
           />
           <MetricCard
             label="Correct Today"
             value={String(insights?.correct_today ?? 0)}
             detail={`${accuracy}% accuracy today.`}
-            tone="text-emerald-300"
+            tone="text-amber-200"
           />
           <MetricCard
             label="Needs Review"
@@ -311,7 +311,7 @@ export default function ProgressPage() {
               {trend.length ? (
                 trend.map((item) => <TrendBar key={item.date} item={item} />)
               ) : (
-                <p className="col-span-7 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                <p className="col-span-7 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-400">
                   No weekly activity yet.
                 </p>
               )}
@@ -331,7 +331,7 @@ export default function ProgressPage() {
                   <TopicCard key={topic.subject} topic={topic} tone="weak" />
                 ))
               ) : (
-                <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                <p className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-400">
                   No weak topics yet. Take a quiz to activate this.
                 </p>
               )}
@@ -350,7 +350,7 @@ export default function ProgressPage() {
                   <TopicCard key={topic.subject} topic={topic} tone="strong" />
                 ))
               ) : (
-                <p className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-400">
+                <p className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-400">
                   Strong topics will appear after correct quiz or flashcard answers.
                 </p>
               )}
@@ -362,28 +362,28 @@ export default function ProgressPage() {
             <h3 className="panel-title text-white">What StudySnap is tracking</h3>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-sm font-black text-white">Quiz answers</p>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   Correct, wrong, confidence, and speed update learning memory.
                 </p>
               </div>
 
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-sm font-black text-white">Weak concepts</p>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   Missed and low-confidence areas become review targets.
                 </p>
               </div>
 
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-sm font-black text-white">Strong concepts</p>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   Correct answers increase confidence and mastery.
                 </p>
               </div>
 
-              <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4">
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-sm font-black text-white">Daily progress</p>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   The dashboard changes as the student studies.

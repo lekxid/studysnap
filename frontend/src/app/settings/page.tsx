@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import {
+  announceProfileUpdated,
   getCurrentUser,
+  getCurrentUserAvatarBlob,
   getGoogleDriveConnectUrl,
   getGoogleDriveFiles,
   importGoogleDrivePDF,
@@ -16,9 +18,11 @@ import {
   getUserSettings,
   logoutAllSessions,
   logoutOtherSessions,
+  removeCurrentUserAvatar,
   revokeUserSession,
   updateCurrentUserProfile,
   updateUserSettings,
+  uploadCurrentUserAvatar,
   type GoogleDriveFile,
   type GoogleDriveIntegrationStatus,
   type StudyRoom,
@@ -158,6 +162,18 @@ const notificationOptions = [
   "Study reminders",
   "Daily summary",
   "Off",
+];
+
+const greetingEmojiOptions = [
+  "👋",
+  "😊",
+  "📚",
+  "⭐",
+  "🎓",
+  "🔥",
+  "💪",
+  "✨",
+  "",
 ];
 
 const connectedAppLabels: Record<string, string> = {
@@ -380,7 +396,6 @@ function getDriveFileKind(mimeType?: string | null) {
 
 export default function SettingsPage() {
   const ready = useRequireAuth();
-
   const [activeSettingsTab, setActiveSettingsTab] =
     useState<SettingsTab>("profile");
 
@@ -395,7 +410,16 @@ export default function SettingsPage() {
   const [account, setAccount] = useState<UserProfile | null>(null);
   const [accountStatus, setAccountStatus] = useState("Loading account...");
   const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileEmojiDraft, setProfileEmojiDraft] =
+    useState("👋");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] =
+    useState<string | null>(null);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  const accountSectionRef =
+    useRef<HTMLDivElement | null>(null);
   const [googleDriveStatus, setGoogleDriveStatus] =
     useState<GoogleDriveIntegrationStatus | null>(null);
   const [integrationMessage, setIntegrationMessage] = useState("");
@@ -429,6 +453,61 @@ export default function SettingsPage() {
     filename: string;
     roomName: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (
+      !ready ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const params = new URLSearchParams(
+      window.location.search
+    );
+
+    const requestedTab =
+      params.get("tab");
+
+    const requestedFocus =
+      params.get("focus");
+
+    if (requestedTab === "profile") {
+      setActiveSettingsTab("profile");
+    }
+
+    if (requestedFocus !== "account") {
+      return;
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+
+    const timer = window.setTimeout(() => {
+      accountSectionRef.current?.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [ready]);
+
+  useEffect(() => {
+    if (!account) return;
+
+    setProfileEmojiDraft(
+      account.greeting_emoji ?? ""
+    );
+  }, [
+    account?.id,
+    account?.greeting_emoji,
+  ]);
 
   useEffect(() => {
     if (!ready) return;
@@ -637,6 +716,145 @@ export default function SettingsPage() {
     );
   }
 
+  async function loadAvatarPreview(
+    profile: UserProfile | null
+  ) {
+    if (!profile?.avatar_url) {
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+      return;
+    }
+
+    try {
+      const blob = await getCurrentUserAvatarBlob();
+
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return blob ? URL.createObjectURL(blob) : null;
+      });
+    } catch (error) {
+      console.error("Could not load profile picture.", error);
+      setAvatarPreviewUrl(null);
+    }
+  }
+
+  function openAvatarPicker() {
+    if (avatarSaving) return;
+
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
+      avatarInputRef.current.click();
+    }
+  }
+
+  async function handleAvatarSelected(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setAccountStatus("Use a JPG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAccountStatus("Profile pictures must be 5 MB or smaller.");
+      return;
+    }
+
+    const temporaryPreview = URL.createObjectURL(file);
+
+    setAvatarPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return temporaryPreview;
+    });
+
+    setAvatarSaving(true);
+    setAccountStatus("Uploading profile picture...");
+
+    try {
+      const updatedProfile =
+        await uploadCurrentUserAvatar(file);
+
+      setAccount(updatedProfile);
+      announceProfileUpdated(updatedProfile);
+      await loadAvatarPreview(updatedProfile);
+
+      setAccountStatus("Profile picture updated.");
+      setSavedMessage("Profile picture updated.");
+    } catch (error) {
+      console.error(error);
+      setAccountStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not update profile picture."
+      );
+
+      await loadAvatarPreview(account);
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (avatarSaving || !account?.avatar_url) return;
+
+    setAvatarSaving(true);
+    setAccountStatus("Removing profile picture...");
+
+    try {
+      await removeCurrentUserAvatar();
+
+      const updatedProfile = {
+        ...account,
+        avatar_url: null,
+      };
+
+      setAccount(updatedProfile);
+      announceProfileUpdated(updatedProfile);
+
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+
+      setAccountStatus("Profile picture removed.");
+      setSavedMessage("Profile picture removed.");
+    } catch (error) {
+      console.error(error);
+      setAccountStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not remove profile picture."
+      );
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
+
+  function openUniversalUpload() {
+    window.dispatchEvent(
+      new CustomEvent(
+        "studysnap:open-universal-upload",
+        {
+          detail: {
+            openPanel: true,
+          },
+        }
+      )
+    );
+  }
+
   async function handleSaveProfileName() {
     const fullName = profileNameDraft.trim();
 
@@ -648,16 +866,24 @@ export default function SettingsPage() {
     setProfileSaving(true);
 
     try {
-      const updatedProfile = await updateCurrentUserProfile(fullName);
+      const updatedProfile =
+        await updateCurrentUserProfile(
+          fullName,
+          profileEmojiDraft
+        );
 
       setAccount(updatedProfile);
-      setProfileNameDraft(updatedProfile.full_name || fullName);
-      setAccountStatus("Profile name updated.");
-      setSavedMessage("Profile name updated.");
+      setProfileNameDraft(
+        updatedProfile.full_name || fullName
+      );
+      setProfileEmojiDraft(
+        updatedProfile.greeting_emoji ?? ""
+      );
+      setAccountStatus("Profile updated.");
+      setSavedMessage("Profile updated.");
+      announceProfileUpdated(updatedProfile);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("studysnap_user", JSON.stringify(updatedProfile));
-
         window.setTimeout(() => {
           setSavedMessage("");
         }, 1800);
@@ -858,9 +1084,10 @@ export default function SettingsPage() {
       setAccount(profile);
       setProfileNameDraft(profile.full_name || "");
       setAccountStatus("Account verified and synced.");
+      await loadAvatarPreview(profile);
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("studysnap_user", JSON.stringify(profile));
+        announceProfileUpdated(profile);
       }
     } catch (error) {
       console.error(error);
@@ -941,7 +1168,7 @@ export default function SettingsPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen bg-black p-6 text-white">
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
         Checking authentication...
       </div>
     );
@@ -952,9 +1179,9 @@ export default function SettingsPage() {
       title="Settings"
       subtitle="Manage your synced learning profile, AI memory, future app connections, privacy, and StudySnap setup."
     >
-      <div className="content-grid">
-        <section className="sticky top-4 z-20 rounded-[1.6rem] border border-white/10 bg-[#07111e]/95 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur">
-          <div className="grid gap-2 md:grid-cols-4">
+      <div className="settings-page content-grid min-w-0 max-w-full overflow-x-clip">
+        <section className="settings-tabs sticky top-[64px] z-20 min-w-0 rounded-[1.2rem] border border-white/10 bg-[#0d1218]/95 p-2 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur sm:top-4 sm:rounded-[1.6rem] sm:p-3">
+          <div className="settings-tab-grid grid grid-cols-4 gap-1.5 md:gap-2">
             {settingsTabs.map((tab) => {
               const active = activeSettingsTab === tab.id;
 
@@ -965,14 +1192,14 @@ export default function SettingsPage() {
                   onClick={() => setActiveSettingsTab(tab.id)}
                   className={`rounded-[1.2rem] border px-4 py-3 text-left transition ${
                     active
-                      ? "border-yellow-300/35 bg-yellow-300/15 text-yellow-50"
+                      ? "border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] text-[#ece8da]"
                       : "border-white/8 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
                   }`}
                 >
                   <p className="text-sm font-black">{tab.label}</p>
                   <p
                     className={`mt-1 text-xs leading-5 ${
-                      active ? "text-yellow-50/80" : "text-slate-500"
+                      active ? "text-[#cec18d]" : "text-slate-500"
                     }`}
                   >
                     {tab.description}
@@ -998,35 +1225,35 @@ export default function SettingsPage() {
                   and StudySnap identity from one clean place.
                 </p>
 
-                <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+                <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-white/[0.025] px-4 py-3 text-sm font-bold text-slate-200">
                   {isSaving ? "Saving to account..." : syncStatus}
                 </div>
 
                 <div className="mt-7 grid gap-4 sm:grid-cols-4">
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Style</p>
-                    <p className="mt-3 text-lg font-black text-cyan-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.style}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Level</p>
-                    <p className="mt-3 text-lg font-black text-amber-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.level}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Subjects</p>
-                    <p className="mt-3 text-lg font-black text-violet-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.subjects}
                     </p>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/10 bg-black/20 p-4">
+                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-4">
                     <p className="kpi-label">Favorite</p>
-                    <p className="mt-3 text-lg font-black text-emerald-300">
+                    <p className="mt-3 text-lg font-black text-[#ece8da]">
                       {profileSummary.favorite}
                     </p>
                   </div>
@@ -1061,12 +1288,72 @@ export default function SettingsPage() {
             </section>
 
             <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-              <div className="premium-card gold-border rounded-[2rem] p-6">
+              <div
+                id="profile-account"
+                ref={accountSectionRef}
+                className="premium-card gold-border scroll-mt-[5.5rem] rounded-[2rem] p-6"
+              >
                 <div className="gold-chip mb-4">Account</div>
 
                 <div className="flex flex-wrap items-start gap-5">
-                  <div className="grid h-20 w-20 shrink-0 place-items-center rounded-[1.6rem] border border-yellow-300/25 bg-yellow-300/15 text-2xl font-black text-yellow-100">
-                    {accountSummary.initials}
+                  <div className="shrink-0">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleAvatarSelected}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={openAvatarPicker}
+                      disabled={avatarSaving}
+                      className="relative grid h-20 w-20 overflow-hidden rounded-[1.6rem] border border-[#c9ad50]/[0.22] bg-[#c9ad50]/[0.12] text-2xl font-black text-[#ece8da] disabled:cursor-wait disabled:opacity-70"
+                      title={
+                        account?.avatar_url
+                          ? "Change profile picture"
+                          : "Upload profile picture"
+                      }
+                    >
+                      {avatarPreviewUrl ? (
+                        <img
+                          src={avatarPreviewUrl}
+                          alt={`${accountSummary.name} profile`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="place-self-center">
+                          {accountSummary.initials}
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="mt-2 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={openAvatarPicker}
+                        disabled={avatarSaving}
+                        className="text-xs font-black text-[#c9ad50] disabled:opacity-60"
+                      >
+                        {avatarSaving
+                          ? "Saving..."
+                          : account?.avatar_url
+                            ? "Change picture"
+                            : "Upload picture"}
+                      </button>
+
+                      {account?.avatar_url ? (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          disabled={avatarSaving}
+                          className="text-xs font-bold text-slate-500 transition hover:text-red-200 disabled:opacity-60"
+                        >
+                          Remove picture
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -1098,8 +1385,54 @@ export default function SettingsPage() {
                         disabled={profileSaving}
                         className="premium-button shrink-0 rounded-[1.2rem] px-5 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {profileSaving ? "Saving..." : "Save name"}
+                        {profileSaving ? "Saving..." : "Save profile"}
                       </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-white">
+                            Greeting emoji
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Shown beside your name on Home.
+                          </p>
+                        </div>
+
+                        <span className="text-2xl">
+                          {profileEmojiDraft || "—"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {greetingEmojiOptions.map((emoji) => {
+                          const active =
+                            profileEmojiDraft === emoji;
+
+                          return (
+                            <button
+                              key={emoji || "none"}
+                              type="button"
+                              aria-label={
+                                emoji
+                                  ? `Use ${emoji} as greeting emoji`
+                                  : "Use no greeting emoji"
+                              }
+                              onClick={() =>
+                                setProfileEmojiDraft(emoji)
+                              }
+                              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-black transition ${
+                                active
+                                  ? "border-[#c9ad50]/50 bg-[#c9ad50]/15 text-[#ece1ae]"
+                                  : "border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.07]"
+                              }`}
+                            >
+                              {emoji || "None"}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -1112,7 +1445,7 @@ export default function SettingsPage() {
 
                       <div className="rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3">
                         <p className="kpi-label">AI mode</p>
-                        <p className="mt-2 text-sm font-black text-cyan-200">
+                        <p className="mt-2 text-sm font-black text-slate-200">
                           {accountSummary.learningMode}
                         </p>
                       </div>
@@ -1125,7 +1458,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-[1.1rem] border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-100">
+                    <div className="mt-4 rounded-[1.1rem] border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-bold text-slate-200">
                       {accountStatus}
                     </div>
                   </div>
@@ -1264,7 +1597,7 @@ export default function SettingsPage() {
                   These subjects personalize your StudySnap workspace.
                 </p>
 
-                <div className="mt-5 flex gap-3">
+                <div className="mt-4 flex min-w-0 flex-col gap-2 sm:mt-5 sm:flex-row sm:gap-3">
                   <input
                     className="rounded-[1.2rem] px-4 py-3.5"
                     placeholder="Add subject, example: Anatomy"
@@ -1321,7 +1654,7 @@ export default function SettingsPage() {
 
               <div className="premium-card gold-border rounded-[2rem] p-6">
                 <div className="gold-chip mb-4">Privacy</div>
-                  <h3 className="panel-title text-white">Progress sharing</h3>
+                <h3 className="panel-title text-white">Progress sharing</h3>
 
                   <div className="mt-5 grid gap-3">
                     {sharingOptions.map((item) => {
@@ -1461,7 +1794,34 @@ export default function SettingsPage() {
 
         {activeSettingsTab === "integrations" ? (
           <>
-            <section className="rounded-[1.6rem] border border-emerald-300/15 bg-emerald-400/10 p-5">
+            <section className="rounded-[1.6rem] border border-white/[0.07] bg-[#12181e] p-5">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="mb-3 inline-flex rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] px-3 py-1.5 text-[11px] font-black text-[#cec18d]">
+                    Files & uploads
+                  </div>
+
+                  <h3 className="panel-title text-white">
+                    Add files to StudySnap
+                  </h3>
+
+                  <p className="panel-muted mt-2 max-w-2xl">
+                    Upload a document, image, audio file, video, code file, or
+                    other study material and choose the Study Room where it belongs.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openUniversalUpload}
+                  className="shrink-0 rounded-xl bg-[#c9ad50] px-5 py-3 text-sm font-black text-[#111317] transition hover:bg-[#d5bb63]"
+                >
+                  Upload a file
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-[1.6rem] border border-white/[0.07] bg-[#12181e] p-5">
               <div className="gold-chip mb-3">Connected apps workspace</div>
               <h3 className="panel-title text-white">
                 Manage files, Drive, and future imports.
@@ -1668,7 +2028,7 @@ export default function SettingsPage() {
                     Only PDF files show the import button for now. Google Docs import as notes comes next.
                   </p>
 
-                  <div className="mt-3 rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-xs font-bold text-slate-300">
+                  <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.025] px-4 py-3 text-xs font-bold text-slate-300">
                     Destination:{" "}
                     <span className="text-cyan-100">
                       {getDriveImportRoomLabel(selectedDriveImportRoomId)}
@@ -1932,7 +2292,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-sm font-bold text-slate-200">
+              <div className="mt-4 rounded-[1.2rem] border border-white/10 bg-white/[0.025] px-4 py-3 text-sm font-bold text-slate-200">
                 {sessionsStatus}
               </div>
 

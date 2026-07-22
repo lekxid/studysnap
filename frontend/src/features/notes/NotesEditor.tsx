@@ -48,104 +48,130 @@ export default function NotesEditor({
   onQuiz,
   onAskAI,
 }: Props) {
-  const hasNoteContent = content.trim().length > 0;
+  const hasNoteContent =
+    content.trim().length > 0;
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#0a1022] p-6 shadow-2xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300/80">
-            Study Notes
-          </p>
-          <h3 className="mt-2 text-2xl font-bold text-white">
-            Write a study note
-          </h3>
-          <p className="mt-2 text-sm text-white/60">
-            Write naturally. StudySnap keeps this note connected to your room and AI Tutor.
-          </p>
-        </div>
-
-        <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-sm text-white/70">
-          {saveStatus === "saving"
-            ? "Saving..."
-            : saveStatus === "saved"
-              ? "✓ Saved"
-              : "Database ready"}
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-4">
-        <NotesAIToolbar
-          hasContent={hasNoteContent}
-          onSummarize={onSummarize}
-          onExplain={onExplain}
-          onLesson={onLesson}
-          onFlashcards={onFlashcards}
-          onQuiz={onQuiz}
-          onAskAI={onAskAI}
-        />
-
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-white/70">
-            Study Room
-          </span>
-          <select
-            className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-300"
-            value={selectedRoomId ?? ""}
-            onChange={(e) => onRoomChange(Number(e.target.value))}
-            disabled={loadingRooms || rooms.length === 0}
-          >
-            {rooms.length === 0 ? (
-              <option value="">No study rooms found</option>
-            ) : (
-              rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name} — {room.subject}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
-
-        <input
-          className="w-full rounded-xl border border-white/20 bg-black px-4 py-3 text-white outline-none transition placeholder:text-white/30 focus:border-yellow-300"
-          placeholder="Note title"
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-        />
-
-        <textarea
-          className="min-h-[380px] w-full resize-y rounded-xl border border-white/20 bg-black px-4 py-4 text-white outline-none transition placeholder:text-white/30 focus:border-yellow-300"
-          placeholder="Start with class notes, key ideas, or anything you want to remember..."
-          value={content}
-          onChange={(e) => onContentChange(e.target.value)}
-        />
-
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-white/60">
-          <div>
-            {wordCount} words · {characterCount} characters
-          </div>
+    <section className="rounded-[1.6rem] border border-white/[0.1] bg-[linear-gradient(145deg,rgba(15,21,27,0.96),rgba(2,5,8,0.99))] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-3xl sm:p-5">
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-black text-white">
+            Note
+          </h2>
 
           {selectedRoom ? (
-            <div>
-              Saving into:{" "}
-              <span className="font-semibold text-yellow-200">
-                {selectedRoom.name}
-              </span>
-            </div>
+            <p className="mt-1 max-w-[15rem] truncate text-xs font-bold text-[#b9a75f] sm:max-w-md">
+              {selectedRoom.name}
+            </p>
           ) : null}
         </div>
 
-        <button
-          onClick={onSave}
-          disabled={saving || rooms.length === 0}
-          className="w-full rounded-xl bg-yellow-300 px-4 py-3 font-black text-slate-950 transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-50"
+        <span className="shrink-0 rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold text-slate-400">
+          {saveStatus === "saving"
+            ? "Saving…"
+            : saveStatus === "saved"
+              ? "✓ Saved"
+              : "Ready"}
+        </span>
+      </header>
+
+      <div className="mt-4 space-y-3">
+        <select
+          aria-label="Study room"
+          className="w-full rounded-xl border border-white/[0.1] bg-[#030609] px-4 py-3 text-sm text-white outline-none focus:border-[#c9ad50]/40"
+          value={selectedRoomId ?? ""}
+          onChange={(event) =>
+            onRoomChange(
+              Number(event.target.value)
+            )
+          }
+          disabled={
+            loadingRooms || rooms.length === 0
+          }
         >
-          {saving ? "Saving Note..." : "Save Note"}
-        </button>
+          {rooms.length === 0 ? (
+            <option value="">
+              No rooms
+            </option>
+          ) : (
+            rooms.map((room) => (
+              <option
+                key={room.id}
+                value={room.id}
+                className="bg-[#030609]"
+              >
+                {room.name}
+              </option>
+            ))
+          )}
+        </select>
+
+        <input
+          className="w-full rounded-xl border border-white/[0.1] bg-[#030609] px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/40"
+          placeholder="Title"
+          value={title}
+          onChange={(event) =>
+            onTitleChange(event.target.value)
+          }
+        />
+
+        <textarea
+          className="min-h-[260px] w-full resize-y rounded-[1.1rem] border border-white/[0.1] bg-[#030609] px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/40 sm:min-h-[360px]"
+          placeholder="Start writing…"
+          value={content}
+          onChange={(event) =>
+            onContentChange(event.target.value)
+          }
+        />
+
+        <details className="group overflow-hidden rounded-[1.1rem] border border-white/[0.09] bg-white/[0.025]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span className="flex items-center gap-2 text-sm font-black text-slate-200">
+              <span className="text-[#d9c575]">
+                ✦
+              </span>
+
+              AI tools
+            </span>
+
+            <span className="text-xs text-slate-500 transition group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <div className="border-t border-white/[0.08] p-3">
+            <NotesAIToolbar
+              hasContent={hasNoteContent}
+              onSummarize={onSummarize}
+              onExplain={onExplain}
+              onLesson={onLesson}
+              onFlashcards={onFlashcards}
+              onQuiz={onQuiz}
+              onAskAI={onAskAI}
+            />
+          </div>
+        </details>
+
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold text-slate-600">
+            {wordCount} words ·{" "}
+            {characterCount} characters
+          </p>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={
+              saving || rooms.length === 0
+            }
+            className="shrink-0 rounded-xl border border-[#edd36d]/30 bg-[linear-gradient(145deg,#d8be58,#aa8730)] px-5 py-2.5 text-sm font-black text-[#050608] shadow-[0_10px_25px_rgba(201,173,80,0.16),inset_0_1px_0_rgba(255,255,255,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+          <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200">
             {error}
           </div>
         ) : null}

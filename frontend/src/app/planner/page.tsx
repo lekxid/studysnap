@@ -10,6 +10,7 @@ import {
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import useRequireAuth from "@/hooks/useRequireAuth";
+import { apiFetch } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type PlannerItem = {
@@ -21,6 +22,21 @@ type PlannerItem = {
   duration?: number;
   priority?: "Low" | "Medium" | "High";
   status?: "Planned" | "Done";
+};
+
+type ApiPlannerItem = {
+  id: number;
+  user_id: number;
+  study_room_id: number | null;
+  title: string;
+  subject: string;
+  description: string | null;
+  scheduled_for: string;
+  duration_minutes: number;
+  priority: "Low" | "Medium" | "High";
+  status: "Planned" | "Done";
+  created_at: string;
+  updated_at: string;
 };
 
 type SettingsState = {
@@ -36,6 +52,8 @@ type SettingsState = {
 const STORAGE_KEY = "studysnap_planner_items";
 const NOTICE_KEY = "studysnap_notifications";
 const SETTINGS_KEY = "studysnap_settings";
+const CLOUD_IMPORT_KEY =
+  "studysnap_planner_cloud_import_v1";
 
 const defaultSettings: SettingsState = {
   learningMode: "Clear Explain",
@@ -49,6 +67,49 @@ const defaultSettings: SettingsState = {
 
 function getTodayDateInput() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function buildScheduledFor(
+  date: string,
+  time?: string,
+) {
+  return `${date}T${time || "00:00"}:00`;
+}
+
+function mapApiPlannerItem(
+  item: ApiPlannerItem,
+): PlannerItem {
+  const [
+    datePart,
+    timeWithSeconds = "",
+  ] = item.scheduled_for.split("T");
+
+  const timePart = timeWithSeconds.slice(0, 5);
+
+  return {
+    id: item.id,
+    title: item.title,
+    subject: item.subject,
+    date: datePart,
+    time:
+      timePart && timePart !== "00:00"
+        ? timePart
+        : "",
+    duration: item.duration_minutes,
+    priority: item.priority,
+    status: item.status,
+  };
+}
+
+function planMatchesContext(
+  item: ApiPlannerItem,
+  connectedRoomId: number | null,
+) {
+  if (connectedRoomId !== null) {
+    return item.study_room_id === connectedRoomId;
+  }
+
+  return item.study_room_id === null;
 }
 
 function formatTime(totalSeconds: number) {
@@ -100,9 +161,23 @@ function getPriorityStyle(priority?: PlannerItem["priority"]) {
 export default function PlannerPage() {
   const ready = useRequireAuth();
 
-  const [connectedRoomId, setConnectedRoomId] = useState<number | null>(null);
-  const [items, setItems] = useState<PlannerItem[]>([]);
-  const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+  const [connectedRoomId, setConnectedRoomId] =
+    useState<number | null>(null);
+
+  const [plannerContextReady, setPlannerContextReady] =
+    useState(false);
+
+  const [plannerLoading, setPlannerLoading] =
+    useState(true);
+
+  const [plannerBusy, setPlannerBusy] =
+    useState(false);
+
+  const [items, setItems] =
+    useState<PlannerItem[]>([]);
+
+  const [settings, setSettings] =
+    useState<SettingsState>(defaultSettings);
 
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -123,22 +198,32 @@ export default function PlannerPage() {
   useEffect(() => {
     if (!ready) return;
 
-    const requestedRoomId = getActiveProjectRoomId();
+    const requestedRoomId =
+      getActiveProjectRoomId();
 
     if (requestedRoomId !== null) {
       saveProjectRoomId(requestedRoomId);
-      ensureProjectRoomIdInUrl(requestedRoomId);
+      ensureProjectRoomIdInUrl(
+        requestedRoomId
+      );
       setConnectedRoomId(requestedRoomId);
     } else {
       setConnectedRoomId(null);
     }
 
-    const savedSettings = loadJSON<SettingsState>(SETTINGS_KEY, defaultSettings);
+    const savedSettings =
+      loadJSON<SettingsState>(
+        SETTINGS_KEY,
+        defaultSettings
+      );
+
     const mergedSettings = {
       ...defaultSettings,
       ...savedSettings,
       selectedSubjects:
-        Array.isArray(savedSettings.selectedSubjects) &&
+        Array.isArray(
+          savedSettings.selectedSubjects
+        ) &&
         savedSettings.selectedSubjects.length > 0
           ? savedSettings.selectedSubjects
           : defaultSettings.selectedSubjects,
@@ -146,19 +231,167 @@ export default function PlannerPage() {
 
     setSettings(mergedSettings);
 
-    if (!subject.trim()) {
-      setSubject(
+    setSubject((currentSubject) => {
+      if (currentSubject.trim()) {
+        return currentSubject;
+      }
+
+      return (
         mergedSettings.favoriteSubject ||
-          mergedSettings.selectedSubjects[0] ||
-          defaultSettings.selectedSubjects[0]
+        mergedSettings.selectedSubjects[0] ||
+        defaultSettings.selectedSubjects[0]
       );
-    }
-  }, [ready, subject]);
+    });
+
+    setPlannerContextReady(true);
+  }, [ready]);
 
   useEffect(() => {
-    if (!ready) return;
-    setItems(loadJSON<PlannerItem[]>(storageKey, []));
-  }, [ready, storageKey]);
+    if (
+      !ready ||
+      !plannerContextReady
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadCloudPlanner() {
+      setPlannerLoading(true);
+      setError("");
+
+      try {
+        let cloudPlans =
+          await apiFetch(
+            "/api/planner"
+          ) as ApiPlannerItem[];
+
+        const contextPlans =
+          cloudPlans.filter((plan) =>
+            planMatchesContext(
+              plan,
+              connectedRoomId
+            )
+          );
+
+        const legacyItems =
+          loadJSON<PlannerItem[]>(
+            storageKey,
+            []
+          );
+
+        const migrationMarker =
+          `${CLOUD_IMPORT_KEY}:${storageKey}`;
+
+        const shouldImport =
+          contextPlans.length === 0 &&
+          legacyItems.length > 0 &&
+          !window.localStorage.getItem(
+            migrationMarker
+          );
+
+        if (shouldImport) {
+          const importedPlans:
+            ApiPlannerItem[] = [];
+
+          for (const legacyItem of legacyItems) {
+            let imported =
+              await apiFetch(
+                "/api/planner",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    title: legacyItem.title,
+                    subject:
+                      legacyItem.subject ||
+                      "Study",
+                    description: null,
+                    scheduled_for:
+                      buildScheduledFor(
+                        legacyItem.date,
+                        legacyItem.time
+                      ),
+                    duration_minutes:
+                      legacyItem.duration ||
+                      25,
+                    priority:
+                      legacyItem.priority ||
+                      "Medium",
+                    study_room_id:
+                      connectedRoomId,
+                  }),
+                }
+              ) as ApiPlannerItem;
+
+            if (
+              legacyItem.status === "Done"
+            ) {
+              imported =
+                await apiFetch(
+                  `/api/planner/${imported.id}`,
+                  {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                      status: "Done",
+                    }),
+                  }
+                ) as ApiPlannerItem;
+            }
+
+            importedPlans.push(imported);
+          }
+
+          window.localStorage.setItem(
+            migrationMarker,
+            "complete"
+          );
+
+          cloudPlans = [
+            ...cloudPlans,
+            ...importedPlans,
+          ];
+        }
+
+        if (cancelled) return;
+
+        setItems(
+          cloudPlans
+            .filter((plan) =>
+              planMatchesContext(
+                plan,
+                connectedRoomId
+              )
+            )
+            .map(mapApiPlannerItem)
+        );
+      } catch (loadError) {
+        if (cancelled) return;
+
+        setItems([]);
+
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Your cloud planner could not be loaded."
+        );
+      } finally {
+        if (!cancelled) {
+          setPlannerLoading(false);
+        }
+      }
+    }
+
+    void loadCloudPlanner();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    ready,
+    plannerContextReady,
+    connectedRoomId,
+    storageKey,
+  ]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -223,24 +456,28 @@ export default function PlannerPage() {
     });
   }, [items]);
 
-  function persist(next: PlannerItem[]) {
-    setItems(next);
-    saveJSON(storageKey, next);
-  }
-
   function addNotification(text: string) {
     const current = loadJSON<any[]>(NOTICE_KEY, []);
+    const now = new Date();
+
     saveJSON(NOTICE_KEY, [
       {
-        id: Date.now(),
+        id: now.getTime(),
         text,
-        createdAt: new Date().toLocaleString(),
+        createdAt: now.toLocaleString(),
+        createdAtIso: now.toISOString(),
+        href: "/planner",
+        actionLabel: "Open planner",
+        kind: "planner",
+        read: false,
       },
       ...current,
     ]);
   }
 
-  function addItem() {
+  async function addItem() {
+    if (plannerBusy) return;
+
     if (!title.trim()) {
       setError("Enter a study task.");
       return;
@@ -257,72 +494,195 @@ export default function PlannerPage() {
     }
 
     setError("");
+    setPlannerBusy(true);
 
-    const next: PlannerItem[] = [
-      {
-        id: Date.now(),
-        title: title.trim(),
-        subject: subject.trim(),
-        date,
-        time,
-        duration: Number(duration) || 25,
-        priority,
-        status: "Planned",
-      },
-      ...items,
-    ];
+    try {
+      const created =
+        await apiFetch(
+          "/api/planner",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              title: title.trim(),
+              subject: subject.trim(),
+              description: null,
+              scheduled_for:
+                buildScheduledFor(
+                  date,
+                  time
+                ),
+              duration_minutes:
+                Number(duration) || 25,
+              priority,
+              study_room_id:
+                connectedRoomId,
+            }),
+          }
+        ) as ApiPlannerItem;
 
-    persist(next);
-    addNotification(`📘 Study session added: ${title.trim()} (${subject.trim()})`);
+      setItems((currentItems) => [
+        mapApiPlannerItem(created),
+        ...currentItems,
+      ]);
 
-    setTitle("");
-    setDate(getTodayDateInput());
-    setTime("");
-    setDuration("25");
-    setPriority("Medium");
+      addNotification(
+        `📘 Study session added: ` +
+        `${title.trim()} ` +
+        `(${subject.trim()})`
+      );
+
+      setTitle("");
+      setDate(getTodayDateInput());
+      setTime("");
+      setDuration("25");
+      setPriority("Medium");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "The study session could not be saved."
+      );
+    } finally {
+      setPlannerBusy(false);
+    }
   }
 
-  function addDailyGoalPlan() {
-    const goalTitle = settings.dailyGoal || "Study for 25 minutes";
+  async function addDailyGoalPlan() {
+    if (plannerBusy) return;
+
+    const goalTitle =
+      settings.dailyGoal ||
+      "Study for 25 minutes";
+
     const goalSubject =
-      settings.favoriteSubject || settings.selectedSubjects[0] || subject || "Study";
+      settings.favoriteSubject ||
+      settings.selectedSubjects[0] ||
+      subject ||
+      "Study";
 
-    const next: PlannerItem[] = [
-      {
-        id: Date.now(),
-        title: goalTitle,
-        subject: goalSubject,
-        date: getTodayDateInput(),
-        time: "",
-        duration: 25,
-        priority: "High",
-        status: "Planned",
-      },
-      ...items,
-    ];
+    setError("");
+    setPlannerBusy(true);
 
-    persist(next);
-    addNotification(`⭐ Daily smart action planned: ${goalTitle}`);
+    try {
+      const created =
+        await apiFetch(
+          "/api/planner",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              title: goalTitle,
+              subject: goalSubject,
+              description:
+                "Daily smart action",
+              scheduled_for:
+                buildScheduledFor(
+                  getTodayDateInput()
+                ),
+              duration_minutes: 25,
+              priority: "High",
+              study_room_id:
+                connectedRoomId,
+            }),
+          }
+        ) as ApiPlannerItem;
+
+      setItems((currentItems) => [
+        mapApiPlannerItem(created),
+        ...currentItems,
+      ]);
+
+      addNotification(
+        `⭐ Daily smart action planned: ` +
+        goalTitle
+      );
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "The daily action could not be saved."
+      );
+    } finally {
+      setPlannerBusy(false);
+    }
   }
 
-  function removeItem(id: number) {
-    persist(items.filter((item) => item.id !== id));
+  async function removeItem(id: number) {
+    if (plannerBusy) return;
+
+    setError("");
+    setPlannerBusy(true);
+
+    try {
+      await apiFetch(
+        `/api/planner/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      setItems((currentItems) =>
+        currentItems.filter(
+          (item) => item.id !== id
+        )
+      );
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "The study session could not be deleted."
+      );
+    } finally {
+      setPlannerBusy(false);
+    }
   }
 
-  function toggleDone(id: number) {
-    const next: PlannerItem[] = items.map((item): PlannerItem => {
-      if (item.id !== id) return item;
+  async function toggleDone(id: number) {
+    if (plannerBusy) return;
 
-      const nextStatus: PlannerItem["status"] =
-        item.status === "Done" ? "Planned" : "Done";
+    const currentItem =
+      items.find(
+        (item) => item.id === id
+      );
 
-      return {
-        ...item,
-        status: nextStatus,
-      };
-    });
+    if (!currentItem) return;
 
-    persist(next);
+    const nextStatus:
+      PlannerItem["status"] =
+        currentItem.status === "Done"
+          ? "Planned"
+          : "Done";
+
+    setError("");
+    setPlannerBusy(true);
+
+    try {
+      const updated =
+        await apiFetch(
+          `/api/planner/${id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              status: nextStatus,
+            }),
+          }
+        ) as ApiPlannerItem;
+
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          item.id === id
+            ? mapApiPlannerItem(updated)
+            : item
+        )
+      );
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "The study session could not be updated."
+      );
+    } finally {
+      setPlannerBusy(false);
+    }
   }
 
   function resetTimer() {
@@ -501,9 +861,12 @@ export default function PlannerPage() {
               <button
                 type="button"
                 onClick={addItem}
-                className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black"
+                disabled={plannerBusy}
+                className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Save session
+                {plannerBusy
+                  ? "Saving..."
+                  : "Save session"}
               </button>
 
               {error ? (
@@ -585,7 +948,11 @@ export default function PlannerPage() {
               </div>
             </div>
 
-            {sortedItems.length === 0 ? (
+            {plannerLoading ? (
+              <div className="empty-state mt-6">
+                Loading your cloud planner...
+              </div>
+            ) : sortedItems.length === 0 ? (
               <div className="empty-state mt-6">
                 No sessions yet. Add your first study plan.
               </div>

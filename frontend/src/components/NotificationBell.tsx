@@ -13,12 +13,13 @@ import {
 } from "@/features/projects/projectRoomContext";
 import {
   getLearningInsights,
+  getSmartDashboard,
   getUserSettings,
 } from "@/lib/api";
 import { loadJSON, saveJSON } from "@/lib/storage";
 
 type Notice = {
-  id: number;
+  id: number | string;
   text: string;
   createdAt: string;
   createdAtIso?: string;
@@ -28,7 +29,9 @@ type Notice = {
     | "planner"
     | "study-reminder"
     | "daily-summary"
+    | "dashboard"
     | "general";
+  source?: "dashboard" | "local";
   dedupeKey?: string;
   read?: boolean;
 };
@@ -43,6 +46,8 @@ const REMINDER_SNOOZED_UNTIL_KEY =
   "studysnap:study-reminder-snoozed-until";
 const LAST_DAILY_SUMMARY_DAY_KEY =
   "studysnap:last-daily-summary-day";
+const DISMISSED_DASHBOARD_NOTICES_KEY =
+  "studysnap:dismissed-dashboard-notifications";
 
 const REMINDER_AFTER_HOURS = 24;
 const MAX_NOTIFICATIONS = 30;
@@ -132,7 +137,8 @@ function normalizeNotices(value: Notice[]) {
     .filter(
       (item) =>
         item &&
-        typeof item.id === "number" &&
+        (typeof item.id === "number" ||
+          typeof item.id === "string") &&
         typeof item.text === "string"
     )
     .slice(0, MAX_NOTIFICATIONS);
@@ -468,6 +474,79 @@ export default function NotificationBell() {
         }
       }
 
+      try {
+        const dashboard = await getSmartDashboard({
+          limit: 1,
+        });
+
+        const dismissedKeys = new Set(
+          loadJSON<string[]>(
+            DISMISSED_DASHBOARD_NOTICES_KEY,
+            []
+          )
+        );
+
+        const existingByDedupeKey = new Map(
+          nextItems
+            .filter(
+              (item) =>
+                typeof item.dedupeKey === "string"
+            )
+            .map((item) => [
+              item.dedupeKey as string,
+              item,
+            ])
+        );
+
+        const dashboardNotices: Notice[] =
+          dashboard.needs_attention
+            .map((signal) => {
+              const dedupeKey = [
+                "dashboard",
+                signal.id,
+                signal.created_at,
+              ].join(":");
+
+              const existing =
+                existingByDedupeKey.get(dedupeKey);
+
+              return {
+                id: dedupeKey,
+                kind: "dashboard" as const,
+                source: "dashboard" as const,
+                dedupeKey,
+                read: existing?.read === true,
+                text: signal.description
+                  ? `${signal.title}: ${signal.description}`
+                  : signal.title,
+                createdAt: signal.created_at,
+                createdAtIso: signal.created_at,
+                href: signal.action_href,
+                actionLabel: signal.action_label,
+              };
+            })
+            .filter(
+              (item) =>
+                !dismissedKeys.has(
+                  item.dedupeKey as string
+                )
+            );
+
+        const localNotices = nextItems.filter(
+          (item) => item.source !== "dashboard"
+        );
+
+        nextItems = [
+          ...dashboardNotices,
+          ...localNotices,
+        ].slice(0, MAX_NOTIFICATIONS);
+
+        saveJSON(STORAGE_KEY, nextItems);
+      } catch {
+        // Keep previously loaded notifications if dashboard
+        // intelligence is temporarily unavailable.
+      }
+
       setItems(nextItems);
 
       window.localStorage.setItem(
@@ -537,24 +616,73 @@ export default function NotificationBell() {
     const nextOpen = !open;
 
     if (nextOpen) {
-      const latest = reloadNotifications();
-
-      const markedRead = latest.map((item) => ({
-        ...item,
-        read: true,
-      }));
-
-      persist(markedRead);
+      reloadNotifications();
     }
 
     setOpen(nextOpen);
   }
 
+  function markAllRead() {
+    persist(
+      items.map((item) => ({
+        ...item,
+        read: true,
+      }))
+    );
+  }
+
+  function handleNoticeOpen(id: Notice["id"]) {
+    persist(
+      items.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              read: true,
+            }
+          : item
+      )
+    );
+
+    setOpen(false);
+  }
+
+  function rememberDismissedDashboardNotices(
+    notices: Notice[]
+  ) {
+    const newKeys = notices
+      .filter(
+        (item) =>
+          item.source === "dashboard" &&
+          typeof item.dedupeKey === "string"
+      )
+      .map((item) => item.dedupeKey as string);
+
+    if (!newKeys.length) {
+      return;
+    }
+
+    const existing = loadJSON<string[]>(
+      DISMISSED_DASHBOARD_NOTICES_KEY,
+      []
+    );
+
+    saveJSON(
+      DISMISSED_DASHBOARD_NOTICES_KEY,
+      Array.from(
+        new Set([
+          ...existing,
+          ...newKeys,
+        ])
+      ).slice(-200)
+    );
+  }
+
   function clearAll() {
+    rememberDismissedDashboardNotices(items);
     persist([]);
   }
 
-  function snoozeReminder(id: number) {
+  function snoozeReminder(id: Notice["id"]) {
     const tomorrow = new Date(
       Date.now() + 24 * 60 * 60 * 1000
     );
@@ -569,7 +697,17 @@ export default function NotificationBell() {
     );
   }
 
-  function dismissNotice(id: number) {
+  function dismissNotice(id: Notice["id"]) {
+    const notice = items.find(
+      (item) => item.id === id
+    );
+
+    if (notice) {
+      rememberDismissedDashboardNotices([
+        notice,
+      ]);
+    }
+
     persist(items.filter((item) => item.id !== id));
   }
 
@@ -613,13 +751,25 @@ export default function NotificationBell() {
             </div>
 
             {items.length ? (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
-              >
-                Clear all
-              </button>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {unreadCount ? (
+                  <button
+                    type="button"
+                    onClick={markAllRead}
+                    className="rounded-lg px-2 py-1 text-xs font-bold text-yellow-200 transition hover:bg-yellow-300/10 hover:text-yellow-100"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="rounded-lg px-2 py-1 text-xs font-bold text-red-300 transition hover:bg-red-400/10 hover:text-red-200"
+                >
+                  Clear all
+                </button>
+              </div>
             ) : null}
           </div>
 
@@ -641,7 +791,10 @@ export default function NotificationBell() {
                 <article
                   key={item.id}
                   className={[
-                    "rounded-2xl border p-4",
+                    "rounded-2xl border p-4 transition",
+                    item.read !== true
+                      ? "ring-1 ring-yellow-300/20"
+                      : "opacity-80",
                     item.kind === "study-reminder"
                       ? "border-yellow-300/25 bg-gradient-to-br from-yellow-300/12 to-cyan-300/[0.05]"
                       : item.kind === "daily-summary"
@@ -682,7 +835,9 @@ export default function NotificationBell() {
                           {item.href && item.actionLabel ? (
                             <Link
                               href={item.href}
-                              onClick={() => setOpen(false)}
+                              onClick={() =>
+                                handleNoticeOpen(item.id)
+                              }
                               className="inline-flex rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
                             >
                               {item.actionLabel} →
@@ -712,7 +867,9 @@ export default function NotificationBell() {
                       ) : item.href && item.actionLabel ? (
                         <Link
                           href={item.href}
-                          onClick={() => setOpen(false)}
+                          onClick={() =>
+                            handleNoticeOpen(item.id)
+                          }
                           className="mt-3 inline-flex rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
                         >
                           {item.actionLabel} →

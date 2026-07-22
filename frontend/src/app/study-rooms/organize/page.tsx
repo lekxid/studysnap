@@ -6,11 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import useRequireAuth from "@/hooks/useRequireAuth";
 import { getToken } from "@/lib/api";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
-  "http://192.168.133.130:8000";
+import { API_BASE } from "@/lib/apiBase";
 
 type PreviewFile = {
   file_index: number;
@@ -282,9 +278,9 @@ export default function SmartOrganizerPage() {
       title="Smart Organizer"
       subtitle="Upload files, screenshots, PDFs, or long notes and let StudySnap organize them into rooms."
     >
-      <div className="content-grid">
-        <section className="hero-grid">
-          <div className="gold-card rounded-[2rem] p-6 sm:p-8">
+      <div className="organizer-glass-page content-grid min-w-0 max-w-full overflow-x-clip">
+        <section className="organizer-overview hero-grid min-w-0">
+          <div className="gold-card min-w-0 rounded-[1.4rem] p-4 sm:rounded-[2rem] sm:p-8">
             <div className="gold-chip mb-4">AI Smart Room Organizer</div>
 
             <h3 className="panel-title text-white text-balance">
@@ -321,7 +317,7 @@ export default function SmartOrganizerPage() {
             </div>
           </div>
 
-          <div className="premium-card gold-border rounded-[2rem] p-6">
+          <div className="organizer-supported premium-card gold-border rounded-[2rem] p-6">
             <div className="gold-chip mb-4">Supported now</div>
             <h3 className="panel-title text-white">Material types</h3>
 
@@ -343,22 +339,21 @@ export default function SmartOrganizerPage() {
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="gold-chip mb-4">Upload batch</div>
-            <h3 className="panel-title text-white">Choose files</h3>
-            <p className="panel-muted mt-3">
-              You can select many files at once, or choose files multiple times
-              and StudySnap will keep adding them to the batch.
+        <section className="grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:gap-5">
+          <div className="organizer-upload-card premium-card gold-border min-w-0 rounded-[1.3rem] p-4 sm:rounded-[2rem] sm:p-6">
+            <div className="gold-chip mb-3 sm:mb-4">1 · Add files</div>
+            <h3 className="panel-title text-white">Choose your materials</h3>
+            <p className="panel-muted mt-2">
+              Add one or more files. A pasted note is optional.
             </p>
 
-            <div className="mt-5 rounded-[1.5rem] border border-dashed border-white/15 bg-black/25 p-5">
+            <div className="mt-5 min-w-0 rounded-[1.2rem] border border-dashed border-white/15 bg-black/25 p-3 sm:rounded-[1.5rem] sm:p-5">
               <input
                 ref={inputRef}
                 type="file"
                 multiple
                 accept="application/pdf,image/*,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                className="w-full rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white"
+                className="block min-w-0 w-full max-w-full overflow-hidden rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-3 py-3 text-sm text-white sm:px-4 sm:py-3.5"
                 onChange={(event) => {
                   appendFiles(Array.from(event.target.files || []));
                 }}
@@ -369,21 +364,21 @@ export default function SmartOrganizerPage() {
                   {files.map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300"
+                      className="flex min-w-0 flex-col items-stretch gap-3 rounded-[1rem] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                     >
-                      <div>
-                        <span className="font-black text-white">
+                      <div className="min-w-0 flex-1">
+                        <span className="block break-all font-black leading-5 text-white">
                           {index + 1}. {file.name}
-                        </span>{" "}
-                        <span className="text-slate-500">
-                          · {formatFileSize(file.size)}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {formatFileSize(file.size)}
                         </span>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="rounded-lg border border-red-300/20 bg-red-500/10 px-3 py-1.5 text-xs font-black text-red-100"
+                        className="self-start rounded-lg border border-red-300/20 bg-red-500/10 px-3 py-1.5 text-xs font-black text-red-100 sm:self-auto"
                       >
                         Remove
                       </button>
@@ -396,29 +391,35 @@ export default function SmartOrganizerPage() {
                 </div>
               )}
 
-              <div className="mt-6 grid gap-3">
-                <input
-                  className="rounded-[1.2rem] px-4 py-3.5"
-                  placeholder="Long note title"
-                  value={noteTitle}
-                  onChange={(event) => {
-                    setNoteTitle(event.target.value);
-                    setPreview(null);
-                    setResult(null);
-                  }}
-                />
+              <details className="organizer-note mt-4 rounded-[1rem] border border-white/10 bg-white/[0.025]">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-200">
+                  Add a pasted note
+                </summary>
 
-                <textarea
-                  className="min-h-[170px] rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500"
-                  placeholder="Paste a really long note here..."
-                  value={longNote}
-                  onChange={(event) => {
-                    setLongNote(event.target.value);
-                    setPreview(null);
-                    setResult(null);
-                  }}
-                />
-              </div>
+                <div className="grid gap-3 border-t border-white/10 p-3 sm:p-4">
+                  <input
+                    className="min-w-0 rounded-[1.2rem] px-4 py-3.5"
+                    placeholder="Note title"
+                    value={noteTitle}
+                    onChange={(event) => {
+                      setNoteTitle(event.target.value);
+                      setPreview(null);
+                      setResult(null);
+                    }}
+                  />
+
+                  <textarea
+                    className="min-h-[130px] min-w-0 rounded-[1.2rem] border border-white/10 bg-slate-950/70 px-4 py-3.5 text-white outline-none placeholder:text-slate-500 sm:min-h-[170px]"
+                    placeholder="Paste your note here..."
+                    value={longNote}
+                    onChange={(event) => {
+                      setLongNote(event.target.value);
+                      setPreview(null);
+                      setResult(null);
+                    }}
+                  />
+                </div>
+              </details>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
@@ -427,7 +428,7 @@ export default function SmartOrganizerPage() {
                   disabled={previewing || organizing || !canPreview}
                   className="premium-button rounded-[1.2rem] px-4 py-3.5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {previewing ? "Detecting topics..." : "Preview organization"}
+                  {previewing ? "Reading files..." : "Preview rooms"}
                 </button>
 
                 <button
@@ -454,13 +455,13 @@ export default function SmartOrganizerPage() {
             </div>
           </div>
 
-          <div className="premium-card gold-border rounded-[2rem] p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="organizer-preview-card premium-card gold-border min-w-0 rounded-[1.3rem] p-4 sm:rounded-[2rem] sm:p-6">
+            <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div>
-                <div className="gold-chip mb-4">Detected rooms</div>
-                <h3 className="panel-title text-white">Organization preview</h3>
-                <p className="panel-muted mt-3">
-                  Review what StudySnap found before creating rooms.
+                <div className="gold-chip mb-3 sm:mb-4">2 · Review</div>
+                <h3 className="panel-title text-white">Room preview</h3>
+                <p className="panel-muted mt-2">
+                  Check the room names, then create them.
                 </p>
               </div>
 
@@ -469,16 +470,16 @@ export default function SmartOrganizerPage() {
                   type="button"
                   onClick={organizeMaterials}
                   disabled={organizing}
-                  className="premium-button rounded-[1.2rem] px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60"
+                  className="premium-button w-full rounded-[1.2rem] px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
-                  {organizing ? "Organizing..." : "Yes, organize"}
+                  {organizing ? "Creating rooms..." : "Create rooms"}
                 </button>
               ) : null}
             </div>
 
             {!preview ? (
               <div className="empty-state mt-6">
-                Preview will appear here after topic detection.
+                Add files, then tap Preview rooms.
               </div>
             ) : (
               <div className="mt-6 grid gap-4">
@@ -511,7 +512,7 @@ export default function SmartOrganizerPage() {
                           className="rounded-[1rem] border border-white/8 bg-black/20 px-4 py-3"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-black text-white">
+                            <p className="min-w-0 break-all text-sm font-black leading-5 text-white">
                               {file.filename}
                             </p>
                             <p className="text-xs font-bold text-cyan-200">
@@ -580,7 +581,7 @@ export default function SmartOrganizerPage() {
           </div>
         </section>
 
-        <section className="gold-card rounded-[2rem] p-6">
+        <section className="organizer-future gold-card min-w-0 overflow-hidden rounded-[1.4rem] p-4 sm:rounded-[2rem] sm:p-6">
           <div className="gold-chip mb-4">Next intelligence upgrade</div>
           <h3 className="panel-title text-white">
             Next: show all material types inside each Room.

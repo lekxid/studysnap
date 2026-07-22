@@ -10,10 +10,18 @@ from alembic import context
 BASE_DIR = Path(__file__).resolve().parents[1]
 sys.path.append(str(BASE_DIR))
 
+from app.config import settings
 from app.database import Base
 import app.models
 
 config = context.config
+
+# Use the same environment-driven database URL as the application.
+# Percent signs must be escaped for Alembic's ConfigParser.
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.DATABASE_URL.replace("%", "%%"),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

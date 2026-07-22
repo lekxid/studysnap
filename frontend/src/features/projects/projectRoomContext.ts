@@ -25,6 +25,20 @@ export function saveProjectRoomId(value: unknown): number | null {
   return roomId;
 }
 
+export function clearProjectRoomId(): void {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.removeItem(
+    LAST_PROJECT_ROOM_ID_KEY
+  );
+
+  window.dispatchEvent(
+    new CustomEvent(PROJECT_ROOM_CHANGED_EVENT, {
+      detail: { roomId: null },
+    })
+  );
+}
+
 export function getSavedProjectRoomId(): number | null {
   if (typeof window === "undefined") return null;
 
