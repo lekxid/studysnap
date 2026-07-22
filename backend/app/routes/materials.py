@@ -442,6 +442,7 @@ def serialize_material(material: StudyMaterial) -> dict:
 
     return {
         "id": material.id,
+        "sha256": material.sha256,
         "original_filename": material.original_filename,
         "file_size": material.file_size,
         "content_type": material.content_type,
@@ -916,6 +917,7 @@ def complete_resumable_upload(
             extracted_text=extracted_text,
             study_room_id=study_room_id,
             owner_id=current_user.id,
+            sha256=digest.hexdigest(),
             intelligence_status=(
                 "pending"
                 if actual_size
@@ -1127,6 +1129,7 @@ async def upload_material(
             extracted_text=extracted_text,
             study_room_id=study_room_id,
             owner_id=current_user.id,
+            sha256=digest.hexdigest(),
         )
 
         db.add(material)

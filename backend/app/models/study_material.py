@@ -13,6 +13,12 @@ class StudyMaterial(Base):
     stored_filename = Column(String, nullable=False, unique=True)
     file_path = Column(String, nullable=False)
     file_size = Column(Integer, nullable=False)
+    sha256 = Column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+
     content_type = Column(String, nullable=True)
     material_type = Column(String, nullable=False, default="file")
     extracted_text = Column(Text, nullable=True)

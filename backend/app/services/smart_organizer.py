@@ -1,3 +1,4 @@
+import hashlib
 import re
 import uuid
 from dataclasses import dataclass
@@ -425,6 +426,9 @@ def save_generic_material(
         extracted_text=candidate.text,
         study_room_id=room_id,
         owner_id=owner_id,
+        sha256=hashlib.sha256(
+            candidate.contents
+        ).hexdigest(),
     )
 
     db.add(material)
