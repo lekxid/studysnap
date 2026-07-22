@@ -54,6 +54,11 @@ const primaryNavItems: NavItem[] = [
     label: "Smart Organizer",
     icon: "🗂️",
   },
+  {
+    href: "/smart-scan",
+    label: "Smart Scan",
+    icon: "▧",
+  },
 ];
 
 const studyToolNavItems: NavItem[] = [
@@ -94,6 +99,11 @@ const mobileStudyToolNavItems: NavItem[] = [
     href: "/study-rooms/organize",
     label: "Smart Organizer",
     icon: "🗂️",
+  },
+  {
+    href: "/smart-scan",
+    label: "Smart Scan",
+    icon: "▧",
   },
   ...studyToolNavItems,
 ];
@@ -249,6 +259,10 @@ function getRoomIdFromStudyRoomPath(pathname: string) {
 }
 
 function getPageKicker(pathname: string) {
+  if (pathname.startsWith("/smart-scan")) {
+    return "Intelligent Capture";
+  }
+
   if (pathname.startsWith("/study-rooms")) {
     return "StudySnap Projects";
   }

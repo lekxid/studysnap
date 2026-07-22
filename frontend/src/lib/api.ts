@@ -3343,3 +3343,413 @@ export async function getRoomMembers(
     `/api/room-members/rooms/${studyRoomId}`
   ) as Promise<RoomMemberListResponse>;
 }
+
+// SMART_SCAN_API_V1
+// -----------------------------------------------------------------------------
+// Smart Scan uses StudySnap's existing authentication and API configuration.
+// Upload progress measures network transfer only. Recognition remains
+// request-based until durable processing jobs are introduced.
+// -----------------------------------------------------------------------------
+
+export type SmartScanPage = {
+  id: number;
+  scan_id: number;
+  page_number: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string;
+  width: number;
+  height: number;
+  rotation: number;
+  extracted_text: string;
+  ocr_confidence: number | null;
+  ocr_status: string;
+  ocr_error: string | null;
+  preview_url: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SmartScan = {
+  id: number;
+  owner_id: number;
+  study_room_id: number | null;
+  title: string;
+  status: string;
+  page_count: number;
+  extracted_text: string;
+  pdf_filename: string | null;
+  pdf_file_size: number | null;
+  pdf_url: string;
+  pages: SmartScanPage[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SmartScanRecognitionResponse = {
+  processed_count: number;
+  remaining_count: number;
+  scan: SmartScan;
+};
+
+export type SmartScanAskResponse = {
+  scan_id: number;
+  question: string;
+  answer: string;
+};
+
+export type SmartScanPageDeleteResponse = {
+  deleted: boolean;
+  page_id: number;
+  scan: SmartScan;
+};
+
+export type SmartScanDeleteResponse = {
+  deleted: boolean;
+  scan_id: number;
+  message: string;
+};
+
+export async function createSmartScan(
+  payload: {
+    title?: string;
+    study_room_id?: number | null;
+  } = {},
+): Promise<SmartScan> {
+  return apiFetch("/api/smart-scan", {
+    method: "POST",
+    body: JSON.stringify({
+      title: payload.title?.trim() || "New Scan",
+      study_room_id:
+        typeof payload.study_room_id === "number"
+          ? payload.study_room_id
+          : null,
+    }),
+  }) as Promise<SmartScan>;
+}
+
+export async function listSmartScans(): Promise<SmartScan[]> {
+  return apiFetch("/api/smart-scan") as Promise<SmartScan[]>;
+}
+
+export async function getSmartScan(
+  scanId: number,
+): Promise<SmartScan> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}`,
+  ) as Promise<SmartScan>;
+}
+
+export async function updateSmartScan(
+  scanId: number,
+  title: string,
+): Promise<SmartScan> {
+  return apiFetch(`/api/smart-scan/${scanId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: title.trim(),
+    }),
+  }) as Promise<SmartScan>;
+}
+
+export function uploadSmartScanPages({
+  scanId,
+  files,
+  onProgress,
+  signal,
+}: {
+  scanId: number;
+  files: File[];
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}): Promise<SmartScan> {
+  return new Promise((resolve, reject) => {
+    if (!files.length) {
+      reject(new Error("Choose at least one image."));
+      return;
+    }
+
+    const xhr = new XMLHttpRequest();
+    const token = getToken();
+    const formData = new FormData();
+
+    files.forEach((file) => {
+      formData.append("files", file, file.name);
+    });
+
+    xhr.open(
+      "POST",
+      `${API_BASE}/api/smart-scan/${scanId}/pages`,
+    );
+
+    if (token) {
+      xhr.setRequestHeader(
+        "Authorization",
+        `Bearer ${token}`,
+      );
+    }
+
+    const abortUpload = () => {
+      xhr.abort();
+    };
+
+    const removeAbortListener = () => {
+      signal?.removeEventListener(
+        "abort",
+        abortUpload,
+      );
+    };
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        const percent = Math.min(
+          99,
+          Math.max(
+            0,
+            Math.round(
+              (event.loaded / event.total) * 100,
+            ),
+          ),
+        );
+
+        onProgress?.(percent);
+      },
+    );
+
+    xhr.addEventListener("load", () => {
+      removeAbortListener();
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(100);
+
+        try {
+          resolve(
+            JSON.parse(xhr.responseText) as SmartScan,
+          );
+        } catch {
+          reject(
+            new Error(
+              "StudySnap returned an unreadable scan response.",
+            ),
+          );
+        }
+
+        return;
+      }
+
+      try {
+        reject(
+          new Error(
+            getErrorMessage(
+              JSON.parse(xhr.responseText),
+            ),
+          ),
+        );
+      } catch {
+        reject(
+          new Error(
+            xhr.responseText ||
+              "The scan pages could not be uploaded.",
+          ),
+        );
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      removeAbortListener();
+
+      reject(
+        new Error(
+          "The image upload was interrupted.",
+        ),
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      removeAbortListener();
+
+      reject(
+        new DOMException(
+          "The image upload was cancelled.",
+          "AbortError",
+        ),
+      );
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        xhr.abort();
+        return;
+      }
+
+      signal.addEventListener(
+        "abort",
+        abortUpload,
+        { once: true },
+      );
+    }
+
+    xhr.send(formData);
+  });
+}
+
+export async function recognizeSmartScanPages(
+  scanId: number,
+  pageIds: number[] | null = null,
+): Promise<SmartScanRecognitionResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/recognize`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        page_ids: pageIds,
+      }),
+    },
+  ) as Promise<SmartScanRecognitionResponse>;
+}
+
+export async function rotateSmartScanPage(
+  pageId: number,
+  rotation: number,
+): Promise<SmartScanPage> {
+  return apiFetch(
+    `/api/smart-scan/pages/${pageId}/rotation`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        rotation,
+      }),
+    },
+  ) as Promise<SmartScanPage>;
+}
+
+export async function reorderSmartScanPages(
+  scanId: number,
+  pageIds: number[],
+): Promise<SmartScan> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/reorder`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        page_ids: pageIds,
+      }),
+    },
+  ) as Promise<SmartScan>;
+}
+
+export async function deleteSmartScanPage(
+  pageId: number,
+): Promise<SmartScanPageDeleteResponse> {
+  return apiFetch(
+    `/api/smart-scan/pages/${pageId}`,
+    {
+      method: "DELETE",
+    },
+  ) as Promise<SmartScanPageDeleteResponse>;
+}
+
+export async function askSmartScan(
+  scanId: number,
+  question: string,
+): Promise<SmartScanAskResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}/ask`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        question: question.trim(),
+      }),
+    },
+  ) as Promise<SmartScanAskResponse>;
+}
+
+export async function getSmartScanPageBlobUrl(
+  pageId: number,
+): Promise<string> {
+  return getProtectedFileBlobUrl(
+    `/api/smart-scan/pages/${pageId}/file`,
+  );
+}
+
+export async function getSmartScanPdfBlobUrl(
+  scanId: number,
+): Promise<string> {
+  return getProtectedFileBlobUrl(
+    `/api/smart-scan/${scanId}/pdf`,
+  );
+}
+
+export async function downloadSmartScanPdf(
+  scanId: number,
+  fallbackFilename = `studysnap-scan-${scanId}.pdf`,
+): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`,
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/smart-scan/${scanId}/pdf?download=true`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readResponseError(
+        response,
+        "The Smart Scan PDF could not be downloaded.",
+      ),
+    );
+  }
+
+  const contentDisposition =
+    response.headers.get("content-disposition") || "";
+
+  const filenameMatch =
+    contentDisposition.match(
+      /filename="?([^";]+)"?/i,
+    );
+
+  const filename =
+    filenameMatch?.[1] || fallbackFilename;
+
+  const blobUrl = window.URL.createObjectURL(
+    await response.blob(),
+  );
+
+  const link = document.createElement("a");
+
+  link.href = blobUrl;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+export async function deleteSmartScan(
+  scanId: number,
+): Promise<SmartScanDeleteResponse> {
+  return apiFetch(
+    `/api/smart-scan/${scanId}`,
+    {
+      method: "DELETE",
+    },
+  ) as Promise<SmartScanDeleteResponse>;
+}

@@ -30,6 +30,14 @@ const commands: CommandItem[] = [
   },
   {
     kind: "command",
+    label: "Open Smart Scan",
+    description: "Turn photographed pages into searchable study material",
+    href: "/smart-scan",
+    icon: "▧",
+    keywords: ["scan", "camera", "photo", "ocr", "pages", "pdf"],
+  },
+  {
+    kind: "command",
     label: "Open AI Tutor",
     description: "Ask StudySnap AI a study question",
     href: "/ai-tutor",
