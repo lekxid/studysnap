@@ -63,6 +63,14 @@ class AIMessage(Base):
         server_default="0",
     )
 
+    attachment_is_pinned = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="0",
+        index=True,
+    )
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

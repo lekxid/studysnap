@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-import type { AIConversation } from "@/lib/api";
+import type {
+  AIConversation,
+} from "@/lib/api";
 
 type StudyTrailPanelProps = {
   trails: AIConversation[];
@@ -11,12 +17,25 @@ type StudyTrailPanelProps = {
   search: string;
   title?: string;
   emptyMessage?: string;
-  onSearchChange: (value: string) => void;
-  onSelect: (trail: AIConversation) => void;
+  onSearchChange: (
+    value: string
+  ) => void;
+  onSelect: (
+    trail: AIConversation
+  ) => void;
   onNew: () => void;
-  onRename: (trail: AIConversation) => void;
-  onDelete: (trail: AIConversation) => void;
-  onTogglePin: (trail: AIConversation) => void;
+  onRename: (
+    trail: AIConversation
+  ) => void;
+  onDelete: (
+    trail: AIConversation
+  ) => void;
+  onTogglePin: (
+    trail: AIConversation
+  ) => void;
+  onBulkDelete?: (
+    trails: AIConversation[]
+  ) => void;
 };
 
 type TrailGroup = {
@@ -24,45 +43,103 @@ type TrailGroup = {
   trails: AIConversation[];
 };
 
-function getTrailDate(trail: AIConversation) {
-  const value = trail.updated_at || trail.created_at;
+function getTrailDate(
+  trail: AIConversation
+) {
+  const value =
+    trail.updated_at ||
+    trail.created_at;
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime()) ? new Date() : date;
+  return Number.isNaN(
+    date.getTime()
+  )
+    ? new Date()
+    : date;
 }
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function startOfDay(
+  date: Date
+) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
 }
 
-function buildGroups(trails: AIConversation[]): TrailGroup[] {
-  const now = startOfDay(new Date());
+function buildGroups(
+  trails: AIConversation[]
+): TrailGroup[] {
+  const now =
+    startOfDay(new Date());
 
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
+  const yesterday =
+    new Date(now);
 
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
+  yesterday.setDate(
+    now.getDate() - 1
+  );
 
-  const pinned = trails.filter((trail) => trail.is_pinned);
+  const sevenDaysAgo =
+    new Date(now);
 
-  const unpinned = trails.filter((trail) => !trail.is_pinned);
+  sevenDaysAgo.setDate(
+    now.getDate() - 7
+  );
 
-  const today: AIConversation[] = [];
-  const yesterdayItems: AIConversation[] = [];
-  const previousSevenDays: AIConversation[] = [];
-  const older: AIConversation[] = [];
+  const pinned =
+    trails.filter(
+      (trail) =>
+        trail.is_pinned
+    );
 
-  for (const trail of unpinned) {
-    const trailDate = startOfDay(getTrailDate(trail));
+  const unpinned =
+    trails.filter(
+      (trail) =>
+        !trail.is_pinned
+    );
 
-    if (trailDate.getTime() === now.getTime()) {
+  const today:
+    AIConversation[] = [];
+
+  const yesterdayItems:
+    AIConversation[] = [];
+
+  const previousSevenDays:
+    AIConversation[] = [];
+
+  const older:
+    AIConversation[] = [];
+
+  for (
+    const trail of unpinned
+  ) {
+    const trailDate =
+      startOfDay(
+        getTrailDate(trail)
+      );
+
+    if (
+      trailDate.getTime() ===
+      now.getTime()
+    ) {
       today.push(trail);
-    } else if (trailDate.getTime() === yesterday.getTime()) {
-      yesterdayItems.push(trail);
-    } else if (trailDate >= sevenDaysAgo) {
-      previousSevenDays.push(trail);
+    } else if (
+      trailDate.getTime() ===
+      yesterday.getTime()
+    ) {
+      yesterdayItems.push(
+        trail
+      );
+    } else if (
+      trailDate >=
+      sevenDaysAgo
+    ) {
+      previousSevenDays.push(
+        trail
+      );
     } else {
       older.push(trail);
     }
@@ -79,26 +156,38 @@ function buildGroups(trails: AIConversation[]): TrailGroup[] {
     },
     {
       label: "Yesterday",
-      trails: yesterdayItems,
+      trails:
+        yesterdayItems,
     },
     {
-      label: "Previous 7 days",
-      trails: previousSevenDays,
+      label:
+        "Previous 7 days",
+      trails:
+        previousSevenDays,
     },
     {
       label: "Older",
       trails: older,
     },
-  ].filter((group) => group.trails.length > 0);
+  ].filter(
+    (group) =>
+      group.trails.length > 0
+  );
 }
 
-function formatTrailTime(trail: AIConversation) {
-  const date = getTrailDate(trail);
+function formatTrailTime(
+  trail: AIConversation
+) {
+  const date =
+    getTrailDate(trail);
 
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+    }
+  );
 }
 
 export default function StudyTrailPanel({
@@ -107,52 +196,226 @@ export default function StudyTrailPanel({
   loading = false,
   search,
   title = "Chats",
-  emptyMessage = "Start your first chat.",
+  emptyMessage =
+    "Start your first chat.",
   onSearchChange,
   onSelect,
   onNew,
   onRename,
   onDelete,
   onTogglePin,
+  onBulkDelete,
 }: StudyTrailPanelProps) {
-  const panelRef = useRef<HTMLElement | null>(null);
+  const panelRef =
+    useRef<HTMLElement | null>(
+      null
+    );
 
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [
+    openMenuId,
+    setOpenMenuId,
+  ] = useState<
+    number | null
+  >(null);
+
+  const [
+    selecting,
+    setSelecting,
+  ] = useState(false);
+
+  const [
+    selectedIds,
+    setSelectedIds,
+  ] = useState<Set<number>>(
+    () => new Set()
+  );
+
+  function exitSelection() {
+    setSelecting(false);
+
+    setSelectedIds(
+      new Set()
+    );
+
+    setOpenMenuId(null);
+  }
+
+  function toggleSelected(
+    trailId: number
+  ) {
+    setSelectedIds(
+      (current) => {
+        const next =
+          new Set(current);
+
+        if (
+          next.has(trailId)
+        ) {
+          next.delete(trailId);
+        } else {
+          next.add(trailId);
+        }
+
+        return next;
+      }
+    );
+  }
 
   useEffect(() => {
-    function handlePointerDown(event: PointerEvent) {
+    function handlePointerDown(
+      event: PointerEvent
+    ) {
       if (
         panelRef.current &&
-        !panelRef.current.contains(event.target as Node)
+        !panelRef.current.contains(
+          event.target as Node
+        )
       ) {
         setOpenMenuId(null);
       }
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpenMenuId(null);
+    function handleKeyDown(
+      event: KeyboardEvent
+    ) {
+      if (
+        event.key !== "Escape"
+      ) {
+        return;
+      }
+
+      setOpenMenuId(null);
+
+      if (selecting) {
+        exitSelection();
       }
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener(
+      "pointerdown",
+      handlePointerDown
+    );
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener(
+        "pointerdown",
+        handlePointerDown
+      );
 
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
     };
-  }, []);
+  }, [selecting]);
 
-  const cleanSearch = search.trim().toLowerCase();
+  useEffect(() => {
+    const validIds =
+      new Set(
+        trails.map(
+          (trail) =>
+            trail.id
+        )
+      );
 
-  const filteredTrails = cleanSearch
-    ? trails.filter((trail) => trail.title.toLowerCase().includes(cleanSearch))
-    : trails;
+    setSelectedIds(
+      (current) => {
+        const next =
+          new Set(
+            [...current].filter(
+              (id) =>
+                validIds.has(id)
+            )
+          );
 
-  const groups = buildGroups(filteredTrails);
+        if (
+          next.size ===
+          current.size
+        ) {
+          return current;
+        }
+
+        return next;
+      }
+    );
+  }, [trails]);
+
+  const cleanSearch =
+    search
+      .trim()
+      .toLowerCase();
+
+  const filteredTrails =
+    cleanSearch
+      ? trails.filter(
+          (trail) =>
+            trail.title
+              .toLowerCase()
+              .includes(
+                cleanSearch
+              )
+        )
+      : trails;
+
+  const groups =
+    buildGroups(
+      filteredTrails
+    );
+
+  const selectedTrails =
+    trails.filter(
+      (trail) =>
+        selectedIds.has(
+          trail.id
+        )
+    );
+
+  const allFilteredSelected =
+    filteredTrails.length > 0 &&
+    filteredTrails.every(
+      (trail) =>
+        selectedIds.has(
+          trail.id
+        )
+    );
+
+  function toggleSelectAll() {
+    setSelectedIds(
+      (current) => {
+        const next =
+          new Set(current);
+
+        if (
+          allFilteredSelected
+        ) {
+          for (
+            const trail
+            of filteredTrails
+          ) {
+            next.delete(
+              trail.id
+            );
+          }
+        } else {
+          for (
+            const trail
+            of filteredTrails
+          ) {
+            next.add(
+              trail.id
+            );
+          }
+        }
+
+        return next;
+      }
+    );
+  }
 
   return (
     <aside
@@ -161,22 +424,51 @@ export default function StudyTrailPanel({
     >
       <div className="flex min-h-11 items-center gap-2 px-2">
         <h3 className="min-w-0 flex-1 truncate text-base font-black text-white">
-          {title}
+          {selecting
+            ? "Select chats"
+            : title}
         </h3>
 
         <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[10px] font-black text-slate-500">
-          {filteredTrails.length}
+          {selecting
+            ? selectedIds.size
+            : filteredTrails.length}
         </span>
 
-        <button
-          type="button"
-          onClick={onNew}
-          aria-label="New chat"
-          title="New chat"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63]"
-        >
-          ＋
-        </button>
+        {!selecting &&
+        onBulkDelete &&
+        trails.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOpenMenuId(
+                null
+              );
+
+              setSelecting(
+                true
+              );
+            }}
+            className="min-h-9 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            Select
+          </button>
+        ) : null}
+
+        {!selecting ? (
+          <button
+            type="button"
+            onClick={() => {
+              exitSelection();
+              onNew();
+            }}
+            aria-label="New chat"
+            title="New chat"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63]"
+          >
+            ＋
+          </button>
+        ) : null}
       </div>
 
       <div className="relative mt-2">
@@ -186,7 +478,13 @@ export default function StudyTrailPanel({
 
         <input
           value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
+          onChange={(
+            event
+          ) =>
+            onSearchChange(
+              event.target.value
+            )
+          }
           placeholder="Search chats"
           aria-label="Search chats"
           className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-9 pr-9 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-[#c9ad50]/30"
@@ -195,7 +493,9 @@ export default function StudyTrailPanel({
         {search ? (
           <button
             type="button"
-            onClick={() => onSearchChange("")}
+            onClick={() =>
+              onSearchChange("")
+            }
             aria-label="Clear search"
             className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-white/[0.07] hover:text-white"
           >
@@ -204,140 +504,291 @@ export default function StudyTrailPanel({
         ) : null}
       </div>
 
+      {selecting ? (
+        <div className="mt-2 rounded-xl border border-[#c9ad50]/15 bg-[#c9ad50]/[0.055] p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={
+                toggleSelectAll
+              }
+              disabled={
+                filteredTrails.length ===
+                0
+              }
+              className="min-h-9 rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-40"
+            >
+              {allFilteredSelected
+                ? "Clear all"
+                : "Select all"}
+            </button>
+
+            <span className="min-w-0 flex-1 text-[11px] font-bold text-slate-400">
+              {selectedIds.size}{" "}
+              selected
+            </span>
+
+            <button
+              type="button"
+              disabled={
+                selectedTrails.length ===
+                0
+              }
+              onClick={() =>
+                onBulkDelete?.(
+                  selectedTrails
+                )
+              }
+              className="min-h-9 rounded-lg border border-red-300/15 bg-red-400/10 px-3 text-[11px] font-black text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Delete
+            </button>
+
+            <button
+              type="button"
+              onClick={
+                exitSelection
+              }
+              className="min-h-9 rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="studysnap-scroll mt-3 max-h-[calc(100dvh-14rem)] overflow-y-auto pr-0.5 xl:max-h-[calc(100dvh-13rem)]">
         {loading ? (
           <p className="px-3 py-5 text-sm font-semibold text-slate-500">
             Loading…
           </p>
-        ) : groups.length === 0 ? (
+        ) : groups.length ===
+          0 ? (
           <div className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center">
-            <p className="text-xl">✦</p>
+            <p className="text-xl">
+              ✦
+            </p>
 
-            <p className="mt-2 text-sm font-black text-white">No chats</p>
+            <p className="mt-2 text-sm font-black text-white">
+              No chats
+            </p>
 
-            <p className="mt-1 text-xs text-slate-500">{emptyMessage}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {emptyMessage}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {groups.map((group) => (
-              <section key={group.label}>
-                <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
-                  {group.label}
-                </p>
+            {groups.map(
+              (group) => (
+                <section
+                  key={
+                    group.label
+                  }
+                >
+                  <p className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+                    {group.label}
+                  </p>
 
-                <div className="space-y-1">
-                  {group.trails.map((trail) => {
-                    const active = trail.id === activeTrailId;
+                  <div className="space-y-1">
+                    {group.trails.map(
+                      (trail) => {
+                        const active =
+                          trail.id ===
+                          activeTrailId;
 
-                    const menuOpen = openMenuId === trail.id;
+                        const selected =
+                          selectedIds.has(
+                            trail.id
+                          );
 
-                    return (
-                      <article
-                        key={trail.id}
-                        className={`overflow-hidden rounded-xl border transition ${
-                          active
-                            ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.09]"
-                            : "border-transparent bg-white/[0.025] hover:bg-white/[0.05]"
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              onSelect(trail);
-                            }}
-                            className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
-                          >
-                            <span
-                              className={`h-2 w-2 shrink-0 rounded-full ${
-                                active ? "bg-[#c9ad50]" : "bg-slate-700"
-                              }`}
-                            />
+                        const menuOpen =
+                          openMenuId ===
+                          trail.id;
 
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-bold text-slate-100">
-                                {trail.title}
-                              </span>
-
-                              <span className="mt-0.5 block text-[10px] font-semibold text-slate-600">
-                                {formatTrailTime(trail)}
-                              </span>
-                            </span>
-
-                            {trail.is_pinned ? (
-                              <span
-                                className="shrink-0 text-xs text-[#c9ad50]"
-                                title="Pinned"
-                              >
-                                ★
-                              </span>
-                            ) : null}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOpenMenuId(menuOpen ? null : trail.id)
+                        return (
+                          <article
+                            key={
+                              trail.id
                             }
-                            aria-label={`Actions for ${trail.title}`}
-                            aria-expanded={menuOpen}
-                            className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                            className={`overflow-hidden rounded-xl border transition ${
+                              selected
+                                ? "border-[#c9ad50]/40 bg-[#c9ad50]/[0.12]"
+                                : active
+                                  ? "border-[#c9ad50]/30 bg-[#c9ad50]/[0.09]"
+                                  : "border-transparent bg-white/[0.025] hover:bg-white/[0.05]"
+                            }`}
                           >
-                            •••
-                          </button>
-                        </div>
+                            <div className="flex min-w-0 items-center">
+                              <button
+                                type="button"
+                                aria-pressed={
+                                  selecting
+                                    ? selected
+                                    : undefined
+                                }
+                                onClick={() => {
+                                  setOpenMenuId(
+                                    null
+                                  );
 
-                        {menuOpen ? (
-                          <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                onTogglePin(trail);
-                              }}
-                              aria-label={
-                                trail.is_pinned ? "Unpin chat" : "Pin chat"
-                              }
-                              title={trail.is_pinned ? "Unpin" : "Pin"}
-                              className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
-                            >
-                              {trail.is_pinned ? "★" : "☆"}
-                            </button>
+                                  if (
+                                    selecting
+                                  ) {
+                                    toggleSelected(
+                                      trail.id
+                                    );
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                onRename(trail);
-                              }}
-                              aria-label="Rename chat"
-                              title="Rename"
-                              className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
-                            >
-                              ✎
-                            </button>
+                                    return;
+                                  }
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                onDelete(trail);
-                              }}
-                              aria-label="Delete chat"
-                              title="Delete"
-                              className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
-                            >
-                              🗑
-                            </button>
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+                                  onSelect(
+                                    trail
+                                  );
+                                }}
+                                className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2.5 text-left"
+                              >
+                                {selecting ? (
+                                  <span
+                                    className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[11px] font-black ${
+                                      selected
+                                        ? "border-[#c9ad50] bg-[#c9ad50] text-[#111317]"
+                                        : "border-white/15 bg-white/[0.03] text-transparent"
+                                    }`}
+                                  >
+                                    ✓
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`h-2 w-2 shrink-0 rounded-full ${
+                                      active
+                                        ? "bg-[#c9ad50]"
+                                        : "bg-slate-700"
+                                    }`}
+                                  />
+                                )}
+
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-bold text-slate-100">
+                                    {
+                                      trail.title
+                                    }
+                                  </span>
+
+                                  <span className="mt-0.5 block text-[10px] font-semibold text-slate-600">
+                                    {formatTrailTime(
+                                      trail
+                                    )}
+                                  </span>
+                                </span>
+
+                                {trail.is_pinned ? (
+                                  <span
+                                    className="shrink-0 text-xs text-[#c9ad50]"
+                                    title="Pinned"
+                                  >
+                                    ★
+                                  </span>
+                                ) : null}
+                              </button>
+
+                              {!selecting ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenMenuId(
+                                      menuOpen
+                                        ? null
+                                        : trail.id
+                                    )
+                                  }
+                                  aria-label={`Actions for ${trail.title}`}
+                                  aria-expanded={
+                                    menuOpen
+                                  }
+                                  className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                                >
+                                  •••
+                                </button>
+                              ) : null}
+                            </div>
+
+                            {!selecting &&
+                            menuOpen ? (
+                              <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuId(
+                                      null
+                                    );
+
+                                    onTogglePin(
+                                      trail
+                                    );
+                                  }}
+                                  aria-label={
+                                    trail.is_pinned
+                                      ? "Unpin chat"
+                                      : "Pin chat"
+                                  }
+                                  title={
+                                    trail.is_pinned
+                                      ? "Unpin"
+                                      : "Pin"
+                                  }
+                                  className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
+                                >
+                                  {trail.is_pinned
+                                    ? "★"
+                                    : "☆"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuId(
+                                      null
+                                    );
+
+                                    onRename(
+                                      trail
+                                    );
+                                  }}
+                                  aria-label="Rename chat"
+                                  title="Rename"
+                                  className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                                >
+                                  ✎
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuId(
+                                      null
+                                    );
+
+                                    onDelete(
+                                      trail
+                                    );
+                                  }}
+                                  aria-label="Delete chat"
+                                  title="Delete"
+                                  className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            ) : null}
+                          </article>
+                        );
+                      }
+                    )}
+                  </div>
+                </section>
+              )
+            )}
           </div>
         )}
       </div>

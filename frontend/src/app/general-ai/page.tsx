@@ -8,11 +8,18 @@ import GeneralAIChat from "@/features/ai/GeneralAIChat";
 
 function GeneralAIContent() {
   const searchParams = useSearchParams();
-  const initialPrompt = searchParams.get("prompt") || "";
+  const initialPrompt =
+    searchParams.get("prompt") || "";
+
+  const startFresh =
+    searchParams.get("new") === "1";
 
   return (
     <AppShell title="">
-      <GeneralAIChat initialPrompt={initialPrompt} />
+      <GeneralAIChat
+        initialPrompt={initialPrompt}
+        startFresh={startFresh}
+      />
     </AppShell>
   );
 }

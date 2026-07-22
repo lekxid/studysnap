@@ -1767,3 +1767,165 @@ body {
 }
 
 /* STUDYSNAP_MODERN_AI_END */
+
+
+/* STUDYSNAP_COMPACT_RECREATE_COMPOSER_V2 */
+
+.studysnap-composer {
+  background: #1f1f1f !important;
+  border-color:
+    rgba(255, 255, 255, 0.09) !important;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04) !important;
+}
+
+.studysnap-composer textarea {
+  color: #f5f5f5 !important;
+  caret-color: #c9ad50;
+}
+
+.studysnap-composer textarea::placeholder {
+  color: #85858d !important;
+}
+
+.studysnap-composer select {
+  color-scheme: dark;
+}
+
+@media (max-width: 640px) {
+  .studysnap-composer {
+    border-radius: 1.35rem !important;
+    padding: 0.55rem !important;
+  }
+
+  .studysnap-composer textarea {
+    min-height: 3.25rem !important;
+    max-height: 9rem !important;
+    padding:
+      0.7rem 0.65rem !important;
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+}
+
+/* STUDYSNAP_COMPACT_RECREATE_COMPOSER_V2_END */
+
+
+/* STUDYSNAP_FULLSCREEN_GENERAL_AI_V1 */
+
+.studysnap-general-ai-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 180 !important;
+
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+
+  background: #000000 !important;
+
+  overscroll-behavior:
+    none;
+}
+
+.studysnap-ai-fullscreen-header {
+  min-height:
+    calc(
+      3.5rem +
+      env(safe-area-inset-top)
+    );
+
+  padding-top:
+    env(safe-area-inset-top);
+}
+
+.studysnap-ai-composer-dock {
+  padding-bottom:
+    max(
+      0.65rem,
+      env(safe-area-inset-bottom)
+    );
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-surface {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer {
+  background: #202020 !important;
+
+  border-color:
+    rgba(255, 255, 255, 0.09) !important;
+
+  box-shadow:
+    0 16px 45px
+      rgba(0, 0, 0, 0.42),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04) !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.45rem !important;
+
+    padding:
+      0.55rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer textarea {
+    min-height:
+      3rem !important;
+
+    max-height:
+      8.5rem !important;
+
+    font-size:
+      16px !important;
+  }
+}
+
+/* STUDYSNAP_FULLSCREEN_GENERAL_AI_V1_END */
+
+
+/* STUDYSNAP_COMPACT_TOOLS_POPOVER_V2 */
+
+.studysnap-tools-popover {
+  overscroll-behavior:
+    contain;
+
+  scrollbar-width:
+    thin;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.35rem !important;
+
+    padding:
+      0.4rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer textarea {
+    min-height:
+      2.625rem !important;
+
+    max-height:
+      7.5rem !important;
+
+    padding:
+      0.5rem 0.6rem !important;
+  }
+}
+
+/* STUDYSNAP_COMPACT_TOOLS_POPOVER_V2_END */

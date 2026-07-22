@@ -1235,6 +1235,7 @@ def build_ai_attachment_items(
             AIMessage.attachment_hidden_from_feed.is_(False),
         )
         .order_by(
+            AIMessage.attachment_is_pinned.desc(),
             AIMessage.created_at.desc(),
             AIMessage.id.desc(),
         )
@@ -1318,6 +1319,9 @@ def build_ai_attachment_items(
                     "attachment_url": (
                         f"/api/ai/attachments/"
                         f"{message.id}"
+                    ),
+                    "is_pinned": bool(
+                        message.attachment_is_pinned
                     ),
                     "conversation_id": (
                         conversation.id
@@ -2701,6 +2705,31 @@ def build_dashboard_intelligence(
         for item in page_items
     ]
 
+    pinned_attachment_items = [
+        item
+        for item in ai_attachment_items
+        if bool(
+            (
+                item.get("metadata")
+                or {}
+            ).get("is_pinned")
+        )
+    ]
+
+    pinned_attachment_items.sort(
+        key=lambda item: (
+            item["timestamp"],
+            item["id"],
+        ),
+        reverse=True,
+    )
+
+    serialized_pinned_feed = [
+        serialize_feed_item(item)
+        for item
+        in pinned_attachment_items[:3]
+    ]
+
     return {
         "generated_at": iso_timestamp(utc_now()),
         "next_step": next_step,
@@ -2711,6 +2740,7 @@ def build_dashboard_intelligence(
             for item in group_activity[:5]
         ],
         "feed": serialized_feed,
+        "pinned_feed": serialized_pinned_feed,
         "unread_group_count": unread_group_count,
         "next_cursor": next_cursor,
         "has_more": has_more,

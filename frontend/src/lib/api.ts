@@ -142,6 +142,47 @@ export async function hideAIAttachmentFromFeed(
   }>;
 }
 
+export async function pinAIAttachment(
+  messageId: number,
+  pinned: boolean
+): Promise<{
+  id: number;
+  is_pinned: boolean;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}/pin?pinned=${String(
+      pinned
+    )}`,
+    {
+      method: "PATCH",
+    }
+  ) as Promise<{
+    id: number;
+    is_pinned: boolean;
+  }>;
+}
+
+export async function deleteAIAttachment(
+  messageId: number
+): Promise<{
+  id: number;
+  conversation_id: number;
+  deleted: boolean;
+  message: string;
+}> {
+  return apiFetch(
+    `/api/ai/attachments/${messageId}`,
+    {
+      method: "DELETE",
+    }
+  ) as Promise<{
+    id: number;
+    conversation_id: number;
+    deleted: boolean;
+    message: string;
+  }>;
+}
+
 export async function signup(
   name: string,
   email: string,
@@ -382,6 +423,7 @@ export type SmartDashboardResponse = {
   continue_learning: DashboardContinueItem[];
   group_activity: DashboardFeedItem[];
   feed: DashboardFeedItem[];
+  pinned_feed?: DashboardFeedItem[];
   unread_group_count: number;
   next_cursor: string | null;
   has_more: boolean;
@@ -458,7 +500,9 @@ export async function askAi(question: string, context?: string) {
 export async function askAiWithImage(
   question: string,
   image: File,
-  options: { studyRoomId?: number; conversationId?: number | null } = {}
+  options: { studyRoomId?: number; conversationId?: number | null
+    signal?: AbortSignal;
+  } = {}
 ) {
   const formData = new FormData();
   formData.append("question", question || "Describe this image clearly.");
@@ -474,6 +518,7 @@ export async function askAiWithImage(
 
   return apiFetch("/api/ai/ask-image", {
     method: "POST",
+    signal: options.signal,
     body: formData,
   });
 }
@@ -669,6 +714,86 @@ export async function generateAIImage(
   }) as Promise<GenerateAIImageResponse>;
 }
 
+
+export type EditAIImageOptions =
+  GenerateAIImageOptions & {
+    identityImage?: File | null;
+  };
+
+export async function editAIImage(
+  prompt: string,
+  image: File,
+  options: EditAIImageOptions = {}
+): Promise<GenerateAIImageResponse> {
+  const cleanPrompt = prompt.trim();
+
+  if (!cleanPrompt) {
+    throw new Error(
+      "Describe how you want StudySnap to change the image."
+    );
+  }
+
+  const formData = new FormData();
+
+  formData.append(
+    "prompt",
+    cleanPrompt
+  );
+
+  formData.append(
+    "image",
+    image
+  );
+
+  if (
+    options.identityImage &&
+    options.identityImage !== image
+  ) {
+    formData.append(
+      "identity_image",
+      options.identityImage
+    );
+  }
+
+  formData.append(
+    "size",
+    options.size || "1024x1024"
+  );
+
+  formData.append(
+    "quality",
+    options.quality || "high"
+  );
+
+  if (
+    typeof options.conversationId ===
+    "number"
+  ) {
+    formData.append(
+      "conversation_id",
+      String(options.conversationId)
+    );
+  }
+
+  if (
+    typeof options.studyRoomId ===
+    "number"
+  ) {
+    formData.append(
+      "study_room_id",
+      String(options.studyRoomId)
+    );
+  }
+
+  return apiFetch(
+    "/api/ai/edit-image",
+    {
+      method: "POST",
+      body: formData,
+    }
+  ) as Promise<GenerateAIImageResponse>;
+}
+
 export type CreateAIConversationOptions = {
   studyRoomId?: number | null;
   title?: string;
@@ -835,84 +960,200 @@ export async function recordAIConversationExchange(
   });
 }
 
+export async function cancelAIMessage(
+  requestId: string
+) {
+  return apiFetch(
+    "/api/ai/messages/cancel",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        request_id: requestId,
+      }),
+    }
+  );
+}
+
+export type StreamAIMessageOptions = {
+  signal?: AbortSignal;
+  onConnected?: () => void;
+  requestId?: string;
+};
+
 export async function streamAIMessage(
   conversationId: number,
   content: string,
   mode = "explain",
   onToken: (token: string) => void,
-  context = ""
+  context = "",
+  options: StreamAIMessageOptions = {},
 ) {
   const token = getToken();
 
   const headers = new Headers();
-  headers.set("Content-Type", "application/json");
+
+  headers.set(
+    "Content-Type",
+    "application/json"
+  );
+
+  headers.set(
+    "Accept",
+    "text/event-stream"
+  );
 
   if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
   }
 
-  const res = await fetch(`${API_BASE}/api/ai/messages/stream`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      content,
-      mode,
-      context,
-    }),
-  });
+  const res = await fetch(
+    `${API_BASE}/api/ai/messages/stream`,
+    {
+      method: "POST",
+      headers,
+      cache: "no-store",
+      signal: options.signal,
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        content,
+        mode,
+        context,
+        request_id:
+          options.requestId || null,
+      }),
+    }
+  );
 
   if (!res.ok) {
-    const message = await readResponseError(
-      res,
-      "Streaming request failed"
-    );
+    const message =
+      await readResponseError(
+        res,
+        "Streaming request failed"
+      );
+
     throw new Error(message);
   }
 
   if (!res.body) {
     throw new Error(
-      "Streaming response did not include a readable body."
+      "Streaming response did not "
+      + "include a readable body."
     );
   }
 
+  options.onConnected?.();
+
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+
   let buffer = "";
+  let finished = false;
 
-  while (true) {
-    const { value, done } = await reader.read();
+  function processEvent(
+    eventText: string
+  ) {
+    const normalized =
+      eventText.replace(
+        /\r\n/g,
+        "\n"
+      );
 
-    if (done) break;
+    for (
+      const line
+      of normalized.split("\n")
+    ) {
+      if (
+        !line.startsWith("data:")
+      ) {
+        continue;
+      }
 
-    buffer += decoder.decode(value, { stream: true });
+      const rawData =
+        line.slice(5).trimStart();
 
-    const events = buffer.split("\n\n");
-    buffer = events.pop() || "";
+      if (rawData === "[DONE]") {
+        finished = true;
+        return;
+      }
 
-    for (const event of events) {
-      const lines = event.split("\n");
+      try {
+        const parsed =
+          JSON.parse(rawData);
 
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-
-        const rawData = line.slice(6);
-
-        if (rawData === "[DONE]") {
-          return;
+        if (
+          typeof parsed === "string"
+        ) {
+          onToken(parsed);
         }
-
-        try {
-          const parsedToken = JSON.parse(rawData);
-
-          if (typeof parsedToken === "string") {
-            onToken(parsedToken);
-          }
-        } catch {
+      } catch {
+        if (rawData) {
           onToken(rawData);
         }
       }
     }
+  }
+
+  while (!finished) {
+    const {
+      value,
+      done,
+    } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(
+        value,
+        {
+          stream: !done,
+        }
+      );
+    }
+
+    buffer = buffer.replace(
+      /\r\n/g,
+      "\n"
+    );
+
+    let boundary =
+      buffer.indexOf("\n\n");
+
+    while (boundary !== -1) {
+      const eventText =
+        buffer.slice(0, boundary);
+
+      buffer =
+        buffer.slice(boundary + 2);
+
+      processEvent(eventText);
+
+      if (finished) {
+        break;
+      }
+
+      boundary =
+        buffer.indexOf("\n\n");
+    }
+
+    if (done) {
+      buffer += decoder.decode();
+
+      const remaining =
+        buffer.trim();
+
+      if (remaining) {
+        processEvent(remaining);
+      }
+
+      break;
+    }
+  }
+
+  try {
+    await reader.cancel();
+  } catch {
+    // Stream already closed.
   }
 }
 
@@ -2299,6 +2540,7 @@ export async function askAiWithFile(
   options: {
     conversationId?: number | null;
     studyRoomId?: number | null;
+    signal?: AbortSignal;
   } = {},
 ): Promise<AskAIWithFileResponse> {
   const formData = new FormData();
@@ -2326,6 +2568,7 @@ export async function askAiWithFile(
 
   return apiFetch("/api/ai/ask-file", {
     method: "POST",
+    signal: options.signal,
     body: formData,
   }) as Promise<AskAIWithFileResponse>;
 }

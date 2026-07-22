@@ -434,16 +434,25 @@ export default function StudyRoomsPage() {
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setOpenRoomMenuId(
-                          openRoomMenuId === room.id ? null : room.id,
-                        )
-                      }
+                      data-room-menu-trigger
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        setOpenRoomMenuId((current) =>
+                          current === room.id
+                            ? null
+                            : room.id,
+                        );
+                      }}
                       aria-label={`Room options for ${room.name}`}
                       aria-haspopup="menu"
                       aria-expanded={openRoomMenuId === room.id}
                       aria-controls={`room-options-${room.id}`}
-                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-lg font-black transition ${
+                      className={`pointer-events-auto relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-xl border text-lg font-black transition ${
                         openRoomMenuId === room.id
                           ? "border-[#c9ad50]/35 bg-[#c9ad50]/15 text-[#e3d285]"
                           : "border-white/[0.1] bg-white/[0.045] text-slate-400 active:bg-white/[0.09]"

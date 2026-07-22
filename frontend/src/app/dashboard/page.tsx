@@ -132,6 +132,28 @@ type ContinueItem = {
   percent: number;
 };
 
+function shouldResolveAsStudyCommand(
+  value: string,
+) {
+  const text = value.trim();
+
+  if (!text) {
+    return false;
+  }
+
+  if (
+    text.length > 180 ||
+    text.includes("\n")
+  ) {
+    return false;
+  }
+
+  const codePattern =
+    /```|^#!|bash\s+<<|\b(set|cd|git|npm|npx|python|python3|curl|grep|sed|cat|echo|sudo|systemctl)\b|[{};$]|=>|\\$/im;
+
+  return !codePattern.test(text);
+}
+
 function parseJwt(token: string): TokenPayload | null {
   try {
     const parts = token.split(".");
@@ -263,7 +285,9 @@ function GeneralAIStartCard({
 
     setPendingAIAttachments(files);
 
-    router.push("/general-ai?attachment=pending");
+    router.push(
+      "/general-ai?new=1&attachment=pending"
+    );
   }
 
   return (
@@ -1288,15 +1312,25 @@ export default function DashboardPage() {
     const prompt = generalAiPrompt.trim();
 
     if (!prompt) {
-      router.push("/general-ai");
+      router.push("/general-ai?new=1");
       return;
     }
 
-    const commandResult = await resolveStudyCommand(prompt, rooms);
+    if (
+      shouldResolveAsStudyCommand(prompt)
+    ) {
+      const commandResult =
+        await resolveStudyCommand(
+          prompt,
+          rooms
+        );
 
-    if (commandResult.handled) {
-      router.push(commandResult.href);
-      return;
+      if (commandResult.handled) {
+        router.push(
+          commandResult.href
+        );
+        return;
+      }
     }
 
     window.sessionStorage.setItem(
@@ -1305,7 +1339,7 @@ export default function DashboardPage() {
     );
 
     setGeneralAiPrompt("");
-    router.push("/general-ai");
+    router.push("/general-ai?new=1");
   }
 
   if (!checked) {
@@ -1361,6 +1395,7 @@ export default function DashboardPage() {
           loading={smartDashboardLoading}
           loadingMore={smartDashboardLoadingMore}
           error={smartDashboardError}
+          onRefresh={loadSmartDashboard}
           onRetry={() => {
             void loadSmartDashboard();
           }}

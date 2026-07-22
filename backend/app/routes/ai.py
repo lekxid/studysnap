@@ -7,6 +7,7 @@ import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Event, Lock
 from typing import Literal
 from urllib.request import urlopen
 from xml.etree import ElementTree
@@ -50,9 +51,88 @@ register_heif_opener()
 
 router = APIRouter(tags=["AI"])
 
+_AI_STREAM_CANCEL_LOCK = Lock()
+_AI_STREAM_CANCEL_EVENTS: dict[
+    tuple[int, str],
+    Event,
+] = {}
+
+
+def clean_ai_request_id(
+    value: str | None,
+) -> str:
+    clean = (value or "").strip()
+
+    if not clean:
+        return uuid.uuid4().hex
+
+    return clean[:120]
+
+
+def register_ai_stream(
+    user_id: int,
+    request_id: str,
+) -> Event:
+    event = Event()
+
+    with _AI_STREAM_CANCEL_LOCK:
+        _AI_STREAM_CANCEL_EVENTS[
+            (user_id, request_id)
+        ] = event
+
+    return event
+
+
+def cancel_ai_stream(
+    user_id: int,
+    request_id: str,
+) -> bool:
+    with _AI_STREAM_CANCEL_LOCK:
+        event = _AI_STREAM_CANCEL_EVENTS.get(
+            (user_id, request_id)
+        )
+
+    if event is None:
+        return False
+
+    event.set()
+    return True
+
+
+def remove_ai_stream(
+    user_id: int,
+    request_id: str,
+) -> None:
+    with _AI_STREAM_CANCEL_LOCK:
+        _AI_STREAM_CANCEL_EVENTS.pop(
+            (user_id, request_id),
+            None,
+        )
+
+
 AI_ATTACHMENT_ROOT = storage_path(
     "ai-attachments"
 )
+
+
+def resolve_ai_attachment_path(
+    value: str,
+) -> Path:
+    root = AI_ATTACHMENT_ROOT.resolve()
+    file_path = Path(value).resolve()
+
+    try:
+        file_path.relative_to(root)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The attachment path is "
+                "outside StudySnap storage."
+            ),
+        ) from exc
+
+    return file_path
 
 
 def store_ai_attachment(
@@ -117,6 +197,9 @@ def serialize_ai_message(message: AIMessage) -> dict:
                 "kind": message.attachment_kind,
                 "hidden_from_feed": bool(
                     message.attachment_hidden_from_feed
+                ),
+                "is_pinned": bool(
+                    message.attachment_is_pinned
                 ),
                 "url": (
                     f"/api/ai/attachments/{message.id}"
@@ -519,6 +602,12 @@ class CreateMessageRequest(BaseModel):
     content: str
     mode: str = "explain"
     context: str = ""
+    request_id: str | None = None
+
+
+class CancelMessageRequest(BaseModel):
+    request_id: str
+
 
 
 class RecordConversationExchangeRequest(BaseModel):
@@ -1047,6 +1136,565 @@ Student request:
         ) from exc
 
 
+
+
+
+@router.post("/edit-image")
+async def edit_ai_image(
+    prompt: str = Form(...),
+    image: UploadFile = File(...),
+    identity_image: UploadFile | None = File(
+        default=None
+    ),
+    conversation_id: int = Form(...),
+    study_room_id: int | None = Form(
+        default=None
+    ),
+    size: str = Form(
+        default="1024x1024"
+    ),
+    quality: str = Form(
+        default="high"
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    """
+    Edit an image while preserving the
+    original person's recognizable identity.
+    """
+
+    import base64 as base64_module
+    import io as io_module
+    import tempfile
+    import uuid as uuid_module
+    from contextlib import ExitStack
+    from pathlib import Path as LocalPath
+
+    from PIL import Image as PILImage
+    from openai import OpenAI
+
+    from app.config import settings as app_settings
+
+    clean_prompt = prompt.strip()
+
+    if not clean_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Describe how you want "
+                "the image changed."
+            ),
+        )
+
+    allowed_sizes = {
+        "1024x1024",
+        "1536x1024",
+        "1024x1536",
+    }
+
+    clean_size = (
+        size
+        if size in allowed_sizes
+        else "1024x1024"
+    )
+
+    maximum_size = 25 * 1024 * 1024
+
+    async def prepare_upload(
+        upload: UploadFile,
+        fallback_name: str,
+    ) -> tuple[bytes, str]:
+        original_bytes = await upload.read()
+        await upload.close()
+
+        if not original_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "The uploaded image "
+                    "is empty."
+                ),
+            )
+
+        if len(original_bytes) > maximum_size:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Images must be "
+                    "25 MB or smaller."
+                ),
+            )
+
+        source_name = LocalPath(
+            upload.filename or
+            fallback_name
+        ).name[:180]
+
+        try:
+            with PILImage.open(
+                io_module.BytesIO(
+                    original_bytes
+                )
+            ) as opened:
+                prepared = opened.convert(
+                    "RGBA"
+                )
+
+                output = io_module.BytesIO()
+
+                prepared.save(
+                    output,
+                    format="PNG",
+                    optimize=True,
+                )
+
+                return (
+                    output.getvalue(),
+                    (
+                        LocalPath(
+                            source_name
+                        ).stem
+                        + ".png"
+                    ),
+                )
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "StudySnap could not "
+                    "prepare this image. "
+                    "Try PNG or JPG."
+                ),
+            ) from exc
+
+    working_bytes, working_name = (
+        await prepare_upload(
+            image,
+            "working-image.png",
+        )
+    )
+
+    identity_bytes: bytes | None = None
+    identity_name: str | None = None
+
+    if identity_image is not None:
+        (
+            identity_bytes,
+            identity_name,
+        ) = await prepare_upload(
+            identity_image,
+            "identity-reference.png",
+        )
+
+    conversation = verify_conversation(
+        db,
+        conversation_id,
+        current_user.id,
+    )
+
+    if (
+        study_room_id is not None
+        and conversation.study_room_id
+        not in {
+            None,
+            study_room_id,
+        }
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The selected conversation "
+                "belongs to another room."
+            ),
+        )
+
+    if not app_settings.openai_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Image generation is "
+                "not configured."
+            ),
+        )
+
+    configured_model = getattr(
+        app_settings,
+        "openai_image_model",
+        None,
+    )
+
+    model_candidates: list[str] = [
+        "gpt-image-2",
+    ]
+
+    if (
+        isinstance(
+            configured_model,
+            str,
+        )
+        and configured_model.startswith(
+            "gpt-image"
+        )
+        and configured_model
+        not in model_candidates
+    ):
+        model_candidates.append(
+            configured_model
+        )
+
+    if "gpt-image-1" not in model_candidates:
+        model_candidates.append(
+            "gpt-image-1"
+        )
+
+    identity_instruction = (
+        "IDENTITY PRESERVATION IS THE "
+        "HIGHEST PRIORITY. Preserve the "
+        "exact recognizable identity of "
+        "the person in Image 1, including "
+        "facial proportions, eye shape and "
+        "spacing, eyebrows, nose, mouth, "
+        "jawline, skin tone, hairline, "
+        "facial hair, age, and natural "
+        "expression. Do not beautify, "
+        "replace, reinterpret, or create "
+        "a different face. Apply only the "
+        "changes requested by the user. "
+    )
+
+    if identity_bytes is not None:
+        edit_prompt = (
+            identity_instruction
+            + "Image 1 is the original "
+            + "identity reference. Image 2 "
+            + "is the current edited image. "
+            + "Keep the identity from Image 1 "
+            + "while modifying Image 2. "
+            + "User request: "
+            + clean_prompt
+        )
+    else:
+        edit_prompt = (
+            identity_instruction
+            + "The uploaded image is both "
+            + "the identity reference and "
+            + "the image to edit. "
+            + "User request: "
+            + clean_prompt
+        )
+
+    client = OpenAI(
+        api_key=app_settings.openai_api_key,
+        timeout=300.0,
+    )
+
+    response = None
+    used_model = None
+    last_model_error: Exception | None = None
+
+    retryable_model_markers = (
+        "model_not_found",
+        "does not exist",
+        "not found",
+        "do not have access",
+        "unsupported model",
+        "not supported",
+    )
+
+    for candidate_model in model_candidates:
+        try:
+            with ExitStack() as stack:
+                input_files = []
+
+                if identity_bytes is not None:
+                    identity_temp = (
+                        stack.enter_context(
+                            tempfile.NamedTemporaryFile(
+                                suffix=".png"
+                            )
+                        )
+                    )
+
+                    identity_temp.write(
+                        identity_bytes
+                    )
+
+                    identity_temp.flush()
+
+                    input_files.append(
+                        stack.enter_context(
+                            open(
+                                identity_temp.name,
+                                "rb",
+                            )
+                        )
+                    )
+
+                working_temp = stack.enter_context(
+                    tempfile.NamedTemporaryFile(
+                        suffix=".png"
+                    )
+                )
+
+                working_temp.write(
+                    working_bytes
+                )
+
+                working_temp.flush()
+
+                input_files.append(
+                    stack.enter_context(
+                        open(
+                            working_temp.name,
+                            "rb",
+                        )
+                    )
+                )
+
+                image_input = (
+                    input_files
+                    if len(input_files) > 1
+                    else input_files[0]
+                )
+
+                edit_arguments = {
+                    "model": candidate_model,
+                    "image": image_input,
+                    "prompt": edit_prompt,
+                    "size": clean_size,
+                    "quality": "high",
+                }
+
+                # GPT Image 2 always processes
+                # image inputs at high fidelity.
+                # GPT Image 1 requires the flag.
+                if (
+                    candidate_model
+                    == "gpt-image-1"
+                ):
+                    edit_arguments[
+                        "input_fidelity"
+                    ] = "high"
+
+                response = client.images.edit(
+                    **edit_arguments
+                )
+
+                used_model = candidate_model
+
+                break
+
+        except Exception as exc:
+            last_model_error = exc
+
+            error_text = str(
+                exc
+            ).lower()
+
+            may_try_next_model = any(
+                marker in error_text
+                for marker
+                in retryable_model_markers
+            )
+
+            if (
+                may_try_next_model
+                and candidate_model
+                != model_candidates[-1]
+            ):
+                continue
+
+            raise
+
+    if response is None or used_model is None:
+        raise RuntimeError(
+            "No supported image model "
+            "completed the edit."
+        ) from last_model_error
+
+    if not response.data:
+        raise RuntimeError(
+            "The image model returned "
+            "no image."
+        )
+
+    result_item = response.data[0]
+
+    generated_base64 = getattr(
+        result_item,
+        "b64_json",
+        None,
+    )
+
+    if not generated_base64:
+        raise RuntimeError(
+            "The image model returned "
+            "no image data."
+        )
+
+    generated_bytes = (
+        base64_module.b64decode(
+            generated_base64
+        )
+    )
+
+    if not generated_bytes:
+        raise RuntimeError(
+            "The generated image was empty."
+        )
+
+    persisted_reference_bytes = (
+        identity_bytes
+        if identity_bytes is not None
+        else working_bytes
+    )
+
+    persisted_reference_name = (
+        identity_name
+        if identity_name is not None
+        else working_name
+    )
+
+    (
+        reference_stored_filename,
+        reference_path,
+    ) = store_ai_attachment(
+        data=persisted_reference_bytes,
+        filename=persisted_reference_name,
+        owner_id=current_user.id,
+        conversation_id=conversation.id,
+        content_type="image/png",
+    )
+
+    generated_filename = (
+        "studysnap-recreated-"
+        + uuid_module.uuid4().hex[:12]
+        + ".png"
+    )
+
+    (
+        generated_stored_filename,
+        generated_path,
+    ) = store_ai_attachment(
+        data=generated_bytes,
+        filename=generated_filename,
+        owner_id=current_user.id,
+        conversation_id=conversation.id,
+        content_type="image/png",
+    )
+
+    user_message = AIMessage(
+        conversation_id=conversation.id,
+        role="user",
+        content=(
+            "[Edit image] "
+            + clean_prompt
+        ),
+        attachment_filename=(
+            persisted_reference_name
+        ),
+        attachment_stored_filename=(
+            reference_stored_filename
+        ),
+        attachment_file_path=(
+            reference_path
+        ),
+        attachment_file_size=len(
+            persisted_reference_bytes
+        ),
+        attachment_content_type=(
+            "image/png"
+        ),
+        attachment_kind="image",
+    )
+
+    assistant_message = AIMessage(
+        conversation_id=conversation.id,
+        role="assistant",
+        content=(
+            "[Generated image] "
+            + clean_prompt
+        ),
+        attachment_filename=(
+            generated_filename
+        ),
+        attachment_stored_filename=(
+            generated_stored_filename
+        ),
+        attachment_file_path=(
+            generated_path
+        ),
+        attachment_file_size=len(
+            generated_bytes
+        ),
+        attachment_content_type=(
+            "image/png"
+        ),
+        attachment_kind="image",
+    )
+
+    try:
+        db.add(user_message)
+        db.add(assistant_message)
+
+        if (
+            conversation.title
+            == "New Conversation"
+        ):
+            conversation.title = (
+                clean_prompt[:50]
+                or "Edited image"
+            )
+
+        conversation.updated_at = utc_now()
+
+        db.commit()
+
+        db.refresh(user_message)
+        db.refresh(assistant_message)
+        db.refresh(conversation)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "image_data_url": (
+            "data:image/png;base64,"
+            + generated_base64
+        ),
+        "image_url": None,
+        "mime_type": "image/png",
+        "model": used_model,
+        "prompt": clean_prompt,
+        "revised_prompt": getattr(
+            result_item,
+            "revised_prompt",
+            None,
+        ),
+        "identity_reference_used": (
+            identity_bytes is not None
+        ),
+        "conversation": (
+            serialize_conversation(
+                conversation
+            )
+        ),
+        "user_message": (
+            serialize_ai_message(
+                user_message
+            )
+        ),
+        "assistant_message": (
+            serialize_ai_message(
+                assistant_message
+            )
+        ),
+    }
 
 
 @router.post("/ask-files")
@@ -2400,6 +3048,28 @@ def record_conversation_exchange(
     }
 
 
+@router.post("/messages/cancel")
+def cancel_message_generation(
+    data: CancelMessageRequest,
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    request_id = clean_ai_request_id(
+        data.request_id
+    )
+
+    cancelled = cancel_ai_stream(
+        current_user.id,
+        request_id,
+    )
+
+    return {
+        "request_id": request_id,
+        "cancelled": cancelled,
+    }
+
+
 @router.post("/messages/stream")
 def create_message_stream(
     data: CreateMessageRequest,
@@ -2445,13 +3115,57 @@ def create_message_stream(
     db.commit()
     db.refresh(conversation)
 
+    request_id = clean_ai_request_id(
+        data.request_id
+    )
+
+    cancel_event = register_ai_stream(
+        current_user.id,
+        request_id,
+    )
+
     def event_stream():
         full_answer = ""
+        stream_iterator = None
 
         try:
-            for token in stream_studysnap_answer(prompt):
+            stream_iterator = (
+                stream_studysnap_answer(
+                    prompt
+                )
+            )
+
+            for token in stream_iterator:
+                if cancel_event.is_set():
+                    break
+
                 full_answer += token
-                yield f"data: {json.dumps(token)}\n\n"
+
+                yield (
+                    "data: "
+                    + json.dumps(token)
+                    + "\n\n"
+                )
+
+            cancelled = (
+                cancel_event.is_set()
+            )
+
+            if (
+                cancelled
+                and full_answer.strip()
+            ):
+                partial_message = AIMessage(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=full_answer,
+                )
+
+                db.add(partial_message)
+                db.commit()
+
+            if cancelled:
+                return
 
             ai_message = AIMessage(
                 conversation_id=conversation.id,
@@ -2465,16 +3179,50 @@ def create_message_stream(
 
             yield "data: [DONE]\n\n"
 
+        except GeneratorExit:
+            cancel_event.set()
+
         except Exception as exc:
             db.rollback()
-            error_message = "Sorry, streaming failed: " + str(exc)
-            yield f"data: {json.dumps(error_message)}\n\n"
+
+            if not cancel_event.is_set():
+                error_message = (
+                    "Sorry, streaming failed: "
+                    + str(exc)
+                )
+
+                yield (
+                    "data: "
+                    + json.dumps(
+                        error_message
+                    )
+                    + "\n\n"
+                )
+
+        finally:
+            if stream_iterator is not None:
+                close_stream = getattr(
+                    stream_iterator,
+                    "close",
+                    None,
+                )
+
+                if callable(close_stream):
+                    try:
+                        close_stream()
+                    except Exception:
+                        pass
+
+            remove_ai_stream(
+                current_user.id,
+                request_id,
+            )
 
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
@@ -2531,7 +3279,7 @@ def get_ai_attachment(
             detail="This message has no attachment.",
         )
 
-    file_path = Path(
+    file_path = resolve_ai_attachment_path(
         message.attachment_file_path
     )
 
@@ -2591,6 +3339,10 @@ def update_ai_attachment_feed_visibility(
         )
 
     message.attachment_hidden_from_feed = hidden
+
+    if hidden:
+        message.attachment_is_pinned = False
+
     db.commit()
     db.refresh(message)
 
@@ -2598,6 +3350,215 @@ def update_ai_attachment_feed_visibility(
         "id": message.id,
         "hidden_from_feed": bool(
             message.attachment_hidden_from_feed
+        ),
+    }
+
+
+
+
+@router.patch("/attachments/{message_id}/pin")
+def update_ai_attachment_pin(
+    message_id: int,
+    pinned: bool = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    message = (
+        db.query(AIMessage)
+        .filter(
+            AIMessage.id == message_id
+        )
+        .first()
+    )
+
+    if message is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Attachment not found.",
+        )
+
+    verify_conversation(
+        db,
+        message.conversation_id,
+        current_user.id,
+    )
+
+    if not message.attachment_file_path:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "This message has no attachment."
+            ),
+        )
+
+    if (
+        pinned
+        and not message.attachment_is_pinned
+    ):
+        pinned_count = (
+            db.query(AIMessage)
+            .join(
+                AIConversation,
+                AIConversation.id
+                == AIMessage.conversation_id,
+            )
+            .filter(
+                AIConversation.owner_id
+                == current_user.id,
+                AIMessage.attachment_file_path.isnot(
+                    None
+                ),
+                AIMessage.attachment_is_pinned.is_(
+                    True
+                ),
+                AIMessage.id != message.id,
+            )
+            .count()
+        )
+
+        if pinned_count >= 3:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "You can pin up to "
+                    "3 dashboard files."
+                ),
+            )
+
+    message.attachment_is_pinned = pinned
+
+    if pinned:
+        message.attachment_hidden_from_feed = False
+
+    db.commit()
+    db.refresh(message)
+
+    return {
+        "id": message.id,
+        "is_pinned": bool(
+            message.attachment_is_pinned
+        ),
+    }
+
+
+@router.delete("/attachments/{message_id}")
+def delete_ai_attachment(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    message = (
+        db.query(AIMessage)
+        .filter(
+            AIMessage.id == message_id
+        )
+        .first()
+    )
+
+    if message is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Attachment not found.",
+        )
+
+    verify_conversation(
+        db,
+        message.conversation_id,
+        current_user.id,
+    )
+
+    if not message.attachment_file_path:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "This message has no attachment."
+            ),
+        )
+
+    file_path = resolve_ai_attachment_path(
+        message.attachment_file_path
+    )
+
+    quarantine_path: Path | None = None
+
+    if file_path.exists():
+        if not file_path.is_file():
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "The attachment path does "
+                    "not reference a file."
+                ),
+            )
+
+        quarantine_path = file_path.with_name(
+            file_path.name
+            + ".deleting-"
+            + uuid.uuid4().hex
+        )
+
+        try:
+            file_path.replace(
+                quarantine_path
+            )
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "The stored file could "
+                    "not be prepared for removal."
+                ),
+            ) from exc
+
+    message.attachment_filename = None
+    message.attachment_stored_filename = None
+    message.attachment_file_path = None
+    message.attachment_file_size = None
+    message.attachment_content_type = None
+    message.attachment_kind = None
+    message.attachment_hidden_from_feed = False
+    message.attachment_is_pinned = False
+
+    try:
+        db.commit()
+        db.refresh(message)
+    except Exception:
+        db.rollback()
+
+        if (
+            quarantine_path is not None
+            and quarantine_path.exists()
+        ):
+            try:
+                quarantine_path.replace(
+                    file_path
+                )
+            except OSError:
+                pass
+
+        raise
+
+    if quarantine_path is not None:
+        try:
+            quarantine_path.unlink(
+                missing_ok=True
+            )
+        except OSError:
+            pass
+
+    return {
+        "id": message.id,
+        "conversation_id": (
+            message.conversation_id
+        ),
+        "deleted": True,
+        "message": (
+            "Attachment deleted. "
+            "The chat remains available."
         ),
     }
 

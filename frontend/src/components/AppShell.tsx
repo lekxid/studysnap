@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  MouseEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import CommandBar from "@/components/CommandBar";
 import NotificationBell from "@/components/NotificationBell";
@@ -600,6 +606,36 @@ export default function AppShell({
   }, [pathname]);
 
   useEffect(() => {
+    if (
+      pathname !== "/dashboard" ||
+      typeof window === "undefined"
+    ) {
+      return;
+    }
+
+    const shouldScroll =
+      window.sessionStorage.getItem(
+        "studysnap:scroll-dashboard-top",
+      ) === "1";
+
+    if (!shouldScroll) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(
+      "studysnap:scroll-dashboard-top",
+    );
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      });
+    });
+  }, [pathname]);
+
+  useEffect(() => {
     function handleProjectRoomChanged(event: Event) {
       const roomEvent = event as CustomEvent<{
         roomId?: number | null;
@@ -747,6 +783,37 @@ export default function AppShell({
     router.push("/login");
   }
 
+  function handleHomeNavigation(
+    event: MouseEvent<HTMLAnchorElement>,
+  ) {
+    setBrandMenuOpen(false);
+    setMobileMenuOpen(false);
+    setRoomMenuOpen(false);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (pathname === "/dashboard") {
+      event.preventDefault();
+
+      window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: "smooth",
+        });
+      });
+
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      "studysnap:scroll-dashboard-top",
+      "1",
+    );
+  }
+
   function toggleDesktopSidebar() {
     setDesktopSidebarOpen((current) => {
       const next = !current;
@@ -776,6 +843,10 @@ export default function AppShell({
           href={connectedHref}
           aria-current={active ? "page" : undefined}
           onClick={(event) => {
+            if (item.href === "/dashboard") {
+              handleHomeNavigation(event);
+            }
+
             if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
               event.preventDefault();
 
@@ -879,6 +950,11 @@ export default function AppShell({
           href={resolveTopNavHref(item)}
           title={item.label}
           aria-current={active ? "page" : undefined}
+          onClick={(event) => {
+            if (item.href === "/dashboard") {
+              handleHomeNavigation(event);
+            }
+          }}
           className={`group relative flex h-[72px] min-w-[72px] flex-col items-center justify-center gap-1 px-3 transition ${
             active
               ? "text-[#cec18d]"
@@ -940,14 +1016,8 @@ export default function AppShell({
                     return;
                   }
 
-                  if (item.icon === "home" && pathname === "/dashboard") {
-                    event.preventDefault();
-
-                    window.scrollTo({
-                      top: 0,
-                      left: 0,
-                      behavior: "smooth",
-                    });
+                  if (item.icon === "home") {
+                    handleHomeNavigation(event);
                   }
                 }}
                 aria-current={active ? "page" : undefined}
@@ -1294,7 +1364,7 @@ export default function AppShell({
                         <Link
                           href="/dashboard"
                           role="menuitem"
-                          onClick={() => setBrandMenuOpen(false)}
+                          onClick={handleHomeNavigation}
                           className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07] hover:text-white"
                         >
                           <span aria-hidden="true" className="w-5 text-center">
