@@ -31,3 +31,5 @@ from app.models.user_resume_state import UserResumeState
 from app.models.room_read_state import RoomReadState
 
 from app.models.password_reset_token import PasswordResetToken
+
+from app.models.smart_scan import SmartScan, SmartScanPage

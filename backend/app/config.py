@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     studysnap_timezone: str = "America/Toronto"
     web_search_enabled: bool = True
 
+    # Isolated Smart Scan feature flag.
+    smart_scan_enabled: bool = True
+
     frontend_app_url: str = "http://localhost:3000"
     cors_origins: str = (
         "http://localhost:3000,"
