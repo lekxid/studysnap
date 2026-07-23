@@ -1623,8 +1623,13 @@ export default function AppShell({
               role="dialog"
               aria-modal="true"
               aria-label="Room tools"
-              className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom))] top-[60px] z-[70] overflow-y-auto border-t border-white/[0.075] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.075),transparent_28%),linear-gradient(180deg,rgba(8,11,14,0.995),rgba(2,4,6,0.998))] px-4 pb-6 pt-4 shadow-[0_34px_110px_rgba(0,0,0,0.86)] backdrop-blur-3xl lg:hidden"
+              className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom))] z-[70] max-h-[78vh] overflow-y-auto rounded-t-[1.75rem] border-t border-white/[0.10] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.09),transparent_30%),linear-gradient(180deg,rgba(10,14,18,0.995),rgba(2,4,6,0.998))] px-4 pb-6 pt-3 shadow-[0_-24px_90px_rgba(0,0,0,0.86)] backdrop-blur-3xl lg:hidden"
             >
+              <div
+                aria-hidden="true"
+                className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/[0.16]"
+              />
+
               <div className="flex items-center justify-between gap-4 px-1">
                 <div>
                   <div className="flex items-center gap-3">
@@ -1638,7 +1643,7 @@ export default function AppShell({
                       </p>
 
                       <p className="mt-0.5 text-[11px] font-medium text-slate-500">
-                        Everything connected to your study room
+                        Open tools without leaving your room
                       </p>
                     </div>
                   </div>

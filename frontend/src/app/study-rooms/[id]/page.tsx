@@ -1576,45 +1576,122 @@ export default function StudyRoomDetailPage() {
   }
 
   function renderProgressTab() {
+    const progressItems = [
+      {
+        label: "Materials",
+        value: pdfs.length + studyMaterials.length,
+        tab: "materials" as RoomTab,
+        icon: "▦",
+      },
+      {
+        label: "Notes",
+        value: notes.length,
+        tab: "notes" as RoomTab,
+        icon: "▣",
+      },
+      {
+        label: "Cards",
+        value: conceptCards.length,
+        tab: "practice" as RoomTab,
+        icon: "◉",
+      },
+      {
+        label: "Quizzes",
+        value: quizzes.length,
+        tab: "practice" as RoomTab,
+        icon: "◎",
+      },
+    ];
+
+    const connectedItems = progressItems.reduce(
+      (total, item) => total + item.value,
+      0
+    );
+
     return (
-      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
-        <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
-          Progress
-        </p>
-        <h2 className="mt-2 text-2xl font-black text-white">
-          Room learning progress
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-          Track how much content is connected and where practice should focus.
-        </p>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Materials", pdfs.length],
-            ["Notes", notes.length],
-            ["Concept Cards", conceptCards.length],
-            ["Quizzes", quizzes.length],
-          ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              className="rounded-2xl border border-white/10 bg-[#0f151b] p-5"
-            >
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                {label}
+      <div className="min-w-0 max-w-full space-y-3">
+        <section className="overflow-hidden rounded-[1.25rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.08),transparent_34%),linear-gradient(145deg,rgba(15,20,25,0.96),rgba(3,6,8,0.99))] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.3)] sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
+                Room progress
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{value}</p>
-            </div>
-          ))}
-        </div>
 
-        <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.045] p-5">
-          <p className="font-black text-[#ece8da]">Next progress upgrade</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Add concept heatmap, quiz history, confidence tracking, time-to-answer,
-            and smart retry analytics.
-          </p>
-        </div>
-      </section>
+              <h2 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">
+                {progressPercent}% connected
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400 sm:text-sm">
+                {connectedItems} study item{connectedItems === 1 ? "" : "s"} currently support this room.
+              </p>
+            </div>
+
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.08] text-sm font-black text-[#d7cb94]">
+              {progressPercent}%
+            </span>
+          </div>
+
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-[#91824f] transition-[width]"
+              style={{
+                width: `${progressPercent}%`,
+              }}
+            />
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {progressItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => setActiveRoomTab(item.tab)}
+              className="flex min-w-0 items-center gap-3 rounded-[1rem] border border-white/[0.075] bg-white/[0.025] p-3 text-left transition hover:border-white/[0.13] hover:bg-white/[0.055]"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.065] bg-white/[0.03] text-sm font-black text-[#c7b979]">
+                {item.icon}
+              </span>
+
+              <span className="min-w-0">
+                <span className="block text-lg font-black leading-none text-white">
+                  {item.value}
+                </span>
+
+                <span className="mt-1 block truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  {item.label}
+                </span>
+              </span>
+            </button>
+          ))}
+        </section>
+
+        <section className="rounded-[1.15rem] border border-[#b7a35f]/18 bg-[linear-gradient(145deg,rgba(183,163,95,0.065),rgba(255,255,255,0.018))] p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#a99b68]">
+                Best next step
+              </p>
+
+              <h3 className="mt-1 truncate text-sm font-black text-white">
+                {smartSuggestion.title}
+              </h3>
+
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                {smartSuggestion.text}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveRoomTab(smartSuggestion.tab)}
+              className="shrink-0 rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.08] px-3 py-2.5 text-[10px] font-black text-[#d7cb94] transition hover:bg-[#b7a35f]/[0.14]"
+            >
+              {smartSuggestion.actionLabel} →
+            </button>
+          </div>
+        </section>
+      </div>
     );
   }
 

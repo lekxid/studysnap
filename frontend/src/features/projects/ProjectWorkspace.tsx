@@ -340,7 +340,7 @@ function TabButton({
       aria-current={
         active ? "page" : undefined
       }
-      className={`group relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center transition active:scale-[0.98] ${
+      className={`group relative flex min-h-[54px] min-w-[72px] flex-1 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center transition active:scale-[0.98] ${
         active
           ? "border-[#b7a35f]/32 bg-[#b7a35f]/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.055)]"
           : "border-white/[0.075] bg-white/[0.025] text-slate-400 hover:border-white/[0.13] hover:bg-white/[0.05] hover:text-white"
@@ -490,7 +490,7 @@ export default function ProjectWorkspace({
 
   return (
     <div className="min-w-0 max-w-full space-y-3 pb-4 sm:space-y-4">
-      <section className="relative overflow-hidden rounded-[1.45rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.075),transparent_30%),linear-gradient(145deg,rgba(16,21,26,0.97),rgba(3,6,8,0.995))] p-4 shadow-[0_22px_65px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-5">
+      <section className="relative overflow-hidden rounded-[1.35rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.075),transparent_30%),linear-gradient(145deg,rgba(16,21,26,0.97),rgba(3,6,8,0.995))] p-3.5 shadow-[0_18px_55px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <button
@@ -535,7 +535,7 @@ export default function ProjectWorkspace({
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-4 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <CompactStat
             label="Progress"
             value={`${safeProgress}%`}
@@ -567,7 +567,7 @@ export default function ProjectWorkspace({
         </div>
       </section>
 
-      <section className="rounded-[1.35rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(14,18,22,0.94),rgba(3,6,8,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.045)]">
+      <section className="rounded-[1.25rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(14,18,22,0.94),rgba(3,6,8,0.98))] p-2.5 shadow-[0_16px_46px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.045)] sm:p-3">
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
             <p className="text-sm font-black text-white">
@@ -591,7 +591,7 @@ export default function ProjectWorkspace({
           />
         </div>
 
-        <div className="mt-2.5 grid grid-cols-4 gap-1.5 sm:grid-cols-7 sm:gap-2">
+        <div className="mt-2.5 flex min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0 sm:[scrollbar-width:auto]">
           {roomTabs.map((tab) => (
             <TabButton
               key={tab.key}
@@ -618,206 +618,126 @@ export default function ProjectWorkspace({
       />
 
       {activeTab === "overview" ? (
-        <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.022] p-3 xl:hidden">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#a99b68]">
-                Recommended next
-              </p>
+        <section className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <button
+            type="button"
+            onClick={() => {
+              if (primaryContinueItem) {
+                primaryContinueItem.onOpen();
+                return;
+              }
 
-              <p className="mt-1 line-clamp-1 text-sm font-black text-white">
+              onChangeTab(smartSuggestion.tab);
+            }}
+            className="group flex min-w-0 items-center gap-3 rounded-[1.15rem] border border-[#b7a35f]/18 bg-[linear-gradient(145deg,rgba(183,163,95,0.075),rgba(255,255,255,0.018))] p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-[#b7a35f]/30 hover:bg-[#b7a35f]/[0.09]"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#b7a35f]/20 bg-[#b7a35f]/[0.08] text-sm font-black text-[#d7cb94]">
+              {primaryContinueItem?.icon || "S"}
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-[#a99b68]">
+                Next action
+              </span>
+
+              <span className="mt-0.5 block truncate text-sm font-black text-white">
                 {primaryContinueItem
                   ? primaryContinueItem.title
                   : smartSuggestion.title}
-              </p>
+              </span>
 
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+              <span className="mt-0.5 block truncate text-[11px] text-slate-500">
                 {primaryContinueItem
                   ? primaryContinueItem.subtitle
                   : smartSuggestion.text}
-              </p>
-            </div>
+              </span>
+            </span>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  primaryContinueItem
-                ) {
-                  primaryContinueItem.onOpen();
-                  return;
-                }
-
-                onChangeTab(
-                  smartSuggestion.tab,
-                );
-              }}
-              className="shrink-0 rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.075] px-3 py-2 text-[10px] font-black text-[#d7cb94]"
-            >
+            <span className="shrink-0 rounded-xl border border-white/[0.075] bg-white/[0.035] px-3 py-2 text-[10px] font-black text-slate-300 transition group-hover:bg-white/[0.07] group-hover:text-white">
               Open →
-            </button>
-          </div>
-        </section>
-      ) : null}
+            </span>
+          </button>
 
-      <section
-        className={`grid min-w-0 gap-4 ${
-          activeTab === "overview"
-            ? "xl:grid-cols-[minmax(0,1fr)_300px]"
-            : "grid-cols-1"
-        }`}
-      >
-        <div className="min-w-0">
-          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(11,15,19,0.95),rgba(3,6,8,0.99))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.24)] sm:p-4">
-            {children}
-          </section>
-        </div>
-
-        {activeTab === "overview" ? (
-          <aside className="hidden space-y-3 xl:block">
-            <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.025] p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
-                Next step
-              </p>
-
-              <h3 className="mt-1.5 text-base font-black text-white">
-                {primaryContinueItem
-                  ? primaryContinueItem.title
-                  : smartSuggestion.title}
-              </h3>
-
-              <p className="mt-1.5 text-xs leading-5 text-slate-400">
-                {primaryContinueItem
-                  ? primaryContinueItem.subtitle
-                  : smartSuggestion.text}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (
-                    primaryContinueItem
-                  ) {
-                    primaryContinueItem.onOpen();
-                    return;
-                  }
-
-                  onChangeTab(
-                    smartSuggestion.tab,
-                  );
-                }}
-                className="mt-3 w-full rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.075] px-3 py-2.5 text-xs font-black text-[#d7cb94] transition hover:bg-[#b7a35f]/[0.13]"
-              >
-                {primaryContinueItem
-                  ? "Continue learning"
-                  : smartSuggestion.actionLabel}{" "}
-                →
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  onChangeTab(
-                    smartSuggestion.tab,
-                  )
-                }
-                className="mt-2 w-full rounded-xl border border-white/[0.075] bg-white/[0.025] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
-              >
-                {smartSuggestion.title}
-              </button>
-            </section>
-
-            <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.025] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
-                    AI learning snapshot
-                  </p>
-
-                  <p className="mt-1 text-sm font-black text-white">
-                    Room knowledge
-                  </p>
-                </div>
-
-                <span className="rounded-full border border-white/[0.075] bg-white/[0.035] px-2.5 py-1 text-[10px] font-black text-slate-300">
-                  {brainLoading
-                    ? "…"
-                    : `${masteryPercent}%`}
+          <details className="group overflow-hidden rounded-[1.15rem] border border-white/[0.075] bg-white/[0.022]">
+            <summary className="flex min-h-full cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3">
+              <span className="min-w-0">
+                <span className="block text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                  AI snapshot
                 </span>
-              </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
+                <span className="mt-0.5 block truncate text-xs font-black text-slate-300">
+                  Room knowledge and review
+                </span>
+              </span>
+
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full border border-white/[0.075] bg-white/[0.035] px-2.5 py-1 text-[10px] font-black text-[#c9bc82]">
+                  {brainLoading ? "…" : `${masteryPercent}%`}
+                </span>
+
+                <span className="text-xs text-slate-500 transition-transform group-open:rotate-180">
+                  ▾
+                </span>
+              </span>
+            </summary>
+
+            <div className="border-t border-white/[0.06] p-3">
+              <div className="grid grid-cols-3 gap-2">
                 <CompactStat
                   label="Review"
                   value={
-                    brainInsights?.weak_count ||
+                    brainInsights?.needs_review_count ??
+                    brainInsights?.weak_count ??
                     0
                   }
                 />
 
                 <CompactStat
                   label="Learning"
-                  value={
-                    brainInsights?.developing_count ||
-                    0
-                  }
+                  value={brainInsights?.developing_count || 0}
                 />
 
                 <CompactStat
                   label="Strong"
-                  value={
-                    brainInsights?.mastered_count ||
-                    0
-                  }
+                  value={brainInsights?.mastered_count || 0}
                 />
               </div>
 
               {weakConcepts.length ? (
-                <div className="mt-3 space-y-1.5">
-                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    Review next
-                  </p>
+                <div className="mt-2 space-y-1.5">
+                  {weakConcepts.map((concept) => (
+                    <button
+                      key={concept.concept_id}
+                      type="button"
+                      onClick={() => onChangeTab("practice")}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <span className="line-clamp-1 text-[11px] font-bold text-slate-300">
+                        {concept.concept_name}
+                      </span>
 
-                  {weakConcepts.map(
-                    (concept) => (
-                      <button
-                        key={
-                          concept.concept_id
-                        }
-                        type="button"
-                        onClick={() =>
-                          onChangeTab(
-                            "practice",
-                          )
-                        }
-                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2 text-left"
-                      >
-                        <span className="line-clamp-1 text-[11px] font-bold text-slate-300">
-                          {
-                            concept.concept_name
-                          }
-                        </span>
-
-                        <span className="text-[9px] font-black text-slate-500">
-                          {Math.round(
-                            concept.mastery_score *
-                              100,
-                          )}
-                          %
-                        </span>
-                      </button>
-                    ),
-                  )}
+                      <span className="text-[9px] font-black text-slate-500">
+                        {Math.round(concept.mastery_score * 100)}%
+                      </span>
+                    </button>
+                  ))}
                 </div>
               ) : (
-                <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Practice activity will build
-                  your room learning snapshot.
+                <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                  Practice activity will build your learning snapshot.
                 </p>
               )}
-            </section>
-          </aside>
-        ) : null}
+            </div>
+          </details>
+        </section>
+      ) : null}
+
+      <section className="min-w-0">
+        <div className="min-w-0">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.25rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(11,15,19,0.95),rgba(3,6,8,0.99))] p-3 shadow-[0_16px_48px_rgba(0,0,0,0.23)] sm:p-4">
+            {children}
+          </section>
+        </div>
       </section>
     </div>
   );
