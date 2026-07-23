@@ -52,7 +52,7 @@ const primaryNavItems: NavItem[] = [
   {
     href: "/study-rooms/organize",
     label: "Smart Organizer",
-    icon: "🗂️",
+    icon: "S",
   },
   {
     href: "/smart-scan",
@@ -90,7 +90,7 @@ const studyToolNavItems: NavItem[] = [
   {
     href: "/ai-tutor",
     label: "AI Tutor",
-    icon: "✦",
+    icon: "S",
   },
 ];
 
@@ -117,12 +117,12 @@ const moreNavItems: NavItem[] = [
   {
     href: "/brain",
     label: "AI Memory",
-    icon: "🧠",
+    icon: "◉",
   },
   {
     href: "/groups",
     label: "Study Groups",
-    icon: "👥",
+    icon: "◎",
   },
 ];
 
@@ -140,12 +140,12 @@ const topNavItems: NavItem[] = [
   {
     href: "/study-together",
     label: "Study Together",
-    icon: "👥",
+    icon: "◎",
   },
   {
     href: "/ai-tutor",
     label: "AI Tutor",
-    icon: "✦",
+    icon: "S",
   },
   {
     href: "/progress",
@@ -721,37 +721,37 @@ export default function AppShell({
       : [
           {
             label: "Overview",
-            icon: "🏠",
+            icon: "⌂",
             href: `/study-rooms/${activeProjectRoomId}`,
           },
           {
             label: "Materials",
-            icon: "📚",
+            icon: "▤",
             href: `/study-rooms/${activeProjectRoomId}?tab=materials`,
           },
           {
             label: "Notes",
-            icon: "📝",
+            icon: "✎",
             href: `/study-rooms/${activeProjectRoomId}?tab=notes`,
           },
           {
             label: "AI Tutor",
-            icon: "🤖",
+            icon: "S",
             href: `/study-rooms/${activeProjectRoomId}?tab=ai`,
           },
           {
             label: "Practice",
-            icon: "🧠",
+            icon: "◉",
             href: `/study-rooms/${activeProjectRoomId}?tab=practice`,
           },
           {
             label: "Together",
-            icon: "👥",
+            icon: "◎",
             href: `/study-rooms/${activeProjectRoomId}?tab=together`,
           },
           {
             label: "Progress",
-            icon: "📈",
+            icon: "↗",
             href: `/study-rooms/${activeProjectRoomId}?tab=progress`,
           },
         ];
@@ -978,7 +978,7 @@ export default function AppShell({
           <span
             className={`grid h-9 w-9 place-items-center rounded-xl text-base transition ${
               active
-                ? "bg-[#c9ad50] text-[#111317] shadow-[0_8px_22px_rgba(0,0,0,0.18)]"
+                ? "border border-white/[0.11] bg-white/[0.075] text-white shadow-[0_8px_22px_rgba(0,0,0,0.22)]"
                 : "bg-white/[0.04] group-hover:bg-white/[0.08]"
             }`}
           >
@@ -991,7 +991,7 @@ export default function AppShell({
 
           <span
             className={`absolute bottom-0 left-3 right-3 h-[3px] rounded-full ${
-              active ? "bg-[#c9ad50]" : "bg-transparent"
+              active ? "bg-white/[0.08]" : "bg-transparent"
             }`}
           />
         </Link>
@@ -1046,13 +1046,21 @@ export default function AppShell({
                 <span
                   className={`relative grid shrink-0 place-items-center transition ${
                     primaryAction
-                      ? "h-12 w-12 rounded-2xl border border-[#d6b84a]/30 bg-[#111418] text-[#d6b84a] shadow-[0_10px_28px_rgba(0,0,0,0.34)]"
+                      ? "h-12 w-14 rounded-[1rem] border border-[#b7a35f]/28 bg-[linear-gradient(145deg,rgba(26,29,28,0.98),rgba(9,11,12,0.99))] text-[#d2c589] shadow-[0_12px_32px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.08)]"
                       : active
                         ? "h-9 w-11 rounded-xl bg-white/[0.055] text-[#d6b84a]"
                         : "h-9 w-11 rounded-xl text-slate-400 group-active:bg-white/[0.07]"
                   }`}
                 >
-                  <MobileNavIcon name={item.icon} />
+                  {primaryAction ? (
+                    <span className="text-[1.25rem] font-black leading-none tracking-[-0.05em]">
+                      S
+                    </span>
+                  ) : (
+                    <MobileNavIcon
+                      name={item.icon}
+                    />
+                  )}
 
                   {primaryAction ? (
                     <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/20" />
@@ -1068,7 +1076,7 @@ export default function AppShell({
                 </span>
 
                 {active && !primaryAction ? (
-                  <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#c9ad50]" />
+                  <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#9d8d58]" />
                 ) : null}
               </Link>
             );
@@ -1088,10 +1096,10 @@ export default function AppShell({
       >
         <div className="hidden">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
-            <span className="text-3xl text-[#c9ad50]">★</span>
+            <span className="text-3xl text-[#eeeae0]">S</span>
 
             <span className="truncate text-xl font-black tracking-tight text-white">
-              StudySnap <span className="text-[#c9ad50]">AI</span>
+              StudySnap <span className="text-slate-500">AI</span>
             </span>
           </Link>
 
@@ -1171,7 +1179,7 @@ export default function AppShell({
                         onClick={() => handleChooseRoom(room)}
                         className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-black transition ${
                           selected
-                            ? "bg-[#c9ad50] text-[#111317]"
+                            ? "border border-white/[0.11] bg-white/[0.075] text-white"
                             : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
                         }`}
                       >
@@ -1180,7 +1188,7 @@ export default function AppShell({
                             selected ? "bg-black/15" : "bg-white/[0.06]"
                           }`}
                         >
-                          📚
+                          ▦
                         </span>
 
                         <span className="min-w-0 flex-1 truncate">
@@ -1217,7 +1225,7 @@ export default function AppShell({
           <div className="mt-3">
             {renderExpandableNav({
               title: "Study Tools",
-              icon: "✦",
+              icon: "S",
               items: studyToolNavItems,
               open: studyToolsOpen,
               onToggle: () => setStudyToolsOpen((current) => !current),
@@ -1283,7 +1291,7 @@ export default function AppShell({
                 href="/settings"
                 className={`rounded-xl px-3 py-2 text-center text-xs font-black transition ${
                   pathname.startsWith("/settings")
-                    ? "bg-[#c9ad50] text-[#111317]"
+                    ? "border border-white/[0.11] bg-white/[0.075] text-white"
                     : "bg-white/[0.06] text-slate-200 hover:bg-white/[0.09]"
                 }`}
               >
@@ -1326,11 +1334,11 @@ export default function AppShell({
                   <span className="relative grid h-10 w-[54px] place-items-center overflow-hidden rounded-[14px] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(20,25,31,0.98),rgba(2,4,6,0.99))] shadow-[0_12px_32px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.09)] transition group-active:scale-95">
                     <span className="pointer-events-none absolute inset-[2px] rounded-[12px] border border-white/[0.05]" />
 
-                    <span className="relative -translate-x-1 text-[22px] font-black leading-none tracking-[-0.12em] text-[#e3cf79]">
+                    <span className="relative -translate-x-1 text-[22px] font-black leading-none tracking-[-0.12em] text-[#eeeae0]">
                       S
                     </span>
 
-                    <span className="absolute bottom-[7px] right-[6px] text-[8px] font-black tracking-[-0.04em] text-[#aa9857]">
+                    <span className="absolute bottom-[7px] right-[6px] text-[8px] font-black tracking-[-0.04em] text-slate-500">
                       AI
                     </span>
                   </span>
@@ -1350,7 +1358,7 @@ export default function AppShell({
                       className="absolute left-0 top-12 z-[60] w-[min(18rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.25rem] border border-white/[0.12] bg-[linear-gradient(145deg,rgba(18,24,30,0.98),rgba(3,6,9,0.98))] p-2 shadow-[0_26px_80px_rgba(0,0,0,0.76),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl"
                     >
                       <div className="mb-2 flex items-center gap-3 rounded-[1rem] border border-white/[0.08] bg-white/[0.035] p-3">
-                        <div className="grid h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-[#c9ad50] text-xs font-black text-black">
+                        <div className="grid h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-white/[0.09] bg-white/[0.06] text-xs font-black text-slate-200">
                           {learnerAvatarUrl ? (
                             <img
                               src={learnerAvatarUrl}
@@ -1397,7 +1405,7 @@ export default function AppShell({
                             aria-hidden="true"
                             className="w-5 text-center text-[#d9c575]"
                           >
-                            ✦
+                            S
                           </span>
                           AI Tutor
                         </Link>
@@ -1531,7 +1539,7 @@ export default function AppShell({
                           setBrandMenuOpen(false);
                           void handleLogout();
                         }}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-300 transition hover:bg-red-500/10"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-200 transition hover:bg-red-500/[0.055]"
                       >
                         <span aria-hidden="true" className="w-5 text-center">
                           ↪
@@ -1565,7 +1573,7 @@ export default function AppShell({
                 title="Room tools"
                 className={`grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border shadow-[0_10px_28px_rgba(0,0,0,0.46),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-3xl transition active:scale-95 lg:hidden ${
                   mobileMenuOpen
-                    ? "border-[#d8bd60]/45 bg-[#c9ad50]/15"
+                    ? "border-white/[0.14] bg-white/[0.065]"
                     : "border-white/[0.11] bg-[#0c1117]/90 active:bg-white/[0.1]"
                 }`}
                 aria-label={
@@ -1574,16 +1582,16 @@ export default function AppShell({
                 aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? (
-                  <span className="text-lg font-black text-[#e8d98f]">×</span>
+                  <span className="text-lg font-black text-slate-300">×</span>
                 ) : (
                   <span
                     aria-hidden="true"
                     className="grid grid-cols-2 gap-[4px]"
                   >
-                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
-                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
-                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
-                    <span className="h-[5px] w-[5px] rounded-[2px] bg-[#e1d18a]" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-slate-400" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-slate-400" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-slate-400" />
+                    <span className="h-[5px] w-[5px] rounded-[2px] bg-slate-400" />
                   </span>
                 )}
               </button>
@@ -1611,17 +1619,36 @@ export default function AppShell({
           </div>
 
           {mobileMenuOpen ? (
-            <div className="max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] overflow-y-auto border-t border-white/[0.1] bg-[#020406]/[0.91] px-3 py-4 shadow-[0_32px_90px_rgba(0,0,0,0.76)] backdrop-blur-3xl lg:hidden">
-              <div className="flex items-start justify-between gap-4 px-2">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Room tools"
+              className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom))] top-[60px] z-[70] overflow-y-auto border-t border-white/[0.075] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.075),transparent_28%),linear-gradient(180deg,rgba(8,11,14,0.995),rgba(2,4,6,0.998))] px-4 pb-6 pt-4 shadow-[0_34px_110px_rgba(0,0,0,0.86)] backdrop-blur-3xl lg:hidden"
+            >
+              <div className="flex items-center justify-between gap-4 px-1">
                 <div>
-                  <p className="text-sm font-black text-white">Room tools</p>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-[14px] border border-white/[0.09] bg-white/[0.045] text-sm font-black text-slate-200">
+                      S
+                    </span>
+
+                    <div>
+                      <p className="text-base font-black text-white">
+                        Room tools
+                      </p>
+
+                      <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                        Everything connected to your study room
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/[0.09] bg-white/[0.055] text-lg text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl active:bg-white/[0.11]"
-                  aria-label="Close more menu"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-white/[0.085] bg-white/[0.035] text-lg text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] backdrop-blur-xl transition hover:bg-white/[0.065] hover:text-white active:scale-95"
+                  aria-label="Close room tools"
                 >
                   ×
                 </button>
@@ -1629,11 +1656,11 @@ export default function AppShell({
 
               <section
                 data-mobile-room-shortcuts="true"
-                className="mt-5 rounded-[1.35rem] border border-white/[0.075] bg-white/[0.025] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+                className="mt-5 rounded-[1.5rem] border border-white/[0.085] bg-[linear-gradient(145deg,rgba(14,18,22,0.95),rgba(4,7,10,0.99))] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.045)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b7a45c]">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#bdaa68]">
                       Current room
                     </p>
 
@@ -1649,29 +1676,29 @@ export default function AppShell({
                         : "/study-rooms"
                     }
                     onClick={() => setMobileMenuOpen(false)}
-                    className="shrink-0 rounded-full border border-[#d9c568]/25 bg-[#c9ad50]/10 px-3 py-1.5 text-[10px] font-black text-[#e7d994]"
+                    className="shrink-0 rounded-full border border-white/[0.1] bg-white/[0.045] px-3.5 py-2 text-[10px] font-black text-slate-300 transition hover:border-white/[0.16] hover:bg-white/[0.075] hover:text-white"
                   >
                     {activeProjectRoomId !== null ? "Open" : "Choose"}
                   </Link>
                 </div>
 
                 {activeProjectRoomId !== null ? (
-                  <div className="mt-3 grid grid-cols-4 gap-2">
+                  <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                     {dashboardRoomTools.map((tool) => (
                       <Link
                         key={tool.label}
                         href={tool.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex min-h-[72px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1rem] border border-white/[0.085] bg-[#080c10]/80 px-1.5 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] active:border-[#c9ad50]/35 active:bg-[#c9ad50]/10"
+                        className="group flex min-h-[82px] min-w-0 flex-col items-center justify-center gap-2 rounded-[1.05rem] border border-white/[0.085] bg-[linear-gradient(145deg,rgba(15,19,23,0.92),rgba(5,8,10,0.96))] px-2 py-3 text-center shadow-[0_10px_30px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.045)] transition active:scale-[0.98] active:border-white/[0.16] active:bg-white/[0.075]"
                       >
                         <span
                           aria-hidden="true"
-                          className="text-xl leading-none"
+                          className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.075] bg-white/[0.04] text-lg leading-none text-[#d3c78d]"
                         >
                           {tool.icon}
                         </span>
 
-                        <span className="w-full truncate text-[9px] font-black text-slate-200">
+                        <span className="w-full truncate text-[10px] font-black tracking-[-0.01em] text-slate-200">
                           {tool.label}
                         </span>
                       </Link>
@@ -1696,7 +1723,7 @@ export default function AppShell({
               <div className="mt-2">
                 {renderExpandableNav({
                   title: "Study Tools",
-                  icon: "✦",
+                  icon: "S",
                   items: mobileStudyToolNavItems,
                   open: studyToolsOpen,
                   onToggle: () => setStudyToolsOpen((current) => !current),
@@ -1721,7 +1748,7 @@ export default function AppShell({
                   setMobileMenuOpen(false);
                   void handleLogout();
                 }}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 active:bg-red-500/20"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.025] px-4 py-3 text-sm font-black text-slate-400 transition active:bg-red-500/[0.09] active:text-red-100"
               >
                 <span aria-hidden="true">↪</span>
                 Sign out

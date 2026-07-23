@@ -329,7 +329,7 @@ export default function StudyRoomsPage() {
                 aria-label="Open Smart Organizer"
                 className="grid h-10 w-10 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfce83] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
               >
-                ✦
+                S
               </Link>
 
               <button
@@ -883,7 +883,7 @@ export default function StudyRoomsPage() {
           >
             <span className="flex items-center gap-3 text-sm font-black text-white">
               <span className="grid h-9 w-9 place-items-center rounded-xl border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[#ddca78]">
-                ✦
+                S
               </span>
               Smart Organizer
             </span>
