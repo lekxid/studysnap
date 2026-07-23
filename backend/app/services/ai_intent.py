@@ -20,6 +20,18 @@ When web search is used:
   URLs, for example: [Official source](https://example.com/page).
 - Never invent a source, URL, date, price, policy, or search result.
 - Say briefly when reliable confirmation could not be found.
+- When the user asks to download, install, open, listen to, watch, or get
+  something, first identify which action they mean.
+- For an app, search for and provide verified official App Store, Google
+  Play, Microsoft Store, or developer-site destinations when available.
+- For copyrighted music, video, books, games, or other commercial media,
+  do not claim to provide an unauthorized downloadable file. Provide
+  verified legal listening, viewing, purchase, rental, or library options.
+- For a StudySnap-generated file or a file the user already owns, do not
+  search for an unrelated public download. Refer to the available
+  StudySnap file action instead.
+- Put the most useful verified destinations near the answer and format
+  every destination as a complete Markdown HTTPS link.
 """.strip()
 
 
@@ -62,6 +74,24 @@ _CONNECTIVITY_ONLY_PATTERNS = (
 )
 
 
+_DOWNLOAD_ACTION_PATTERNS = (
+    r"\bdownload\s+[^\s]",
+    r"\binstall\s+[^\s]",
+    r"\bget\s+(?:the\s+)?[^\n]{1,80}\b(?:app|application)\b",
+    r"\bwhere\s+can\s+i\s+(?:download|install|get|listen|watch|buy|rent)\b",
+    r"\b(?:app\s+store|google\s+play|play\s+store|microsoft\s+store)\b",
+)
+
+_LOCAL_FILE_DOWNLOAD_PATTERNS = (
+    r"\bdownload\s+(?:this|that|the|my|your)\s+"
+    r"(?:(?:generated|uploaded|created|made)\s+)?"
+    r"(?:file|pdf|document|docx|image|photo|note|report|assignment|presentation|slides?)\b",
+    r"\bdownload\s+(?:the\s+)?file\s+(?:i|you)\s+(?:uploaded|created|made|generated)\b",
+    r"\bsave\s+(?:this|that|the|my|your)\s+"
+    r"(?:file|pdf|document|image|note|report)\b",
+)
+
+
 def normalize_intent_text(
     value: str | None,
 ) -> str:
@@ -89,6 +119,42 @@ def has_explicit_web_request(
     )
 
 
+def has_download_action_request(
+    value: str | None,
+) -> bool:
+    normalized = normalize_intent_text(
+        value
+    )
+
+    return any(
+        re.search(
+            pattern,
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        for pattern
+        in _DOWNLOAD_ACTION_PATTERNS
+    )
+
+
+def is_local_file_download_request(
+    value: str | None,
+) -> bool:
+    normalized = normalize_intent_text(
+        value
+    )
+
+    return any(
+        re.search(
+            pattern,
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        for pattern
+        in _LOCAL_FILE_DOWNLOAD_PATTERNS
+    )
+
+
 def should_use_web_search(
     question: str,
     context: str = "",
@@ -101,6 +167,13 @@ def should_use_web_search(
         question_text
     ):
         return True
+
+    if has_download_action_request(
+        question_text
+    ):
+        return not is_local_file_download_request(
+            question_text
+        )
 
     connectivity_only = any(
         re.search(

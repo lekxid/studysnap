@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
+import SmartActionLinks from "@/components/ai/SmartActionLinks";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
@@ -3584,10 +3585,16 @@ export default function GeneralAIChat({
                       </div>
 
                       {message.role === "assistant" ? (
-                        <SimpleMarkdown
-                          content={displayedContent}
-                          className="text-sm leading-7"
-                        />
+                        <>
+                          <SimpleMarkdown
+                            content={displayedContent}
+                            className="text-sm leading-7"
+                          />
+
+                          <SmartActionLinks
+                            content={displayedContent}
+                          />
+                        </>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm leading-6">
                           {displayedContent}

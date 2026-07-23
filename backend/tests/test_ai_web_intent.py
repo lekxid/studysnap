@@ -1,7 +1,9 @@
 import pytest
 
 from app.services.ai_intent import (
+    has_download_action_request,
     has_explicit_web_request,
+    is_local_file_download_request,
     should_use_web_search,
 )
 
@@ -111,4 +113,54 @@ Assistant: Here are the researched tips.
     assert not should_use_web_search(
         "Summarize my biology notes",
         context,
+    )
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Download WhatsApp",
+        "Install the Instagram app",
+        "Where can I download the Zoom application?",
+        "Download Drake Energy",
+        "Get the official app from Google Play",
+    ],
+)
+def test_download_actions_request_current_destinations(
+    message,
+):
+    assert has_download_action_request(
+        message
+    )
+
+    assert should_use_web_search(
+        message
+    )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Download the PDF you created",
+        "Download my uploaded file",
+        "Download your uploaded PDF",
+        "Download my created report",
+        "Download this generated image",
+        "Save this document",
+    ],
+)
+def test_owned_or_generated_files_do_not_trigger_public_search(
+    message,
+):
+    assert is_local_file_download_request(
+        message
+    )
+
+    assert not should_use_web_search(
+        message
+    )
+
+
+def test_explicit_online_request_still_overrides_local_wording():
+    assert should_use_web_search(
+        "Search the web for an app that can open this PDF"
     )
