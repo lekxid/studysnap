@@ -1,7 +1,7 @@
 """add smart scan foundation
 
 Revision ID: 20260722_smart_scan_foundation
-Revises: 20260722_dashboard_attachment_actions
+Revises: 20260722_dash_attach_actions
 Create Date: 2026-07-22
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 revision = "20260722_smart_scan_foundation"
 down_revision = (
-    "20260722_dashboard_attachment_actions"
+    "20260722_dash_attach_actions"
 )
 branch_labels = None
 depends_on = None
