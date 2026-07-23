@@ -22,6 +22,7 @@ from app.routes.brain import router as brain_router
 from app.routes.smart_organizer import router as smart_organizer_router
 from app.routes.file_brain import router as file_brain_router
 from app.routes.file_brain_uploads import router as file_brain_uploads_router
+from app.routes.file_brain_ai import router as file_brain_ai_router
 from app.routes.smart_scan import router as smart_scan_router
 from app.routes.users import router as users_router
 from app.routes.sessions import router as sessions_router
@@ -62,6 +63,7 @@ app.include_router(brain_router, prefix="/api/brain")
 app.include_router(smart_organizer_router, prefix="/api/smart-organizer")
 app.include_router(file_brain_router, prefix="/api/file-brain")
 app.include_router(file_brain_uploads_router, prefix="/api/file-brain")
+app.include_router(file_brain_ai_router, prefix="/api/file-brain")
 app.include_router(
     smart_scan_router,
     prefix="/api/smart-scan",
