@@ -9,6 +9,11 @@ import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
+import {
+  GeneralAIFileBrainQueue,
+  buildFileBrainDisplayAttachments,
+  useGeneralAIFileBrainQueue,
+} from "@/features/ai/GeneralAIFileBrainQueue";
 import { takePendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import {
@@ -401,6 +406,9 @@ export default function GeneralAIChat({
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
   >([]);
+
+  const fileBrainQueue =
+    useGeneralAIFileBrainQueue();
   const [roomCreationOffer, setRoomCreationOffer] =
     useState<RoomCreationOffer | null>(null);
   const [availableRooms, setAvailableRooms] = useState<StudyRoom[]>([]);
@@ -505,7 +513,8 @@ export default function GeneralAIChat({
       (input.trim().length > 0 ||
         selectedImage !== null ||
         pendingDocument !== null ||
-        pendingAttachments.length > 0) &&
+        pendingAttachments.length > 0 ||
+        fileBrainQueue.selectedReadyCount > 0) &&
       !loading &&
       !documentUploading
     );
@@ -515,6 +524,7 @@ export default function GeneralAIChat({
     selectedImage,
     pendingDocument,
     pendingAttachments,
+    fileBrainQueue.selectedReadyCount,
     loading,
     documentUploading,
   ]);
@@ -811,7 +821,15 @@ export default function GeneralAIChat({
       return;
     }
 
-    void addAttachments(pendingFiles.slice(0, 20));
+    void fileBrainQueue
+      .addFiles(
+        pendingFiles.slice(0, 100)
+      )
+      .catch(() =>
+        addAttachments(
+          pendingFiles.slice(0, 10)
+        )
+      );
 
     window.history.replaceState({}, "", "/general-ai");
   }, []);
@@ -977,13 +995,69 @@ export default function GeneralAIChat({
     }
   }
 
-  async function handleMultipleAttachmentChange(fileList: FileList | null) {
-    if (!fileList?.length) return;
+    async function handleMultipleAttachmentChange(
+    fileList: FileList | null
+  ) {
+    const files =
+      Array.from(
+        fileList ?? []
+      );
 
-    await addAttachments(Array.from(fileList));
+    if (!files.length) {
+      return;
+    }
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    setError("");
+
+    try {
+      const result =
+        await fileBrainQueue.addFiles(
+          files
+        );
+
+      clearPendingAttachments();
+
+      if (result.accepted > 0) {
+        setActivity({
+          label: "Files queued",
+          detail:
+            `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately in the background.`,
+          progress: 0,
+        });
+
+        clearActivityAfter(
+          1600
+        );
+      }
+
+      if (result.rejected > 0) {
+        setError(
+          `${result.rejected} file${result.rejected === 1 ? " was" : "s were"} not added because of the queue or file-size limit.`
+        );
+      }
+    } catch (queueError) {
+      const legacyFiles =
+        files.slice(0, 10);
+
+      await addAttachments(
+        legacyFiles
+      );
+
+      setError(
+        (
+          queueError instanceof Error
+            ? queueError.message + " "
+            : ""
+        )
+        + "StudySnap kept up to 10 files in the immediate-upload fallback."
+      );
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value =
+          "";
+      }
+
+      inputRef.current?.focus();
     }
   }
 
@@ -1827,11 +1901,18 @@ export default function GeneralAIChat({
     const documentToSend = pendingDocument;
     const attachmentsToSend = pendingAttachments;
 
+    const fileBrainItemsToSend =
+      imageToSend || documentToSend
+        ? []
+        : fileBrainQueue.selectedReadyItems
+            .slice(0, 10);
+
     if (
       (!question &&
         !imageToSend &&
         !documentToSend &&
-        attachmentsToSend.length === 0) ||
+        attachmentsToSend.length === 0 &&
+        fileBrainItemsToSend.length === 0) ||
       loading ||
       documentUploading
     ) {
@@ -1840,15 +1921,26 @@ export default function GeneralAIChat({
 
     const finalQuestion =
       question ||
-      (attachmentsToSend.length > 1
-        ? "Explain these files clearly and connect the important points."
-        : attachmentsToSend.length === 1
-          ? attachmentsToSend[0].kind === "image"
-            ? "Describe this image clearly."
-            : "Summarize this file clearly."
-          : documentToSend
-            ? "Summarize this file clearly."
-            : "Describe this image clearly.");
+      (
+        fileBrainItemsToSend.length > 1
+          ? "Explain these uploaded files clearly and connect the important points."
+          : fileBrainItemsToSend.length === 1
+            ? "Summarize this uploaded file clearly."
+            : attachmentsToSend.length > 1
+              ? "Explain these files clearly and connect the important points."
+              : attachmentsToSend.length === 1
+                ? attachmentsToSend[0].kind === "image"
+                  ? "Describe this image clearly."
+                  : "Summarize this file clearly."
+                : documentToSend
+                  ? "Summarize this file clearly."
+                  : "Describe this image clearly."
+      );
+
+    const fileBrainDisplayAttachments =
+      buildFileBrainDisplayAttachments(
+        fileBrainItemsToSend
+      );
 
     if (
       !imageToSend &&
@@ -1893,7 +1985,10 @@ export default function GeneralAIChat({
         : "Connecting to StudySnap AI.",
     });
 
-    if (attachmentsToSend.length > 0) {
+    if (
+      attachmentsToSend.length > 0 ||
+      fileBrainItemsToSend.length > 0
+    ) {
       setRoomCreationOffer(null);
     }
 
@@ -1930,22 +2025,28 @@ export default function GeneralAIChat({
           documentName: documentToSend?.name,
           documentSize: documentToSend?.size,
           attachments:
-            attachmentsToSend.length > 0
-              ? attachmentsToSend.map((attachment) => ({
-                  id: attachment.id,
-                  name: attachment.name,
-                  size: attachment.size,
-                  kind: attachment.kind,
-                  preview: attachment.preview,
-                }))
-              : undefined,
+            fileBrainDisplayAttachments.length > 0
+              ? fileBrainDisplayAttachments
+              : attachmentsToSend.length > 0
+                ? attachmentsToSend.map((attachment) => ({
+                    id: attachment.id,
+                    name: attachment.name,
+                    size: attachment.size,
+                    kind: attachment.kind,
+                    preview: attachment.preview,
+                  }))
+                : undefined,
         },
         {
           id: pendingAssistantId,
           role: "assistant",
           content:
-            attachmentsToSend.length > 0
-              ? `StudySnap AI is reading ${attachmentsToSend.length} file${
+            fileBrainItemsToSend.length > 0
+              ? `StudySnap AI is reading ${fileBrainItemsToSend.length} securely uploaded file${
+                  fileBrainItemsToSend.length === 1 ? "" : "s"
+                }...`
+              : attachmentsToSend.length > 0
+                ? `StudySnap AI is reading ${attachmentsToSend.length} file${
                   attachmentsToSend.length === 1 ? "" : "s"
                 }...`
               : imageToSend
@@ -1966,7 +2067,46 @@ export default function GeneralAIChat({
 
       setCanStopCurrent(true);
 
-      if (attachmentsToSend.length > 0) {
+      if (fileBrainItemsToSend.length > 0) {
+        setActivity({
+          label: "Reading files",
+          detail:
+            `StudySnap is reading ${fileBrainItemsToSend.length} completed File Brain item${fileBrainItemsToSend.length === 1 ? "" : "s"} without uploading them again.`,
+          progress: 100,
+        });
+
+        const data =
+          await fileBrainQueue.askItems(
+            fileBrainItemsToSend,
+            {
+              question:
+                finalQuestion,
+              conversationId,
+              signal:
+                requestController.signal,
+            }
+          );
+
+        const answer =
+          extractAIText(data);
+
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === pendingAssistantId
+              ? {
+                  ...message,
+                  content: answer,
+                }
+              : message
+          )
+        );
+
+        fileBrainQueue.markAsked(
+          fileBrainItemsToSend.map(
+            (task) => task.itemId
+          )
+        );
+      } else if (attachmentsToSend.length > 0) {
         setPendingAttachments((current) =>
           current.map((attachment) =>
             attachmentsToSend.some((selected) => selected.id === attachment.id)
@@ -2393,6 +2533,7 @@ export default function GeneralAIChat({
     removeSelectedImage();
     clearLastGeneratedImage();
     clearPendingAttachments();
+    fileBrainQueue.clearSelection();
     inputRef.current?.focus();
   }
 
@@ -2867,6 +3008,10 @@ export default function GeneralAIChat({
             </button>
           </div>
         ) : null}
+
+        <GeneralAIFileBrainQueue
+          queue={fileBrainQueue}
+        />
 
         {pendingAttachments.length > 0 ? (
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1">

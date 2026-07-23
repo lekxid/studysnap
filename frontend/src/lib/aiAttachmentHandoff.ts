@@ -3,7 +3,7 @@ let pendingAttachments: File[] = [];
 export function setPendingAIAttachments(
   files: File[],
 ): void {
-  pendingAttachments = files.slice(0, 20);
+  pendingAttachments = files.slice(0, 100);
 }
 
 export function takePendingAIAttachments():
