@@ -33,6 +33,7 @@ from app.routes.room_invitations import router as room_invitations_router
 from app.routes.room_messages import router as room_messages_router
 from app.routes.room_members import router as room_members_router
 from app.routes.room_realtime import router as room_realtime_router
+from app.routes.artifacts import router as artifacts_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -95,3 +96,4 @@ def health():
     return {"status": "ok"}
 
 app.include_router(quizzes.router, prefix="/api")
+app.include_router(artifacts_router, prefix="/api/artifacts", tags=["artifacts"])

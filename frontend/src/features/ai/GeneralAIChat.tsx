@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import SmartActionLinks from "@/components/ai/SmartActionLinks";
+import ArtifactFileCards from "@/components/ai/ArtifactFileCards";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
@@ -278,12 +279,24 @@ function asksToEditImage(
       text
     );
 
+  if (explanationRequest) {
+    return false;
+  }
+
   const editingRequest =
-    /\b(edit|adjust|change|improve|enhance|fix|recreate|redo|retouch|restore|remove|replace|brighten|darken|sharpen|crop|resize|restyle|professional|nicer|better|cleaner|clearer|background|portrait|landscape|square|variation|another version|new version|make it|make this|modify|transform)\b/i.test(
+    /\b(edit|adjust|change|improve|enhance|fix|recreate|redo|retouch|restore|remove|replace|brighten|darken|sharpen|crop|resize|restyle|professional|nicer|better|cleaner|clearer|background|portrait|landscape|square|variation|another version|new version|modify|transform|polish|beautify|refine|upgrade|fine[\s-]?tune|touch[\s-]?up|clean[\s-]?up)\b/i.test(
       text
     );
 
-  return editingRequest && !explanationRequest;
+  const naturalEditPhrase =
+    /\bmake\s+(?:it|this|the image|the picture|the photo)\s+(?:nice|nicer|better|professional|clearer|cleaner|sharper|brighter|beautiful)\b/i.test(
+      text
+    );
+
+  return (
+    editingRequest ||
+    naturalEditPhrase
+  );
 }
 
 function asksAboutExistingImage(
@@ -996,7 +1009,7 @@ export default function GeneralAIChat({
     }
   }
 
-    async function handleMultipleAttachmentChange(
+      async function handleMultipleAttachmentChange(
     fileList: FileList | null
   ) {
     const files =
@@ -1009,6 +1022,35 @@ export default function GeneralAIChat({
     }
 
     setError("");
+
+    const firstFile =
+      files[0];
+
+    const singleImage =
+      files.length === 1 &&
+      (
+        firstFile.type.startsWith(
+          "image/"
+        ) ||
+        /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(
+          firstFile.name
+        )
+      );
+
+    if (singleImage) {
+      clearPendingAttachments();
+      fileBrainQueue.clearSelection();
+      setCreateImageMode(false);
+      handleImageChange(firstFile);
+      updateStudyToolsOpen(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value =
+          "";
+      }
+
+      return;
+    }
 
     try {
       const result =
@@ -1578,9 +1620,7 @@ export default function GeneralAIChat({
         : lastGeneratedImage;
 
     const referenceImage =
-      explicitReference ||
-      queuedReference ||
-      previousReference;
+      explicitReference || queuedReference;
 
     const newIdentityReference =
       forceNew
@@ -1602,15 +1642,15 @@ export default function GeneralAIChat({
       explicitReference
         ? selectedImagePreview
         : queuedReference
-          ? pendingImageReference?.preview ||
-            ""
-          : lastGeneratedImagePreview;
+          ? pendingImageReference?.preview || ""
+          : "";
 
     const referenceName =
-      explicitReference?.name ||
-      queuedReference?.name ||
-      lastGeneratedImageName ||
-      "studysnap-reference.png";
+      explicitReference
+        ? selectedImage?.name || "Attached image"
+        : queuedReference
+          ? pendingImageReference?.name || "Attached image"
+          : "";
 
     const identityPreviewForState =
       explicitReference
@@ -1658,13 +1698,11 @@ export default function GeneralAIChat({
 
       setActivity({
         label: referenceImage
-          ? "Preserving identity"
+          ? "Editing image"
           : "Creating image",
         detail: referenceImage
           ? (
-              "Locking the original facial "
-              + "features while applying "
-              + "your requested changes."
+              "Applying your change to the attached image."
             )
           : "Generating a new image.",
         progress: 20,
@@ -1698,9 +1736,7 @@ export default function GeneralAIChat({
           role: "assistant",
           content: referenceImage
             ? (
-                "StudySnap is editing the "
-                + "image while preserving "
-                + "the person's identity..."
+                "StudySnap is editing the attached image..."
               )
             : (
                 "StudySnap is creating "
@@ -1722,7 +1758,15 @@ export default function GeneralAIChat({
 
       const result = referenceImage
         ? await editAIImage(
-            prompt,
+            (
+              prompt
+              + "\n\nEdit the attached image only. "
+              + "Keep its original subject, layout, text, labels, "
+              + "and spelling unchanged unless the user explicitly "
+              + "asks to change them. Improve only the requested "
+              + "visual qualities. Do not invent labels or replace "
+              + "the image with a different diagram."
+            ),
             referenceImage,
             {
               conversationId,
@@ -2449,60 +2493,48 @@ export default function GeneralAIChat({
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
-
-    if (loading) {
-      queueFollowUpAndStop();
-      return;
-    }
 
     if (!canSend) {
       return;
     }
 
-    const prompt =
+    const cleanInput =
       input.trim();
 
-    const queuedImage =
+    const hasAttachedImage =
+      selectedImage !== null ||
       pendingAttachments.some(
         (attachment) =>
           attachment.kind === "image"
       );
 
-    const hasEditableImage =
-      selectedImage !== null ||
-      queuedImage ||
-      lastGeneratedImage !== null;
-
-    const editRequested =
-      hasEditableImage &&
-      asksToEditImage(
-        prompt
+    if (
+      hasAttachedImage &&
+      asksToEditImage(cleanInput)
+    ) {
+      await createGeneratedImage(
+        cleanInput ||
+          "Improve this image while keeping its original content."
       );
-
-    const createRequested =
-      asksToCreateImage(
-        prompt
-      );
-
-    if (editRequested) {
-      await createGeneratedImage();
       return;
     }
 
     if (
-      createImageMode ||
-      createRequested
+      !hasAttachedImage &&
+      (
+        createImageMode ||
+        asksToCreateImage(
+          cleanInput
+        )
+      )
     ) {
       await createGeneratedImage(
-        undefined,
-        createRequested &&
-          !createImageMode &&
-          !selectedImage &&
-          !queuedImage
+        cleanInput
       );
-
       return;
     }
 
@@ -3072,7 +3104,7 @@ export default function GeneralAIChat({
               </p>
 
               <p className="text-[9px] text-[#c9ad50]">
-                Photo ready
+                Image attached
               </p>
             </div>
 
@@ -3087,7 +3119,8 @@ export default function GeneralAIChat({
           </div>
         ) : null}
 
-        {!selectedImage &&
+        {false &&
+        !selectedImage &&
         lastGeneratedImage &&
         lastGeneratedImagePreview ? (
           <div className="mb-2 flex h-11 items-center gap-2 rounded-xl bg-[#c9ad50]/[0.07] px-2">
@@ -3149,10 +3182,10 @@ export default function GeneralAIChat({
             }
           }}
           placeholder={
-            createImageMode
-              ? "Describe the image you want..."
-              : lastGeneratedImage
-                ? "Message StudySnap or adjust the last image..."
+            selectedImage
+              ? "Tell StudySnap what to do with this image..."
+              : createImageMode
+                ? "Describe the image you want..."
                 : "Message StudySnap..."
           }
           rows={1}
@@ -3489,8 +3522,8 @@ export default function GeneralAIChat({
                       key={message.id}
                       className={
                         message.role === "user"
-                          ? "ml-auto w-fit max-w-[88%] rounded-[1.3rem] bg-[#202020] px-4 py-3 text-[#f5f5f5] sm:max-w-[76%]"
-                          : "mr-auto w-full max-w-full bg-transparent px-0 py-0 text-zinc-100"
+                          ? "ml-auto min-w-0 w-fit max-w-[88%] overflow-hidden rounded-[1.3rem] bg-[#202020] px-4 py-3 text-[#f5f5f5] sm:max-w-[76%]"
+                          : "mr-auto min-w-0 w-full max-w-full overflow-hidden bg-transparent px-0 py-0 text-zinc-100"
                       }
                     >
                       {message.attachments?.length ? (
@@ -3594,6 +3627,10 @@ export default function GeneralAIChat({
                           <SmartActionLinks
                             content={displayedContent}
                           />
+
+                          {typeof message.id === "number" ? (
+                            <ArtifactFileCards messageId={message.id} />
+                          ) : null}
                         </>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm leading-6">

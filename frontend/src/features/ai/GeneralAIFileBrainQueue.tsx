@@ -750,6 +750,34 @@ export function useGeneralAIFileBrainQueue():
             files: accepted,
           });
 
+        const responseEnvelope =
+          response as typeof response & {
+            id?: number;
+            batch?: {
+              id?: number;
+            };
+          };
+
+        const responseBatchId =
+          responseEnvelope.id ??
+          responseEnvelope.batch?.id;
+
+        if (
+          typeof responseBatchId !==
+            "number" ||
+          !Number.isInteger(
+            responseBatchId
+          ) ||
+          responseBatchId <= 0
+        ) {
+          throw new Error(
+            "StudySnap could not start "
+            + "the secure upload queue. "
+            + "Your selected files are "
+            + "still available to retry.",
+          );
+        }
+
         if (
           response.items.length !==
           accepted.length
@@ -786,7 +814,7 @@ export function useGeneralAIFileBrainQueue():
               return {
                 localId,
                 batchId:
-                  response.batch.id,
+                  responseBatchId,
                 itemId: item.id,
                 filename:
                   item.original_filename ||
@@ -900,7 +928,19 @@ export function useGeneralAIFileBrainQueue():
       existing = null;
     }
 
-    if (!existing) {
+    if (
+      !existing ||
+      !existing.upload_id ||
+      typeof existing.chunk_size !==
+        "number" ||
+      existing.chunk_size <= 0 ||
+      typeof existing.total_chunks !==
+        "number" ||
+      existing.total_chunks <= 0 ||
+      !Array.isArray(
+        existing.uploaded_chunks
+      )
+    ) {
       return startFileBrainUpload(
         task.itemId,
       );

@@ -292,7 +292,7 @@ function renderBlocks(
       blocks.push(
         <div
           key={`code-${blockIndex}`}
-          className="my-3 overflow-hidden rounded-xl border border-white/[0.09] bg-[#0d0d0d]"
+          className="my-3 max-w-full overflow-hidden rounded-xl border border-white/[0.09] bg-[#0d0d0d]"
         >
           {language ? (
             <div className="border-b border-white/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
@@ -300,7 +300,7 @@ function renderBlocks(
             </div>
           ) : null}
 
-          <pre className="overflow-x-auto p-3 text-xs leading-6 text-zinc-200">
+          <pre className="max-w-full overflow-x-auto p-3 text-xs leading-6 text-zinc-200">
             <code>
               {codeLines.join("\n")}
             </code>
@@ -367,32 +367,72 @@ function renderBlocks(
     if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
 
-      while (
-        index < lines.length &&
-        /^[-*]\s+/.test(
-          lines[index]
-        )
-      ) {
-        items.push(
-          lines[index].replace(
-            /^[-*]\s+/,
-            "",
-          ),
-        );
+      while (index < lines.length) {
+        const itemMatch =
+          lines[index].match(
+            /^[-*]\s+(.+)$/,
+          );
+
+        if (!itemMatch) {
+          break;
+        }
+
+        const itemLines = [
+          itemMatch[1],
+        ];
 
         index += 1;
+
+        while (
+          index < lines.length &&
+          lines[index].trim() &&
+          !isSpecialBlockStart(
+            lines[index],
+          )
+        ) {
+          itemLines.push(
+            lines[index].trim(),
+          );
+
+          index += 1;
+        }
+
+        items.push(
+          itemLines.join(" ").trim(),
+        );
+
+        let nextIndex = index;
+
+        while (
+          nextIndex < lines.length &&
+          !lines[nextIndex].trim()
+        ) {
+          nextIndex += 1;
+        }
+
+        if (
+          nextIndex < lines.length &&
+          /^[-*]\s+/.test(
+            lines[nextIndex],
+          )
+        ) {
+          index = nextIndex;
+          continue;
+        }
+
+        break;
       }
 
       blocks.push(
         <ul
           key={`list-${blockIndex}`}
-          className="my-3 space-y-1.5 pl-5"
+          className="my-3 max-w-full space-y-2 pl-6 pr-1"
         >
           {items.map(
             (item, itemIndex) => (
               <li
                 key={`list-${blockIndex}-${itemIndex}`}
-                className="list-disc pl-1 marker:text-[#c9ad50]"
+                className="min-w-0 list-disc break-words pl-1 marker:text-[#c9ad50]"
               >
                 {renderInline(
                   item,
@@ -411,32 +451,86 @@ function renderBlocks(
     if (/^\d+\.\s+/.test(line)) {
       const items: string[] = [];
 
-      while (
-        index < lines.length &&
-        /^\d+\.\s+/.test(
-          lines[index]
-        )
-      ) {
-        items.push(
-          lines[index].replace(
-            /^\d+\.\s+/,
-            "",
-          ),
+      const firstNumberMatch =
+        line.match(
+          /^(\d+)\.\s+/,
         );
 
+      const firstNumber =
+        firstNumberMatch
+          ? Number.parseInt(
+              firstNumberMatch[1],
+              10,
+            )
+          : 1;
+
+      while (index < lines.length) {
+        const itemMatch =
+          lines[index].match(
+            /^\d+\.\s+(.+)$/,
+          );
+
+        if (!itemMatch) {
+          break;
+        }
+
+        const itemLines = [
+          itemMatch[1],
+        ];
+
         index += 1;
+
+        while (
+          index < lines.length &&
+          lines[index].trim() &&
+          !isSpecialBlockStart(
+            lines[index],
+          )
+        ) {
+          itemLines.push(
+            lines[index].trim(),
+          );
+
+          index += 1;
+        }
+
+        items.push(
+          itemLines.join(" ").trim(),
+        );
+
+        let nextIndex = index;
+
+        while (
+          nextIndex < lines.length &&
+          !lines[nextIndex].trim()
+        ) {
+          nextIndex += 1;
+        }
+
+        if (
+          nextIndex < lines.length &&
+          /^\d+\.\s+/.test(
+            lines[nextIndex],
+          )
+        ) {
+          index = nextIndex;
+          continue;
+        }
+
+        break;
       }
 
       blocks.push(
         <ol
+          start={firstNumber}
           key={`ordered-${blockIndex}`}
-          className="my-3 space-y-1.5 pl-5"
+          className="my-3 max-w-full space-y-2 pl-7 pr-1"
         >
           {items.map(
             (item, itemIndex) => (
               <li
                 key={`ordered-${blockIndex}-${itemIndex}`}
-                className="list-decimal pl-1 marker:font-black marker:text-[#c9ad50]"
+                className="min-w-0 list-decimal break-words pl-1 marker:font-black marker:text-[#c9ad50]"
               >
                 {renderInline(
                   item,
@@ -474,7 +568,7 @@ function renderBlocks(
       blocks.push(
         <blockquote
           key={`quote-${blockIndex}`}
-          className="my-3 border-l-2 border-[#c9ad50]/55 pl-3 text-zinc-400"
+          className="my-3 max-w-full break-words border-l-2 border-[#c9ad50]/55 pl-3 text-zinc-400"
         >
           {renderInline(
             quoteLines.join("\n"),

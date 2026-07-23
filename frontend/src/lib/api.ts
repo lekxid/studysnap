@@ -785,13 +785,48 @@ export async function editAIImage(
     );
   }
 
-  return apiFetch(
+  /*
+   * Image editing may take longer than a normal
+   * API request. Use the dedicated same-origin
+   * route instead of the general /backend rewrite.
+   */
+  const token = getToken();
+
+  const headers =
+    new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+  }
+
+  const response = await fetch(
     "/api/ai/edit-image",
     {
       method: "POST",
+      headers,
       body: formData,
+      cache: "no-store",
     }
-  ) as Promise<GenerateAIImageResponse>;
+  );
+
+  if (!response.ok) {
+    const message =
+      await readResponseError(
+        response,
+        "The image could not be edited."
+      );
+
+    throw new Error(message);
+  }
+
+  const responsePayload:
+    GenerateAIImageResponse =
+      await response.json();
+
+  return responsePayload;
 }
 
 export type CreateAIConversationOptions = {
@@ -3752,4 +3787,127 @@ export async function deleteSmartScan(
       method: "DELETE",
     },
   ) as Promise<SmartScanDeleteResponse>;
+}
+
+export type ArtifactFormat = "pdf" | "docx" | "txt" | "md";
+
+export type StudySnapArtifact = {
+  id: number;
+  owner_id: number;
+  conversation_id: number | null;
+  message_id: number | null;
+  kind: string;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  download_url: string;
+  ticket_url: string;
+};
+
+type ArtifactDownloadTicket = {
+  artifact_id: number;
+  url: string;
+  expires_at: string;
+};
+
+export async function createArtifactFromAIMessage(
+  messageId: number,
+  format: ArtifactFormat = "pdf"
+): Promise<StudySnapArtifact> {
+  return apiFetch(
+    `/api/artifacts/from-message/${messageId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ format }),
+    }
+  ) as Promise<StudySnapArtifact>;
+}
+
+export async function createArtifactDownloadTicket(
+  artifactId: number
+): Promise<ArtifactDownloadTicket> {
+  return apiFetch(
+    `/api/artifacts/${artifactId}/ticket`,
+    {
+      method: "POST",
+    }
+  ) as Promise<ArtifactDownloadTicket>;
+}
+
+export async function getArtifactsForMessage(
+  messageId: number
+): Promise<StudySnapArtifact[]> {
+  return apiFetch(
+    `/api/artifacts/message/${messageId}`
+  ) as Promise<StudySnapArtifact[]>;
+}
+
+export async function getArtifactAccessUrl(
+  artifactId: number,
+  inline = false
+): Promise<string> {
+  const ticket =
+    await createArtifactDownloadTicket(
+      artifactId
+    );
+
+  const separator =
+    ticket.url.includes("?")
+      ? "&"
+      : "?";
+
+  return (
+    `${API_BASE}${ticket.url}`
+    + `${separator}inline=${inline ? "true" : "false"}`
+  );
+}
+
+export async function downloadArtifactFile(
+  artifact: StudySnapArtifact
+): Promise<void> {
+  const url = await getArtifactAccessUrl(
+    artifact.id,
+    false
+  );
+
+  const anchor =
+    document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = artifact.filename;
+  anchor.rel = "noopener noreferrer";
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+export async function downloadAIMessageArtifact(
+  messageId: number,
+  format: ArtifactFormat = "pdf"
+): Promise<StudySnapArtifact> {
+  const artifact = await createArtifactFromAIMessage(
+    messageId,
+    format
+  );
+  const ticket = await createArtifactDownloadTicket(
+    artifact.id
+  );
+
+  if (typeof window === "undefined") {
+    return artifact;
+  }
+
+  const anchor = document.createElement("a");
+  anchor.href = `${API_BASE}${ticket.url}`;
+  anchor.download = artifact.filename;
+  anchor.rel = "noopener noreferrer";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  return artifact;
 }

@@ -16,7 +16,13 @@ export async function POST(
   request: NextRequest
 ) {
   try {
-    const body =
+    /*
+     * Buffer the multipart upload before
+     * forwarding it to FastAPI. The browser
+     * connection no longer acts as the backend
+     * request stream during the complete edit.
+     */
+    const requestBody =
       await request.arrayBuffer();
 
     const headers =
@@ -46,22 +52,30 @@ export async function POST(
       );
     }
 
-    const response =
+    const backendResponse =
       await fetch(
         `${backendBase()}/api/ai/edit-image`,
         {
           method: "POST",
           headers,
-          body,
+          body: requestBody,
           cache: "no-store",
         }
       );
+
+    /*
+     * Receive the complete backend result before
+     * returning it to the browser. This prevents
+     * failure from a chained response stream.
+     */
+    const responseBody =
+      await backendResponse.arrayBuffer();
 
     const responseHeaders =
       new Headers();
 
     const responseType =
-      response.headers.get(
+      backendResponse.headers.get(
         "content-type"
       );
 
@@ -74,14 +88,14 @@ export async function POST(
 
     responseHeaders.set(
       "cache-control",
-      "no-store"
+      "no-store, max-age=0"
     );
 
     return new Response(
-      response.body,
+      responseBody,
       {
         status:
-          response.status,
+          backendResponse.status,
         headers:
           responseHeaders,
       }
@@ -95,6 +109,11 @@ export async function POST(
             + "could not be reached."
           );
 
+    console.error(
+      "StudySnap image route failed:",
+      error
+    );
+
     return Response.json(
       {
         detail:
@@ -103,6 +122,10 @@ export async function POST(
       },
       {
         status: 502,
+        headers: {
+          "cache-control":
+            "no-store, max-age=0",
+        },
       }
     );
   }

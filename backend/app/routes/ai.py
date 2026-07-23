@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import json
@@ -39,6 +40,11 @@ from app.services.ai_service import (
     stream_studysnap_answer,
     generate_basic_flashcards,
     generate_basic_quiz,
+)
+from app.services.artifact_service import (
+    artifact_format_label,
+    create_text_artifact,
+    detect_artifact_export_request,
 )
 from app.services.context.builder import build_study_room_context
 from app.services.context.providers.conversation import build_conversation_context
@@ -1139,6 +1145,59 @@ Student request:
 
 
 
+_ACTIVE_IMAGE_EDIT_REQUESTS: set[
+    tuple[int, int]
+] = set()
+
+
+def begin_image_edit_request(
+    owner_id: int,
+    conversation_id: int,
+) -> bool:
+    # Reserve one image edit per user conversation.
+    key = (
+        owner_id,
+        conversation_id,
+    )
+
+    if key in _ACTIVE_IMAGE_EDIT_REQUESTS:
+        return False
+
+    _ACTIVE_IMAGE_EDIT_REQUESTS.add(
+        key
+    )
+
+    return True
+
+
+def finish_image_edit_request(
+    owner_id: int,
+    conversation_id: int,
+) -> None:
+    _ACTIVE_IMAGE_EDIT_REQUESTS.discard(
+        (
+            owner_id,
+            conversation_id,
+        )
+    )
+
+
+async def run_image_edit_in_worker(
+    *,
+    client,
+    edit_arguments: dict,
+    timeout_seconds: float = 180.0,
+):
+    # Keep blocking OpenAI image work outside FastAPI's event loop.
+    return await asyncio.wait_for(
+        asyncio.to_thread(
+            client.images.edit,
+            **edit_arguments,
+        ),
+        timeout=timeout_seconds,
+    )
+
+
 @router.post("/edit-image")
 async def edit_ai_image(
     prompt: str = Form(...),
@@ -1243,12 +1302,38 @@ async def edit_ai_image(
                     "RGBA"
                 )
 
+                # Very large phone images create
+                # unnecessary conversion and upload
+                # delay. Preserve image detail while
+                # limiting excessive dimensions.
+                maximum_input_dimension = 2048
+
+                if (
+                    max(prepared.size)
+                    > maximum_input_dimension
+                ):
+                    resampling = getattr(
+                        PILImage,
+                        "Resampling",
+                        PILImage,
+                    )
+
+                    prepared.thumbnail(
+                        (
+                            maximum_input_dimension,
+                            maximum_input_dimension,
+                        ),
+                        resampling.LANCZOS,
+                    )
+
                 output = io_module.BytesIO()
 
+                # Fast encoding reduces local CPU work
+                # before the AI image request begins.
                 prepared.save(
                     output,
                     format="PNG",
-                    optimize=True,
+                    compress_level=1,
                 )
 
                 return (
@@ -1389,7 +1474,7 @@ async def edit_ai_image(
 
     client = OpenAI(
         api_key=app_settings.openai_api_key,
-        timeout=300.0,
+        timeout=180.0,
     )
 
     response = None
@@ -1480,9 +1565,45 @@ async def edit_ai_image(
                         "input_fidelity"
                     ] = "high"
 
-                response = client.images.edit(
-                    **edit_arguments
-                )
+                if not begin_image_edit_request(
+                    current_user.id,
+                    conversation.id,
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "An image is already being "
+                            "processed in this conversation. "
+                            "StudySnap will keep the current "
+                            "request instead of creating "
+                            "a duplicate."
+                        ),
+                    )
+
+                try:
+                    response = (
+                        await run_image_edit_in_worker(
+                            client=client,
+                            edit_arguments=(
+                                edit_arguments
+                            ),
+                        )
+                    )
+                except asyncio.TimeoutError as exc:
+                    raise HTTPException(
+                        status_code=504,
+                        detail=(
+                            "The image edit took too long. "
+                            "StudySnap stopped waiting so "
+                            "the rest of the app can remain "
+                            "responsive. Please retry once."
+                        ),
+                    ) from exc
+                finally:
+                    finish_image_edit_request(
+                        current_user.id,
+                        conversation.id,
+                    )
 
                 used_model = candidate_model
 
@@ -3078,6 +3199,38 @@ def create_message_stream(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
+    requested_export_format = (
+        detect_artifact_export_request(
+            data.content
+        )
+    )
+
+    export_source_message = None
+
+    if requested_export_format is not None:
+        recent_assistant_messages = (
+            db.query(AIMessage)
+            .filter(
+                AIMessage.conversation_id
+                == conversation.id,
+                AIMessage.role == "assistant",
+            )
+            .order_by(AIMessage.id.desc())
+            .limit(20)
+            .all()
+        )
+
+        export_source_message = next(
+            (
+                item
+                for item in recent_assistant_messages
+                if not item.content.strip().lower().startswith(
+                    "i created the "
+                )
+            ),
+            None,
+        )
+
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
@@ -3129,6 +3282,51 @@ def create_message_stream(
         stream_iterator = None
 
         try:
+            if (
+                requested_export_format is not None
+                and export_source_message is not None
+            ):
+                format_label = artifact_format_label(
+                    requested_export_format
+                )
+
+                assistant_text = (
+                    f"I created the {format_label} for you."
+                )
+
+                ai_message = AIMessage(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=assistant_text,
+                )
+
+                db.add(ai_message)
+                db.flush()
+
+                create_text_artifact(
+                    db=db,
+                    owner_id=current_user.id,
+                    title=(
+                        conversation.title
+                        or "StudySnap file"
+                    ),
+                    content=export_source_message.content,
+                    artifact_format=requested_export_format,
+                    conversation_id=conversation.id,
+                    message_id=ai_message.id,
+                )
+
+                db.refresh(ai_message)
+
+                yield (
+                    "data: "
+                    + json.dumps(assistant_text)
+                    + "\n\n"
+                )
+
+                yield "data: [DONE]\n\n"
+                return
+
             stream_iterator = (
                 stream_studysnap_answer(
                     prompt
@@ -3167,14 +3365,49 @@ def create_message_stream(
             if cancelled:
                 return
 
+            assistant_content = full_answer
+
+            if (
+                requested_export_format is not None
+                and full_answer.strip()
+            ):
+                format_label = artifact_format_label(
+                    requested_export_format
+                )
+
+                assistant_content = (
+                    f"I created the {format_label} for you."
+                )
+
             ai_message = AIMessage(
                 conversation_id=conversation.id,
                 role="assistant",
-                content=full_answer,
+                content=assistant_content,
             )
 
             db.add(ai_message)
-            db.commit()
+
+            if (
+                requested_export_format is not None
+                and full_answer.strip()
+            ):
+                db.flush()
+
+                create_text_artifact(
+                    db=db,
+                    owner_id=current_user.id,
+                    title=(
+                        conversation.title
+                        or "StudySnap file"
+                    ),
+                    content=full_answer,
+                    artifact_format=requested_export_format,
+                    conversation_id=conversation.id,
+                    message_id=ai_message.id,
+                )
+            else:
+                db.commit()
+
             db.refresh(ai_message)
 
             yield "data: [DONE]\n\n"
