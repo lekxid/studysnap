@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   MouseEvent,
   ReactNode,
@@ -445,6 +446,30 @@ export default function AppShell({
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
 
   const [roomMenuOpen, setRoomMenuOpen] = useState(false);
+
+
+  useEffect(() => {
+    if (!mobileMenuOpen || typeof document === "undefined") {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    function handleRoomToolsKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleRoomToolsKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleRoomToolsKeyDown);
+    };
+  }, [mobileMenuOpen]);
 
   const [studyToolsOpen, setStudyToolsOpen] = useState(() =>
     isAnyNavItemActive(pathname, studyToolNavItems),
@@ -1618,12 +1643,21 @@ export default function AppShell({
             </div>
           </div>
 
-          {mobileMenuOpen ? (
-            <div
-              role="dialog"
+          {mobileMenuOpen && typeof document !== "undefined"
+            ? createPortal(
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close room tools"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm lg:hidden"
+                  />
+
+                  <div
+                    role="dialog"
               aria-modal="true"
               aria-label="Room tools"
-              className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom))] z-[70] max-h-[78vh] overflow-y-auto rounded-t-[1.75rem] border-t border-white/[0.10] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.09),transparent_30%),linear-gradient(180deg,rgba(10,14,18,0.995),rgba(2,4,6,0.998))] px-4 pb-6 pt-3 shadow-[0_-24px_90px_rgba(0,0,0,0.86)] backdrop-blur-3xl lg:hidden"
+              className="fixed inset-x-0 bottom-[calc(70px+env(safe-area-inset-bottom))] z-[100] max-h-[78vh] overflow-y-auto rounded-t-[1.75rem] border-t border-white/[0.10] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.09),transparent_30%),linear-gradient(180deg,rgba(10,14,18,0.995),rgba(2,4,6,0.998))] px-4 pb-6 pt-3 shadow-[0_-24px_90px_rgba(0,0,0,0.86)] backdrop-blur-3xl lg:hidden"
             >
               <div
                 aria-hidden="true"
@@ -1758,8 +1792,11 @@ export default function AppShell({
                 <span aria-hidden="true">↪</span>
                 Sign out
               </button>
-            </div>
-          ) : null}
+                  </div>
+                </>,
+                document.body,
+              )
+            : null}
         </header>
 
         <main className="studysnap-main-content mx-auto min-w-0 w-full max-w-[1600px] overflow-x-clip px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pt-5 lg:pb-5">
