@@ -35,6 +35,8 @@ from app.routes.room_members import router as room_members_router
 from app.routes.room_realtime import router as room_realtime_router
 from app.routes.artifacts import router as artifacts_router
 
+from app.routes.central_actions import router as central_actions_router
+
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
 
@@ -83,6 +85,11 @@ app.include_router(
 app.include_router(
     room_messages_router,
     prefix="/api/room-messages",
+)
+
+app.include_router(
+    central_actions_router,
+    prefix="/api/actions",
 )
 
 

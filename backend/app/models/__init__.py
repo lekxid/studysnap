@@ -35,3 +35,4 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.smart_scan import SmartScan, SmartScanPage
 from app.models.file_brain import FileBrainBatch, FileBrainItem
 from app.models.artifact import Artifact
+from app.models.central_action import CentralAction
