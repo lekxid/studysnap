@@ -4315,14 +4315,19 @@ export default function GeneralAIChat({
                         />
                       ) : null}
 
-                      <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.055] pb-3">
                         {message.role === "user" ? (
                           <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">
                             You
                           </p>
+                        ) : typeof message.id === "number" ? (
+                          <CentralActionBar
+                            messageId={message.id}
+                            messageContent={displayedContent}
+                          />
                         ) : (
                           <span
-                            className="grid h-6 w-6 place-items-center rounded-lg border border-[#c9ad50]/20 bg-[#c9ad50]/10 text-[9px] font-black text-[#d8c878]"
+                            className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] border border-[#c9ad50]/20 bg-[#c9ad50]/10 text-[11px] font-black text-[#d8c878]"
                             aria-label="StudySnap"
                             title="StudySnap"
                           >
@@ -4332,7 +4337,7 @@ export default function GeneralAIChat({
 
                         {message.role === "assistant" ? (
                           <div
-                            className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1"
+                            className="flex items-center gap-1 rounded-2xl border border-white/[0.075] bg-black/15 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
                             aria-label="Message actions"
                           >
                             {message.generatedImage &&
@@ -4493,9 +4498,6 @@ export default function GeneralAIChat({
                               <ArtifactFileCards messageId={message.id} />
                             ) : null}
 
-                            {typeof message.id === "number" ? (
-                              <CentralActionBar messageId={message.id} />
-                            ) : null}
                           </>
                         )
                       ) : (
