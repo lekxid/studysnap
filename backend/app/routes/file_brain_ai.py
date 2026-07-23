@@ -430,11 +430,17 @@ def ask_file_brain_items(
                     "source_id": (
                         source.source_id
                     ),
+                    "requested_item_id": (
+                        source.requested_item.id
+                    ),
                 }
             )
 
         if conversation is not None:
             for item in prepared_attachments:
+                item["attachment_source_type"] = None
+                item["attachment_source_id"] = None
+
                 if item["derived"]:
                     (
                         stored_filename,
@@ -489,6 +495,23 @@ def ask_file_brain_items(
                             )
                         ) from exc
 
+                    if (
+                        Path(stored_path).resolve()
+                        == Path(
+                            item["source_path"]
+                        ).resolve()
+                    ):
+                        item[
+                            "attachment_source_type"
+                        ] = "file_brain_item"
+                        item[
+                            "attachment_source_id"
+                        ] = int(
+                            item[
+                                "requested_item_id"
+                            ]
+                        )
+
                 item[
                     "stored_filename"
                 ] = stored_filename
@@ -497,9 +520,15 @@ def ask_file_brain_items(
                     "stored_path"
                 ] = stored_path
 
-                created_attachment_paths.append(
-                    Path(stored_path)
-                )
+                if (
+                    item[
+                        "attachment_source_type"
+                    ]
+                    is None
+                ):
+                    created_attachment_paths.append(
+                        Path(stored_path)
+                    )
 
         attachment_names = ", ".join(
             item["filename"]
@@ -656,6 +685,16 @@ Extracted document content:
                     ),
                     attachment_kind=(
                         item["kind"]
+                    ),
+                    attachment_source_type=(
+                        item.get(
+                            "attachment_source_type"
+                        )
+                    ),
+                    attachment_source_id=(
+                        item.get(
+                            "attachment_source_id"
+                        )
                     ),
                 )
 

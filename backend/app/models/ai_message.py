@@ -56,6 +56,18 @@ class AIMessage(Base):
         index=True,
     )
 
+    attachment_source_type = Column(
+        String(40),
+        nullable=True,
+        index=True,
+    )
+
+    attachment_source_id = Column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
     attachment_hidden_from_feed = Column(
         Boolean,
         nullable=False,

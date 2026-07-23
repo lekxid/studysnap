@@ -26,6 +26,11 @@ from app.services.intent_understanding import get_intent_understanding_instructi
 from app.routes.pdf_documents import extract_pdf_text
 
 from app.database import get_db
+from app.models.file_brain import FileBrainItem
+from app.services.file_brain_ai import (
+    FileBrainAIError,
+    resolve_file_brain_source,
+)
 from app.storage import storage_path
 from app.models.user import User
 from app.models.study_room import StudyRoom
@@ -139,6 +144,77 @@ def resolve_ai_attachment_path(
         ) from exc
 
     return file_path
+
+
+
+def resolve_message_attachment_path(
+    *,
+    db: Session,
+    message: AIMessage,
+    owner_id: int,
+) -> Path:
+    source_type = (
+        message.attachment_source_type
+    )
+
+    if source_type is None:
+        if not message.attachment_file_path:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "This message has no "
+                    "stored attachment."
+                ),
+            )
+
+        return resolve_ai_attachment_path(
+            message.attachment_file_path
+        )
+
+    if (
+        source_type != "file_brain_item"
+        or not message.attachment_source_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The referenced attachment "
+                "is unavailable."
+            ),
+        )
+
+    item = (
+        db.query(FileBrainItem)
+        .filter(
+            FileBrainItem.id
+            == message.attachment_source_id,
+            FileBrainItem.owner_id
+            == owner_id,
+        )
+        .first()
+    )
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The referenced File Brain "
+                "item was not found."
+            ),
+        )
+
+    try:
+        source = resolve_file_brain_source(
+            db=db,
+            item=item,
+        )
+    except FileBrainAIError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    return source.source_path
 
 
 def store_ai_attachment(
@@ -3512,8 +3588,10 @@ def get_ai_attachment(
             detail="This message has no attachment.",
         )
 
-    file_path = resolve_ai_attachment_path(
-        message.attachment_file_path
+    file_path = resolve_message_attachment_path(
+        db=db,
+        message=message,
+        owner_id=current_user.id,
     )
 
     if not file_path.is_file():
@@ -3712,13 +3790,20 @@ def delete_ai_attachment(
             ),
         )
 
-    file_path = resolve_ai_attachment_path(
-        message.attachment_file_path
-    )
-
+    file_path: Path | None = None
     quarantine_path: Path | None = None
 
-    if file_path.exists():
+    # Logical File Brain references do not own the underlying file.
+    # Deleting the chat attachment must only clear its metadata.
+    if message.attachment_source_type is None:
+        file_path = resolve_ai_attachment_path(
+            message.attachment_file_path
+        )
+
+    if (
+        file_path is not None
+        and file_path.exists()
+    ):
         if not file_path.is_file():
             raise HTTPException(
                 status_code=400,
@@ -3753,6 +3838,8 @@ def delete_ai_attachment(
     message.attachment_file_size = None
     message.attachment_content_type = None
     message.attachment_kind = None
+    message.attachment_source_type = None
+    message.attachment_source_id = None
     message.attachment_hidden_from_feed = False
     message.attachment_is_pinned = False
 
@@ -3764,6 +3851,7 @@ def delete_ai_attachment(
 
         if (
             quarantine_path is not None
+            and file_path is not None
             and quarantine_path.exists()
         ):
             try:

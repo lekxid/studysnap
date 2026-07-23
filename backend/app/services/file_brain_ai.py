@@ -431,20 +431,19 @@ def hardlink_ai_attachment(
             destination,
             follow_symlinks=False,
         )
-    except OSError as exc:
+    except OSError:
         destination.unlink(
             missing_ok=True
         )
 
-        raise FileBrainAIError(
-            (
-                "StudySnap could read the File Brain item, "
-                "but could not preserve it in chat history "
-                "without creating another copy. Ensure File "
-                "Brain and AI attachments use the same storage volume."
-            ),
-            status_code=500,
-        ) from exc
+        # Azure Files SMB does not provide the hard-link behavior
+        # used by local Linux storage. Preserve a zero-copy logical
+        # reference instead. The API resolves this source again with
+        # both conversation and File Brain ownership checks.
+        return (
+            source.name,
+            str(source),
+        )
 
     return (
         stored_filename,
