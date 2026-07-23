@@ -1,9 +1,16 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import {
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { getBrainInsights, type BrainSource } from "@/lib/api";
+import {
+  getBrainInsights,
+  type BrainSource,
+} from "@/lib/api";
 
 export type RoomTab =
   | "overview"
@@ -74,7 +81,9 @@ type Props = {
 
   onBack: () => void;
   onSearch: (query: string) => void;
-  onOpenSearchResult: (result: BrainSource) => void;
+  onOpenSearchResult: (
+    result: BrainSource
+  ) => void;
 
   children?: ReactNode;
 };
@@ -82,64 +91,74 @@ type Props = {
 const roomTabs: {
   key: RoomTab;
   title: string;
-  description: string;
   icon: string;
 }[] = [
   {
     key: "overview",
     title: "Overview",
-    description: "Your study home",
-    icon: "🏠",
+    icon: "⌂",
   },
   {
     key: "materials",
     title: "Materials",
-    description: "Everything you study",
-    icon: "📚",
+    icon: "▦",
   },
   {
     key: "notes",
     title: "Notes",
-    description: "Capture what you learn",
-    icon: "📝",
+    icon: "▣",
   },
   {
     key: "ai",
     title: "AI Tutor",
-    description: "Get help anytime",
-    icon: "🤖",
+    icon: "S",
   },
   {
     key: "practice",
     title: "Practice",
-    description: "Practice what you learned",
-    icon: "🧠",
+    icon: "◉",
   },
   {
     key: "together",
-    title: "Study Together",
-    description: "Learn with classmates",
-    icon: "👥",
+    title: "Together",
+    icon: "◎",
   },
   {
     key: "progress",
     title: "Progress",
-    description: "See how you are growing",
-    icon: "📈",
+    icon: "↗",
   },
 ];
 
-function getSourceLabel(sourceType: string) {
-  if (sourceType === "pdf_chunk") return "PDF";
-  if (sourceType === "note_chunk") return "Note";
-  if (sourceType === "flashcard") return "Concept Card";
-  if (sourceType === "brain_memory") return "Memory";
+function getSourceLabel(
+  sourceType: string,
+) {
+  if (sourceType === "pdf_chunk") {
+    return "PDF";
+  }
+
+  if (sourceType === "note_chunk") {
+    return "Note";
+  }
+
+  if (sourceType === "flashcard") {
+    return "Concept Card";
+  }
+
+  if (sourceType === "brain_memory") {
+    return "Memory";
+  }
 
   return sourceType.replaceAll("_", " ");
 }
 
-function formatScore(score: number | undefined) {
-  if (typeof score !== "number") return "—";
+function formatScore(
+  score: number | undefined,
+) {
+  if (typeof score !== "number") {
+    return "—";
+  }
+
   return `${Math.round(score * 100)}%`;
 }
 
@@ -157,29 +176,40 @@ function ProjectSearchBox({
 
         const form = event.currentTarget;
         const formData = new FormData(form);
-        const query = String(formData.get("projectSearch") || "").trim();
 
-        if (!query) return;
+        const query = String(
+          formData.get("projectSearch") || "",
+        ).trim();
+
+        if (!query) {
+          return;
+        }
 
         onSearch(query);
         form.reset();
       }}
-      className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-white/10 bg-black/35 px-4 py-3"
+      className="flex min-w-0 items-center gap-2 rounded-[1rem] border border-white/[0.085] bg-[#05080b]/90 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] focus-within:border-[#b7a35f]/30"
     >
-      <span className="text-lg">🔎</span>
+      <span
+        aria-hidden="true"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm text-slate-500"
+      >
+        ⌕
+      </span>
 
       <input
         name="projectSearch"
-        placeholder="Search your study materials or ask about this room..."
-        className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+        placeholder="Search this room"
+        aria-label="Search this room"
+        className="min-w-0 flex-1 bg-transparent py-2 text-sm font-medium text-white outline-none placeholder:text-slate-600"
       />
 
       <button
         type="submit"
         disabled={loading}
-        className="rounded-xl bg-yellow-300 px-4 py-2 text-xs font-black text-black transition hover:bg-yellow-200 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-9 shrink-0 rounded-xl border border-[#b7a35f]/25 bg-[#b7a35f]/[0.09] px-3 text-xs font-black text-[#d7cb95] transition hover:bg-[#b7a35f]/[0.15] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loading ? "..." : "Search"}
+        {loading ? "…" : "Search"}
       </button>
     </form>
   );
@@ -196,71 +226,98 @@ function ProjectSearchResults({
   results: BrainSource[];
   loading: boolean;
   error: string;
-  onOpenResult: (result: BrainSource) => void;
+  onOpenResult: (
+    result: BrainSource
+  ) => void;
 }) {
-  if (!query && !loading && !error) return null;
+  if (
+    !query &&
+    !loading &&
+    !error
+  ) {
+    return null;
+  }
 
   return (
-    <section className="rounded-[1.5rem] border border-cyan-300/15 bg-cyan-300/5 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-            Search Your Room
+    <section className="rounded-[1.35rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,20,25,0.95),rgba(4,7,9,0.98))] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.28)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#a99b68]">
+            Room search
           </p>
-          <h3 className="mt-1 text-lg font-black text-white">
-            {query ? `Results for “${query}”` : "Searching room..."}
+
+          <h3 className="mt-1 truncate text-base font-black text-white">
+            {query
+              ? `Results for “${query}”`
+              : "Searching room"}
           </h3>
         </div>
 
-        <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-bold text-slate-300">
-          {loading ? "Loading..." : `${results.length} found`}
+        <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-400">
+          {loading
+            ? "Loading"
+            : `${results.length} found`}
         </span>
       </div>
 
       {error ? (
-        <div className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+        <div className="mt-3 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-3 py-2.5 text-xs text-red-100">
           {error}
         </div>
       ) : null}
 
-      {!loading && !error && query && results.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-400">
-          I could not find that yet. Try another phrase or add more study materials.
+      {!loading &&
+      !error &&
+      query &&
+      results.length === 0 ? (
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          No matching material was found.
+          Try another phrase.
         </p>
       ) : null}
 
       {results.length ? (
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {results.map((result, index) => (
-            <button
-              key={`${result.source_type}-${String(result.source_id)}-${index}`}
-              type="button"
-              onClick={() => onOpenResult(result)}
-              className="rounded-[1.2rem] border border-white/10 bg-black/30 p-4 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/10"
-            >
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-bold text-cyan-100">
-                  {getSourceLabel(result.source_type)}
-                </span>
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {results.map(
+            (result, index) => (
+              <button
+                key={`${result.source_type}-${String(
+                  result.source_id,
+                )}-${index}`}
+                type="button"
+                onClick={() =>
+                  onOpenResult(result)
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.025] p-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-white/[0.07] bg-white/[0.04] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                    {getSourceLabel(
+                      result.source_type,
+                    )}
+                  </span>
 
-                <span className="rounded-full bg-amber-300/10 px-3 py-1 text-xs font-bold text-amber-100">
-                  {formatScore(result.score)}
-                </span>
-              </div>
+                  <span className="text-[10px] font-bold text-[#b7a35f]">
+                    {formatScore(
+                      result.score,
+                    )}
+                  </span>
+                </div>
 
-              <h4 className="line-clamp-2 text-sm font-black leading-6 text-white">
-                {result.title}
-              </h4>
+                <p className="mt-2 line-clamp-1 text-sm font-black text-white">
+                  {result.title}
+                </p>
 
-              <p className="mt-2 line-clamp-3 text-sm leading-7 text-slate-300">
-                {result.text}
-              </p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                  {result.text}
+                </p>
 
-              <p className="mt-3 text-xs font-bold text-cyan-100">
-                Open result →
-              </p>
-            </button>
-          ))}
+                <p className="mt-2 text-[10px] font-black text-slate-300">
+                  Open result →
+                </p>
+              </button>
+            ),
+          )}
         </div>
       ) : null}
     </section>
@@ -280,27 +337,54 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[1.15rem] border p-3 text-left transition hover:-translate-y-0.5 ${
+      aria-current={
+        active ? "page" : undefined
+      }
+      className={`group relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center transition active:scale-[0.98] ${
         active
-          ? "border-yellow-300/50 bg-yellow-300/15 shadow-[0_0_28px_rgba(250,204,21,0.12)]"
-          : "border-white/10 bg-black/30 hover:border-yellow-300/35 hover:bg-yellow-300/10"
+          ? "border-[#b7a35f]/32 bg-[#b7a35f]/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.055)]"
+          : "border-white/[0.075] bg-white/[0.025] text-slate-400 hover:border-white/[0.13] hover:bg-white/[0.05] hover:text-white"
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xl">{tab.icon}</span>
+      <span
+        aria-hidden="true"
+        className={`grid h-6 w-7 place-items-center text-sm font-black ${
+          active
+            ? "text-[#d8cc98]"
+            : "text-slate-500 group-hover:text-slate-300"
+        }`}
+      >
+        {tab.icon}
+      </span>
 
-        {active ? (
-          <span className="rounded-full bg-yellow-300 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-black">
-            Open
-          </span>
-        ) : null}
-      </div>
+      <span className="w-full truncate text-[9px] font-black">
+        {tab.title}
+      </span>
 
-      <p className="mt-3 text-sm font-black text-white">{tab.title}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-400">
-        {tab.description}
-      </p>
+      {active ? (
+        <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-[#9d8b55]" />
+      ) : null}
     </button>
+  );
+}
+
+function CompactStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
+      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-1 text-base font-black text-white">
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -315,7 +399,6 @@ export default function ProjectWorkspace({
   quizzesCount,
   progress,
   continueItems,
-
   smartSuggestion,
   searchQuery,
   searchResults,
@@ -328,13 +411,25 @@ export default function ProjectWorkspace({
   onOpenSearchResult,
   children,
 }: Props) {
-  const [roomToolsOpen, setRoomToolsOpen] =
-    useState(true);
+  const [
+    brainInsights,
+    setBrainInsights,
+  ] = useState<BrainInsights | null>(
+    null,
+  );
 
-  const [brainInsights, setBrainInsights] = useState<BrainInsights | null>(null);
-  const [brainLoading, setBrainLoading] = useState(false);
+  const [
+    brainLoading,
+    setBrainLoading,
+  ] = useState(false);
 
-  const safeProgress = Math.max(0, Math.min(100, progress));
+  const safeProgress = Math.max(
+    0,
+    Math.min(
+      100,
+      progress,
+    ),
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -342,10 +437,16 @@ export default function ProjectWorkspace({
     async function loadBrainInsights() {
       try {
         setBrainLoading(true);
-        const data = await getBrainInsights(studyRoomId);
+
+        const data =
+          await getBrainInsights(
+            studyRoomId,
+          );
 
         if (mounted) {
-          setBrainInsights(data as BrainInsights);
+          setBrainInsights(
+            data as BrainInsights,
+          );
         }
       } catch {
         if (mounted) {
@@ -358,436 +459,365 @@ export default function ProjectWorkspace({
       }
     }
 
-    loadBrainInsights();
+    void loadBrainInsights();
 
     return () => {
       mounted = false;
     };
   }, [studyRoomId]);
 
-  const weakConcepts = useMemo(() => {
-    return brainInsights?.weak_concepts?.slice(0, 3) || [];
-  }, [brainInsights]);
+  const weakConcepts = useMemo(
+    () =>
+      brainInsights?.weak_concepts?.slice(
+        0,
+        2,
+      ) || [],
+    [brainInsights],
+  );
 
-  const strongConcepts = useMemo(() => {
-    return brainInsights?.mastered_concepts?.slice(0, 3) || [];
-  }, [brainInsights]);
+  const masteryPercent = Math.round(
+    (
+      brainInsights?.average_mastery ||
+      0
+    ) * 100,
+  );
 
-  const reviewQueue = useMemo(() => {
-    return brainInsights?.review_queue?.slice(0, 3) || [];
-  }, [brainInsights]);
+  const primaryContinueItem =
+    continueItems[0];
 
-  const masteryPercent = Math.round((brainInsights?.average_mastery || 0) * 100);
+  const practiceCount =
+    conceptCardsCount + quizzesCount;
 
   return (
-    <div className="min-w-0 max-w-full space-y-3 sm:space-y-5">
-      <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-yellow-300/15 bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.10),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.98))] p-4 sm:rounded-[1.7rem] sm:p-5">
-        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="min-w-0 max-w-full space-y-3 pb-4 sm:space-y-4">
+      <section className="relative overflow-hidden rounded-[1.45rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.075),transparent_30%),linear-gradient(145deg,rgba(16,21,26,0.97),rgba(3,6,8,0.995))] p-4 shadow-[0_22px_65px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-5">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={onBack}
-                className="rounded-xl border border-yellow-300/30 bg-yellow-300/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/20"
-              >
-                ← Rooms
-              </button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 text-[10px] font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
+            >
+              ← Rooms
+            </button>
 
-              <span className="rounded-xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-yellow-100">
-                Your Study Room
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[#b7a35f]/20 bg-[#b7a35f]/[0.07] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#cbbd80]">
+                Study room
               </span>
 
-              <span className="min-w-0 max-w-full break-words rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
+              <span className="max-w-full truncate rounded-full border border-white/[0.075] bg-white/[0.03] px-2.5 py-1 text-[9px] font-black text-slate-400">
                 {subject}
               </span>
             </div>
 
-            <h1 className="max-w-5xl break-words text-2xl font-black leading-tight tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-2 break-words text-[1.55rem] font-black leading-tight tracking-[-0.025em] text-white sm:text-3xl">
               {title}
             </h1>
 
-            <p className="mt-2 hidden max-w-4xl text-sm leading-6 text-slate-300 sm:block">
-              {description ||
-                "Your materials, notes, AI Tutor, concept cards, quizzes, planner, progress, and future Study Together stay connected in this room."}
-            </p>
-
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:flex sm:flex-row">
-              <button
-                type="button"
-                onClick={() => onChangeTab("overview")}
-                className="rounded-xl bg-yellow-300 px-3 py-2.5 text-xs font-black text-black transition hover:bg-yellow-200 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
-              >
-                🏠 Overview
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onChangeTab("materials")}
-                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-black text-white transition hover:bg-white/[0.08] sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
-              >
-                📚 Add
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onChangeTab("ai")}
-                className="rounded-xl border border-yellow-300/20 bg-yellow-300/10 px-3 py-2.5 text-xs font-black text-yellow-100 transition hover:bg-yellow-300/15 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
-              >
-                ✦ Ask AI
-              </button>
-            </div>
-          </div>
-
-          <aside className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:w-[500px] xl:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Progress
+            {description ? (
+              <p className="mt-1.5 hidden max-w-3xl text-sm leading-6 text-slate-400 sm:block">
+                {description}
               </p>
-              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{safeProgress}%</p>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-yellow-300"
-                  style={{ width: `${safeProgress}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Materials
-              </p>
-              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{materialsCount}</p>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Notes
-              </p>
-              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">{notesCount}</p>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:rounded-2xl sm:p-4">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Practice
-              </p>
-              <p className="mt-1 text-xl font-black text-white sm:mt-3 sm:text-3xl">
-                {conceptCardsCount + quizzesCount}
-              </p>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section
-        className={[
-          "grid min-w-0 gap-5",
-          activeTab === "overview"
-            ? "xl:grid-cols-[minmax(0,1fr)_340px]"
-            : "grid-cols-1",
-        ].join(" ")}
-      >
-        <div className="min-w-0 space-y-5">
-          <section data-collapsible-room-tools="true" className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-3 sm:rounded-[1.5rem] sm:p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg text-[#dfcd7e]">
-              ✦
-            </span>
-
-            <div className="min-w-0">
-              <h2 className="text-xl font-black text-white">
-                Room tools
-              </h2>
-
-              <p className="mt-0.5 text-xs text-slate-500">
-                Search and open workspace tools
-              </p>
-            </div>
+            ) : null}
           </div>
 
           <button
             type="button"
             onClick={() =>
-              setRoomToolsOpen(
-                (current) => !current
-              )
+              onChangeTab("ai")
             }
-            aria-expanded={roomToolsOpen}
-            aria-controls="room-tools-content"
-            className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.045] px-3 text-xs font-black text-slate-300 active:bg-white/[0.1]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-[#b7a35f]/25 bg-[#b7a35f]/[0.08] text-base font-black text-[#d7cb94] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:bg-[#b7a35f]/[0.14]"
+            aria-label="Open AI Tutor"
+            title="Open AI Tutor"
           >
-            <span aria-hidden="true">
-              {roomToolsOpen ? "−" : "+"}
-            </span>
-
-            <span>
-              {roomToolsOpen ? "Hide" : "Show"}
-            </span>
+            S
           </button>
         </div>
 
-        {roomToolsOpen ? (
-          <div
-            id="room-tools-content"
-            className="mt-4"
-          >
-
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-
-              </div>
-
-              <ProjectSearchBox loading={searchLoading} onSearch={onSearch} />
-            </div>
-
-            <div className="mt-3 grid min-w-0 grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-4 xl:grid-cols-7">
-              {roomTabs.map((tab) => (
-                <TabButton
-                  key={tab.key}
-                  tab={tab}
-                  active={tab.key === activeTab}
-                  onClick={() => onChangeTab(tab.key)}
-                />
-              ))}
-            </div>
-
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() =>
-              setRoomToolsOpen(true)
-            }
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c9ad50]/25 bg-[#c9ad50]/[0.055] px-4 py-3 text-sm font-black text-[#ddce89]"
-          >
-            <span aria-hidden="true">
-              +
-            </span>
-
-            Show room tools
-          </button>
-        )}
-      </section>
-
-          <ProjectSearchResults
-            query={searchQuery}
-            results={searchResults}
-            loading={searchLoading}
-            error={searchError}
-            onOpenResult={onOpenSearchResult}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          <CompactStat
+            label="Progress"
+            value={`${safeProgress}%`}
           />
 
-          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-3 sm:p-4">
-            {children}
-          </section>
+          <CompactStat
+            label="Materials"
+            value={materialsCount}
+          />
+
+          <CompactStat
+            label="Notes"
+            value={notesCount}
+          />
+
+          <CompactStat
+            label="Practice"
+            value={practiceCount}
+          />
         </div>
 
-        <aside
-          className={
-            activeTab === "overview"
-              ? "space-y-5"
-              : "hidden"
-          }
-        >
-          <section className="rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-              Continue Learning
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+          <div
+            className="h-full rounded-full bg-[#91824f] transition-[width]"
+            style={{
+              width: `${safeProgress}%`,
+            }}
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[1.35rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(14,18,22,0.94),rgba(3,6,8,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.045)]">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <div>
+            <p className="text-sm font-black text-white">
+              Room workspace
             </p>
-            <h3 className="mt-1 text-xl font-black text-white">
-              Pick up where you stopped
-            </h3>
 
-            <div className="mt-5 space-y-3">
-              {continueItems.length ? (
-                <button
-                  type="button"
-                  onClick={() => continueItems[0]?.onOpen()}
-                  className="w-full rounded-2xl border border-yellow-300/25 bg-gradient-to-br from-yellow-300/15 to-cyan-300/[0.06] p-4 text-left transition hover:border-yellow-300/45 hover:bg-yellow-300/20"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-200">
-                    Recommended next
-                  </p>
+            <p className="mt-0.5 text-[10px] text-slate-500">
+              Search and switch tools
+            </p>
+          </div>
 
-                  <p className="mt-2 line-clamp-2 break-words text-sm font-black text-white">
-                    {continueItems[0]?.icon || "📘"}{" "}
-                    {continueItems[0]?.title}
-                  </p>
+          <span className="grid h-8 w-8 place-items-center rounded-xl border border-white/[0.075] bg-white/[0.03] text-xs font-black text-[#c9bc82]">
+            S
+          </span>
+        </div>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-300">
-                    {continueItems[0]?.subtitle}
-                  </p>
+        <div className="mt-3">
+          <ProjectSearchBox
+            loading={searchLoading}
+            onSearch={onSearch}
+          />
+        </div>
 
-                  <p className="mt-3 text-xs font-black text-yellow-100">
-                    Continue learning →
-                  </p>
-                </button>
-              ) : (
-                <p className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-400">
-                  Add your first study material and your AI Tutor will help you continue from there.
-                </p>
-              )}
-            </div>
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5 sm:grid-cols-7 sm:gap-2">
+          {roomTabs.map((tab) => (
+            <TabButton
+              key={tab.key}
+              tab={tab}
+              active={
+                tab.key === activeTab
+              }
+              onClick={() =>
+                onChangeTab(tab.key)
+              }
+            />
+          ))}
+        </div>
+      </section>
 
-            <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.07] p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                AI Tutor suggests
+      <ProjectSearchResults
+        query={searchQuery}
+        results={searchResults}
+        loading={searchLoading}
+        error={searchError}
+        onOpenResult={
+          onOpenSearchResult
+        }
+      />
+
+      {activeTab === "overview" ? (
+        <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.022] p-3 xl:hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#a99b68]">
+                Recommended next
               </p>
 
-              <p className="mt-2 text-sm font-black text-white">
-                {smartSuggestion.title}
+              <p className="mt-1 line-clamp-1 text-sm font-black text-white">
+                {primaryContinueItem
+                  ? primaryContinueItem.title
+                  : smartSuggestion.title}
               </p>
 
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                {smartSuggestion.text}
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                {primaryContinueItem
+                  ? primaryContinueItem.subtitle
+                  : smartSuggestion.text}
               </p>
-
-              <button
-                type="button"
-                onClick={() => onChangeTab(smartSuggestion.tab)}
-                className="mt-3 text-xs font-black text-cyan-100 transition hover:text-white"
-              >
-                {smartSuggestion.actionLabel} →
-              </button>
             </div>
 
             <button
               type="button"
-              onClick={() => onChangeTab("materials")}
-              className="mt-4 w-full rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-4 py-3 text-sm font-black text-yellow-100 transition hover:bg-yellow-300/20"
+              onClick={() => {
+                if (
+                  primaryContinueItem
+                ) {
+                  primaryContinueItem.onOpen();
+                  return;
+                }
+
+                onChangeTab(
+                  smartSuggestion.tab,
+                );
+              }}
+              className="shrink-0 rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.075] px-3 py-2 text-[10px] font-black text-[#d7cb94]"
             >
-              Add or view materials →
+              Open →
             </button>
+          </div>
+        </section>
+      ) : null}
+
+      <section
+        className={`grid min-w-0 gap-4 ${
+          activeTab === "overview"
+            ? "xl:grid-cols-[minmax(0,1fr)_300px]"
+            : "grid-cols-1"
+        }`}
+      >
+        <div className="min-w-0">
+          <section className="min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-white/[0.075] bg-[linear-gradient(145deg,rgba(11,15,19,0.95),rgba(3,6,8,0.99))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.24)] sm:p-4">
+            {children}
           </section>
+        </div>
 
-          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-4">
-            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                  Your AI Tutor
-                </p>
-                <h3 className="mt-1 break-words text-xl font-black text-white">
-                  What your AI Tutor knows
-                </h3>
+        {activeTab === "overview" ? (
+          <aside className="hidden space-y-3 xl:block">
+            <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.025] p-4">
+              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
+                Next step
+              </p>
+
+              <h3 className="mt-1.5 text-base font-black text-white">
+                {primaryContinueItem
+                  ? primaryContinueItem.title
+                  : smartSuggestion.title}
+              </h3>
+
+              <p className="mt-1.5 text-xs leading-5 text-slate-400">
+                {primaryContinueItem
+                  ? primaryContinueItem.subtitle
+                  : smartSuggestion.text}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    primaryContinueItem
+                  ) {
+                    primaryContinueItem.onOpen();
+                    return;
+                  }
+
+                  onChangeTab(
+                    smartSuggestion.tab,
+                  );
+                }}
+                className="mt-3 w-full rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.075] px-3 py-2.5 text-xs font-black text-[#d7cb94] transition hover:bg-[#b7a35f]/[0.13]"
+              >
+                {primaryContinueItem
+                  ? "Continue learning"
+                  : smartSuggestion.actionLabel}{" "}
+                →
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onChangeTab(
+                    smartSuggestion.tab,
+                  )
+                }
+                className="mt-2 w-full rounded-xl border border-white/[0.075] bg-white/[0.025] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                {smartSuggestion.title}
+              </button>
+            </section>
+
+            <section className="rounded-[1.25rem] border border-white/[0.075] bg-white/[0.025] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
+                    AI learning snapshot
+                  </p>
+
+                  <p className="mt-1 text-sm font-black text-white">
+                    Room knowledge
+                  </p>
+                </div>
+
+                <span className="rounded-full border border-white/[0.075] bg-white/[0.035] px-2.5 py-1 text-[10px] font-black text-slate-300">
+                  {brainLoading
+                    ? "…"
+                    : `${masteryPercent}%`}
+                </span>
               </div>
 
-              <span className="shrink-0 self-start rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-                {brainLoading ? "Loading" : `${masteryPercent}% mastery`}
-              </span>
-            </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <CompactStat
+                  label="Review"
+                  value={
+                    brainInsights?.weak_count ||
+                    0
+                  }
+                />
 
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-red-300/15 bg-red-400/10 p-3 text-center">
-                <p className="text-xl font-black text-white">
-                  {brainInsights?.weak_count || 0}
-                </p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-red-100">
-                  Review
-                </p>
+                <CompactStat
+                  label="Learning"
+                  value={
+                    brainInsights?.developing_count ||
+                    0
+                  }
+                />
+
+                <CompactStat
+                  label="Strong"
+                  value={
+                    brainInsights?.mastered_count ||
+                    0
+                  }
+                />
               </div>
 
-              <div className="rounded-xl border border-yellow-300/15 bg-yellow-400/10 p-3 text-center">
-                <p className="text-xl font-black text-white">
-                  {brainInsights?.developing_count || 0}
-                </p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-yellow-100">
-                  Learning
-                </p>
-              </div>
+              {weakConcepts.length ? (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Review next
+                  </p>
 
-              <div className="rounded-xl border border-emerald-300/15 bg-emerald-400/10 p-3 text-center">
-                <p className="text-xl font-black text-white">
-                  {brainInsights?.mastered_count || 0}
-                </p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-100">
-                  Confident
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div className="rounded-2xl border border-red-300/15 bg-red-400/10 p-4">
-                <p className="text-sm font-black text-red-100">Let’s review these next</p>
-                <div className="mt-3 space-y-2">
-                  {weakConcepts.length ? (
-                    weakConcepts.map((concept) => (
-                      <div
-                        key={concept.concept_id}
-                        className="rounded-xl border border-white/10 bg-black/25 px-3 py-2"
+                  {weakConcepts.map(
+                    (concept) => (
+                      <button
+                        key={
+                          concept.concept_id
+                        }
+                        type="button"
+                        onClick={() =>
+                          onChangeTab(
+                            "practice",
+                          )
+                        }
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2 text-left"
                       >
-                        <p className="line-clamp-2 text-xs font-bold text-white">
-                          {concept.concept_name}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {Math.round(concept.mastery_score * 100)}% mastery
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs leading-5 text-slate-300">
-                      Nothing needs extra review yet. Practice with Concept Cards or take a quiz when you are ready.
-                    </p>
+                        <span className="line-clamp-1 text-[11px] font-bold text-slate-300">
+                          {
+                            concept.concept_name
+                          }
+                        </span>
+
+                        <span className="text-[9px] font-black text-slate-500">
+                          {Math.round(
+                            concept.mastery_score *
+                              100,
+                          )}
+                          %
+                        </span>
+                      </button>
+                    ),
                   )}
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-4">
-                <p className="text-sm font-black text-emerald-100">
-                  Confident concepts
+              ) : (
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Practice activity will build
+                  your room learning snapshot.
                 </p>
-                <div className="mt-3 space-y-2">
-                  {strongConcepts.length ? (
-                    strongConcepts.map((concept) => (
-                      <div
-                        key={concept.concept_id}
-                        className="rounded-xl border border-white/10 bg-black/25 px-3 py-2"
-                      >
-                        <p className="line-clamp-2 text-xs font-bold text-white">
-                          {concept.concept_name}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs leading-5 text-slate-300">
-                      Correct quiz answers will appear here as strengths.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-4">
-                <p className="text-sm font-black text-cyan-100">Review queue</p>
-                <div className="mt-3 space-y-2">
-                  {reviewQueue.length ? (
-                    reviewQueue.map((concept) => (
-                      <div
-                        key={concept.concept_id}
-                        className="rounded-xl border border-white/10 bg-black/25 px-3 py-2"
-                      >
-                        <p className="line-clamp-2 text-xs font-bold text-white">
-                          {concept.concept_name}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs leading-5 text-slate-300">
-                      Your next review items will appear after more practice.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="min-w-0 max-w-full rounded-[1.5rem] border border-yellow-300/20 bg-yellow-300/10 p-4 sm:p-5">
-            <p className="break-words text-lg font-black text-white">
-              🏆 Connected study system
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Materials, notes, concept cards, quizzes, planner, search, AI Tutor,
-              and Study Together are tied to this room.
-            </p>
-          </section>
-        </aside>
+              )}
+            </section>
+          </aside>
+        ) : null}
       </section>
     </div>
   );

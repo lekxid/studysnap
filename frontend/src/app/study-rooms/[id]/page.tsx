@@ -1057,102 +1057,224 @@ export default function StudyRoomDetailPage() {
 
   function renderOverviewTab() {
     return (
-      <div className="min-w-0 max-w-full space-y-5">
-        <RoomGuide
-          foundation={roomFoundation}
-          loading={loadingFoundation}
-          error={foundationError}
-        />
+      <div className="min-w-0 max-w-full space-y-3">
+        <section className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <section className="min-w-0 rounded-[1.2rem] border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
+                  Recent materials
+                </p>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
-            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
-              Recent Materials
-            </p>
-            <h3 className="mt-2 text-xl font-black text-white">
-              PDFs in this room
-            </h3>
+                <h3 className="mt-1 text-base font-black text-white">
+                  Study files
+                </h3>
+              </div>
 
-            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveRoomTab(
+                    "materials"
+                  )
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
               {pdfs.length ? (
-                pdfs.slice(0, 3).map((pdf) => (
-                  <button
-                    key={pdf.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPdfId(pdf.id);
-                      setSummaryTitle(pdf.original_filename);
-                      setActiveRoomTab("materials");
-                    }}
-                    className="min-w-0 w-full overflow-hidden break-words rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
-                  >
-                    📕 {pdf.original_filename}
-                  </button>
-                ))
+                pdfs
+                  .slice(0, 3)
+                  .map((pdf) => (
+                    <button
+                      key={pdf.id}
+                      type="button"
+                      onClick={() => {
+                        rememberRoomItem({
+                          type: "pdf",
+                          id: pdf.id,
+                          title:
+                            pdf.original_filename,
+                        });
+
+                        setSelectedPdfId(
+                          pdf.id
+                        );
+
+                        setSummaryTitle(
+                          pdf.original_filename
+                        );
+
+                        setActiveRoomTab(
+                          "materials"
+                        );
+                      }}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2.5 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.065] bg-white/[0.03] text-xs font-black text-[#c7b979]">
+                        ▦
+                      </span>
+
+                      <span className="min-w-0 flex-1 truncate text-xs font-black text-slate-200">
+                        {
+                          pdf.original_filename
+                        }
+                      </span>
+
+                      <span className="text-xs text-slate-600">
+                        ›
+                      </span>
+                    </button>
+                  ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
-                  Add your first PDF to start learning. Your AI Tutor can summarize it, explain it, and help you practice.
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveRoomTab(
+                      "materials"
+                    )
+                  }
+                  className="w-full rounded-xl border border-dashed border-white/[0.08] bg-white/[0.018] p-4 text-left"
+                >
+                  <p className="text-sm font-black text-white">
+                    Add your first material
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Upload a PDF or another
+                    study file.
+                  </p>
+                </button>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
-            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
-              Recent Notes
-            </p>
-            <h3 className="mt-2 text-xl font-black text-white">
-              Notes connected to this room
-            </h3>
+          <section className="min-w-0 rounded-[1.2rem] border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
+                  Recent notes
+                </p>
 
-            <div className="mt-4 space-y-3">
+                <h3 className="mt-1 text-base font-black text-white">
+                  Room notes
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveRoomTab(
+                    "notes"
+                  )
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
               {notes.length ? (
-                notes.slice(0, 3).map((note) => (
-                  <div
-                    key={note.id}
-                    className="min-w-0 max-w-full rounded-xl border border-white/10 bg-white/[0.04] p-3"
-                  >
-                    <p className="line-clamp-1 text-sm font-black text-white">
-                      📝 {note.title || "Untitled Note"}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-                      {note.content || "Start writing — your AI Tutor can help you build this note."}
-                    </p>
-                  </div>
-                ))
+                notes
+                  .slice(0, 3)
+                  .map((note) => (
+                    <button
+                      key={note.id}
+                      type="button"
+                      onClick={() => {
+                        rememberRoomItem({
+                          type: "note",
+                          id: note.id,
+                          title:
+                            note.title ||
+                            "Untitled Note",
+                        });
+
+                        setActiveRoomTab(
+                          "notes"
+                        );
+                      }}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2.5 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.065] bg-white/[0.03] text-xs font-black text-slate-400">
+                        ▣
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-black text-slate-200">
+                          {note.title ||
+                            "Untitled Note"}
+                        </span>
+
+                        <span className="mt-0.5 block truncate text-[10px] text-slate-500">
+                          {cleanDisplayText(
+                            note.content,
+                            70
+                          ) ||
+                            "Open room note"}
+                        </span>
+                      </span>
+
+                      <span className="text-xs text-slate-600">
+                        ›
+                      </span>
+                    </button>
+                  ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
-                  Write your first note — your AI Tutor will learn from it.
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveRoomTab(
+                      "notes"
+                    )
+                  }
+                  className="w-full rounded-xl border border-dashed border-white/[0.08] bg-white/[0.018] p-4 text-left"
+                >
+                  <p className="text-sm font-black text-white">
+                    Create your first note
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Keep important ideas
+                    connected to this room.
+                  </p>
+                </button>
               )}
             </div>
-          </div>
+          </section>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] p-4 sm:p-5">
-            <p className="text-sm font-black text-[#ece8da]">Pinned Items</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Pin PDFs, notes, concept cards, and quizzes here later.
-            </p>
-          </div>
+        <details className="group overflow-hidden rounded-[1.15rem] border border-white/[0.07] bg-white/[0.018]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span className="block text-xs font-black text-slate-300">
+                About this room
+              </span>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-            <p className="text-sm font-black text-slate-200">Room Activity</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Uploads, AI actions, summaries, and Study Together updates will appear here.
-            </p>
-          </div>
+              <span className="mt-0.5 block text-[10px] text-slate-600">
+                Connected tools and AI memory
+              </span>
+            </span>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 sm:p-5">
-            <p className="text-sm font-black text-slate-200">
-              Study Together Preview
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Invite classmates, share notes, and quiz together soon.
-            </p>
+            <span className="text-sm text-slate-500 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <div className="border-t border-white/[0.06] p-3">
+            <RoomGuide
+              foundation={roomFoundation}
+              loading={
+                loadingFoundation
+              }
+              error={foundationError}
+            />
           </div>
-        </section>
+        </details>
       </div>
     );
   }
