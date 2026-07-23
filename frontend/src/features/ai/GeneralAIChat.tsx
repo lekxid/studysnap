@@ -8,6 +8,7 @@ import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
+import { asksForLiveResearch } from "@/lib/generalAiIntent";
 import { takePendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 import { saveProjectRoomId } from "@/features/projects/projectRoomContext";
 import {
@@ -233,11 +234,10 @@ const GENERAL_AI_DRAFT_KEY =
 function asksForCurrentInformation(
   value: string,
 ) {
-  return /\b(latest|today|current|recent|news|internet|online|web|search|price|weather|score|outbreak|right now|this week|2026)\b/i.test(
+  return asksForLiveResearch(
     value
   );
 }
-
 
 function asksToCreateImage(
   value: string,

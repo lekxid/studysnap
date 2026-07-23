@@ -3,6 +3,10 @@ from functools import lru_cache
 
 from openai import OpenAI
 from app.config import settings
+from app.services.ai_intent import (
+    WEB_SOURCE_INSTRUCTIONS,
+    should_use_web_search,
+)
 from app.services.intent_understanding import get_intent_understanding_instructions
 from app.services.ai_runtime import (
     current_information_instructions,
@@ -139,10 +143,10 @@ def _generate_current_web_answer(
 ) -> str:
     response = get_openai_client().responses.create(
         model=_configured_text_model(),
-        instructions=build_studysnap_system_prompt(
+        instructions=(build_studysnap_system_prompt(
             mode,
             clean_question,
-        ),
+        ) + "\n\n" + WEB_SOURCE_INSTRUCTIONS),
         input=build_studysnap_user_prompt(
             clean_question,
             context,
@@ -178,7 +182,7 @@ def generate_studysnap_answer(
 ) -> str:
     mode, clean_question = detect_mode(question)
 
-    if should_use_web_search(clean_question):
+    if should_use_web_search(clean_question, context):
         return _generate_current_web_answer(
             mode=mode,
             clean_question=clean_question,
@@ -223,7 +227,7 @@ def stream_studysnap_answer(
 ):
     mode, clean_question = detect_mode(question)
 
-    if should_use_web_search(clean_question):
+    if should_use_web_search(clean_question, context):
         # Web-enabled Responses API calls are returned as one
         # completed answer. StreamingResponse can still send
         # this answer through the existing SSE route safely.
