@@ -1086,6 +1086,22 @@ def preview_action(
     )
 
     if existing is not None:
+        if existing.status == "undone":
+            existing.status = "preview"
+            existing.result_json = None
+            existing.undo_json = None
+            existing.error_message = None
+            existing.executed_at = None
+            existing.undone_at = None
+
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+
+            return serialize_action(
+                existing,
+            )
+
         return serialize_action(
             existing,
             duplicate=True,

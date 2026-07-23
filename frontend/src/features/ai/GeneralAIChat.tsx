@@ -1,5 +1,7 @@
 "use client";
 
+import CentralActionBar from "@/components/ai/CentralActionBar";
+
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
@@ -4489,6 +4491,10 @@ export default function GeneralAIChat({
 
                             {typeof message.id === "number" ? (
                               <ArtifactFileCards messageId={message.id} />
+                            ) : null}
+
+                            {typeof message.id === "number" ? (
+                              <CentralActionBar messageId={message.id} />
                             ) : null}
                           </>
                         )

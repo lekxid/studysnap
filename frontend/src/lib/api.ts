@@ -3914,3 +3914,120 @@ export async function downloadAIMessageArtifact(
 
   return artifact;
 }
+
+export type CentralActionType =
+  | "save_note"
+  | "create_flashcards"
+  | "create_quiz"
+  | "add_to_planner";
+
+export type CentralActionPreview = {
+  label: string;
+  summary: string;
+  requires_confirmation: boolean;
+  room_id: number | null;
+  room_name: string | null;
+};
+
+export type CentralActionResult = {
+  entity_type?: string;
+  entity_id?: number;
+  entity_ids?: number[];
+  count?: number;
+  title?: string;
+  question_count?: number;
+  scheduled_for?: string;
+  open_href?: string;
+  [key: string]: unknown;
+};
+
+export type CentralActionRecord = {
+  id: number;
+  action_type: CentralActionType;
+  label: string;
+  status:
+    | "preview"
+    | "executed"
+    | "undone"
+    | "failed";
+  study_room_id: number | null;
+  conversation_id: number | null;
+  source_message_id: number | null;
+  preview: CentralActionPreview;
+  result: CentralActionResult | null;
+  error_message: string | null;
+  duplicate: boolean;
+  already_executed: boolean;
+  already_undone: boolean;
+  can_execute: boolean;
+  can_undo: boolean;
+  undo_result?: {
+    deleted_count: number;
+    entity_type: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+  executed_at: string | null;
+  undone_at: string | null;
+};
+
+export async function previewCentralAction({
+  actionType,
+  sourceMessageId,
+  studyRoomId,
+  payload = {},
+  idempotencyKey,
+}: {
+  actionType: CentralActionType;
+  sourceMessageId?: number;
+  studyRoomId?: number;
+  payload?: Record<string, unknown>;
+  idempotencyKey?: string;
+}): Promise<CentralActionRecord> {
+  return apiFetch(
+    "/api/actions/preview",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action_type: actionType,
+        source_message_id:
+          sourceMessageId ?? null,
+        study_room_id:
+          studyRoomId ?? null,
+        payload,
+        idempotency_key:
+          idempotencyKey ?? null,
+      }),
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function executeCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}/execute`,
+    {
+      method: "POST",
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function undoCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}/undo`,
+    {
+      method: "POST",
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function getCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}`
+  ) as Promise<CentralActionRecord>;
+}

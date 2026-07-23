@@ -198,6 +198,43 @@ def test_note_preview_execute_duplicate_and_undo():
 
     db.close()
 
+    replay_preview_response = client.post(
+        "/api/actions/preview",
+        json={
+            "action_type": "save_note",
+            "study_room_id": 10,
+            "payload": {
+                "title": "Vital signs",
+                "content": (
+                    "Vital signs include temperature, "
+                    "pulse, respirations, and blood pressure."
+                ),
+            },
+        },
+    )
+
+    assert replay_preview_response.status_code == 200
+
+    replay_preview = replay_preview_response.json()
+
+    assert replay_preview["id"] == action_id
+    assert replay_preview["status"] == "preview"
+    assert replay_preview["duplicate"] is False
+    assert replay_preview["can_execute"] is True
+
+    replay_execute_response = client.post(
+        f"/api/actions/{action_id}/execute"
+    )
+
+    assert replay_execute_response.status_code == 200
+    assert replay_execute_response.json()["status"] == "executed"
+
+    db = TestingSessionLocal()
+
+    assert db.query(Note).count() == 1
+
+    db.close()
+
 
 def test_source_message_supplies_room_and_content():
     db = TestingSessionLocal()
