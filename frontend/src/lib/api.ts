@@ -611,6 +611,7 @@ export type GenerateAIImageOptions = {
   studyRoomId?: number | null;
   size?: GenerateAIImageSize;
   quality?: GenerateAIImageQuality;
+  signal?: AbortSignal;
 };
 
 export type GenerateAIImageResponse = {
@@ -698,6 +699,7 @@ export async function generateAIImage(
 
   return apiFetch("/api/ai/generate-image", {
     method: "POST",
+    signal: options.signal,
     body: JSON.stringify({
       prompt: cleanPrompt,
       conversation_id:
@@ -806,6 +808,7 @@ export async function editAIImage(
     "/api/ai/edit-image",
     {
       method: "POST",
+      signal: options.signal,
       headers,
       body: formData,
       cache: "no-store",

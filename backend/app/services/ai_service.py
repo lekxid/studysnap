@@ -50,6 +50,81 @@ def detect_mode(question: str):
     return "Clear Explain", question.strip()
 
 
+
+def coding_agent_instructions(
+    question: str,
+) -> str:
+    text = (question or "").lower()
+
+    coding_signals = (
+        "```",
+        "traceback",
+        "stack trace",
+        "syntaxerror",
+        "typeerror",
+        "referenceerror",
+        "exception",
+        "terminal",
+        "command line",
+        "bash",
+        "powershell",
+        "python",
+        "typescript",
+        "javascript",
+        "react",
+        "next.js",
+        "nextjs",
+        "fastapi",
+        "sqlalchemy",
+        "docker",
+        "dockerfile",
+        "azure",
+        "github",
+        "git ",
+        "npm ",
+        "npx ",
+        "pytest",
+        "repository",
+        "repo",
+        "branch",
+        "commit",
+        "build",
+        "deployment",
+        "deploy",
+        "api endpoint",
+        "source code",
+        "codebase",
+        "codex",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".sql",
+        ".sh",
+    )
+
+    if not any(
+        signal in text
+        for signal in coding_signals
+    ):
+        return ""
+
+    return (
+        "CODING AGENT MODE:\n"
+        "- Treat pasted code, terminal output, logs, stack traces, paths, diffs, screenshots, and repository details as technical evidence.\n"
+        "- Preserve the active task, prior decisions, branch, constraints, and completed work instead of restarting from scratch.\n"
+        "- Diagnose the actual evidence before proposing a change. Explain the likely cause and distinguish facts from assumptions.\n"
+        "- Never claim that code, commands, tests, commits, pushes, or deployments succeeded unless a connected tool actually performed them or the user supplied the result.\n"
+        "- When the user requests code, provide complete copy-pasteable code with safe defaults and minimal manual editing.\n"
+        "- Protect existing work: inspect status, back up affected files, avoid unrelated rewrites, preserve secrets, and keep changes reversible.\n"
+        "- For repository changes, include appropriate syntax checks, tests, build checks, service checks, and rollback handling.\n"
+        "- Read errors literally, use the current project structure, and do not invent files, packages, APIs, outputs, or environment facts.\n"
+        "- Track what is done, what is being changed, what remains, and whether deployment has occurred.\n"
+        "- Prefer one coherent tested change over many disconnected patches."
+    )
+
+
 def build_studysnap_system_prompt(
     mode: str,
     question: str = "",
@@ -123,6 +198,9 @@ def build_studysnap_system_prompt(
         + get_intent_understanding_instructions()
         + "\n\n"
         + current_information_instructions(question)
+        + "\n\n"
+        + coding_agent_instructions(question)
+
     )
 
 

@@ -1,5 +1,8 @@
+"use client";
+
 import {
   Fragment,
+  useState,
   type ReactNode,
 } from "react";
 
@@ -232,6 +235,135 @@ function renderInline(
 }
 
 
+
+async function copyCodeText(
+  text: string,
+) {
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
+    await navigator.clipboard.writeText(
+      text,
+    );
+
+    return;
+  }
+
+  const textarea =
+    document.createElement(
+      "textarea",
+    );
+
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.setAttribute(
+    "readonly",
+    "",
+  );
+
+  document.body.appendChild(
+    textarea,
+  );
+
+  textarea.select();
+
+  const copied =
+    document.execCommand(
+      "copy",
+    );
+
+  document.body.removeChild(
+    textarea,
+  );
+
+  if (!copied) {
+    throw new Error(
+      "Copy failed.",
+    );
+  }
+}
+
+
+function CodeBlock({
+  language,
+  code,
+}: {
+  language: string;
+  code: string;
+}) {
+  const [
+    copyState,
+    setCopyState,
+  ] = useState<
+    "idle" | "copied" | "failed"
+  >("idle");
+
+  async function handleCopy() {
+    try {
+      await copyCodeText(code);
+
+      setCopyState(
+        "copied",
+      );
+
+      window.setTimeout(
+        () =>
+          setCopyState(
+            "idle",
+          ),
+        1500,
+      );
+    } catch {
+      setCopyState(
+        "failed",
+      );
+
+      window.setTimeout(
+        () =>
+          setCopyState(
+            "idle",
+          ),
+        1800,
+      );
+    }
+  }
+
+  return (
+    <div className="my-3 max-w-full overflow-hidden rounded-xl border border-white/[0.09] bg-[#0d0d0d]">
+      <div className="flex min-h-11 items-center justify-between gap-3 border-b border-white/[0.07] bg-[#111111] px-3 py-2">
+        <span className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
+          {language || "Code"}
+        </span>
+
+        <button
+          type="button"
+          onClick={() =>
+            void handleCopy()
+          }
+          className="min-h-9 shrink-0 rounded-lg border border-white/[0.10] bg-white/[0.04] px-3 text-xs font-bold text-zinc-200 transition hover:border-[#c9ad50]/35 hover:bg-[#c9ad50]/10 hover:text-[#eadf9f]"
+          aria-live="polite"
+          title="Copy this code block"
+        >
+          {copyState === "copied"
+            ? "Copied ✓"
+            : copyState === "failed"
+              ? "Copy failed"
+              : "Copy code"}
+        </button>
+      </div>
+
+      <pre className="max-w-full overflow-x-auto p-3 pt-4 text-xs leading-6 text-zinc-200">
+        <code>
+          {code}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+
 function isSpecialBlockStart(
   line: string,
 ) {
@@ -290,22 +422,11 @@ function renderBlocks(
       }
 
       blocks.push(
-        <div
+        <CodeBlock
           key={`code-${blockIndex}`}
-          className="my-3 max-w-full overflow-hidden rounded-xl border border-white/[0.09] bg-[#0d0d0d]"
-        >
-          {language ? (
-            <div className="border-b border-white/[0.07] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">
-              {language}
-            </div>
-          ) : null}
-
-          <pre className="max-w-full overflow-x-auto p-3 text-xs leading-6 text-zinc-200">
-            <code>
-              {codeLines.join("\n")}
-            </code>
-          </pre>
-        </div>,
+          language={language}
+          code={codeLines.join("\n")}
+        />,
       );
 
       blockIndex += 1;

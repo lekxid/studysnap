@@ -255,14 +255,33 @@ function asksToCreateImage(
     return false;
   }
 
-  return (
-    /\b(create|generate|draw|design|render|illustrate|make)\b[\s\S]{0,80}\b(image|picture|photo|portrait|diagram|illustration|graphic|visual|poster|infographic)\b/i.test(
+  const explicitVisualRequest =
+    /\b(create|generate|draw|design|render|illustrate|paint|sketch|make)\b[\s\S]{0,100}\b(image|picture|photo|portrait|diagram|illustration|graphic|visual|poster|infographic|logo|wallpaper|icon|artwork)\b/i.test(
       text
     ) ||
-    /\b(image|picture|photo|portrait|diagram|illustration|graphic|visual|poster|infographic)\b[\s\S]{0,80}\b(create|generate|draw|design|render|illustrate|make)\b/i.test(
+    /\b(image|picture|photo|portrait|diagram|illustration|graphic|visual|poster|infographic|logo|wallpaper|icon|artwork)\b[\s\S]{0,100}\b(create|generate|draw|design|render|illustrate|paint|sketch|make)\b/i.test(
       text
-    )
-  );
+    );
+
+  if (explicitVisualRequest) {
+    return true;
+  }
+
+  const directCreationRequest =
+    /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:create|generate|draw|design|render|illustrate|paint|sketch)\b/i.test(
+      text
+    );
+
+  if (!directCreationRequest) {
+    return false;
+  }
+
+  const clearlyNonVisualTarget =
+    /\b(note|notes|quiz|questions?|flashcards?|room|project|plan|schedule|summary|document|pdf|file|folder|code|app|application|website|database|api|script|function|class|spreadsheet|presentation|email|message|table|study guide|care plan)\b/i.test(
+      text
+    );
+
+  return !clearlyNonVisualTarget;
 }
 
 function asksToEditImage(
@@ -275,7 +294,7 @@ function asksToEditImage(
   }
 
   const explanationRequest =
-    /\b(explain|describe|analyse|analyze|identify|read|summarize|summarise|what is|what does|who is|tell me about)\b/i.test(
+    /\b(explain|describe|analyse|analyze|identify|read|summarize|summarise|what is|what does|who is|tell me about|what can you see|what is in)\b/i.test(
       text
     );
 
@@ -283,19 +302,48 @@ function asksToEditImage(
     return false;
   }
 
-  const editingRequest =
-    /\b(edit|adjust|change|improve|enhance|fix|recreate|redo|retouch|restore|remove|replace|brighten|darken|sharpen|crop|resize|restyle|professional|nicer|better|cleaner|clearer|background|portrait|landscape|square|variation|another version|new version|modify|transform|polish|beautify|refine|upgrade|fine[\s-]?tune|touch[\s-]?up|clean[\s-]?up)\b/i.test(
+  const explicitEditRequest =
+    /\b(edit|adjust|change|improve|enhance|fix|recreate|redo|retouch|restore|remove|replace|brighten|darken|sharpen|crop|resize|restyle|stylize|colourize|colorize|blur|unblur|upscale|upgrade|fine[\s-]?tune|touch[\s-]?up|clean[\s-]?up|polish|beautify|refine|transform|modify|convert)\b/i.test(
       text
     );
 
-  const naturalEditPhrase =
-    /\bmake\s+(?:it|this|the image|the picture|the photo)\s+(?:nice|nicer|better|professional|clearer|cleaner|sharper|brighter|beautiful)\b/i.test(
+  const qualityRequest =
+    /\b(best|better|highest|high)\s+(?:image\s+|photo\s+|picture\s+|pic\s+)?quality\b|\b(?:hd|full\s*hd|4k|8k|high[\s-]?resolution|higher[\s-]?resolution|clearer|cleaner|sharper|brighter|fresher|fresh|professional|studio[\s-]?quality|crisp|natural|realistic)\b/i.test(
+      text
+    );
+
+  const directMakeRequest =
+    /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?make\b/i.test(
+      text
+    );
+
+  const imageReference =
+    /\b(?:it|this|that|same|image|photo|picture|pic|portrait|face|background|version)\b/i.test(
+      text
+    );
+
+  const contextualFollowUp =
+    /^(?:please\s+)?(?:add|remove|change|replace|keep|use|try|put|give|make|turn|convert|enhance|improve|fine[\s-]?tune|freshen)\b/i.test(
+      text
+    );
+
+  const clearlyNonImageOutput =
+    /\b(note|notes|quiz|questions?|flashcards?|room|project|plan|schedule|summary|document|pdf|file|folder|code|app|application|website|database|api|script|function|class|spreadsheet|presentation|email|message|table|study guide|care plan)\b/i.test(
       text
     );
 
   return (
-    editingRequest ||
-    naturalEditPhrase
+    explicitEditRequest ||
+    qualityRequest ||
+    (
+      directMakeRequest &&
+      !clearlyNonImageOutput
+    ) ||
+    (
+      contextualFollowUp &&
+      imageReference &&
+      !clearlyNonImageOutput
+    )
   );
 }
 
@@ -361,6 +409,131 @@ function makeAIRequestId() {
   );
 }
 
+
+function pendingAssistantActivityLabel(
+  content: string,
+): string | null {
+  const text = content
+    .trim()
+    .replace(/[.…]+$/u, "");
+
+  if (
+    !text ||
+    text.length > 190
+  ) {
+    return null;
+  }
+
+  const looksLikeActivity =
+    /^(?:studysnap(?:\s+ai)?\s+(?:is|will)\s+)?(?:thinking|searching|researching|reading|analyzing|analysing|uploading|saving|writing|editing|generating|creating|processing)|^(?:one moment|please wait)/i.test(
+      text,
+    );
+
+  if (!looksLikeActivity) {
+    return null;
+  }
+
+  if (
+    /\b(uploading|files queued)\b/i.test(
+      text,
+    )
+  ) {
+    return "Uploading";
+  }
+
+  if (
+    /\b(searching|researching)\b/i.test(
+      text,
+    )
+  ) {
+    return "Searching";
+  }
+
+  if (
+    /\b(reading|analyzing|analysing)\b/i.test(
+      text,
+    )
+  ) {
+    return "Reading";
+  }
+
+  if (
+    /\b(editing|generating|creating)\b/i.test(
+      text,
+    ) &&
+    /\b(image|photo|picture|visual)\b/i.test(
+      text,
+    )
+  ) {
+    return "Generating image";
+  }
+
+  if (
+    /\bsaving\b/i.test(
+      text,
+    )
+  ) {
+    return "Saving";
+  }
+
+  if (
+    /\bwriting\b/i.test(
+      text,
+    )
+  ) {
+    return "Writing";
+  }
+
+  if (
+    /\bprocessing\b/i.test(
+      text,
+    )
+  ) {
+    return "Processing";
+  }
+
+  return "Thinking";
+}
+
+
+function AIActivityIndicator({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <div
+      className="flex min-h-16 flex-col items-start justify-center gap-2 py-1"
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      <span className="relative grid h-9 w-9 place-items-center">
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 animate-spin rounded-xl border border-[#c9ad50]/20 border-t-[#eadf9f]"
+        />
+
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#c9ad50]/10 text-[11px] font-black text-[#dfcf80]">
+          S
+        </span>
+      </span>
+
+      <span className="flex items-center text-xs font-bold text-zinc-400">
+        {label}
+
+        <span
+          aria-hidden="true"
+          className="ml-1 inline-block animate-pulse tracking-[0.12em]"
+        >
+          •••
+        </span>
+      </span>
+    </div>
+  );
+}
+
+
 export default function GeneralAIChat({
   initialPrompt = "",
   startFresh = false,
@@ -406,6 +579,8 @@ export default function GeneralAIChat({
   const [loadingTrails, setLoadingTrails] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
+  const [downloadingImageId, setDownloadingImageId] = useState<string | number | null>(null);
+  const [downloadedImageId, setDownloadedImageId] = useState<string | number | null>(null);
 
   const [expandedMessageIds, setExpandedMessageIds] = useState<
     Set<string | number>
@@ -470,6 +645,7 @@ export default function GeneralAIChat({
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [studyToolsOpen, setStudyToolsOpen] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   const [deleteRequest, setDeleteRequest] =
     useState<AIConversation | null>(null);
@@ -494,6 +670,13 @@ export default function GeneralAIChat({
 
   const activeRequestRef =
     useRef<AbortController | null>(null);
+
+
+  const imageRequestRef =
+    useRef<AbortController | null>(null);
+
+  const activeImageAssistantIdRef =
+    useRef<string | number | null>(null);
 
   const activeServerRequestIdRef =
     useRef<string | null>(null);
@@ -712,6 +895,7 @@ export default function GeneralAIChat({
   useEffect(() => {
     setHistoryOpen(false);
     setStudyToolsOpen(false);
+    setAiToolsOpen(false);
 
     window.localStorage.setItem(
       "studysnap:general-ai-history-drawer-v2",
@@ -1482,6 +1666,43 @@ export default function GeneralAIChat({
   }
 
   function stopCurrentResponse() {
+    if (imageRequestRef.current) {
+      const assistantId =
+        activeImageAssistantIdRef.current;
+
+      imageRequestRef.current.abort();
+      imageRequestRef.current = null;
+      activeImageAssistantIdRef.current =
+        null;
+
+      setCanStopCurrent(false);
+
+      if (assistantId !== null) {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === assistantId
+              ? {
+                  ...message,
+                  content:
+                    "Image generation stopped.",
+                }
+              : message
+          )
+        );
+      }
+
+      setActivity({
+        label: "Image stopped",
+        detail:
+          "The current image request was stopped.",
+      });
+
+      clearActivityAfter(1800);
+      inputRef.current?.focus();
+
+      return;
+    }
+
     if (!canStopCurrent) {
       return;
     }
@@ -1691,8 +1912,20 @@ export default function GeneralAIChat({
     const assistantMessageId =
       makeId();
 
+
+    const imageController =
+      new AbortController();
+
+    imageRequestRef.current?.abort();
+    imageRequestRef.current =
+      imageController;
+
+    activeImageAssistantIdRef.current =
+      assistantMessageId;
+
     try {
       setLoading(true);
+      setCanStopCurrent(true);
       setError("");
       setInput("");
 
@@ -1772,6 +2005,7 @@ export default function GeneralAIChat({
               conversationId,
               size: imageSize,
               quality: "high",
+              signal: imageController.signal,
               identityImage:
                 identityImageForRequest &&
                 identityImageForRequest !==
@@ -1786,6 +2020,7 @@ export default function GeneralAIChat({
               conversationId,
               size: imageSize,
               quality: "medium",
+              signal: imageController.signal,
             }
           );
 
@@ -1882,6 +2117,41 @@ export default function GeneralAIChat({
 
       scrollToBottom();
     } catch (err) {
+      const requestWasStopped =
+        (
+          err instanceof DOMException &&
+          err.name === "AbortError"
+        ) ||
+        (
+          err instanceof Error &&
+          err.name === "AbortError"
+        );
+
+      if (requestWasStopped) {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id ===
+            assistantMessageId
+              ? {
+                  ...message,
+                  content:
+                    "Image generation stopped.",
+                }
+              : message
+          )
+        );
+
+        setActivity({
+          label: "Image stopped",
+          detail:
+            "The current image request was stopped.",
+        });
+
+        clearActivityAfter(1800);
+
+        return;
+      }
+
       const message =
         err instanceof Error
           ? err.message
@@ -1904,6 +2174,23 @@ export default function GeneralAIChat({
 
       setError(message);
     } finally {
+      if (
+        imageRequestRef.current ===
+        imageController
+      ) {
+        imageRequestRef.current = null;
+      }
+
+      if (
+        activeImageAssistantIdRef.current ===
+        assistantMessageId
+      ) {
+        activeImageAssistantIdRef.current =
+          null;
+      }
+
+      setCanStopCurrent(false);
+
       clearActivityAfter();
       setLoading(false);
       inputRef.current?.focus();
@@ -2492,11 +2779,15 @@ export default function GeneralAIChat({
       inputRef.current?.focus();
     }
   }
-
-    async function handleSubmit(
+  async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    if (loading) {
+      queueFollowUpAndStop();
+      return;
+    }
 
     if (!canSend) {
       return;
@@ -2505,35 +2796,40 @@ export default function GeneralAIChat({
     const cleanInput =
       input.trim();
 
-    const hasAttachedImage =
-      selectedImage !== null ||
+    const queuedImage =
       pendingAttachments.some(
         (attachment) =>
           attachment.kind === "image"
       );
 
+    const hasCurrentImage =
+      selectedImage !== null ||
+      queuedImage ||
+      lastGeneratedImage !== null;
+
     if (
-      hasAttachedImage &&
+      hasCurrentImage &&
       asksToEditImage(cleanInput)
     ) {
       await createGeneratedImage(
         cleanInput ||
-          "Improve this image while keeping its original content."
+          "Improve this image while keeping its important details."
       );
       return;
     }
 
     if (
-      !hasAttachedImage &&
-      (
-        createImageMode ||
-        asksToCreateImage(
-          cleanInput
-        )
+      asksToCreateImage(
+        cleanInput
       )
     ) {
+      const forceNewImage =
+        selectedImage === null &&
+        !queuedImage;
+
       await createGeneratedImage(
-        cleanInput
+        cleanInput,
+        forceNewImage
       );
       return;
     }
@@ -2858,18 +3154,203 @@ export default function GeneralAIChat({
     }
   }
 
-  function downloadGeneratedImage(message: DisplayMessage) {
-    if (!message.imagePreview) return;
+  async function downloadGeneratedImage(
+    message: DisplayMessage
+  ) {
+    if (
+      !message.imagePreview ||
+      downloadingImageId === message.id
+    ) {
+      return;
+    }
 
-    const link = document.createElement("a");
+    setDownloadingImageId(message.id);
+    setDownloadedImageId(null);
+    setError("");
 
-    link.href = message.imagePreview;
-    link.download = `studysnap-image-${Date.now()}.png`;
-    link.rel = "noopener";
+    let objectUrl = "";
 
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    try {
+      const response = await fetch(
+        message.imagePreview,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "StudySnap could not prepare this image for download."
+        );
+      }
+
+      const blob = await response.blob();
+
+      if (!blob.size) {
+        throw new Error(
+          "The generated image file is empty."
+        );
+      }
+
+      const extensionByType: Record<string, string> = {
+        "image/avif": "avif",
+        "image/gif": "gif",
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+
+      const originalName =
+        message.imageName?.trim() || "";
+
+      const originalExtension =
+        originalName
+          .split(".")
+          .pop()
+          ?.toLowerCase();
+
+      const extension =
+        (
+          originalExtension &&
+          /^[a-z0-9]{2,5}$/.test(
+            originalExtension
+          )
+        )
+          ? originalExtension
+          : (
+              extensionByType[
+                blob.type.toLowerCase()
+              ] || "png"
+            );
+
+      const baseName =
+        (
+          originalName
+            .replace(/\.[^.]+$/, "")
+            .replace(
+              /[^a-z0-9._-]+/gi,
+              "-"
+            )
+            .replace(
+              /^[-_.]+|[-_.]+$/g,
+              ""
+            )
+        ) || "studysnap-image";
+
+      const filename =
+        `${baseName}-${Date.now()}.${extension}`;
+
+      const file = new File(
+        [blob],
+        filename,
+        {
+          type:
+            blob.type ||
+            `image/${extension}`,
+          lastModified: Date.now(),
+        }
+      );
+
+      const navigatorWithShare =
+        navigator as Navigator & {
+          canShare?: (
+            data: ShareData
+          ) => boolean;
+        };
+
+      const isAppleMobile =
+        /iPhone|iPad|iPod/i.test(
+          navigator.userAgent
+        ) ||
+        (
+          navigator.platform === "MacIntel" &&
+          navigator.maxTouchPoints > 1
+        );
+
+      const canShareFile =
+        typeof navigator.share === "function" &&
+        typeof navigatorWithShare.canShare === "function" &&
+        navigatorWithShare.canShare({
+          files: [file],
+        });
+
+      if (
+        isAppleMobile &&
+        canShareFile
+      ) {
+        await navigator.share({
+          files: [file],
+          title: "Save StudySnap image",
+        });
+      } else {
+        objectUrl =
+          window.URL.createObjectURL(
+            blob
+          );
+
+        const link =
+          document.createElement("a");
+
+        link.href = objectUrl;
+        link.download = filename;
+        link.rel = "noopener noreferrer";
+        link.style.display = "none";
+
+        document.body.appendChild(
+          link
+        );
+
+        link.click();
+        link.remove();
+
+        window.setTimeout(
+          () => {
+            if (objectUrl) {
+              window.URL.revokeObjectURL(
+                objectUrl
+              );
+            }
+          },
+          60_000
+        );
+      }
+
+      setDownloadedImageId(
+        message.id
+      );
+
+      window.setTimeout(
+        () =>
+          setDownloadedImageId(
+            (current) =>
+              current === message.id
+                ? null
+                : current
+          ),
+        1800
+      );
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        error.name === "AbortError"
+      ) {
+        return;
+      }
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to download this image."
+      );
+
+      if (objectUrl) {
+        window.URL.revokeObjectURL(
+          objectUrl
+        );
+      }
+    } finally {
+      setDownloadingImageId(null);
+    }
   }
 
   async function createStudyRoomFromFiles() {
@@ -3173,14 +3654,21 @@ export default function GeneralAIChat({
           onKeyDown={(event) => {
             if (
               event.key === "Enter" &&
-              !event.shiftKey
+              (
+                event.ctrlKey ||
+                event.metaKey
+              )
             ) {
               event.preventDefault();
 
-              event.currentTarget.form
-                ?.requestSubmit();
+              if (canSend) {
+                event.currentTarget
+                  .form
+                  ?.requestSubmit();
+              }
             }
           }}
+          enterKeyHint="enter"
           placeholder={
             selectedImage
               ? "Tell StudySnap what to do with this image..."
@@ -3289,10 +3777,236 @@ export default function GeneralAIChat({
           </p>
         </div>
 
-        <span className="text-[10px] font-black text-zinc-600">
-          AI
-        </span>
+        <button
+          type="button"
+          data-studysnap-tools-trigger="true"
+          onClick={() => {
+            updateStudyToolsOpen(false);
+
+            setAiToolsOpen(
+              (current) => !current
+            );
+          }}
+          aria-label="Open StudySnap AI tools"
+          aria-expanded={aiToolsOpen}
+          title="StudySnap AI tools"
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-[11px] font-black transition ${
+            aiToolsOpen
+              ? "border-[#c9ad50]/40 bg-[#c9ad50]/15 text-[#eadf9f]"
+              : "border-white/[0.08] bg-[#111111] text-[#c9ad50] hover:bg-[#181818]"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M5 7h14M5 12h14M5 17h14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+</button>
       </header>
+
+      {aiToolsOpen ? (
+        <div className="fixed inset-0 z-[230]">
+          <button
+            type="button"
+            aria-label="Close AI tools"
+            onClick={() =>
+              setAiToolsOpen(false)
+            }
+            className="absolute inset-0 bg-transparent"
+          />
+
+          <aside className="absolute right-3 top-[calc(3.6rem+env(safe-area-inset-top))] max-h-[calc(100dvh-5rem)] w-[min(19rem,calc(100vw-1.5rem))] overflow-y-auto rounded-[1.15rem] border border-white/[0.11] bg-[#292929] p-1.5 shadow-[0_24px_75px_rgba(0,0,0,0.72)]">
+            <div className="flex h-10 items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-lg border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[10px] font-black text-[#dfcf80]">
+                  S
+                </span>
+
+                <p className="text-xs font-bold text-zinc-200">
+                  StudySnap tools
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setAiToolsOpen(false)
+                }
+                className="grid h-7 w-7 place-items-center rounded-full text-zinc-400 hover:bg-white/[0.09] hover:text-white"
+                aria-label="Close AI tools"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setAiToolsOpen(false);
+                  startNewTrail();
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
+              >
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
+                  ＋
+                </span>
+
+                New conversation
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAiToolsOpen(false);
+                  updateHistoryOpen(true);
+                }}
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
+              >
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
+                  ≡
+                </span>
+
+                Chat history
+              </button>
+
+              <details className="rounded-xl">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/[0.08]">
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
+                    •••
+                  </span>
+
+                  <span className="flex-1">
+                    More tools
+                  </span>
+
+                  <span className="text-[10px] text-zinc-500">
+                    ▼
+                  </span>
+                </summary>
+
+                <div className="ml-3 mt-1 space-y-1 border-l border-white/[0.09] pb-1 pl-3">
+                  <label className="flex min-h-10 items-center justify-between gap-3 rounded-xl px-2 text-xs text-zinc-300 hover:bg-white/[0.06]">
+                    <span>
+                      Image shape
+                    </span>
+
+                    <select
+                      value={imageSize}
+                      onChange={(event) =>
+                        setImageSize(
+                          event.target
+                            .value as GenerateAIImageSize
+                        )
+                      }
+                      className="max-w-[7rem] rounded-lg border border-white/[0.08] bg-[#222222] px-2 py-1.5 text-xs text-zinc-200 outline-none"
+                      aria-label="Image shape"
+                    >
+                      <option value="1024x1024">
+                        Square
+                      </option>
+
+                      <option value="1024x1536">
+                        Portrait
+                      </option>
+
+                      <option value="1536x1024">
+                        Landscape
+                      </option>
+                    </select>
+                  </label>
+
+                  {suggestions.map(
+                    (suggestion) => (
+                      <button
+                        key={`ai-menu-${suggestion}`}
+                        type="button"
+                        onClick={() => {
+                          setCreateImageMode(false);
+                          setAiToolsOpen(false);
+
+                          void sendMessage(
+                            suggestion
+                          );
+                        }}
+                        disabled={loading}
+                        className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-200 hover:bg-white/[0.07] disabled:opacity-50"
+                      >
+                        <span className="text-[#d8c878]">
+                          ✦
+                        </span>
+
+                        {suggestion}
+                      </button>
+                    )
+                  )}
+
+                  {lastGeneratedImage ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearLastGeneratedImage();
+                        setAiToolsOpen(false);
+                      }}
+                      className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-300 hover:bg-white/[0.07]"
+                    >
+                      <span>×</span>
+
+                      Stop editing last image
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiToolsOpen(false);
+                      void resetCurrentChat();
+                    }}
+                    disabled={
+                      loading ||
+                      (
+                        !hasMessages &&
+                        !input.trim() &&
+                        !selectedImage &&
+                        !lastGeneratedImage
+                      )
+                    }
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-red-200 hover:bg-red-400/10 disabled:opacity-40"
+                  >
+                    <span>↻</span>
+
+                    Clear current chat
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiToolsOpen(false);
+                      router.push(
+                        "/dashboard"
+                      );
+                    }}
+                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-300 hover:bg-white/[0.07]"
+                  >
+                    <span>⌂</span>
+
+                    Open dashboard
+                  </button>
+                </div>
+              </details>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       {historyOpen ? (
         <div className="fixed inset-0 z-[90] xl:hidden">
@@ -3429,7 +4143,12 @@ export default function GeneralAIChat({
 
             <button
               type="button"
-              onClick={() => updateStudyToolsOpen(!studyToolsOpen)}
+              onClick={() => {
+                setAiToolsOpen(false);
+                updateStudyToolsOpen(
+                  !studyToolsOpen
+                );
+              }}
               aria-label="Open study tools"
               aria-expanded={studyToolsOpen}
               title="More tools"
@@ -3517,6 +4236,13 @@ export default function GeneralAIChat({
                       ? `${message.content.slice(0, collapseLimit).trimEnd()}…`
                       : message.content;
 
+                  const assistantActivity =
+                    message.role === "assistant"
+                      ? pendingAssistantActivityLabel(
+                          message.content
+                        )
+                      : null;
+
                   return (
                     <article
                       key={message.id}
@@ -3588,50 +4314,184 @@ export default function GeneralAIChat({
                       ) : null}
 
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">
-                          {message.role === "user" ? "You" : "AI"}
-                        </p>
+                        {message.role === "user" ? (
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-55">
+                            You
+                          </p>
+                        ) : (
+                          <span
+                            className="grid h-6 w-6 place-items-center rounded-lg border border-[#c9ad50]/20 bg-[#c9ad50]/10 text-[9px] font-black text-[#d8c878]"
+                            aria-label="StudySnap"
+                            title="StudySnap"
+                          >
+                            S
+                          </span>
+                        )}
 
                         {message.role === "assistant" ? (
-                          <div className="flex items-center gap-1.5">
-                            {message.generatedImage && message.imagePreview ? (
+                          <div
+                            className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1"
+                            aria-label="Message actions"
+                          >
+                            {message.generatedImage &&
+                            message.imagePreview ? (
                               <button
                                 type="button"
-                                onClick={() => downloadGeneratedImage(message)}
-                                title="Download image"
-                                className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
+                                onClick={() =>
+                                  void downloadGeneratedImage(
+                                    message
+                                  )
+                                }
+                                disabled={
+                                  downloadingImageId ===
+                                  message.id
+                                }
+                                title={
+                                  downloadedImageId ===
+                                  message.id
+                                    ? "Image saved"
+                                    : "Download image"
+                                }
+                                aria-label={
+                                  downloadedImageId ===
+                                  message.id
+                                    ? "Image saved"
+                                    : "Download image"
+                                }
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-wait disabled:opacity-60"
                               >
-                                ↓
+                                {downloadingImageId ===
+                                message.id ? (
+                                  <span
+                                    className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                                    aria-hidden="true"
+                                  />
+                                ) : downloadedImageId ===
+                                  message.id ? (
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    width="18"
+                                    height="18"
+                                    fill="none"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      d="m5 12 4 4L19 6"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    width="18"
+                                    height="18"
+                                    fill="none"
+                                    aria-hidden="true"
+                                  >
+                                    <path
+                                      d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"
+                                      stroke="currentColor"
+                                      strokeWidth="1.9"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                )}
                               </button>
                             ) : null}
 
                             <button
                               type="button"
-                              onClick={() => void copyMessage(message)}
-                              title="Copy answer"
-                              className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] font-black text-slate-400 transition hover:bg-white/[0.07] hover:text-white"
+                              onClick={() =>
+                                void copyMessage(
+                                  message
+                                )
+                              }
+                              title={
+                                copiedId === message.id
+                                  ? "Copied"
+                                  : "Copy answer"
+                              }
+                              aria-label={
+                                copiedId === message.id
+                                  ? "Copied"
+                                  : "Copy answer"
+                              }
+                              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
                             >
-                              {copiedId === message.id ? "✓" : "Copy"}
+                              {copiedId ===
+                              message.id ? (
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="18"
+                                  height="18"
+                                  fill="none"
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    d="m5 12 4 4L19 6"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              ) : (
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="18"
+                                  height="18"
+                                  fill="none"
+                                  aria-hidden="true"
+                                >
+                                  <rect
+                                    x="9"
+                                    y="9"
+                                    width="10"
+                                    height="10"
+                                    rx="2"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                  />
+                                  <path
+                                    d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         ) : null}
                       </div>
 
                       {message.role === "assistant" ? (
-                        <>
-                          <SimpleMarkdown
-                            content={displayedContent}
-                            className="text-sm leading-7"
+                        assistantActivity ? (
+                          <AIActivityIndicator
+                            label={
+                              assistantActivity
+                            }
                           />
+                        ) : (
+                          <>
+                            <SimpleMarkdown
+                              content={displayedContent}
+                              className="text-sm leading-7"
+                            />
 
-                          <SmartActionLinks
-                            content={displayedContent}
-                          />
+                            <SmartActionLinks
+                              content={displayedContent}
+                            />
 
-                          {typeof message.id === "number" ? (
-                            <ArtifactFileCards messageId={message.id} />
-                          ) : null}
-                        </>
+                            {typeof message.id === "number" ? (
+                              <ArtifactFileCards messageId={message.id} />
+                            ) : null}
+                          </>
+                        )
                       ) : (
                         <div className="whitespace-pre-wrap text-sm leading-6">
                           {displayedContent}
@@ -3761,20 +4621,23 @@ export default function GeneralAIChat({
       ) : null}
 
       {studyToolsOpen ? (
-        <div className="fixed inset-0 z-[220]">
+        <div
+          className="fixed inset-0 z-[220]"
+          data-studysnap-quick-add="true"
+        >
           <button
             type="button"
-            aria-label="Close tools"
+            aria-label="Close add menu"
             onClick={() =>
               updateStudyToolsOpen(false)
             }
             className="absolute inset-0 bg-transparent"
           />
 
-          <aside className="studysnap-tools-popover absolute bottom-[calc(7.1rem+env(safe-area-inset-bottom))] left-4 max-h-[22rem] w-[min(18.5rem,calc(100vw-2rem))] overflow-y-auto rounded-[1.15rem] border border-white/[0.11] bg-[#2b2b2b] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.68)]">
+          <aside className="studysnap-tools-popover absolute bottom-[calc(7.1rem+env(safe-area-inset-bottom))] left-4 w-[min(18.5rem,calc(100vw-2rem))] rounded-[1.15rem] border border-white/[0.11] bg-[#2b2b2b] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.68)]">
             <div className="flex h-9 items-center justify-between px-2">
               <p className="text-xs font-bold text-zinc-300">
-                Tools
+                Add
               </p>
 
               <button
@@ -3783,7 +4646,7 @@ export default function GeneralAIChat({
                   updateStudyToolsOpen(false)
                 }
                 className="grid h-7 w-7 place-items-center rounded-full text-zinc-400 hover:bg-white/[0.09] hover:text-white"
-                aria-label="Close tools"
+                aria-label="Close add menu"
               >
                 ×
               </button>
@@ -3802,19 +4665,28 @@ export default function GeneralAIChat({
                     setError(
                       "The file picker could not open."
                     );
+
                     return;
                   }
 
                   picker.value = "";
                   picker.click();
                 }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
               >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
                   ↥
                 </span>
 
-                Upload photos & files
+                <span>
+                  <span className="block font-bold">
+                    Upload photos & files
+                  </span>
+
+                  <span className="block text-[11px] text-zinc-500">
+                    Add one or many files
+                  </span>
+                </span>
               </button>
 
               <button
@@ -3823,176 +4695,22 @@ export default function GeneralAIChat({
                   updateStudyToolsOpen(false);
                   cameraInputRef.current?.click();
                 }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
               >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
                   ◉
                 </span>
 
-                Take photo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  removeSelectedImage();
-                  clearLastGeneratedImage();
-                  clearPendingAttachments();
-                  setCreateImageMode(true);
-                  setError("");
-                  updateStudyToolsOpen(false);
-                  inputRef.current?.focus();
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#c9ad50]/10 text-[#d8c878]">
-                  ✦
-                </span>
-
-                Create a new image
-              </button>
-
-              <div className="my-1 border-t border-white/[0.09]" />
-
-              <button
-                type="button"
-                onClick={() => {
-                  startNewTrail();
-                  updateStudyToolsOpen(false);
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
-                  ＋
-                </span>
-
-                New conversation
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  updateStudyToolsOpen(false);
-                  updateHistoryOpen(true);
-                }}
-                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-zinc-100 hover:bg-white/[0.08]"
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
-                  ☰
-                </span>
-
-                Chat history
-              </button>
-
-              <details className="group">
-                <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/[0.08] [&::-webkit-details-marker]:hidden">
-                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
-                    •••
+                <span>
+                  <span className="block font-bold">
+                    Take photo
                   </span>
 
-                  <span className="flex-1">
-                    More tools
+                  <span className="block text-[11px] text-zinc-500">
+                    Open your device camera
                   </span>
-
-                  <span className="text-xs text-zinc-500 transition group-open:rotate-180">
-                    ▾
-                  </span>
-                </summary>
-
-                <div className="mt-1 space-y-0.5 border-l border-white/[0.09] pl-2">
-                  <label className="flex min-h-10 items-center gap-2 rounded-xl px-2 text-xs font-medium text-zinc-200 hover:bg-white/[0.07]">
-                    <span className="flex-1">
-                      Image shape
-                    </span>
-
-                    <select
-                      value={imageSize}
-                      onChange={(event) =>
-                        setImageSize(
-                          event.target.value as
-                            GenerateAIImageSize
-                        )
-                      }
-                      className="max-w-[7rem] rounded-lg border border-white/[0.08] bg-[#222222] px-2 py-1.5 text-xs text-zinc-200 outline-none"
-                      aria-label="Image shape"
-                    >
-                      <option value="1024x1024">
-                        Square
-                      </option>
-
-                      <option value="1024x1536">
-                        Portrait
-                      </option>
-
-                      <option value="1536x1024">
-                        Landscape
-                      </option>
-                    </select>
-                  </label>
-
-                  {suggestions.map(
-                    (suggestion) => (
-                      <button
-                        key={`compact-tool-${suggestion}`}
-                        type="button"
-                        onClick={() => {
-                          setCreateImageMode(false);
-                          updateStudyToolsOpen(false);
-
-                          void sendMessage(
-                            suggestion
-                          );
-                        }}
-                        disabled={loading}
-                        className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-200 hover:bg-white/[0.07] disabled:opacity-50"
-                      >
-                        <span className="text-[#d8c878]">
-                          ✦
-                        </span>
-
-                        {suggestion}
-                      </button>
-                    )
-                  )}
-
-                  {lastGeneratedImage ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        clearLastGeneratedImage();
-                        updateStudyToolsOpen(false);
-                      }}
-                      className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-300 hover:bg-white/[0.07]"
-                    >
-                      <span>×</span>
-
-                      Stop editing last image
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      updateStudyToolsOpen(false);
-                      void resetCurrentChat();
-                    }}
-                    disabled={
-                      loading ||
-                      (
-                        !hasMessages &&
-                        !input.trim() &&
-                        !selectedImage &&
-                        !lastGeneratedImage
-                      )
-                    }
-                    className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-red-200 hover:bg-red-400/10 disabled:opacity-40"
-                  >
-                    <span>↻</span>
-
-                    Clear current chat
-                  </button>
-                </div>
-              </details>
+                </span>
+              </button>
             </div>
           </aside>
         </div>
