@@ -3,6 +3,9 @@
 /* eslint-disable @next/next/no-img-element -- General AI renders uploaded, generated, blob-backed, and data-URL previews that intentionally use native images. */
 
 import CentralActionBar from "@/components/ai/CentralActionBar";
+import AIActivityPanel, {
+  type AIActivityStep,
+} from "@/components/ai/AIActivityPanel";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -707,6 +710,16 @@ export default function GeneralAIChat({
   const [activity, setActivity] =
     useState<AIActivityState | null>(null);
 
+  const [
+    activitySteps,
+    setActivitySteps,
+  ] = useState<AIActivityStep[]>([]);
+
+  const [
+    activityStartedAt,
+    setActivityStartedAt,
+  ] = useState<number | null>(null);
+
   const [canStopCurrent, setCanStopCurrent] =
     useState(false);
   const [loadingTrails, setLoadingTrails] = useState(true);
@@ -817,6 +830,12 @@ export default function GeneralAIChat({
 
   const activityTimerRef =
     useRef<number | null>(null);
+
+  const activitySessionRef =
+    useRef<{
+      startedAt: number;
+      active: boolean;
+    } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const referenceImageInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -1389,7 +1408,7 @@ export default function GeneralAIChat({
       clearPendingAttachments();
 
       if (result.accepted > 0) {
-        setActivity({
+        recordActivity({
           label: "Files queued",
           detail:
             `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately in the background.`,
@@ -1788,6 +1807,137 @@ export default function GeneralAIChat({
     inputRef.current?.focus();
   }
 
+  function startActivitySession() {
+    clearActivityTimer();
+
+    const startedAt = Date.now();
+
+    activitySessionRef.current = {
+      startedAt,
+      active: true,
+    };
+
+    setActivityStartedAt(startedAt);
+    setActivitySteps([]);
+  }
+
+  function recordActivity(
+    nextActivity: AIActivityState,
+  ) {
+    clearActivityTimer();
+
+    if (
+      !activitySessionRef.current ||
+      !activitySessionRef.current.active
+    ) {
+      startActivitySession();
+    }
+
+    const now = Date.now();
+
+    setActivity(nextActivity);
+
+    setActivitySteps((current) => {
+      const previous =
+        current[current.length - 1];
+
+      if (
+        previous &&
+        previous.label ===
+          nextActivity.label &&
+        previous.detail ===
+          nextActivity.detail
+      ) {
+        return current.map(
+          (step, index) =>
+            index === current.length - 1
+              ? {
+                  ...step,
+                  progress:
+                    nextActivity.progress,
+                }
+              : step
+        );
+      }
+
+      const completed =
+        current.map(
+          (step, index) =>
+            index === current.length - 1 &&
+            step.status === "active"
+              ? {
+                  ...step,
+                  status:
+                    "complete" as const,
+                  completedAt: now,
+                }
+              : step
+        );
+
+      return [
+        ...completed,
+        {
+          id:
+            `${now}-`
+            + Math.random()
+              .toString(36)
+              .slice(2, 8),
+          label:
+            nextActivity.label,
+          detail:
+            nextActivity.detail,
+          progress:
+            nextActivity.progress,
+          startedAt: now,
+          status: "active",
+        },
+      ];
+    });
+  }
+
+  function completeActivitySession() {
+    const now = Date.now();
+
+    if (activitySessionRef.current) {
+      activitySessionRef.current = {
+        ...activitySessionRef.current,
+        active: false,
+      };
+    }
+
+    setActivitySteps((current) =>
+      current.map(
+        (step, index) => {
+          if (
+            index !==
+              current.length - 1 ||
+            step.status !== "active"
+          ) {
+            return step;
+          }
+
+          const normalized =
+            step.label.toLowerCase();
+
+          const status =
+            normalized.includes("stop") ||
+            normalized.includes("cancel")
+              ? "stopped"
+              : normalized.includes("fail") ||
+                  normalized.includes("error")
+                ? "failed"
+                : "complete";
+
+          return {
+            ...step,
+            status,
+            completedAt: now,
+          };
+        }
+      )
+    );
+  }
+
   function clearActivityTimer() {
     if (
       activityTimerRef.current !== null
@@ -1805,7 +1955,9 @@ export default function GeneralAIChat({
   ) {
     clearActivityTimer();
 
-    activityTimerRef.current =
+
+    completeActivitySession();
+activityTimerRef.current =
       window.setTimeout(() => {
         setActivity(null);
         activityTimerRef.current = null;
@@ -1838,7 +1990,7 @@ export default function GeneralAIChat({
         );
       }
 
-      setActivity({
+      recordActivity({
         label: "Image stopped",
         detail:
           "The current image request was stopped.",
@@ -1873,7 +2025,7 @@ export default function GeneralAIChat({
 
     setCanStopCurrent(false);
 
-    setActivity({
+    recordActivity({
       label: "Response stopped",
       detail:
         "Your partial answer and typed "
@@ -1912,7 +2064,7 @@ export default function GeneralAIChat({
 
     clearActivityTimer();
 
-    setActivity({
+    recordActivity({
       label: "Follow-up queued",
       detail:
         "Stopping the current response, then sending your update.",
@@ -2136,7 +2288,9 @@ export default function GeneralAIChat({
       setError("");
       setInput("");
 
-      setActivity({
+      startActivitySession();
+
+      recordActivity({
         label: referenceImage
           ? "Editing image"
           : "Creating image",
@@ -2187,7 +2341,7 @@ export default function GeneralAIChat({
 
       scrollToBottom();
 
-      setActivity({
+      recordActivity({
         label: referenceImage
           ? "High-fidelity edit"
           : "Creating image",
@@ -2290,7 +2444,7 @@ export default function GeneralAIChat({
 
       setCreateImageMode(false);
 
-      setActivity({
+      recordActivity({
         label: "Image ready",
         detail:
           "The original identity remains "
@@ -2348,7 +2502,7 @@ export default function GeneralAIChat({
           )
         );
 
-        setActivity({
+        recordActivity({
           label: "Image stopped",
           detail:
             "The current image request was stopped.",
@@ -2515,7 +2669,9 @@ export default function GeneralAIChat({
     setError("");
     setInput("");
 
-    setActivity({
+    startActivitySession();
+
+    recordActivity({
       label: currentInformationRequested
         ? "Checking information needs"
         : "Preparing your request",
@@ -2607,7 +2763,7 @@ export default function GeneralAIChat({
       setCanStopCurrent(true);
 
       if (fileBrainItemsToSend.length > 0) {
-        setActivity({
+        recordActivity({
           label: "Reading files",
           detail:
             `StudySnap is reading ${fileBrainItemsToSend.length} completed File Brain item${fileBrainItemsToSend.length === 1 ? "" : "s"} without uploading them again.`,
@@ -2664,7 +2820,7 @@ export default function GeneralAIChat({
           conversationId,
           signal: requestController.signal,
           onProgress: (percent) => {
-            setActivity({
+            recordActivity({
               label:
                 percent >= 100
                   ? "Reading files"
@@ -2719,7 +2875,7 @@ export default function GeneralAIChat({
 
         clearPendingAttachments();
       } else if (documentToSend) {
-        setActivity({
+        recordActivity({
           label: "Uploading file",
           detail:
             "StudySnap is securely uploading your document.",
@@ -2764,7 +2920,7 @@ export default function GeneralAIChat({
           ),
         );
       } else if (imageToSend) {
-        setActivity({
+        recordActivity({
           label: "Reading image",
           detail:
             "StudySnap is uploading and examining the image.",
@@ -2810,7 +2966,7 @@ export default function GeneralAIChat({
           ),
         );
       } else {
-        setActivity({
+        recordActivity({
           label: currentInformationRequested
             ? "Checking information needs"
             : "Thinking",
@@ -2835,7 +2991,7 @@ export default function GeneralAIChat({
             if (!firstTokenReceived) {
               firstTokenReceived = true;
 
-              setActivity({
+              recordActivity({
                 label: "Writing answer",
                 detail:
                   "StudySnap is responding. You can keep typing below.",
@@ -2864,7 +3020,7 @@ export default function GeneralAIChat({
             requestId: serverRequestId,
             signal: requestController.signal,
             onConnected: () => {
-              setActivity({
+              recordActivity({
                 label: currentInformationRequested
                   ? "Checking information needs"
                   : "Thinking",
@@ -2937,13 +3093,13 @@ export default function GeneralAIChat({
         if (
           queuedFollowUpRef.current
         ) {
-          setActivity({
+          recordActivity({
             label: "Sending follow-up",
             detail:
               "The previous response stopped. Your update will send next.",
           });
         } else {
-          setActivity({
+          recordActivity({
             label: "Response stopped",
             detail:
               "The partial answer was kept. You can continue.",
@@ -3983,6 +4139,20 @@ export default function GeneralAIChat({
             {activeTrail?.title || "New conversation"}
           </p>
         </div>
+
+        <AIActivityPanel
+          steps={activitySteps}
+          startedAt={activityStartedAt}
+          active={
+            loading &&
+            activity !== null
+          }
+          onStop={
+            canStopCurrent
+              ? stopCurrentResponse
+              : undefined
+          }
+        />
 
         <button
           type="button"
