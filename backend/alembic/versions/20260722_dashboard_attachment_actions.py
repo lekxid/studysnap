@@ -1,6 +1,6 @@
 """add dashboard attachment actions
 
-Revision ID: 20260722_dashboard_attachment_actions
+Revision ID: 20260722_dash_attach_actions
 Revises: 20260722_real_planner
 Create Date: 2026-07-22
 """
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260722_dashboard_attachment_actions"
+revision = "20260722_dash_attach_actions"
 down_revision = "20260722_real_planner"
 branch_labels = None
 depends_on = None
@@ -24,7 +24,7 @@ def upgrade() -> None:
                 "attachment_is_pinned",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("0"),
+                server_default=sa.false(),
             )
         )
 

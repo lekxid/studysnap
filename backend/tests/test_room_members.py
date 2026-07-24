@@ -19,6 +19,7 @@ from app.routes.room_members import (
 from app.routes.study_rooms import (
     router as study_rooms_router,
 )
+from app.utils.utc import utc_now_naive
 
 
 TEST_DATABASE_URL = "sqlite://"
@@ -48,24 +49,24 @@ def override_get_db():
         db.close()
 
 
-test_app = FastAPI()
+api_app = FastAPI()
 
-test_app.include_router(
+api_app.include_router(
     auth_router,
     prefix="/api/auth",
 )
 
-test_app.include_router(
+api_app.include_router(
     study_rooms_router,
     prefix="/api/study-rooms",
 )
 
-test_app.include_router(
+api_app.include_router(
     room_members_router,
     prefix="/api/room-members",
 )
 
-test_app.dependency_overrides[get_db] = (
+api_app.dependency_overrides[get_db] = (
     override_get_db
 )
 
@@ -73,12 +74,12 @@ test_app.dependency_overrides[get_db] = (
 class RoomMemberAPITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.client = TestClient(test_app)
+        cls.client = TestClient(api_app)
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
-        test_app.dependency_overrides.clear()
+        api_app.dependency_overrides.clear()
         test_engine.dispose()
 
     def setUp(self):
@@ -224,7 +225,7 @@ class RoomMemberAPITests(unittest.TestCase):
                 role=role,
                 status=status,
                 last_active_at=(
-                    datetime.utcnow()
+                    utc_now_naive()
                 ),
             )
 

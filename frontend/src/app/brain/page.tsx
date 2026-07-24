@@ -182,15 +182,24 @@ export default function BrainPage() {
   }
 
   useEffect(() => {
-    loadRooms();
-    loadHistory();
+    const timer = window.setTimeout(() => {
+      void loadRooms();
+      void loadHistory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (detectedRoomId !== null) {
-      setSelectedRoomId(detectedRoomId);
-    }
+    if (detectedRoomId === null) return;
+
+    const timer = window.setTimeout(
+      () => setSelectedRoomId(detectedRoomId),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, [detectedRoomId]);
 
   function handleQuestionKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -240,7 +249,7 @@ export default function BrainPage() {
     }
   }
 
-  function useSuggestedQuestion(value: string) {
+  function applySuggestedQuestion(value: string) {
     setQuestion(value);
     setError("");
     setSuccessMessage("");
@@ -474,7 +483,7 @@ export default function BrainPage() {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => useSuggestedQuestion(item)}
+                  onClick={() => applySuggestedQuestion(item)}
                   className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-left text-xs font-semibold text-slate-200 transition hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-white"
                 >
                   {item}

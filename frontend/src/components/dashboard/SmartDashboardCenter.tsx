@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dashboard attachments may be authenticated, blob, or data-URL previews and intentionally use native images. */
+
 import Link from "next/link";
 import {
   useEffect,
@@ -299,7 +301,7 @@ function EmptySection({
 }) {
   return (
     <div className="rounded-xl border border-dashed border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] px-4 py-6 text-center shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl">
-      <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-xl">
+      <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#9f8948]/10 text-xl">
         {icon}
       </span>
 
@@ -315,7 +317,7 @@ function EmptySection({
       actionLabel ? (
         <Link
           href={actionHref}
-          className="mt-4 inline-flex rounded-lg border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 px-3 py-2 text-xs font-black text-[#dfce8c] transition hover:bg-[#c9ad50]/[0.14]"
+          className="mt-4 inline-flex rounded-lg border border-[#c9ad50]/[0.18] bg-[#9f8948]/10 px-3 py-2 text-xs font-black text-[#dfce8c] transition hover:bg-[#9f8948]/[0.14]"
         >
           {actionLabel}
         </Link>
@@ -341,8 +343,8 @@ function LoadingDashboardFeed() {
           >
             <div className="h-3 w-28 rounded bg-white/[0.07]" />
             <div className="mt-3 h-6 w-2/3 rounded bg-white/[0.07]" />
-            <div className="mt-2 h-3 w-full rounded bg-white/[0.05]" />
-            <div className="mt-2 h-3 w-4/5 rounded bg-white/[0.05]" />
+            <div className="mt-2 h-3 w-full rounded bg-white/[0.035]" />
+            <div className="mt-2 h-3 w-4/5 rounded bg-white/[0.035]" />
             <div className="mt-4 h-9 w-28 rounded-lg bg-white/[0.07]" />
           </section>
         ),
@@ -362,7 +364,7 @@ function NextStepCard({
 
       <div className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.24] bg-[#c9ad50]/10 text-2xl">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.24] bg-[#9f8948]/10 text-2xl">
             {item.icon}
           </span>
 
@@ -372,7 +374,7 @@ function NextStepCard({
                 Best next step
               </p>
 
-              <span className="rounded-full border border-white/[0.07] bg-[#c9ad50]/[0.06] px-2 py-1 text-[9px] font-black text-[#dfce8c]/70">
+              <span className="rounded-full border border-white/[0.07] bg-[#9f8948]/[0.06] px-2 py-1 text-[9px] font-black text-[#dfce8c]/70">
                 {item.reason}
               </span>
             </div>
@@ -390,7 +392,7 @@ function NextStepCard({
             href={
               item.action_href
             }
-            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#c9ad50] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#d5bb63]"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#9f8948] px-4 py-2.5 text-sm font-black text-black transition hover:bg-[#d5bb63]"
           >
             {item.action_label}
             <span className="ml-2">
@@ -416,10 +418,10 @@ function ContinueRow({
   return (
     <Link
       href={item.action_href}
-      className="group grid gap-3 rounded-xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] p-3 shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl transition hover:border-[#c9ad50]/[0.28] hover:bg-[#c9ad50]/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      className="group grid gap-3 rounded-xl border border-white/[0.07] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] p-3 shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl transition hover:border-[#c9ad50]/[0.28] hover:bg-[#9f8948]/[0.04] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#c9ad50]/10 text-lg">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#c9ad50]/[0.18] bg-[#9f8948]/10 text-lg">
           {item.icon}
         </span>
 
@@ -453,7 +455,7 @@ function ContinueRow({
           <>
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-[#c9ad50]"
+                className="h-full rounded-full bg-[#9f8948]"
                 style={{
                   width: `${Math.max(
                     0,
@@ -595,8 +597,10 @@ function ProtectedFeedImage({
     let active = true;
     let objectUrl = "";
 
-    setSource("");
-    setFailed(false);
+    queueMicrotask(() => {
+      setSource("");
+      setFailed(false);
+    });
 
     void getProtectedFileBlobUrl(
       path,
@@ -924,11 +928,11 @@ function AttachmentActionMenu({
               >
                 <span
                   aria-hidden="true"
-                  className="w-4 text-center text-[#c9ad50]"
+                  className="w-4 text-center text-[#b9a763]"
                 >
                   {pinned
                     ? "−"
-                    : "★"}
+                    : "S"}
                 </span>
 
                 {pinned
@@ -1010,7 +1014,7 @@ function PinnedMaterialCard({
     "image";
 
   return (
-    <article className="relative min-w-0 rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(16,21,26,0.96),rgba(5,8,11,0.92))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-white/[0.12]">
+    <article className="relative min-w-0 rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(16,21,26,0.96),rgba(5,8,11,0.92))] p-3 shadow-[0_18px_45px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-white/[0.09]">
       <div className="absolute right-2 top-2 z-20">
         <AttachmentActionMenu
           item={item}
@@ -1053,7 +1057,7 @@ function PinnedMaterialCard({
 
         <div className="px-1 pb-1 pt-3">
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-[#c9ad50]/[0.18] bg-[#c9ad50]/[0.08] px-2 py-1 text-[9px] font-black text-[#d8c57d]">
+            <span className="rounded-full border border-[#c9ad50]/[0.18] bg-[#9f8948]/[0.08] px-2 py-1 text-[9px] font-black text-[#d8c57d]">
               Pinned
             </span>
 
@@ -1102,9 +1106,11 @@ function PinnedMaterialsSection({
   );
 
   useEffect(() => {
-    setDismissedItemIds(
-      new Set(),
-    );
+    queueMicrotask(() => {
+      setDismissedItemIds(
+        new Set(),
+      );
+    });
   }, [data.generated_at]);
 
   const pinnedItems = (
@@ -1137,9 +1143,9 @@ function PinnedMaterialsSection({
           <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="text-[#c9ad50]"
+              className="text-[#b9a763]"
             >
-              ★
+              S
             </span>
 
             <h2 className="text-lg font-black text-white">
@@ -1183,7 +1189,7 @@ function PinnedMaterialsSection({
       ) : (
         <div className="mt-4">
           <EmptySection
-            icon="★"
+            icon="S"
             title="No pinned materials yet"
             description="Use the three-dot menu on an uploaded file to keep it here."
           />
@@ -1550,8 +1556,8 @@ function LearningFeedSection({
           <EmptySection
             icon={
               allVisibleFilesPinned
-                ? "★"
-                : "✨"
+                ? "S"
+                : "S"
             }
             title={
               allVisibleFilesPinned
@@ -1729,7 +1735,7 @@ export default function SmartDashboardCenter({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-4 rounded-lg bg-[#c9ad50] px-4 py-2 text-xs font-black text-black transition hover:bg-[#d5bb63]"
+          className="mt-4 rounded-lg bg-[#9f8948] px-4 py-2 text-xs font-black text-black transition hover:bg-[#d5bb63]"
         >
           Try again
         </button>
@@ -1794,7 +1800,7 @@ export default function SmartDashboardCenter({
       {error ? (
         <div
           role="status"
-          className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2.5"
+          className="flex items-center justify-between gap-3 rounded-xl border border-[#c9ad50]/15 bg-[#9f8948]/[0.05] px-3 py-2.5"
         >
           <p className="text-xs text-slate-300">
             {error} Showing the

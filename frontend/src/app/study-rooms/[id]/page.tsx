@@ -10,7 +10,6 @@ import {
 
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
-import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
 import StudyTogetherWorkspace from "@/features/projects/StudyTogetherWorkspace";
@@ -198,11 +197,6 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    setResumeRoomId(null);
-    setActiveRoomTab("overview");
-    setLastOpenedRoomItem(null);
-    setSelectedUniversalMaterial(null);
-
     const allowedTabs: RoomTab[] = [
       "overview",
       "materials",
@@ -214,16 +208,24 @@ export default function StudyRoomDetailPage() {
     ];
 
     const savedTab = window.localStorage.getItem(
-      `studysnap:room:${studyRoomId}:last-tab`
+      `studysnap:room:${studyRoomId}:last-tab`,
     );
 
-    if (savedTab && allowedTabs.includes(savedTab as RoomTab)) {
-      setActiveRoomTab(savedTab as RoomTab);
-    }
+    const nextTab =
+      savedTab &&
+      allowedTabs.includes(savedTab as RoomTab)
+        ? (savedTab as RoomTab)
+        : "overview";
 
     const savedItem = window.localStorage.getItem(
-      `studysnap:room:${studyRoomId}:last-item`
+      `studysnap:room:${studyRoomId}:last-item`,
     );
+
+    let nextItem: {
+      type: "pdf" | "note";
+      id: number;
+      title: string;
+    } | null = null;
 
     if (savedItem) {
       try {
@@ -238,20 +240,27 @@ export default function StudyRoomDetailPage() {
           typeof parsed.id === "number" &&
           typeof parsed.title === "string"
         ) {
-          setLastOpenedRoomItem({
+          nextItem = {
             type: parsed.type,
             id: parsed.id,
             title: parsed.title,
-          });
+          };
         }
       } catch {
         window.localStorage.removeItem(
-          `studysnap:room:${studyRoomId}:last-item`
+          `studysnap:room:${studyRoomId}:last-item`,
         );
       }
     }
 
-    setResumeRoomId(studyRoomId);
+    const timer = window.setTimeout(() => {
+      setActiveRoomTab(nextTab);
+      setLastOpenedRoomItem(nextItem);
+      setSelectedUniversalMaterial(null);
+      setResumeRoomId(studyRoomId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [studyRoomId]);
 
   useEffect(() => {
@@ -311,8 +320,8 @@ export default function StudyRoomDetailPage() {
   const [loadingPractice, setLoadingPractice] = useState(false);
   const [loadingFoundation, setLoadingFoundation] = useState(false);
 
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [summarizingId, setSummarizingId] = useState<number | null>(null);
+  const [, setDeletingId] = useState<number | null>(null);
+  const [, setSummarizingId] = useState<number | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryTitle, setSummaryTitle] = useState("");
@@ -324,7 +333,7 @@ export default function StudyRoomDetailPage() {
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const [projectSearchError, setProjectSearchError] = useState("");
   const [error, setError] = useState("");
-  const [aiComposerFocusToken, setAiComposerFocusToken] =
+  const [, setAiComposerFocusToken] =
     useState(0);
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
@@ -372,7 +381,7 @@ export default function StudyRoomDetailPage() {
     changeRoomTab("ai");
 
     const aiTutorUrl =
-      `/study-rooms/${studyRoomId}?tab=ai`;
+      `/general-ai?roomId=${studyRoomId}`;
 
     router.push(aiTutorUrl);
 
@@ -396,75 +405,76 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    const parsedMaterialId = Number(
-      requestedMaterialId
-    );
+    const parsedMaterialId = Number(requestedMaterialId);
 
     const hasRequestedMaterial =
       requestedMaterialId !== null &&
       Number.isFinite(parsedMaterialId) &&
       parsedMaterialId > 0;
 
-    if (requestedTab === "together") {
-      setActiveRoomTab("together");
+    let updateTimer: number | undefined;
+    let scrollTimer: number | undefined;
 
-      const timer = window.setTimeout(() => {
+    if (requestedTab === "together") {
+      updateTimer = window.setTimeout(
+        () => setActiveRoomTab("together"),
+        0,
+      );
+
+      scrollTimer = window.setTimeout(() => {
         studyTogetherSectionRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
       }, 180);
+    } else if (hasRequestedMaterial) {
+      updateTimer = window.setTimeout(() => {
+        setSelectedUniversalMaterial({
+          id: parsedMaterialId,
+          name:
+            requestedMaterialName?.trim() ||
+            `Material ${parsedMaterialId}`,
+        });
+        setActiveRoomTab("materials");
+      }, 0);
 
-      return () => {
-        window.clearTimeout(timer);
-      };
-    }
-
-    if (hasRequestedMaterial) {
-      setSelectedUniversalMaterial({
-        id: parsedMaterialId,
-        name:
-          requestedMaterialName?.trim() ||
-          `Material ${parsedMaterialId}`,
-      });
-
-      setActiveRoomTab("materials");
-
-      const timer = window.setTimeout(() => {
+      scrollTimer = window.setTimeout(() => {
         materialSectionRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
       }, 180);
+    } else if (requestedTab === "materials") {
+      updateTimer = window.setTimeout(
+        () => setActiveRoomTab("materials"),
+        0,
+      );
+    } else if (requestedTab === "ai") {
+      updateTimer = window.setTimeout(() => {
+        setActiveRoomTab("ai");
+        setAiComposerFocusToken(
+          (current) => current + 1,
+        );
+      }, 0);
 
-      return () => {
-        window.clearTimeout(timer);
-      };
-    }
-
-    if (requestedTab === "materials") {
-      setActiveRoomTab("materials");
+      scrollTimer = window.setTimeout(() => {
+        aiSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 150);
+    } else {
       return;
     }
-
-    if (requestedTab !== "ai") {
-      return;
-    }
-
-    setActiveRoomTab("ai");
-    setAiComposerFocusToken(
-      (current) => current + 1
-    );
-
-    const timer = window.setTimeout(() => {
-      aiSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 150);
 
     return () => {
-      window.clearTimeout(timer);
+      if (updateTimer !== undefined) {
+        window.clearTimeout(updateTimer);
+      }
+
+      if (scrollTimer !== undefined) {
+        window.clearTimeout(scrollTimer);
+      }
     };
   }, [
     requestedMaterialId,
@@ -725,6 +735,10 @@ export default function StudyRoomDetailPage() {
     });
 
     return items.slice(0, 4);
+
+    // Each generated action intentionally captures the current
+    // room-scoped remember helper.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastOpenedRoomItem, notes, pdfs]);
 
   async function loadRoom() {
@@ -1033,7 +1047,16 @@ export default function StudyRoomDetailPage() {
   useEffect(() => {
     if (!ready) return;
 
-    void loadRoom();
+    const timer = window.setTimeout(
+      () => void loadRoom(),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
+
+    // Room identity loading must run only when authentication
+    // becomes ready or the route room changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, studyRoomId]);
 
   useEffect(() => {
@@ -1044,115 +1067,321 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    void loadPdfs();
-    void loadStudyMaterials();
-    void loadNotes();
-    void loadPractice();
-    void loadRoomFoundation();
+    const timer = window.setTimeout(() => {
+      void loadPdfs();
+      void loadStudyMaterials();
+      void loadNotes();
+      void loadPractice();
+      void loadRoomFoundation();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+
+    // Connected resources refresh only after the resolved room
+    // changes. Loader function identities must not restart it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, room?.id, studyRoomId]);
 
+  // Unified General AI room redirect
+  useEffect(() => {
+    if (
+      !ready ||
+      activeRoomTab !== "ai" ||
+      !studyRoomId ||
+      Number.isNaN(studyRoomId)
+    ) {
+      return;
+    }
+
+    saveProjectRoomId(
+      studyRoomId
+    );
+
+    window.localStorage.setItem(
+      `studysnap:room:${studyRoomId}:last-tab`,
+      "overview"
+    );
+
+    const params = new URLSearchParams({
+      roomId: String(studyRoomId),
+    });
+
+    if (
+      selectedUniversalMaterial?.id
+    ) {
+      params.set(
+        "materialId",
+        String(
+          selectedUniversalMaterial.id
+        )
+      );
+
+      if (
+        selectedUniversalMaterial.name
+          ?.trim()
+      ) {
+        params.set(
+          "materialName",
+          selectedUniversalMaterial.name
+            .trim()
+        );
+      }
+    }
+
+    window.sessionStorage.setItem(
+      "studysnap:unified-ai-context",
+      JSON.stringify({
+        roomId: studyRoomId,
+        materialId:
+          selectedUniversalMaterial?.id ??
+          null,
+        materialName:
+          selectedUniversalMaterial?.name ??
+          null,
+        openedAt:
+          new Date().toISOString(),
+      })
+    );
+
+    router.push(
+      `/general-ai?${params.toString()}`
+    );
+  }, [
+    activeRoomTab,
+    ready,
+    router,
+    selectedUniversalMaterial,
+    studyRoomId,
+  ]);
+
   if (!ready) {
-    return <div className="min-h-screen bg-[#0b0f14] p-6 text-white">Checking authentication...</div>;
+    return (
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
+        Checking authentication...
+      </div>
+    );
   }
 
   function renderOverviewTab() {
     return (
-      <div className="min-w-0 max-w-full space-y-5">
-        <RoomGuide
-          foundation={roomFoundation}
-          loading={loadingFoundation}
-          error={foundationError}
-        />
+      <div className="min-w-0 max-w-full space-y-3">
+        <section className="grid min-w-0 gap-3 lg:grid-cols-2">
+          <section className="min-w-0 rounded-[1.2rem] border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
+                  Recent materials
+                </p>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
-            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
-              Recent Materials
-            </p>
-            <h3 className="mt-2 text-xl font-black text-white">
-              PDFs in this room
-            </h3>
+                <h3 className="mt-1 text-base font-black text-white">
+                  Study files
+                </h3>
+              </div>
 
-            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveRoomTab(
+                    "materials"
+                  )
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
               {pdfs.length ? (
-                pdfs.slice(0, 3).map((pdf) => (
-                  <button
-                    key={pdf.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPdfId(pdf.id);
-                      setSummaryTitle(pdf.original_filename);
-                      setActiveRoomTab("materials");
-                    }}
-                    className="min-w-0 w-full overflow-hidden break-words rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left text-sm font-bold text-white"
-                  >
-                    📕 {pdf.original_filename}
-                  </button>
-                ))
+                pdfs
+                  .slice(0, 3)
+                  .map((pdf) => (
+                    <button
+                      key={pdf.id}
+                      type="button"
+                      onClick={() => {
+                        rememberRoomItem({
+                          type: "pdf",
+                          id: pdf.id,
+                          title:
+                            pdf.original_filename,
+                        });
+
+                        setSelectedPdfId(
+                          pdf.id
+                        );
+
+                        setSummaryTitle(
+                          pdf.original_filename
+                        );
+
+                        setActiveRoomTab(
+                          "materials"
+                        );
+                      }}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2.5 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.065] bg-white/[0.03] text-xs font-black text-[#c7b979]">
+                        ▦
+                      </span>
+
+                      <span className="min-w-0 flex-1 truncate text-xs font-black text-slate-200">
+                        {
+                          pdf.original_filename
+                        }
+                      </span>
+
+                      <span className="text-xs text-slate-600">
+                        ›
+                      </span>
+                    </button>
+                  ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
-                  Add your first PDF to start learning. Your AI Tutor can summarize it, explain it, and help you practice.
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveRoomTab(
+                      "materials"
+                    )
+                  }
+                  className="w-full rounded-xl border border-dashed border-white/[0.08] bg-white/[0.018] p-4 text-left"
+                >
+                  <p className="text-sm font-black text-white">
+                    Add your first material
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Upload a PDF or another
+                    study file.
+                  </p>
+                </button>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/10 bg-[#0f151b] p-4 sm:p-5">
-            <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#a8b5bd] sm:tracking-[0.25em]">
-              Recent Notes
-            </p>
-            <h3 className="mt-2 text-xl font-black text-white">
-              Notes connected to this room
-            </h3>
+          <section className="min-w-0 rounded-[1.2rem] border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
+                  Recent notes
+                </p>
 
-            <div className="mt-4 space-y-3">
+                <h3 className="mt-1 text-base font-black text-white">
+                  Room notes
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveRoomTab(
+                    "notes"
+                  )
+                }
+                className="rounded-xl border border-white/[0.075] bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300"
+              >
+                View all
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
               {notes.length ? (
-                notes.slice(0, 3).map((note) => (
-                  <div
-                    key={note.id}
-                    className="min-w-0 max-w-full rounded-xl border border-white/10 bg-white/[0.04] p-3"
-                  >
-                    <p className="line-clamp-1 text-sm font-black text-white">
-                      📝 {note.title || "Untitled Note"}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
-                      {note.content || "Start writing — your AI Tutor can help you build this note."}
-                    </p>
-                  </div>
-                ))
+                notes
+                  .slice(0, 3)
+                  .map((note) => (
+                    <button
+                      key={note.id}
+                      type="button"
+                      onClick={() => {
+                        rememberRoomItem({
+                          type: "note",
+                          id: note.id,
+                          title:
+                            note.title ||
+                            "Untitled Note",
+                        });
+
+                        setActiveRoomTab(
+                          "notes"
+                        );
+                      }}
+                      className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-white/[0.065] bg-white/[0.022] px-3 py-2.5 text-left transition hover:bg-white/[0.05]"
+                    >
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/[0.065] bg-white/[0.03] text-xs font-black text-slate-400">
+                        ▣
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-black text-slate-200">
+                          {note.title ||
+                            "Untitled Note"}
+                        </span>
+
+                        <span className="mt-0.5 block truncate text-[10px] text-slate-500">
+                          {cleanDisplayText(
+                            note.content,
+                            70
+                          ) ||
+                            "Open room note"}
+                        </span>
+                      </span>
+
+                      <span className="text-xs text-slate-600">
+                        ›
+                      </span>
+                    </button>
+                  ))
               ) : (
-                <p className="text-sm leading-6 text-slate-400">
-                  Write your first note — your AI Tutor will learn from it.
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveRoomTab(
+                      "notes"
+                    )
+                  }
+                  className="w-full rounded-xl border border-dashed border-white/[0.08] bg-white/[0.018] p-4 text-left"
+                >
+                  <p className="text-sm font-black text-white">
+                    Create your first note
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Keep important ideas
+                    connected to this room.
+                  </p>
+                </button>
               )}
             </div>
-          </div>
+          </section>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.045] p-4 sm:p-5">
-            <p className="text-sm font-black text-[#ece8da]">Pinned Items</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Pin PDFs, notes, concept cards, and quizzes here later.
-            </p>
-          </div>
+        <details className="group overflow-hidden rounded-[1.15rem] border border-white/[0.07] bg-white/[0.018]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span className="block text-xs font-black text-slate-300">
+                About this room
+              </span>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-[#12181e] p-4 sm:p-5">
-            <p className="text-sm font-black text-slate-200">Room Activity</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Uploads, AI actions, summaries, and Study Together updates will appear here.
-            </p>
-          </div>
+              <span className="mt-0.5 block text-[10px] text-slate-600">
+                Connected tools and AI memory
+              </span>
+            </span>
 
-          <div className="min-w-0 max-w-full rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 sm:p-5">
-            <p className="text-sm font-black text-slate-200">
-              Study Together Preview
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Invite classmates, share notes, and quiz together soon.
-            </p>
+            <span className="text-sm text-slate-500 transition-transform group-open:rotate-180">
+              ▾
+            </span>
+          </summary>
+
+          <div className="border-t border-white/[0.06] p-3">
+            <RoomGuide
+              foundation={roomFoundation}
+              loading={
+                loadingFoundation
+              }
+              error={foundationError}
+            />
           </div>
-        </section>
+        </details>
       </div>
     );
   }
@@ -1347,14 +1576,19 @@ export default function StudyRoomDetailPage() {
 
   function renderAiTab() {
     return (
-      <div ref={aiSectionRef} className="scroll-mt-8">
-        <CompactProjectAI
-          studyRoomId={studyRoomId}
-          projectTitle={roomTitle}
-          focusComposerToken={aiComposerFocusToken}
-          selectedMaterial={selectedUniversalMaterial}
-        />
-      </div>
+      <section className="rounded-[1.5rem] border border-[#c9ad50]/20 bg-[#0f151b] p-6 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg font-black text-[#e3d386]">
+          S
+        </div>
+
+        <h2 className="mt-4 text-xl font-black text-white">
+          Opening StudySnap AI
+        </h2>
+
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">
+          Your Study Room and selected material are being connected automatically.
+        </p>
+      </section>
     );
   }
 
@@ -1454,45 +1688,122 @@ export default function StudyRoomDetailPage() {
   }
 
   function renderProgressTab() {
+    const progressItems = [
+      {
+        label: "Materials",
+        value: pdfs.length + studyMaterials.length,
+        tab: "materials" as RoomTab,
+        icon: "▦",
+      },
+      {
+        label: "Notes",
+        value: notes.length,
+        tab: "notes" as RoomTab,
+        icon: "▣",
+      },
+      {
+        label: "Cards",
+        value: conceptCards.length,
+        tab: "practice" as RoomTab,
+        icon: "◉",
+      },
+      {
+        label: "Quizzes",
+        value: quizzes.length,
+        tab: "practice" as RoomTab,
+        icon: "◎",
+      },
+    ];
+
+    const connectedItems = progressItems.reduce(
+      (total, item) => total + item.value,
+      0
+    );
+
     return (
-      <section className="min-w-0 max-w-full rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 sm:p-5">
-        <p className="break-words text-xs font-black uppercase tracking-[0.18em] text-[#cec18d] sm:tracking-[0.25em]">
-          Progress
-        </p>
-        <h2 className="mt-2 text-2xl font-black text-white">
-          Room learning progress
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-          Track how much content is connected and where practice should focus.
-        </p>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Materials", pdfs.length],
-            ["Notes", notes.length],
-            ["Concept Cards", conceptCards.length],
-            ["Quizzes", quizzes.length],
-          ].map(([label, value]) => (
-            <div
-              key={String(label)}
-              className="rounded-2xl border border-white/10 bg-[#0f151b] p-5"
-            >
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                {label}
+      <div className="min-w-0 max-w-full space-y-3">
+        <section className="overflow-hidden rounded-[1.25rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.08),transparent_34%),linear-gradient(145deg,rgba(15,20,25,0.96),rgba(3,6,8,0.99))] p-4 shadow-[0_18px_55px_rgba(0,0,0,0.3)] sm:p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[#a99b68]">
+                Room progress
               </p>
-              <p className="mt-3 text-3xl font-black text-white">{value}</p>
-            </div>
-          ))}
-        </div>
 
-        <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.045] p-5">
-          <p className="font-black text-[#ece8da]">Next progress upgrade</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Add concept heatmap, quiz history, confidence tracking, time-to-answer,
-            and smart retry analytics.
-          </p>
-        </div>
-      </section>
+              <h2 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">
+                {progressPercent}% connected
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400 sm:text-sm">
+                {connectedItems} study item{connectedItems === 1 ? "" : "s"} currently support this room.
+              </p>
+            </div>
+
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.08] text-sm font-black text-[#d7cb94]">
+              {progressPercent}%
+            </span>
+          </div>
+
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-[#91824f] transition-[width]"
+              style={{
+                width: `${progressPercent}%`,
+              }}
+            />
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {progressItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => setActiveRoomTab(item.tab)}
+              className="flex min-w-0 items-center gap-3 rounded-[1rem] border border-white/[0.075] bg-white/[0.025] p-3 text-left transition hover:border-white/[0.13] hover:bg-white/[0.055]"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.065] bg-white/[0.03] text-sm font-black text-[#c7b979]">
+                {item.icon}
+              </span>
+
+              <span className="min-w-0">
+                <span className="block text-lg font-black leading-none text-white">
+                  {item.value}
+                </span>
+
+                <span className="mt-1 block truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  {item.label}
+                </span>
+              </span>
+            </button>
+          ))}
+        </section>
+
+        <section className="rounded-[1.15rem] border border-[#b7a35f]/18 bg-[linear-gradient(145deg,rgba(183,163,95,0.065),rgba(255,255,255,0.018))] p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#a99b68]">
+                Best next step
+              </p>
+
+              <h3 className="mt-1 truncate text-sm font-black text-white">
+                {smartSuggestion.title}
+              </h3>
+
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                {smartSuggestion.text}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveRoomTab(smartSuggestion.tab)}
+              className="shrink-0 rounded-xl border border-[#b7a35f]/22 bg-[#b7a35f]/[0.08] px-3 py-2.5 text-[10px] font-black text-[#d7cb94] transition hover:bg-[#b7a35f]/[0.14]"
+            >
+              {smartSuggestion.actionLabel} →
+            </button>
+          </div>
+        </section>
+      </div>
     );
   }
 

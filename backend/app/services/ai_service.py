@@ -3,10 +3,13 @@ from functools import lru_cache
 
 from openai import OpenAI
 from app.config import settings
+from app.services.ai_intent import (
+    WEB_SOURCE_INSTRUCTIONS,
+    should_use_web_search,
+)
 from app.services.intent_understanding import get_intent_understanding_instructions
 from app.services.ai_runtime import (
     current_information_instructions,
-    should_use_web_search,
     web_search_tool,
 )
 
@@ -47,6 +50,81 @@ def detect_mode(question: str):
     return "Clear Explain", question.strip()
 
 
+
+def coding_agent_instructions(
+    question: str,
+) -> str:
+    text = (question or "").lower()
+
+    coding_signals = (
+        "```",
+        "traceback",
+        "stack trace",
+        "syntaxerror",
+        "typeerror",
+        "referenceerror",
+        "exception",
+        "terminal",
+        "command line",
+        "bash",
+        "powershell",
+        "python",
+        "typescript",
+        "javascript",
+        "react",
+        "next.js",
+        "nextjs",
+        "fastapi",
+        "sqlalchemy",
+        "docker",
+        "dockerfile",
+        "azure",
+        "github",
+        "git ",
+        "npm ",
+        "npx ",
+        "pytest",
+        "repository",
+        "repo",
+        "branch",
+        "commit",
+        "build",
+        "deployment",
+        "deploy",
+        "api endpoint",
+        "source code",
+        "codebase",
+        "codex",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".sql",
+        ".sh",
+    )
+
+    if not any(
+        signal in text
+        for signal in coding_signals
+    ):
+        return ""
+
+    return (
+        "CODING AGENT MODE:\n"
+        "- Treat pasted code, terminal output, logs, stack traces, paths, diffs, screenshots, and repository details as technical evidence.\n"
+        "- Preserve the active task, prior decisions, branch, constraints, and completed work instead of restarting from scratch.\n"
+        "- Diagnose the actual evidence before proposing a change. Explain the likely cause and distinguish facts from assumptions.\n"
+        "- Never claim that code, commands, tests, commits, pushes, or deployments succeeded unless a connected tool actually performed them or the user supplied the result.\n"
+        "- When the user requests code, provide complete copy-pasteable code with safe defaults and minimal manual editing.\n"
+        "- Protect existing work: inspect status, back up affected files, avoid unrelated rewrites, preserve secrets, and keep changes reversible.\n"
+        "- For repository changes, include appropriate syntax checks, tests, build checks, service checks, and rollback handling.\n"
+        "- Read errors literally, use the current project structure, and do not invent files, packages, APIs, outputs, or environment facts.\n"
+        "- Track what is done, what is being changed, what remains, and whether deployment has occurred.\n"
+        "- Prefer one coherent tested change over many disconnected patches."
+    )
+
+
 def build_studysnap_system_prompt(
     mode: str,
     question: str = "",
@@ -83,6 +161,31 @@ def build_studysnap_system_prompt(
         "- Respect requested length. When the student says short, keep the answer short.\n"
         "- When a request is ambiguous, use the most helpful reasonable interpretation.\n"
         "\n"
+        "HUMAN COMMUNICATION RULES:\n"
+        "- Sound warm, natural, and attentive instead of robotic or scripted.\n"
+        "- Notice when the student sounds confused, frustrated, worried, excited, proud, or rushed, "
+        "and respond with an appropriate brief acknowledgement before helping.\n"
+        "- Match the student's requested length, vocabulary, and level of formality.\n"
+        "- Use the student's own examples and ideas when they are available. Never invent personal "
+        "experiences, feelings, events, or opinions for the student.\n"
+        "- Do not claim to have human feelings. Show care through useful, respectful language and actions.\n"
+        "- Avoid canned praise, repetitive headings, and unnecessary warnings. Celebrate real progress naturally.\n"
+        "- For school assignments, help the student develop and revise their own thinking in a natural voice. "
+        "Do not promise that AI use is undetectable or help misrepresent authorship.\n"
+        "\n"
+        "ACTIVE COLLABORATION RULES:\n"
+        "- Treat the conversation as one active working session, not as isolated prompts.\n"
+        "- When the student adds another requirement, merge it into the current task and continue without discarding earlier requirements.\n"
+        "- Treat corrections such as 'sorry, I mean' as replacements for the earlier meaning.\n"
+        "- Resolve short follow-ups such as 'do this too', 'make it fit', 'more than that', or 'continue' from the active topic.\n"
+        "- Do not ask for information, audits, or files that were already provided unless something relevant changed.\n"
+        "- Keep track of what is complete, what is being worked on, what is next, and what is genuinely blocked.\n"
+        "- When a task has several connected parts, coordinate them as one plan and report progress briefly.\n"
+        "- Notice frustration, confusion, urgency, or excitement and respond with calm, natural empathy before moving the work forward.\n"
+        "- Do not claim to literally have human feelings. Show care through useful wording, attention, honesty, and follow-through.\n"
+        "- Prefer action over repeated explanation when enough information is available.\n"
+        "- Never claim that an action, file, link, search, or change succeeded unless it actually succeeded.\n"
+        "\n"
         "PRACTICE RULES:\n"
         "- When the student asks to be tested, normally ask the questions first and wait for answers.\n"
         "- Include answers immediately only when the student requests answers or an answer key.\n"
@@ -95,6 +198,9 @@ def build_studysnap_system_prompt(
         + get_intent_understanding_instructions()
         + "\n\n"
         + current_information_instructions(question)
+        + "\n\n"
+        + coding_agent_instructions(question)
+
     )
 
 
@@ -139,10 +245,10 @@ def _generate_current_web_answer(
 ) -> str:
     response = get_openai_client().responses.create(
         model=_configured_text_model(),
-        instructions=build_studysnap_system_prompt(
+        instructions=(build_studysnap_system_prompt(
             mode,
             clean_question,
-        ),
+        ) + "\n\n" + WEB_SOURCE_INSTRUCTIONS),
         input=build_studysnap_user_prompt(
             clean_question,
             context,
@@ -178,7 +284,7 @@ def generate_studysnap_answer(
 ) -> str:
     mode, clean_question = detect_mode(question)
 
-    if should_use_web_search(clean_question):
+    if should_use_web_search(clean_question, context):
         return _generate_current_web_answer(
             mode=mode,
             clean_question=clean_question,
@@ -223,7 +329,7 @@ def stream_studysnap_answer(
 ):
     mode, clean_question = detect_mode(question)
 
-    if should_use_web_search(clean_question):
+    if should_use_web_search(clean_question, context):
         # Web-enabled Responses API calls are returned as one
         # completed answer. StreamingResponse can still send
         # this answer through the existing SSE route safely.

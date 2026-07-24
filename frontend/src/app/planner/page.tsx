@@ -206,9 +206,6 @@ export default function PlannerPage() {
       ensureProjectRoomIdInUrl(
         requestedRoomId
       );
-      setConnectedRoomId(requestedRoomId);
-    } else {
-      setConnectedRoomId(null);
     }
 
     const savedSettings =
@@ -229,21 +226,24 @@ export default function PlannerPage() {
           : defaultSettings.selectedSubjects,
     };
 
-    setSettings(mergedSettings);
+    queueMicrotask(() => {
+      setConnectedRoomId(requestedRoomId);
+      setSettings(mergedSettings);
 
-    setSubject((currentSubject) => {
-      if (currentSubject.trim()) {
-        return currentSubject;
-      }
+      setSubject((currentSubject) => {
+        if (currentSubject.trim()) {
+          return currentSubject;
+        }
 
-      return (
-        mergedSettings.favoriteSubject ||
-        mergedSettings.selectedSubjects[0] ||
-        defaultSettings.selectedSubjects[0]
-      );
+        return (
+          mergedSettings.favoriteSubject ||
+          mergedSettings.selectedSubjects[0] ||
+          defaultSettings.selectedSubjects[0]
+        );
+      });
+
+      setPlannerContextReady(true);
     });
-
-    setPlannerContextReady(true);
   }, [ready]);
 
   useEffect(() => {
@@ -420,7 +420,7 @@ export default function PlannerPage() {
       );
       audio.play().catch(() => {});
 
-      const current = loadJSON<any[]>(NOTICE_KEY, []);
+      const current = loadJSON<Array<Record<string, unknown>>>(NOTICE_KEY, []);
       const next = [
         {
           id: Date.now(),
@@ -457,7 +457,7 @@ export default function PlannerPage() {
   }, [items]);
 
   function addNotification(text: string) {
-    const current = loadJSON<any[]>(NOTICE_KEY, []);
+    const current = loadJSON<Array<Record<string, unknown>>>(NOTICE_KEY, []);
     const now = new Date();
 
     saveJSON(NOTICE_KEY, [

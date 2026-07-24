@@ -74,8 +74,6 @@ export default function StudyTogetherPage() {
       return;
     }
 
-    setPinnedGroupIds(readPinnedGroupIds());
-
     async function loadGroups() {
       try {
         setLoading(true);
@@ -94,7 +92,12 @@ export default function StudyTogetherPage() {
       }
     }
 
-    void loadGroups();
+    queueMicrotask(() => {
+      setPinnedGroupIds(
+        readPinnedGroupIds()
+      );
+      void loadGroups();
+    });
   }, [ready]);
 
   const filteredGroups = useMemo(() => {

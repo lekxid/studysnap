@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.brain_memory import BrainMemory
+from app.utils.utc import utc_now_naive
 
 
 def calculate_mastery_score(
@@ -86,7 +87,7 @@ class BrainMemoryRepository:
         if not concept_id:
             raise ValueError("concept_memory must include concept_id")
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
         incoming_confidence = float(concept_memory.get("confidence") or 0.0)
 
         memory = self.get_memory(
@@ -182,7 +183,7 @@ class BrainMemoryRepository:
             return None
 
         memory.review_count = (memory.review_count or 0) + 1
-        memory.last_reviewed = datetime.utcnow()
+        memory.last_reviewed = utc_now_naive()
         memory.needs_review = False
 
         self.db.commit()

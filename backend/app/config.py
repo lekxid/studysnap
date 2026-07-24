@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Private beta sessions remain active for two days.
     access_token_expire_minutes: int = 2880
 
+    # Secure generated-file links expire quickly; artifacts persist unless
+    # a caller explicitly requests an artifact expiration date.
+    artifact_ticket_expire_minutes: int = 5
+
     password_reset_expire_minutes: int = 30
 
     azure_communication_connection_string: str = ""

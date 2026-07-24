@@ -23,6 +23,7 @@ from app.services.rooms.access import (
     require_room_roles,
 )
 from app.utils.deps import get_current_user
+from app.utils.utc import utc_now_naive
 
 
 router = APIRouter(tags=["Room Invitations"])
@@ -61,7 +62,7 @@ class InviteLinkCreate(BaseModel):
 
 
 def utc_now() -> datetime:
-    return datetime.utcnow()
+    return utc_now_naive()
 
 
 def utc_naive(value: datetime) -> datetime:

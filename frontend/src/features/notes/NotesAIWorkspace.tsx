@@ -114,7 +114,7 @@ export default function NotesAIWorkspace({
     }, 80);
   }, [chatMessages.length]);
 
-  function useQuickPrompt(prompt: string) {
+  function applyQuickPrompt(prompt: string) {
     onChatInputChange?.(prompt);
 
     window.setTimeout(() => {
@@ -153,7 +153,7 @@ export default function NotesAIWorkspace({
           <button
             key={prompt}
             type="button"
-            onClick={() => useQuickPrompt(prompt)}
+            onClick={() => applyQuickPrompt(prompt)}
             className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-yellow-300/30 hover:bg-yellow-300/10 hover:text-yellow-100"
           >
             {prompt}

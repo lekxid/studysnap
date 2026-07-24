@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class UserSession(Base):
@@ -29,8 +30,8 @@ class UserSession(Base):
 
     is_trusted = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_active_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
+    last_active_at = Column(DateTime, default=utc_now_naive, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User")

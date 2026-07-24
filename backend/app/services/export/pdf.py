@@ -14,6 +14,7 @@ from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from app.utils.utc import utc_now_naive
 
 
 FONT_NAME = "Helvetica"
@@ -177,7 +178,7 @@ def build_studysnap_pdf_bytes(
         spaceBefore=18,
     )
 
-    exported_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    exported_at = utc_now_naive().strftime("%Y-%m-%d %H:%M UTC")
 
     story = [
         Paragraph(escape(title or "StudySnap Export"), title_style),
@@ -211,7 +212,7 @@ def build_note_pdf_bytes(
     if subject:
         details.append(f"Subject: {subject}")
 
-    exported_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    exported_at = utc_now_naive().strftime("%Y-%m-%d %H:%M UTC")
     details.append(f"Exported from StudySnap on {exported_at}")
 
     return build_studysnap_pdf_bytes(

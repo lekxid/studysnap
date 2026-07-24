@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String
 from datetime import datetime
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class StudySession(Base):
@@ -13,4 +14,4 @@ class StudySession(Base):
     activity_type = Column(String)  # note, quiz, flashcard
     duration_minutes = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)

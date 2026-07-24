@@ -9,9 +9,6 @@ import {
 } from "react";
 import Link from "next/link";
 import {
-  PROJECT_ROOM_CHANGED_EVENT,
-} from "./projectRoomContext";
-import {
   createRoomEmailInvitation,
   createRoomInviteLink,
   createRoomMessage,
@@ -281,7 +278,6 @@ export default function StudyTogetherWorkspace({
   conceptCardsCount,
   quizzesCount,
   onOpenMaterials,
-  onOpenNotes,
   onOpenAiTutor,
 }: StudyTogetherWorkspaceProps) {
   const normalizedRole =
@@ -343,7 +339,7 @@ export default function StudyTogetherWorkspace({
     setShareLinkError,
   ] = useState("");
 
-  const [inviteLoading, setInviteLoading] =
+  const [, setInviteLoading] =
     useState(true);
 
   const [inviteAction, setInviteAction] =
@@ -508,7 +504,10 @@ export default function StudyTogetherWorkspace({
       null;
 
     isNearChatBottomRef.current = true;
-    setShowJumpToLatest(false);
+
+    queueMicrotask(
+      () => setShowJumpToLatest(false),
+    );
   }, [studyRoomId]);
 
   useEffect(() => {
@@ -648,10 +647,12 @@ export default function StudyTogetherWorkspace({
 
   useEffect(() => {
     if (!canManageInvitations) {
-      setInviteLoading(false);
-      setInvitationLoadError("");
-      setEmailInvitations([]);
-      setShareLinks([]);
+      queueMicrotask(() => {
+        setInviteLoading(false);
+        setInvitationLoadError("");
+        setEmailInvitations([]);
+        setShareLinks([]);
+      });
       return;
     }
 
@@ -691,7 +692,11 @@ export default function StudyTogetherWorkspace({
       }
     }
 
-    void loadInvitations();
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadInvitations();
+      }
+    });
 
     return () => {
       cancelled = true;

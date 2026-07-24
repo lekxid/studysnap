@@ -41,8 +41,6 @@ export default function ConnectedProjectBanner({
 
     saveProjectRoomId(requestedRoomId);
     ensureProjectRoomIdInUrl(requestedRoomId);
-    setRoomId(requestedRoomId);
-
     let mounted = true;
 
     async function loadConnectedRoom() {
@@ -63,7 +61,12 @@ export default function ConnectedProjectBanner({
       }
     }
 
-    loadConnectedRoom();
+    queueMicrotask(() => {
+      if (mounted) {
+        setRoomId(requestedRoomId);
+        void loadConnectedRoom();
+      }
+    });
 
     return () => {
       mounted = false;

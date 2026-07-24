@@ -124,7 +124,12 @@ export default function ProjectBrain({ studyRoomId, projectTitle }: Props) {
   }
 
   useEffect(() => {
-    loadHistory();
+    const timer = window.setTimeout(
+      () => void loadHistory(),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyRoomId]);
 
@@ -220,7 +225,7 @@ export default function ProjectBrain({ studyRoomId, projectTitle }: Props) {
     setActionMessage("");
   }
 
-  function useQuickQuestion(value: string) {
+  function applyQuickQuestion(value: string) {
     setQuestion(value);
     setError("");
     setActionMessage("");
@@ -294,7 +299,7 @@ export default function ProjectBrain({ studyRoomId, projectTitle }: Props) {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => useQuickQuestion(item)}
+                  onClick={() => applyQuickQuestion(item)}
                   className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-left text-xs font-semibold text-slate-200 transition hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-white"
                 >
                   {item}

@@ -155,7 +155,7 @@ export default function QuizzesPage() {
   const [answers, setAnswers] = useState<Record<number, AnswerLetter>>({});
   const [confidenceByQuestion, setConfidenceByQuestion] = useState<Record<number, ConfidenceLevel>>({});
   const [timeByQuestion, setTimeByQuestion] = useState<Record<number, number>>({});
-  const [lastAnswerAt, setLastAnswerAt] = useState(Date.now());
+  const [lastAnswerAt, setLastAnswerAt] = useState(0);
 
   const [submitted, setSubmitted] = useState(false);
   const [attemptSavedMessage, setAttemptSavedMessage] = useState("");
@@ -250,14 +250,20 @@ export default function QuizzesPage() {
   }, [quizzes, activeQuizId]);
 
   useEffect(() => {
-    if (!activeQuiz) {
-      setQuestionOrder([]);
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      if (!activeQuiz) {
+        setQuestionOrder([]);
+        return;
+      }
 
-    setQuestionOrder(activeQuiz.questions.map((item) => item.id));
-    resetAttemptState();
-  }, [activeQuiz?.id]);
+      setQuestionOrder(
+        activeQuiz.questions.map((item) => item.id),
+      );
+      resetAttemptState();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeQuiz]);
 
   const orderedQuestions = useMemo(() => {
     if (!activeQuiz) return [];

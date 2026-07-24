@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, St
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class BrainMemory(Base):
@@ -28,7 +29,7 @@ class BrainMemory(Base):
     source = Column(String, nullable=True)
     needs_review = Column(Boolean, nullable=False, default=True)
 
-    last_seen = Column(DateTime, nullable=True, default=datetime.utcnow)
+    last_seen = Column(DateTime, nullable=True, default=utc_now_naive)
     last_reviewed = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

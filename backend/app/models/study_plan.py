@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class StudyPlan(Base):
@@ -78,12 +79,12 @@ class StudyPlan(Base):
     created_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )

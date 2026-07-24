@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.user_session import UserSession
+from app.utils.utc import utc_now_naive
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -60,7 +61,7 @@ def get_current_user(
             if user_session is None:
                 raise credentials_exception
 
-            user_session.last_active_at = datetime.utcnow()
+            user_session.last_active_at = utc_now_naive()
             db.add(user_session)
             db.commit()
 

@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import json
@@ -25,6 +26,11 @@ from app.services.intent_understanding import get_intent_understanding_instructi
 from app.routes.pdf_documents import extract_pdf_text
 
 from app.database import get_db
+from app.models.file_brain import FileBrainItem
+from app.services.file_brain_ai import (
+    FileBrainAIError,
+    resolve_file_brain_source,
+)
 from app.storage import storage_path
 from app.models.user import User
 from app.models.study_room import StudyRoom
@@ -39,6 +45,11 @@ from app.services.ai_service import (
     stream_studysnap_answer,
     generate_basic_flashcards,
     generate_basic_quiz,
+)
+from app.services.artifact_service import (
+    artifact_format_label,
+    create_text_artifact,
+    detect_artifact_export_request,
 )
 from app.services.context.builder import build_study_room_context
 from app.services.context.providers.conversation import build_conversation_context
@@ -133,6 +144,77 @@ def resolve_ai_attachment_path(
         ) from exc
 
     return file_path
+
+
+
+def resolve_message_attachment_path(
+    *,
+    db: Session,
+    message: AIMessage,
+    owner_id: int,
+) -> Path:
+    source_type = (
+        message.attachment_source_type
+    )
+
+    if source_type is None:
+        if not message.attachment_file_path:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "This message has no "
+                    "stored attachment."
+                ),
+            )
+
+        return resolve_ai_attachment_path(
+            message.attachment_file_path
+        )
+
+    if (
+        source_type != "file_brain_item"
+        or not message.attachment_source_id
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The referenced attachment "
+                "is unavailable."
+            ),
+        )
+
+    item = (
+        db.query(FileBrainItem)
+        .filter(
+            FileBrainItem.id
+            == message.attachment_source_id,
+            FileBrainItem.owner_id
+            == owner_id,
+        )
+        .first()
+    )
+
+    if item is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "The referenced File Brain "
+                "item was not found."
+            ),
+        )
+
+    try:
+        source = resolve_file_brain_source(
+            db=db,
+            item=item,
+        )
+    except FileBrainAIError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    return source.source_path
 
 
 def store_ai_attachment(
@@ -732,6 +814,7 @@ def build_conversation_history_context(
                 conversation_id=conversation.id,
                 study_room_id=conversation.study_room_id,
                 owner_id=room.owner_id,
+                learner_user_id=requesting_user_id,
                 question=question,
                 focused_material_id=focused_material_id,
             )
@@ -785,10 +868,26 @@ def build_conversation_message_prompt(
 
     elif conversation.surface == "general_ai":
         identity = "StudySnap General AI"
-        boundary = (
-            "This is a general conversation. Do not claim to use "
-            "room materials unless room context is actually present."
-        )
+
+        if conversation.study_room_id is not None:
+            boundary = (
+                "This General AI conversation is connected to a "
+                "Study Room. Use the supplied selected material, "
+                "supporting uploads, notes, PDFs, concept cards, "
+                "saved quizzes, Brain memory, recent practice, "
+                "mistakes, confidence, and quiz results when they "
+                "are relevant. Treat a focused selected material "
+                "as the primary source. Keep personal progress "
+                "separate from shared room source ownership. "
+                "Do not invent evidence that is not supplied."
+            )
+        else:
+            boundary = (
+                "This is a global General AI conversation. Do not "
+                "claim to use Study Room materials, progress, or "
+                "learning evidence unless that context is actually "
+                "present."
+            )
 
     elif conversation.surface == "notes_ai":
         identity = "StudySnap Notes AI"
@@ -1139,6 +1238,59 @@ Student request:
 
 
 
+_ACTIVE_IMAGE_EDIT_REQUESTS: set[
+    tuple[int, int]
+] = set()
+
+
+def begin_image_edit_request(
+    owner_id: int,
+    conversation_id: int,
+) -> bool:
+    # Reserve one image edit per user conversation.
+    key = (
+        owner_id,
+        conversation_id,
+    )
+
+    if key in _ACTIVE_IMAGE_EDIT_REQUESTS:
+        return False
+
+    _ACTIVE_IMAGE_EDIT_REQUESTS.add(
+        key
+    )
+
+    return True
+
+
+def finish_image_edit_request(
+    owner_id: int,
+    conversation_id: int,
+) -> None:
+    _ACTIVE_IMAGE_EDIT_REQUESTS.discard(
+        (
+            owner_id,
+            conversation_id,
+        )
+    )
+
+
+async def run_image_edit_in_worker(
+    *,
+    client,
+    edit_arguments: dict,
+    timeout_seconds: float = 180.0,
+):
+    # Keep blocking OpenAI image work outside FastAPI's event loop.
+    return await asyncio.wait_for(
+        asyncio.to_thread(
+            client.images.edit,
+            **edit_arguments,
+        ),
+        timeout=timeout_seconds,
+    )
+
+
 @router.post("/edit-image")
 async def edit_ai_image(
     prompt: str = Form(...),
@@ -1243,12 +1395,38 @@ async def edit_ai_image(
                     "RGBA"
                 )
 
+                # Very large phone images create
+                # unnecessary conversion and upload
+                # delay. Preserve image detail while
+                # limiting excessive dimensions.
+                maximum_input_dimension = 2048
+
+                if (
+                    max(prepared.size)
+                    > maximum_input_dimension
+                ):
+                    resampling = getattr(
+                        PILImage,
+                        "Resampling",
+                        PILImage,
+                    )
+
+                    prepared.thumbnail(
+                        (
+                            maximum_input_dimension,
+                            maximum_input_dimension,
+                        ),
+                        resampling.LANCZOS,
+                    )
+
                 output = io_module.BytesIO()
 
+                # Fast encoding reduces local CPU work
+                # before the AI image request begins.
                 prepared.save(
                     output,
                     format="PNG",
-                    optimize=True,
+                    compress_level=1,
                 )
 
                 return (
@@ -1389,7 +1567,7 @@ async def edit_ai_image(
 
     client = OpenAI(
         api_key=app_settings.openai_api_key,
-        timeout=300.0,
+        timeout=180.0,
     )
 
     response = None
@@ -1480,9 +1658,45 @@ async def edit_ai_image(
                         "input_fidelity"
                     ] = "high"
 
-                response = client.images.edit(
-                    **edit_arguments
-                )
+                if not begin_image_edit_request(
+                    current_user.id,
+                    conversation.id,
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "An image is already being "
+                            "processed in this conversation. "
+                            "StudySnap will keep the current "
+                            "request instead of creating "
+                            "a duplicate."
+                        ),
+                    )
+
+                try:
+                    response = (
+                        await run_image_edit_in_worker(
+                            client=client,
+                            edit_arguments=(
+                                edit_arguments
+                            ),
+                        )
+                    )
+                except asyncio.TimeoutError as exc:
+                    raise HTTPException(
+                        status_code=504,
+                        detail=(
+                            "The image edit took too long. "
+                            "StudySnap stopped waiting so "
+                            "the rest of the app can remain "
+                            "responsive. Please retry once."
+                        ),
+                    ) from exc
+                finally:
+                    finish_image_edit_request(
+                        current_user.id,
+                        conversation.id,
+                    )
 
                 used_model = candidate_model
 
@@ -3078,6 +3292,38 @@ def create_message_stream(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
+    requested_export_format = (
+        detect_artifact_export_request(
+            data.content
+        )
+    )
+
+    export_source_message = None
+
+    if requested_export_format is not None:
+        recent_assistant_messages = (
+            db.query(AIMessage)
+            .filter(
+                AIMessage.conversation_id
+                == conversation.id,
+                AIMessage.role == "assistant",
+            )
+            .order_by(AIMessage.id.desc())
+            .limit(20)
+            .all()
+        )
+
+        export_source_message = next(
+            (
+                item
+                for item in recent_assistant_messages
+                if not item.content.strip().lower().startswith(
+                    "i created the "
+                )
+            ),
+            None,
+        )
+
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
@@ -3129,6 +3375,51 @@ def create_message_stream(
         stream_iterator = None
 
         try:
+            if (
+                requested_export_format is not None
+                and export_source_message is not None
+            ):
+                format_label = artifact_format_label(
+                    requested_export_format
+                )
+
+                assistant_text = (
+                    f"I created the {format_label} for you."
+                )
+
+                ai_message = AIMessage(
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=assistant_text,
+                )
+
+                db.add(ai_message)
+                db.flush()
+
+                create_text_artifact(
+                    db=db,
+                    owner_id=current_user.id,
+                    title=(
+                        conversation.title
+                        or "StudySnap file"
+                    ),
+                    content=export_source_message.content,
+                    artifact_format=requested_export_format,
+                    conversation_id=conversation.id,
+                    message_id=ai_message.id,
+                )
+
+                db.refresh(ai_message)
+
+                yield (
+                    "data: "
+                    + json.dumps(assistant_text)
+                    + "\n\n"
+                )
+
+                yield "data: [DONE]\n\n"
+                return
+
             stream_iterator = (
                 stream_studysnap_answer(
                     prompt
@@ -3167,14 +3458,49 @@ def create_message_stream(
             if cancelled:
                 return
 
+            assistant_content = full_answer
+
+            if (
+                requested_export_format is not None
+                and full_answer.strip()
+            ):
+                format_label = artifact_format_label(
+                    requested_export_format
+                )
+
+                assistant_content = (
+                    f"I created the {format_label} for you."
+                )
+
             ai_message = AIMessage(
                 conversation_id=conversation.id,
                 role="assistant",
-                content=full_answer,
+                content=assistant_content,
             )
 
             db.add(ai_message)
-            db.commit()
+
+            if (
+                requested_export_format is not None
+                and full_answer.strip()
+            ):
+                db.flush()
+
+                create_text_artifact(
+                    db=db,
+                    owner_id=current_user.id,
+                    title=(
+                        conversation.title
+                        or "StudySnap file"
+                    ),
+                    content=full_answer,
+                    artifact_format=requested_export_format,
+                    conversation_id=conversation.id,
+                    message_id=ai_message.id,
+                )
+            else:
+                db.commit()
+
             db.refresh(ai_message)
 
             yield "data: [DONE]\n\n"
@@ -3279,8 +3605,10 @@ def get_ai_attachment(
             detail="This message has no attachment.",
         )
 
-    file_path = resolve_ai_attachment_path(
-        message.attachment_file_path
+    file_path = resolve_message_attachment_path(
+        db=db,
+        message=message,
+        owner_id=current_user.id,
     )
 
     if not file_path.is_file():
@@ -3479,13 +3807,20 @@ def delete_ai_attachment(
             ),
         )
 
-    file_path = resolve_ai_attachment_path(
-        message.attachment_file_path
-    )
-
+    file_path: Path | None = None
     quarantine_path: Path | None = None
 
-    if file_path.exists():
+    # Logical File Brain references do not own the underlying file.
+    # Deleting the chat attachment must only clear its metadata.
+    if message.attachment_source_type is None:
+        file_path = resolve_ai_attachment_path(
+            message.attachment_file_path
+        )
+
+    if (
+        file_path is not None
+        and file_path.exists()
+    ):
         if not file_path.is_file():
             raise HTTPException(
                 status_code=400,
@@ -3520,6 +3855,8 @@ def delete_ai_attachment(
     message.attachment_file_size = None
     message.attachment_content_type = None
     message.attachment_kind = None
+    message.attachment_source_type = None
+    message.attachment_source_id = None
     message.attachment_hidden_from_feed = False
     message.attachment_is_pinned = False
 
@@ -3531,6 +3868,7 @@ def delete_ai_attachment(
 
         if (
             quarantine_path is not None
+            and file_path is not None
             and quarantine_path.exists()
         ):
             try:

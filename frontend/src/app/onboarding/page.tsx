@@ -85,17 +85,19 @@ export default function OnboardingPage() {
 
       const profile = JSON.parse(raw) as Partial<OnboardingProfile>;
 
-      if (profile.explanationStyle) {
-        setSelectedStyle(profile.explanationStyle);
-      }
+      queueMicrotask(() => {
+        if (profile.explanationStyle) {
+          setSelectedStyle(profile.explanationStyle);
+        }
 
-      if (profile.knowledgeLevel) {
-        setSelectedLevel(profile.knowledgeLevel);
-      }
+        if (profile.knowledgeLevel) {
+          setSelectedLevel(profile.knowledgeLevel);
+        }
 
-      if (Array.isArray(profile.subjects)) {
-        setSelectedSubjects(profile.subjects);
-      }
+        if (Array.isArray(profile.subjects)) {
+          setSelectedSubjects(profile.subjects);
+        }
+      });
     } catch {
       localStorage.removeItem(ONBOARDING_STORAGE_KEY);
     }

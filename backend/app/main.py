@@ -22,6 +22,7 @@ from app.routes.brain import router as brain_router
 from app.routes.smart_organizer import router as smart_organizer_router
 from app.routes.file_brain import router as file_brain_router
 from app.routes.file_brain_uploads import router as file_brain_uploads_router
+from app.routes.file_brain_ai import router as file_brain_ai_router
 from app.routes.smart_scan import router as smart_scan_router
 from app.routes.users import router as users_router
 from app.routes.sessions import router as sessions_router
@@ -32,6 +33,9 @@ from app.routes.room_invitations import router as room_invitations_router
 from app.routes.room_messages import router as room_messages_router
 from app.routes.room_members import router as room_members_router
 from app.routes.room_realtime import router as room_realtime_router
+from app.routes.artifacts import router as artifacts_router
+
+from app.routes.central_actions import router as central_actions_router
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
@@ -62,6 +66,7 @@ app.include_router(brain_router, prefix="/api/brain")
 app.include_router(smart_organizer_router, prefix="/api/smart-organizer")
 app.include_router(file_brain_router, prefix="/api/file-brain")
 app.include_router(file_brain_uploads_router, prefix="/api/file-brain")
+app.include_router(file_brain_ai_router, prefix="/api/file-brain")
 app.include_router(
     smart_scan_router,
     prefix="/api/smart-scan",
@@ -82,6 +87,11 @@ app.include_router(
     prefix="/api/room-messages",
 )
 
+app.include_router(
+    central_actions_router,
+    prefix="/api/actions",
+)
+
 
 @app.get("/")
 def root():
@@ -93,3 +103,4 @@ def health():
     return {"status": "ok"}
 
 app.include_router(quizzes.router, prefix="/api")
+app.include_router(artifacts_router, prefix="/api/artifacts", tags=["artifacts"])

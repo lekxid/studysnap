@@ -19,6 +19,7 @@ from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.routes.pdf_documents import MAX_FILE_SIZE, UPLOAD_DIR, extract_pdf_text
 from app.utils.deps import get_current_user
+from app.utils.utc import utc_now_naive
 
 router = APIRouter(tags=["Integrations"])
 
@@ -49,7 +50,7 @@ def google_is_configured() -> bool:
 
 
 def make_google_state(user_id: int) -> str:
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    expires_at = utc_now_naive() + timedelta(minutes=10)
 
     return jwt.encode(
         {
@@ -183,7 +184,7 @@ def refresh_google_access_token(account: ConnectedAccount, db: Session) -> str:
     account.access_token = access_token
     account.token_type = token_data.get("token_type") or account.token_type
     account.scopes = token_data.get("scope") or account.scopes
-    account.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    account.expires_at = utc_now_naive() + timedelta(seconds=expires_in)
 
     db.add(account)
     db.commit()
@@ -506,7 +507,7 @@ def import_google_drive_pdf(
         owner_id=current_user.id,
     )
 
-    account.last_synced_at = datetime.utcnow()
+    account.last_synced_at = utc_now_naive()
 
     db.add(pdf_document)
     db.add(account)
@@ -575,7 +576,7 @@ def google_callback(
         .first()
     )
 
-    now = datetime.utcnow()
+    now = utc_now_naive()
 
     if account is None:
         account = ConnectedAccount(

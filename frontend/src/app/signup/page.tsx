@@ -9,6 +9,15 @@ import {
 import AuthShell from "@/components/auth/AuthShell";
 import { API_BASE } from "@/lib/apiBase";
 
+type SignupPayload = {
+  detail?: unknown;
+  message?: unknown;
+};
+
+function readText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 export default function SignupPage() {
   const [nextPath, setNextPath] =
     useState<string | null>(null);
@@ -23,16 +32,22 @@ export default function SignupPage() {
   useEffect(() => {
     const requestedNext =
       new URLSearchParams(
-        window.location.search
+        window.location.search,
       ).get("next");
 
     if (
-      requestedNext &&
-      requestedNext.startsWith("/") &&
-      !requestedNext.startsWith("//")
+      !requestedNext?.startsWith("/") ||
+      requestedNext.startsWith("//")
     ) {
-      setNextPath(requestedNext);
+      return;
     }
+
+    const timer = window.setTimeout(
+      () => setNextPath(requestedNext),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,16 +71,22 @@ export default function SignupPage() {
       });
 
       const raw = await response.text();
-      let data: any = null;
+      let data: SignupPayload | null = null;
 
       try {
-        data = raw ? JSON.parse(raw) : null;
+        data = raw
+          ? (JSON.parse(raw) as SignupPayload)
+          : null;
       } catch {
         data = { message: raw || "Unexpected server response." };
       }
 
       if (!response.ok) {
-        throw new Error(data?.detail || data?.message || "Signup failed.");
+        throw new Error(
+          readText(data?.detail) ||
+            readText(data?.message) ||
+            "Signup failed.",
+        );
       }
 
       const loginParams =
@@ -83,8 +104,12 @@ export default function SignupPage() {
 
       window.location.href =
         `/login?${loginParams.toString()}`;
-    } catch (err: any) {
-      setError(err?.message || "Something went wrong.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong.",
+      );
     } finally {
       setLoading(false);
     }

@@ -195,6 +195,7 @@ export async function signup(
       full_name: name,
       email,
       password,
+      invite_code: inviteCode,
       learning_mode: "medium",
     }),
   });
@@ -611,6 +612,7 @@ export type GenerateAIImageOptions = {
   studyRoomId?: number | null;
   size?: GenerateAIImageSize;
   quality?: GenerateAIImageQuality;
+  signal?: AbortSignal;
 };
 
 export type GenerateAIImageResponse = {
@@ -698,6 +700,7 @@ export async function generateAIImage(
 
   return apiFetch("/api/ai/generate-image", {
     method: "POST",
+    signal: options.signal,
     body: JSON.stringify({
       prompt: cleanPrompt,
       conversation_id:
@@ -785,13 +788,49 @@ export async function editAIImage(
     );
   }
 
-  return apiFetch(
+  /*
+   * Image editing may take longer than a normal
+   * API request. Use the dedicated same-origin
+   * route instead of the general /backend rewrite.
+   */
+  const token = getToken();
+
+  const headers =
+    new Headers();
+
+  if (token) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+  }
+
+  const response = await fetch(
     "/api/ai/edit-image",
     {
       method: "POST",
+      signal: options.signal,
+      headers,
       body: formData,
+      cache: "no-store",
     }
-  ) as Promise<GenerateAIImageResponse>;
+  );
+
+  if (!response.ok) {
+    const message =
+      await readResponseError(
+        response,
+        "The image could not be edited."
+      );
+
+    throw new Error(message);
+  }
+
+  const responsePayload:
+    GenerateAIImageResponse =
+      await response.json();
+
+  return responsePayload;
 }
 
 export type CreateAIConversationOptions = {
@@ -3752,4 +3791,244 @@ export async function deleteSmartScan(
       method: "DELETE",
     },
   ) as Promise<SmartScanDeleteResponse>;
+}
+
+export type ArtifactFormat = "pdf" | "docx" | "txt" | "md";
+
+export type StudySnapArtifact = {
+  id: number;
+  owner_id: number;
+  conversation_id: number | null;
+  message_id: number | null;
+  kind: string;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+  download_url: string;
+  ticket_url: string;
+};
+
+type ArtifactDownloadTicket = {
+  artifact_id: number;
+  url: string;
+  expires_at: string;
+};
+
+export async function createArtifactFromAIMessage(
+  messageId: number,
+  format: ArtifactFormat = "pdf"
+): Promise<StudySnapArtifact> {
+  return apiFetch(
+    `/api/artifacts/from-message/${messageId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ format }),
+    }
+  ) as Promise<StudySnapArtifact>;
+}
+
+export async function createArtifactDownloadTicket(
+  artifactId: number
+): Promise<ArtifactDownloadTicket> {
+  return apiFetch(
+    `/api/artifacts/${artifactId}/ticket`,
+    {
+      method: "POST",
+    }
+  ) as Promise<ArtifactDownloadTicket>;
+}
+
+export async function getArtifactsForMessage(
+  messageId: number
+): Promise<StudySnapArtifact[]> {
+  return apiFetch(
+    `/api/artifacts/message/${messageId}`
+  ) as Promise<StudySnapArtifact[]>;
+}
+
+export async function getArtifactAccessUrl(
+  artifactId: number,
+  inline = false
+): Promise<string> {
+  const ticket =
+    await createArtifactDownloadTicket(
+      artifactId
+    );
+
+  const separator =
+    ticket.url.includes("?")
+      ? "&"
+      : "?";
+
+  return (
+    `${API_BASE}${ticket.url}`
+    + `${separator}inline=${inline ? "true" : "false"}`
+  );
+}
+
+export async function downloadArtifactFile(
+  artifact: StudySnapArtifact
+): Promise<void> {
+  const url = await getArtifactAccessUrl(
+    artifact.id,
+    false
+  );
+
+  const anchor =
+    document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = artifact.filename;
+  anchor.rel = "noopener noreferrer";
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+export async function downloadAIMessageArtifact(
+  messageId: number,
+  format: ArtifactFormat = "pdf"
+): Promise<StudySnapArtifact> {
+  const artifact = await createArtifactFromAIMessage(
+    messageId,
+    format
+  );
+  const ticket = await createArtifactDownloadTicket(
+    artifact.id
+  );
+
+  if (typeof window === "undefined") {
+    return artifact;
+  }
+
+  const anchor = document.createElement("a");
+  anchor.href = `${API_BASE}${ticket.url}`;
+  anchor.download = artifact.filename;
+  anchor.rel = "noopener noreferrer";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  return artifact;
+}
+
+export type CentralActionType =
+  | "save_note"
+  | "create_flashcards"
+  | "create_quiz"
+  | "add_to_planner";
+
+export type CentralActionPreview = {
+  label: string;
+  summary: string;
+  requires_confirmation: boolean;
+  room_id: number | null;
+  room_name: string | null;
+};
+
+export type CentralActionResult = {
+  entity_type?: string;
+  entity_id?: number;
+  entity_ids?: number[];
+  count?: number;
+  title?: string;
+  question_count?: number;
+  scheduled_for?: string;
+  open_href?: string;
+  [key: string]: unknown;
+};
+
+export type CentralActionRecord = {
+  id: number;
+  action_type: CentralActionType;
+  label: string;
+  status:
+    | "preview"
+    | "executed"
+    | "undone"
+    | "failed";
+  study_room_id: number | null;
+  conversation_id: number | null;
+  source_message_id: number | null;
+  preview: CentralActionPreview;
+  result: CentralActionResult | null;
+  error_message: string | null;
+  duplicate: boolean;
+  already_executed: boolean;
+  already_undone: boolean;
+  can_execute: boolean;
+  can_undo: boolean;
+  undo_result?: {
+    deleted_count: number;
+    entity_type: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+  executed_at: string | null;
+  undone_at: string | null;
+};
+
+export async function previewCentralAction({
+  actionType,
+  sourceMessageId,
+  studyRoomId,
+  payload = {},
+  idempotencyKey,
+}: {
+  actionType: CentralActionType;
+  sourceMessageId?: number;
+  studyRoomId?: number;
+  payload?: Record<string, unknown>;
+  idempotencyKey?: string;
+}): Promise<CentralActionRecord> {
+  return apiFetch(
+    "/api/actions/preview",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        action_type: actionType,
+        source_message_id:
+          sourceMessageId ?? null,
+        study_room_id:
+          studyRoomId ?? null,
+        payload,
+        idempotency_key:
+          idempotencyKey ?? null,
+      }),
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function executeCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}/execute`,
+    {
+      method: "POST",
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function undoCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}/undo`,
+    {
+      method: "POST",
+    }
+  ) as Promise<CentralActionRecord>;
+}
+
+export async function getCentralAction(
+  actionId: number
+): Promise<CentralActionRecord> {
+  return apiFetch(
+    `/api/actions/${actionId}`
+  ) as Promise<CentralActionRecord>;
 }

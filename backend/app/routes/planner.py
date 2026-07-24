@@ -16,6 +16,7 @@ from app.models.study_plan import StudyPlan
 from app.models.user import User
 from app.services.rooms.access import get_room_for_user
 from app.utils.deps import get_current_user
+from app.utils.utc import utc_now_naive
 
 
 router = APIRouter(tags=["Planner"])
@@ -90,7 +91,7 @@ def clean_required_text(
 
     if not cleaned:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{field_name} cannot be empty",
         )
 
@@ -278,7 +279,7 @@ def update_plan(
             value,
         )
 
-    plan.updated_at = datetime.utcnow()
+    plan.updated_at = utc_now_naive()
 
     db.commit()
     db.refresh(plan)

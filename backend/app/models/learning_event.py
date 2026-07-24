@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String
 from datetime import datetime
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class LearningEvent(Base):
@@ -17,4 +18,4 @@ class LearningEvent(Base):
     result = Column(String, nullable=True)  # correct, wrong, partial, reviewed
     confidence = Column(Integer, nullable=True)  # 0-100
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)

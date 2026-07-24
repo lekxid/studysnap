@@ -7,7 +7,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -31,7 +30,6 @@ import {
 } from "@/features/projects/projectRoomContext";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
-import { setPendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 
 type TokenPayload = {
   sub?: string;
@@ -256,131 +254,147 @@ function GeneralAIStartCard({
 }: {
   prompt: string;
   onPromptChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (
+    event: FormEvent<HTMLFormElement>
+  ) => void;
   activeRoomId: number | null;
   displayName: string;
   greetingEmoji: string;
 }) {
-  const router = useRouter();
-
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
-
-  function openChatAttachmentPicker() {
-    const input = attachmentInputRef.current;
-
-    if (!input) {
-      return;
-    }
-
-    input.value = "";
-    input.click();
-  }
-
-  function handleAttachments(fileList: FileList | null) {
-    const files = Array.from(fileList ?? []).slice(0, 20);
-
-    if (!files.length) {
-      return;
-    }
-
-    setPendingAIAttachments(files);
-
-    router.push(
-      "/general-ai?new=1&attachment=pending"
-    );
-  }
+  const learnerName =
+    displayName.trim() || "Learner";
 
   return (
-    <section className="studysnap-glass-panel overflow-hidden rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl shadow-[0_18px_55px_rgba(0,0,0,0.2)]">
-      <div className="h-px bg-white/[0.08]" />
+    <section className="relative overflow-hidden rounded-[1.65rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.095),transparent_31%),linear-gradient(145deg,rgba(17,22,27,0.97),rgba(3,6,8,0.995))] p-4 shadow-[0_24px_75px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-5">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full border border-[#b7a35f]/10 bg-[#b7a35f]/[0.035] blur-2xl"
+      />
 
-      <div className="p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/[0.075] bg-white/[0.045] text-xl">
-            S
-          </div>
-
-          <div className="min-w-0">
-            <p className="truncate text-sm font-black text-[#cec18d]">
-              Hi, {displayName}
-              {greetingEmoji ? ` ${greetingEmoji}` : ""}
-            </p>
-
-            <h2 className="mt-1 text-xl font-black text-white">
-              What would you like to study today?
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-400">
-              Ask StudySnap a question or attach study material.
-            </p>
-          </div>
+      <div className="relative flex items-start gap-3.5">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] border border-white/[0.105] bg-[linear-gradient(145deg,rgba(28,33,38,0.96),rgba(8,11,14,0.98))] text-xl font-black text-[#d4c78d] shadow-[0_12px_34px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.065)]">
+          S
         </div>
 
-        <input
-          ref={attachmentInputRef}
-          type="file"
-          multiple
-          accept="image/*,.heic,.heif,.pdf,.docx,.pptx,.xlsx,.txt,.rtf,.csv,.md,.json,.py,.js,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml"
-          className="hidden"
-          onChange={(event) => {
-            handleAttachments(event.currentTarget.files);
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a99b68]">
+              StudySnap AI
+            </p>
 
-            event.currentTarget.value = "";
-          }}
-        />
+            {activeRoomId ? (
+              <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.055] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
+                Room connected
+              </span>
+            ) : null}
+          </div>
 
-        <form
-          onSubmit={onSubmit}
-          className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition focus-within:border-white/[0.16]"
-        >
+          <p className="mt-1 text-sm font-black text-[#d7cc9b]">
+            Welcome back, {learnerName}{" "}
+            {greetingEmoji}
+          </p>
+
+          <h1 className="mt-1.5 text-[1.35rem] font-black leading-tight tracking-[-0.025em] text-white sm:text-[1.55rem]">
+            What are you studying today?
+          </h1>
+
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
+            Ask a question, explain a difficult
+            topic, or continue work already
+            connected to your room.
+          </p>
+        </div>
+      </div>
+
+      <form
+        onSubmit={onSubmit}
+        className="relative mt-4 rounded-[1.2rem] border border-white/[0.09] bg-[#05080b]/90 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition focus-within:border-[#b7a35f]/35 focus-within:bg-[#070a0d]"
+      >
+        <div className="flex items-center gap-2">
+          <Link
+            href="/general-ai?add=1"
+            aria-label="Add study material"
+            title="Add study material"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.9rem] border border-white/[0.09] bg-white/[0.04] text-xl font-light text-slate-300 transition hover:border-white/[0.15] hover:bg-white/[0.075] hover:text-white"
+          >
+            +
+          </Link>
+
           <input
             value={prompt}
-            onChange={(event) => onPromptChange(event.target.value)}
+            onChange={(event) =>
+              onPromptChange(
+                event.target.value
+              )
+            }
             placeholder="Ask StudySnap anything..."
-            className="min-w-0 flex-1 border-0 bg-transparent px-2 py-2 text-sm text-white outline-none placeholder:text-slate-500"
+            aria-label="Ask StudySnap"
+            className="min-w-0 flex-1 bg-transparent px-1.5 py-3 text-sm font-medium text-white outline-none placeholder:text-slate-600"
           />
 
           <button
-            type="button"
-            onClick={openChatAttachmentPicker}
-            aria-label="Attach a file to StudySnap AI"
-            title="Attach a file to StudySnap AI"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-xl font-black text-slate-200 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
-          >
-            +
-          </button>
-
-          <button
             type="submit"
-            aria-label="Ask StudySnap"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#c9ad50] text-base font-black text-[#111317] transition hover:bg-[#d5bb63]"
+            disabled={!prompt.trim()}
+            aria-label="Send to StudySnap"
+            title="Send"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.9rem] border border-[#b7a35f]/30 bg-[#a89355] text-lg font-black text-[#090a08] shadow-[0_10px_25px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.22)] transition hover:bg-[#b5a161] active:scale-95 disabled:cursor-not-allowed disabled:border-white/[0.07] disabled:bg-white/[0.05] disabled:text-slate-600 disabled:shadow-none"
           >
-            ➤
+            →
           </button>
-        </form>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Link
-            href={getRoomAwareHref("/notes", activeRoomId)}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
-          >
-            <span className="text-emerald-300">▣</span>
-            <span>Create note</span>
-          </Link>
-
-          <Link
-            href={getRoomAwareHref("/quizzes", activeRoomId)}
-            className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm font-bold text-slate-200 transition hover:bg-white/[0.07]"
-          >
-            <span className="text-orange-300">▤</span>
-            <span>Start quiz</span>
-          </Link>
         </div>
+      </form>
+
+      <div className="relative mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <Link
+          href={getRoomAwareHref(
+            "/notes",
+            activeRoomId,
+          )}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
+        >
+          <span className="text-emerald-300">
+            ▣
+          </span>
+
+          Create note
+        </Link>
+
+        <Link
+          href={getRoomAwareHref(
+            "/quizzes",
+            activeRoomId,
+          )}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
+        >
+          <span className="text-[#b7a35f]">
+            ▤
+          </span>
+
+          Start quiz
+        </Link>
+
+        <Link
+          href={
+            activeRoomId
+              ? `/study-rooms/${activeRoomId}`
+              : "/study-rooms"
+          }
+          className="col-span-2 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white sm:col-span-1"
+        >
+          <span className="text-slate-400">
+            ▦
+          </span>
+
+          {activeRoomId
+            ? "Open room"
+            : "Choose room"}
+        </Link>
       </div>
     </section>
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the upcoming expanded dashboard view.
 function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   return (
     <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
@@ -433,7 +447,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
               <div className="flex items-center gap-3">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-[#c9ad50]"
+                    className="h-full rounded-full bg-[#756b4d]"
                     style={{
                       width: `${item.percent}%`,
                     }}
@@ -466,6 +480,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the upcoming expanded dashboard view.
 function RecentActivityCard({ items }: { items: ActivityItem[] }) {
   return (
     <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
@@ -492,7 +507,7 @@ function RecentActivityCard({ items }: { items: ActivityItem[] }) {
             <Link
               key={item.id}
               href={item.href}
-              className="flex items-center gap-3 px-3 py-3 transition hover:bg-white/[0.04]"
+              className="flex items-center gap-3 px-3 py-3 transition hover:bg-white/[0.028]"
             >
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-base">
                 {item.icon}
@@ -630,7 +645,7 @@ function DashboardRightPanel({
             <Link
               key={`mobile-${item.title}`}
               href={item.href}
-              className="flex items-center gap-3 rounded-xl px-2 py-3 transition active:bg-white/[0.05]"
+              className="flex items-center gap-3 rounded-xl px-2 py-3 transition active:bg-white/[0.035]"
             >
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 text-[10px] font-black text-slate-400">
                 {index + 1}
@@ -663,7 +678,7 @@ function DashboardRightPanel({
             <Link
               key={item.title}
               href={item.href}
-              className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-white/[0.04]"
+              className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-white/[0.028]"
             >
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 text-[10px] font-black text-slate-400">
                 {index + 1}
@@ -747,7 +762,7 @@ function DashboardRightPanel({
 
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-[#c9ad50]"
+                className="h-full rounded-full bg-[#756b4d]"
                 style={{
                   width: `${displayScore}%`,
                 }}
@@ -775,7 +790,7 @@ function DashboardRightPanel({
 
         <div className="border-t border-white/[0.06] px-4 py-3">
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 shrink-0 text-xs text-[#c9ad50]">✦</span>
+            <span className="mt-0.5 shrink-0 text-xs text-[#b9a763]">S</span>
 
             <p className="line-clamp-2 text-xs leading-5 text-slate-400">
               {aiRecommendation}
@@ -799,7 +814,7 @@ function DashboardRightPanel({
               <Link
                 key={pdf.id}
                 href={roomHref}
-                className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.04]"
+                className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-white/[0.028]"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-red-400/10 text-base">
                   📄
@@ -840,7 +855,7 @@ export default function DashboardPage() {
   const [greetingEmoji, setGreetingEmoji] = useState("👋");
   const [learningInsights, setLearningInsights] =
     useState<LearningInsights | null>(null);
-  const [learningInsightsError, setLearningInsightsError] = useState("");
+  const [, setLearningInsightsError] = useState("");
 
   const [smartDashboard, setSmartDashboard] =
     useState<SmartDashboardResponse | null>(null);
@@ -944,7 +959,9 @@ export default function DashboardPage() {
       }
     }
 
-    void loadSmartDashboard();
+    queueMicrotask(
+      () => void loadSmartDashboard(),
+    );
 
     window.addEventListener("studysnap:dashboard-refresh", refreshDashboard);
 
@@ -1036,13 +1053,15 @@ export default function DashboardPage() {
 
     const payload = parseJwt(token);
 
-    if (payload) {
-      setFullName(payload.full_name || payload.sub?.split("@")[0] || "Student");
-    } else {
-      setFullName("Student");
-    }
+    const initialName =
+      payload?.full_name ||
+      payload?.sub?.split("@")[0] ||
+      "Student";
 
-    setChecked(true);
+    queueMicrotask(() => {
+      setFullName(initialName);
+      setChecked(true);
+    });
 
     async function loadCurrentProfile() {
       try {
@@ -1098,10 +1117,12 @@ export default function DashboardPage() {
     const roomId = activeRoomId;
 
     if (roomId === null) {
-      setPdfs([]);
-      setNotes([]);
-      setFlashcards([]);
-      setQuizCount(0);
+      queueMicrotask(() => {
+        setPdfs([]);
+        setNotes([]);
+        setFlashcards([]);
+        setQuizCount(0);
+      });
       return;
     }
 
@@ -1137,12 +1158,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!rooms.length) {
-      setAllStats({
-        pdfs: 0,
-        notes: 0,
-        flashcards: 0,
-        quizzes: 0,
-        rooms: 0,
+      queueMicrotask(() => {
+        setAllStats({
+          pdfs: 0,
+          notes: 0,
+          flashcards: 0,
+          quizzes: 0,
+          rooms: 0,
+        });
       });
       return;
     }
@@ -1213,6 +1236,7 @@ export default function DashboardPage() {
     );
   }, [flashcards.length, notes.length, pdfs.length, quizCount]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Prepared for the retained expanded dashboard view.
   const continueItems = useMemo<ContinueItem[]>(() => {
     if (!activeRoomId) return [];
 
@@ -1250,6 +1274,7 @@ export default function DashboardPage() {
     return [...pdfItems, ...noteItems, ...flashcardItems].slice(0, 3);
   }, [activeRoom, activeRoomId, flashcards, notes, pdfs]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Prepared for the retained expanded dashboard view.
   const recentActivityItems = useMemo<ActivityItem[]>(() => {
     if (!activeRoomId) {
       return [];
@@ -1351,6 +1376,8 @@ export default function DashboardPage() {
   }
 
   const streak = insights?.study_streak || 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for expanded dashboard navigation.
   const roomHref = activeRoomId
     ? `/study-rooms/${activeRoomId}`
     : "/study-rooms";

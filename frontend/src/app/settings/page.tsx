@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- This page renders authenticated avatar blobs and third-party integration icons that are not suitable for Next Image optimization. */
+
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -176,22 +178,6 @@ const greetingEmojiOptions = [
   "",
 ];
 
-const connectedAppLabels: Record<string, string> = {
-  google_drive: "Google Drive",
-  google_docs: "Google Docs",
-  icloud: "iCloud",
-  onedrive: "OneDrive",
-  dropbox: "Dropbox",
-};
-
-const autoImportLabels: Record<string, string> = {
-  drive_pdfs: "Auto-import PDFs from Drive",
-  google_docs: "Auto-import Google Docs",
-  icloud_notes: "Auto-import iCloud notes",
-  flashcards_folder: "Auto-import Concept Cards folder",
-  sync_every_24_hours: "Sync every 24 hours",
-};
-
 function getOnboardingProfile(): Partial<OnboardingProfile> {
   try {
     const raw = localStorage.getItem(ONBOARDING_STORAGE_KEY);
@@ -298,29 +284,6 @@ const settingsTabs: {
     description: "Sessions and device controls",
   },
 ];
-
-function formatSyncStatus(value?: string | null) {
-  if (!value) return "Never synced";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Never synced";
-
-  return `Last synced ${date.toLocaleDateString()}`;
-}
-
-function formatSessionDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "Unknown";
-
-  return date.toLocaleString();
-}
-
-function getSessionStatus(session: UserSession) {
-  if (session.revoked_at) return "Signed out";
-  if (session.is_current) return "Current device";
-  return "Active";
-}
 
 function formatDriveFileDate(value?: string | null) {
   if (!value) return "Modified date unavailable";
@@ -473,7 +436,9 @@ export default function SettingsPage() {
       params.get("focus");
 
     if (requestedTab === "profile") {
-      setActiveSettingsTab("profile");
+      queueMicrotask(
+        () => setActiveSettingsTab("profile"),
+      );
     }
 
     if (requestedFocus !== "account") {
@@ -501,13 +466,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!account) return;
 
-    setProfileEmojiDraft(
-      account.greeting_emoji ?? ""
-    );
-  }, [
-    account?.id,
-    account?.greeting_emoji,
-  ]);
+    queueMicrotask(() => {
+      setProfileEmojiDraft(
+        account.greeting_emoji ?? ""
+      );
+    });
+  }, [account]);
 
   useEffect(() => {
     if (!ready) return;
@@ -574,6 +538,11 @@ export default function SettingsPage() {
     return () => {
       cancelled = true;
     };
+
+    // This bootstrap intentionally runs once when authentication becomes ready.
+    // The loader functions are declared inside the page and should not restart
+    // the entire settings bootstrap after each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
   const profileSummary = useMemo(() => {
@@ -700,19 +669,6 @@ export default function SettingsPage() {
         [key]: !value,
       },
       "AI memory preference saved."
-    );
-  }
-
-  function toggleAutoImport(ruleKey: string) {
-    saveSettings(
-      {
-        ...settings,
-        autoImportRules: {
-          ...settings.autoImportRules,
-          [ruleKey]: !settings.autoImportRules[ruleKey],
-        },
-      },
-      "Auto-import rule saved."
     );
   }
 

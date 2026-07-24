@@ -122,7 +122,6 @@ export default function ProjectDashboardOverview({
   continueItems,
   quickActions,
   onAskAI,
-  onUploadPDF,
   onViewAll,
 }: ProjectDashboardOverviewProps) {
   const safeProgress = Math.max(0, Math.min(100, progress));
