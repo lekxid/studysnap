@@ -466,7 +466,12 @@ export default function CentralActionBar({
   }, [preferredStudyRoomId]);
 
   useEffect(() => {
-    setMounted(true);
+    const timer = window.setTimeout(
+      () => setMounted(true),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {

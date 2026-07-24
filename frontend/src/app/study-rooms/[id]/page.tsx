@@ -197,11 +197,6 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    setResumeRoomId(null);
-    setActiveRoomTab("overview");
-    setLastOpenedRoomItem(null);
-    setSelectedUniversalMaterial(null);
-
     const allowedTabs: RoomTab[] = [
       "overview",
       "materials",
@@ -213,16 +208,24 @@ export default function StudyRoomDetailPage() {
     ];
 
     const savedTab = window.localStorage.getItem(
-      `studysnap:room:${studyRoomId}:last-tab`
+      `studysnap:room:${studyRoomId}:last-tab`,
     );
 
-    if (savedTab && allowedTabs.includes(savedTab as RoomTab)) {
-      setActiveRoomTab(savedTab as RoomTab);
-    }
+    const nextTab =
+      savedTab &&
+      allowedTabs.includes(savedTab as RoomTab)
+        ? (savedTab as RoomTab)
+        : "overview";
 
     const savedItem = window.localStorage.getItem(
-      `studysnap:room:${studyRoomId}:last-item`
+      `studysnap:room:${studyRoomId}:last-item`,
     );
+
+    let nextItem: {
+      type: "pdf" | "note";
+      id: number;
+      title: string;
+    } | null = null;
 
     if (savedItem) {
       try {
@@ -237,20 +240,27 @@ export default function StudyRoomDetailPage() {
           typeof parsed.id === "number" &&
           typeof parsed.title === "string"
         ) {
-          setLastOpenedRoomItem({
+          nextItem = {
             type: parsed.type,
             id: parsed.id,
             title: parsed.title,
-          });
+          };
         }
       } catch {
         window.localStorage.removeItem(
-          `studysnap:room:${studyRoomId}:last-item`
+          `studysnap:room:${studyRoomId}:last-item`,
         );
       }
     }
 
-    setResumeRoomId(studyRoomId);
+    const timer = window.setTimeout(() => {
+      setActiveRoomTab(nextTab);
+      setLastOpenedRoomItem(nextItem);
+      setSelectedUniversalMaterial(null);
+      setResumeRoomId(studyRoomId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [studyRoomId]);
 
   useEffect(() => {
@@ -395,75 +405,76 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    const parsedMaterialId = Number(
-      requestedMaterialId
-    );
+    const parsedMaterialId = Number(requestedMaterialId);
 
     const hasRequestedMaterial =
       requestedMaterialId !== null &&
       Number.isFinite(parsedMaterialId) &&
       parsedMaterialId > 0;
 
-    if (requestedTab === "together") {
-      setActiveRoomTab("together");
+    let updateTimer: number | undefined;
+    let scrollTimer: number | undefined;
 
-      const timer = window.setTimeout(() => {
+    if (requestedTab === "together") {
+      updateTimer = window.setTimeout(
+        () => setActiveRoomTab("together"),
+        0,
+      );
+
+      scrollTimer = window.setTimeout(() => {
         studyTogetherSectionRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
       }, 180);
+    } else if (hasRequestedMaterial) {
+      updateTimer = window.setTimeout(() => {
+        setSelectedUniversalMaterial({
+          id: parsedMaterialId,
+          name:
+            requestedMaterialName?.trim() ||
+            `Material ${parsedMaterialId}`,
+        });
+        setActiveRoomTab("materials");
+      }, 0);
 
-      return () => {
-        window.clearTimeout(timer);
-      };
-    }
-
-    if (hasRequestedMaterial) {
-      setSelectedUniversalMaterial({
-        id: parsedMaterialId,
-        name:
-          requestedMaterialName?.trim() ||
-          `Material ${parsedMaterialId}`,
-      });
-
-      setActiveRoomTab("materials");
-
-      const timer = window.setTimeout(() => {
+      scrollTimer = window.setTimeout(() => {
         materialSectionRef.current?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
       }, 180);
+    } else if (requestedTab === "materials") {
+      updateTimer = window.setTimeout(
+        () => setActiveRoomTab("materials"),
+        0,
+      );
+    } else if (requestedTab === "ai") {
+      updateTimer = window.setTimeout(() => {
+        setActiveRoomTab("ai");
+        setAiComposerFocusToken(
+          (current) => current + 1,
+        );
+      }, 0);
 
-      return () => {
-        window.clearTimeout(timer);
-      };
-    }
-
-    if (requestedTab === "materials") {
-      setActiveRoomTab("materials");
+      scrollTimer = window.setTimeout(() => {
+        aiSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 150);
+    } else {
       return;
     }
-
-    if (requestedTab !== "ai") {
-      return;
-    }
-
-    setActiveRoomTab("ai");
-    setAiComposerFocusToken(
-      (current) => current + 1
-    );
-
-    const timer = window.setTimeout(() => {
-      aiSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 150);
 
     return () => {
-      window.clearTimeout(timer);
+      if (updateTimer !== undefined) {
+        window.clearTimeout(updateTimer);
+      }
+
+      if (scrollTimer !== undefined) {
+        window.clearTimeout(scrollTimer);
+      }
     };
   }, [
     requestedMaterialId,
@@ -1032,7 +1043,12 @@ export default function StudyRoomDetailPage() {
   useEffect(() => {
     if (!ready) return;
 
-    void loadRoom();
+    const timer = window.setTimeout(
+      () => void loadRoom(),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, [ready, studyRoomId]);
 
   useEffect(() => {
@@ -1043,11 +1059,15 @@ export default function StudyRoomDetailPage() {
       return;
     }
 
-    void loadPdfs();
-    void loadStudyMaterials();
-    void loadNotes();
-    void loadPractice();
-    void loadRoomFoundation();
+    const timer = window.setTimeout(() => {
+      void loadPdfs();
+      void loadStudyMaterials();
+      void loadNotes();
+      void loadPractice();
+      void loadRoomFoundation();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [ready, room?.id, studyRoomId]);
 
   // Unified General AI room redirect

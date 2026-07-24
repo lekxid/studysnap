@@ -1024,9 +1024,11 @@ export default function GeneralAIChat({
   }
 
   useEffect(() => {
-    setHistoryOpen(false);
-    setStudyToolsOpen(false);
-    setAiToolsOpen(false);
+    queueMicrotask(() => {
+      setHistoryOpen(false);
+      setStudyToolsOpen(false);
+      setAiToolsOpen(false);
+    });
 
     window.localStorage.setItem(
       "studysnap:general-ai-history-drawer-v2",
