@@ -14,6 +14,7 @@ from app.services.rooms.access import (
     ROOM_ROLES,
     ensure_room_owner_membership,
 )
+from app.utils.utc import utc_now_naive
 
 
 
@@ -125,7 +126,7 @@ def ensure_room_foundation(db: Session, room: StudyRoom, user_id: int) -> None:
     )
 
     if current_member:
-        current_member.last_active_at = datetime.utcnow()
+        current_member.last_active_at = utc_now_naive()
         changed = True
 
     for bucket_type in DEFAULT_MEMORY_BUCKETS:

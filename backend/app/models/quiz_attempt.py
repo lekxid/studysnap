@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime
 from datetime import datetime
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class QuizAttempt(Base):
@@ -13,4 +14,4 @@ class QuizAttempt(Base):
     score = Column(Integer)
     total = Column(Integer)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)

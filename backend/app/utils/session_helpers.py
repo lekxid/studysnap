@@ -5,6 +5,7 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.models.user_session import UserSession
+from app.utils.utc import utc_now_naive
 
 
 def create_session_token() -> str:
@@ -79,7 +80,7 @@ def create_user_session(
         operating_system=operating_system,
         ip_address=get_request_ip(request),
         user_agent=user_agent,
-        last_active_at=datetime.utcnow(),
+        last_active_at=utc_now_naive(),
     )
 
     db.add(session)

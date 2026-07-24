@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.room_member import RoomMember
 from app.models.study_room import StudyRoom
+from app.utils.utc import utc_now_naive
 
 
 ROOM_ROLES = [
@@ -75,7 +76,7 @@ def ensure_room_owner_membership(
             user_id=room.owner_id,
             role="owner",
             status="active",
-            last_active_at=datetime.utcnow(),
+            last_active_at=utc_now_naive(),
         )
         db.add(membership)
         changed = True

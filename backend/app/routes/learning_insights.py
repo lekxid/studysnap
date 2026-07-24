@@ -10,6 +10,7 @@ from app.models.learning_event import LearningEvent
 from app.models.study_room import StudyRoom
 from app.models.user import User
 from app.utils.deps import get_current_user
+from app.utils.utc import utc_now_naive
 
 
 router = APIRouter(tags=["Learning Insights"])
@@ -99,7 +100,7 @@ def get_learning_insights(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    now_utc = datetime.utcnow()
+    now_utc = utc_now_naive()
 
     # JavaScript getTimezoneOffset returns minutes between local time and UTC.
     # Example: Toronto during daylight time returns 240.

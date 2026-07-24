@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, Str
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.utils.utc import utc_now_naive
 
 
 class UserSettings(Base):
@@ -43,11 +44,11 @@ class UserSettings(Base):
     last_opened_pdf_id = Column(Integer, nullable=True)
     last_ai_conversation_id = Column(Integer, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive, nullable=False)
     updated_at = Column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False,
     )
 

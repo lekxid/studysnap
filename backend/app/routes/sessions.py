@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.user_session import UserSession
 from app.schemas.user_session import SessionMessageResponse, UserSessionResponse
 from app.utils.deps import get_current_user, oauth2_scheme
+from app.utils.utc import utc_now_naive
 
 router = APIRouter(tags=["Sessions"])
 
@@ -105,7 +106,7 @@ def revoke_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     if session.revoked_at is None:
-        session.revoked_at = datetime.utcnow()
+        session.revoked_at = utc_now_naive()
         db.add(session)
         db.commit()
 
@@ -134,7 +135,7 @@ def revoke_current_session(
     )
 
     if session is not None:
-        session.revoked_at = datetime.utcnow()
+        session.revoked_at = utc_now_naive()
         db.add(session)
         db.commit()
 
@@ -160,7 +161,7 @@ def revoke_other_sessions(
     sessions = query.all()
 
     for session in sessions:
-        session.revoked_at = datetime.utcnow()
+        session.revoked_at = utc_now_naive()
         db.add(session)
 
     db.commit()
@@ -186,7 +187,7 @@ def revoke_all_sessions(
     )
 
     for session in sessions:
-        session.revoked_at = datetime.utcnow()
+        session.revoked_at = utc_now_naive()
         db.add(session)
 
     db.commit()

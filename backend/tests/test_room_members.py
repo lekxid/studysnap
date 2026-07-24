@@ -19,6 +19,7 @@ from app.routes.room_members import (
 from app.routes.study_rooms import (
     router as study_rooms_router,
 )
+from app.utils.utc import utc_now_naive
 
 
 TEST_DATABASE_URL = "sqlite://"
@@ -224,7 +225,7 @@ class RoomMemberAPITests(unittest.TestCase):
                 role=role,
                 status=status,
                 last_active_at=(
-                    datetime.utcnow()
+                    utc_now_naive()
                 ),
             )
 
