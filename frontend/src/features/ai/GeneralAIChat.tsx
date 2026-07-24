@@ -658,23 +658,17 @@ export default function GeneralAIChat({
       params.get("materialName") ?? ""
     ).trim();
 
-    setActiveStudyRoomId(roomId);
-
-    setActiveMaterialId(
-      roomId !== null
-        ? materialId
-        : null
-    );
-
-    setActiveMaterialName(
-      roomId !== null
-        ? materialName
-        : ""
-    );
-
     if (roomId !== null) {
       saveProjectRoomId(roomId);
     }
+
+    const timer = window.setTimeout(() => {
+      setActiveStudyRoomId(roomId);
+      setActiveMaterialId(roomId !== null ? materialId : null);
+      setActiveMaterialName(roomId !== null ? materialName : "");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -688,9 +682,14 @@ export default function GeneralAIChat({
       return;
     }
 
-    setHandoffPrompt(nextPrompt);
+    const timer = window.setTimeout(
+      () => setHandoffPrompt(nextPrompt),
+      0,
+    );
 
     window.sessionStorage.removeItem("studysnap:pending-general-ai-prompt");
+
+    return () => window.clearTimeout(timer);
   }, [initialPrompt]);
 
   const [trails, setTrails] = useState<AIConversation[]>([]);

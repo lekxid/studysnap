@@ -182,15 +182,24 @@ export default function BrainPage() {
   }
 
   useEffect(() => {
-    loadRooms();
-    loadHistory();
+    const timer = window.setTimeout(() => {
+      void loadRooms();
+      void loadHistory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (detectedRoomId !== null) {
-      setSelectedRoomId(detectedRoomId);
-    }
+    if (detectedRoomId === null) return;
+
+    const timer = window.setTimeout(
+      () => setSelectedRoomId(detectedRoomId),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, [detectedRoomId]);
 
   function handleQuestionKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

@@ -1070,10 +1070,6 @@ export default function StudyRoomDetailPage() {
       "overview"
     );
 
-    setActiveRoomTab(
-      "overview"
-    );
-
     const params = new URLSearchParams({
       roomId: String(studyRoomId),
     });

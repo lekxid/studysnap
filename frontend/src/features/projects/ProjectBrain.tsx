@@ -124,7 +124,12 @@ export default function ProjectBrain({ studyRoomId, projectTitle }: Props) {
   }
 
   useEffect(() => {
-    loadHistory();
+    const timer = window.setTimeout(
+      () => void loadHistory(),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyRoomId]);
 

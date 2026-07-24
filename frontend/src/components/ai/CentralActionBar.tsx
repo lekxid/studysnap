@@ -457,9 +457,12 @@ export default function CentralActionBar({
       return;
     }
 
-    setSelectedRoomId(
-      preferredStudyRoomId
+    const timer = window.setTimeout(
+      () => setSelectedRoomId(preferredStudyRoomId),
+      0,
     );
+
+    return () => window.clearTimeout(timer);
   }, [preferredStudyRoomId]);
 
   useEffect(() => {
