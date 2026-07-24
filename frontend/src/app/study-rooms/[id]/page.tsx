@@ -320,8 +320,8 @@ export default function StudyRoomDetailPage() {
   const [loadingPractice, setLoadingPractice] = useState(false);
   const [loadingFoundation, setLoadingFoundation] = useState(false);
 
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [summarizingId, setSummarizingId] = useState<number | null>(null);
+  const [, setDeletingId] = useState<number | null>(null);
+  const [, setSummarizingId] = useState<number | null>(null);
   const [selectedPdfId, setSelectedPdfId] = useState<number | null>(null);
   const [summary, setSummary] = useState("");
   const [summaryTitle, setSummaryTitle] = useState("");
@@ -333,7 +333,7 @@ export default function StudyRoomDetailPage() {
   const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const [projectSearchError, setProjectSearchError] = useState("");
   const [error, setError] = useState("");
-  const [aiComposerFocusToken, setAiComposerFocusToken] =
+  const [, setAiComposerFocusToken] =
     useState(0);
 
   const aiSectionRef = useRef<HTMLDivElement | null>(null);
@@ -735,6 +735,10 @@ export default function StudyRoomDetailPage() {
     });
 
     return items.slice(0, 4);
+
+    // Each generated action intentionally captures the current
+    // room-scoped remember helper.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastOpenedRoomItem, notes, pdfs]);
 
   async function loadRoom() {
@@ -1049,6 +1053,10 @@ export default function StudyRoomDetailPage() {
     );
 
     return () => window.clearTimeout(timer);
+
+    // Room identity loading must run only when authentication
+    // becomes ready or the route room changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, studyRoomId]);
 
   useEffect(() => {
@@ -1068,6 +1076,10 @@ export default function StudyRoomDetailPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
+
+    // Connected resources refresh only after the resolved room
+    // changes. Loader function identities must not restart it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, room?.id, studyRoomId]);
 
   // Unified General AI room redirect
