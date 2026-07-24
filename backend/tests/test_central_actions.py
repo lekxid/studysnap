@@ -44,8 +44,8 @@ TestingSessionLocal = sessionmaker(
     bind=engine,
 )
 
-test_app = FastAPI()
-test_app.include_router(
+api_app = FastAPI()
+api_app.include_router(
     router,
     prefix="/api/actions",
 )
@@ -64,15 +64,15 @@ def override_current_user():
     return SimpleNamespace(id=1)
 
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_db
 ] = override_get_db
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_current_user
 ] = override_current_user
 
-client = TestClient(test_app)
+client = TestClient(api_app)
 
 
 @pytest.fixture(autouse=True)

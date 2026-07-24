@@ -66,27 +66,27 @@ def override_get_current_user():
     )
 
 
-test_app = FastAPI()
+api_app = FastAPI()
 
-test_app.include_router(
+api_app.include_router(
     file_brain_router,
     prefix="/api/file-brain",
 )
 
-test_app.include_router(
+api_app.include_router(
     upload_router,
     prefix="/api/file-brain",
 )
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_db
 ] = override_get_db
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_current_user
 ] = override_get_current_user
 
-client = TestClient(test_app)
+client = TestClient(api_app)
 
 
 @pytest.fixture(autouse=True)

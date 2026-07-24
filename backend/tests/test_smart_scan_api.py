@@ -53,22 +53,22 @@ def override_get_current_user():
     )
 
 
-test_app = FastAPI()
+api_app = FastAPI()
 
-test_app.include_router(
+api_app.include_router(
     router,
     prefix="/api/smart-scan",
 )
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_db
 ] = override_get_db
 
-test_app.dependency_overrides[
+api_app.dependency_overrides[
     get_current_user
 ] = override_get_current_user
 
-client = TestClient(test_app)
+client = TestClient(api_app)
 
 
 def image_bytes(

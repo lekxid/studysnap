@@ -44,11 +44,11 @@ def override_get_current_user():
     return SimpleNamespace(id=current_user_state["id"])
 
 
-test_app = FastAPI()
-test_app.include_router(router, prefix="/api/artifacts")
-test_app.dependency_overrides[get_db] = override_get_db
-test_app.dependency_overrides[get_current_user] = override_get_current_user
-client = TestClient(test_app)
+api_app = FastAPI()
+api_app.include_router(router, prefix="/api/artifacts")
+api_app.dependency_overrides[get_db] = override_get_db
+api_app.dependency_overrides[get_current_user] = override_get_current_user
+client = TestClient(api_app)
 
 
 @pytest.fixture(autouse=True)

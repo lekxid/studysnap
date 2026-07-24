@@ -51,24 +51,24 @@ def override_get_db():
         db.close()
 
 
-test_app = FastAPI()
+api_app = FastAPI()
 
-test_app.include_router(
+api_app.include_router(
     auth_router,
     prefix="/api/auth",
 )
 
-test_app.include_router(
+api_app.include_router(
     study_rooms_router,
     prefix="/api/study-rooms",
 )
 
-test_app.include_router(
+api_app.include_router(
     ai_router,
     prefix="/api/ai",
 )
 
-test_app.dependency_overrides[get_db] = (
+api_app.dependency_overrides[get_db] = (
     override_get_db
 )
 
@@ -82,13 +82,13 @@ class RoomAIAccessTests(unittest.TestCase):
         )
         cls.welcome_email_patcher.start()
 
-        cls.client = TestClient(test_app)
+        cls.client = TestClient(api_app)
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
         cls.welcome_email_patcher.stop()
-        test_app.dependency_overrides.clear()
+        api_app.dependency_overrides.clear()
         test_engine.dispose()
 
     def setUp(self):

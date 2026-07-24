@@ -61,24 +61,24 @@ def override_get_db():
         db.close()
 
 
-test_app = FastAPI()
+api_app = FastAPI()
 
-test_app.include_router(
+api_app.include_router(
     auth_router,
     prefix="/api/auth",
 )
 
-test_app.include_router(
+api_app.include_router(
     study_rooms_router,
     prefix="/api/study-rooms",
 )
 
-test_app.include_router(
+api_app.include_router(
     room_realtime_router,
     prefix="/api/room-realtime",
 )
 
-test_app.dependency_overrides[get_db] = (
+api_app.dependency_overrides[get_db] = (
     override_get_db
 )
 
@@ -89,14 +89,14 @@ class RoomRealtimeTests(
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(
-            test_app
+            api_app
         )
 
     @classmethod
     def tearDownClass(cls):
         cls.client.close()
 
-        test_app.dependency_overrides.clear()
+        api_app.dependency_overrides.clear()
 
         test_engine.dispose()
 
