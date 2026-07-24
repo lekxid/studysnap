@@ -16,7 +16,12 @@ export default function useRequireAuth() {
       return;
     }
 
-    setChecked(true);
+    const timer = window.setTimeout(
+      () => setChecked(true),
+      0,
+    );
+
+    return () => window.clearTimeout(timer);
   }, [router]);
 
   return checked;

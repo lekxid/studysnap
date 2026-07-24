@@ -30,18 +30,16 @@ export default function ResetPasswordPage() {
     useState("");
 
   useEffect(() => {
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    setToken(
-      params.get("token") || ""
+    const params = new URLSearchParams(
+      window.location.search,
     );
 
-    setEmail(
-      params.get("email") || ""
-    );
+    const timer = window.setTimeout(() => {
+      setToken(params.get("token") || "");
+      setEmail(params.get("email") || "");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function handleSubmit(

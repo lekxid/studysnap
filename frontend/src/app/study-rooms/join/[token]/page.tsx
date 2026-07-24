@@ -58,8 +58,14 @@ export default function RoomInviteLinkPage() {
     useState(false);
 
   useEffect(() => {
-    setSignedIn(Boolean(getToken()));
-    setAuthReady(true);
+    const isSignedIn = Boolean(getToken());
+
+    const timer = window.setTimeout(() => {
+      setSignedIn(isSignedIn);
+      setAuthReady(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const returnPath = useMemo(

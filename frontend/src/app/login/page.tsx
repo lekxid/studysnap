@@ -8,6 +8,18 @@ import {
 
 import AuthShell from "@/components/auth/AuthShell";
 
+type AuthPayload = {
+  access_token?: unknown;
+  token?: unknown;
+  accessToken?: unknown;
+  detail?: unknown;
+  message?: unknown;
+};
+
+function readText(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 export default function LoginPage() {
   const [nextPath, setNextPath] =
     useState<string | null>(null);
@@ -23,46 +35,46 @@ export default function LoginPage() {
     useState("");
 
   useEffect(() => {
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    const requestedNext =
-      params.get("next");
-
-    setSessionExpired(
-      params.get("expired") === "1"
+    const params = new URLSearchParams(
+      window.location.search,
     );
 
-    const emailFromLink =
-      params.get("email");
+    const requestedNext = params.get("next");
+    const emailFromLink = params.get("email");
 
-    if (emailFromLink) {
-      setEmail(emailFromLink);
-    }
+    let nextNotice = "";
 
     if (params.get("welcome") === "1") {
-      setNotice(
-        "Welcome to StudySnap. Your email is ready—enter your password to open your workspace."
-      );
+      nextNotice =
+        "Welcome to StudySnap. Your email is ready—enter your password to open your workspace.";
     } else if (params.get("reset") === "1") {
-      setNotice(
-        "Your password was changed successfully. Sign in with your new password."
-      );
+      nextNotice =
+        "Your password was changed successfully. Sign in with your new password.";
     } else if (params.get("created") === "1") {
-      setNotice(
-        "Your account was created. Check your email for the StudySnap welcome and getting-started guide."
-      );
+      nextNotice =
+        "Your account was created. Check your email for the StudySnap welcome and getting-started guide.";
     }
 
-    if (
-      requestedNext &&
-      requestedNext.startsWith("/") &&
-      !requestedNext.startsWith("//")
-    ) {
-      setNextPath(requestedNext);
-    }
+    const timer = window.setTimeout(() => {
+      setSessionExpired(
+        params.get("expired") === "1",
+      );
+
+      if (emailFromLink) {
+        setEmail(emailFromLink);
+      }
+
+      setNotice(nextNotice);
+
+      if (
+        requestedNext?.startsWith("/") &&
+        !requestedNext.startsWith("//")
+      ) {
+        setNextPath(requestedNext);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -83,16 +95,22 @@ export default function LoginPage() {
       });
 
       const raw = await response.text();
-      let data: any = null;
+      let data: AuthPayload | null = null;
 
       try {
-        data = raw ? JSON.parse(raw) : null;
+        data = raw
+          ? (JSON.parse(raw) as AuthPayload)
+          : null;
       } catch {
         data = { message: raw || "Unexpected server response." };
       }
 
       if (!response.ok) {
-        throw new Error(data?.detail || data?.message || "Login failed.");
+        throw new Error(
+          readText(data?.detail) ||
+            readText(data?.message) ||
+            "Login failed.",
+        );
       }
 
       const accessTokenCandidates = [
@@ -103,15 +121,15 @@ export default function LoginPage() {
 
       const accessToken =
         accessTokenCandidates.find(
-          (value) =>
+          (value): value is string =>
             typeof value === "string" &&
             value.trim().length > 0
         )?.trim() || "";
 
       if (!accessToken) {
         throw new Error(
-          data?.detail ||
-            data?.message ||
+          readText(data?.detail) ||
+            readText(data?.message) ||
             "Login response did not include an access token."
         );
       }
@@ -133,8 +151,12 @@ export default function LoginPage() {
       window.location.replace(
         nextPath || "/dashboard"
       );
-    } catch (err: any) {
-      setError(err?.message || "Something went wrong.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong.",
+      );
     } finally {
       setLoading(false);
     }
