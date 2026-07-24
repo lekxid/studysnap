@@ -10,7 +10,6 @@ import {
 
 import AppShell from "@/components/AppShell";
 import PDFUploader from "@/components/pdf/PDFUploader";
-import CompactProjectAI from "@/features/projects/CompactProjectAI";
 import ProjectWorkspace, { type RoomTab } from "@/features/projects/ProjectWorkspace";
 import RoomMaterialsTab from "@/features/projects/RoomMaterialsTab";
 import StudyTogetherWorkspace from "@/features/projects/StudyTogetherWorkspace";
@@ -1546,14 +1545,19 @@ export default function StudyRoomDetailPage() {
 
   function renderAiTab() {
     return (
-      <div ref={aiSectionRef} className="scroll-mt-8">
-        <CompactProjectAI
-          studyRoomId={studyRoomId}
-          projectTitle={roomTitle}
-          focusComposerToken={aiComposerFocusToken}
-          selectedMaterial={selectedUniversalMaterial}
-        />
-      </div>
+      <section className="rounded-[1.5rem] border border-[#c9ad50]/20 bg-[#0f151b] p-6 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-lg font-black text-[#e3d386]">
+          S
+        </div>
+
+        <h2 className="mt-4 text-xl font-black text-white">
+          Opening StudySnap AI
+        </h2>
+
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-400">
+          Your Study Room and selected material are being connected automatically.
+        </p>
+      </section>
     );
   }
 
