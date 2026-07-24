@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class QuizCreate(BaseModel):
@@ -12,8 +12,7 @@ class QuizResponse(BaseModel):
     study_room_id: int
     owner_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizQuestionResponse(BaseModel):
@@ -27,8 +26,7 @@ class QuizQuestionResponse(BaseModel):
     correct_answer: str
     explanation: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GenerateQuizRequest(BaseModel):

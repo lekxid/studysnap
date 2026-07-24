@@ -90,7 +90,7 @@ def clean_required_text(
 
     if not cleaned:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{field_name} cannot be empty",
         )
 
