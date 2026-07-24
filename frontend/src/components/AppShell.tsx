@@ -708,7 +708,7 @@ export default function AppShell({
     }
 
     if (item.href === "/ai-tutor" && activeProjectRoomId !== null) {
-      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+      return `/general-ai?roomId=${activeProjectRoomId}`;
     }
 
     return item.href;
@@ -762,7 +762,7 @@ export default function AppShell({
           {
             label: "AI Tutor",
             icon: "S",
-            href: `/study-rooms/${activeProjectRoomId}?tab=ai`,
+            href: `/general-ai?roomId=${activeProjectRoomId}`,
           },
           {
             label: "Practice",
@@ -787,7 +787,7 @@ export default function AppShell({
     }
 
     if (href === "/ai-tutor") {
-      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+      return `/general-ai?roomId=${activeProjectRoomId}`;
     }
 
     return `${href}?roomId=${activeProjectRoomId}`;
@@ -799,7 +799,7 @@ export default function AppShell({
     }
 
     if (item.href === "/general-ai" && activeProjectRoomId !== null) {
-      return `/study-rooms/${activeProjectRoomId}?tab=ai`;
+      return `/general-ai?roomId=${activeProjectRoomId}`;
     }
 
     return item.href;
@@ -894,7 +894,7 @@ export default function AppShell({
               }
 
               window.location.assign(
-                `/study-rooms/${activeProjectRoomId}?tab=ai`,
+                `/general-ai?roomId=${activeProjectRoomId}`,
               );
 
               return;

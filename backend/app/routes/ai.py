@@ -814,6 +814,7 @@ def build_conversation_history_context(
                 conversation_id=conversation.id,
                 study_room_id=conversation.study_room_id,
                 owner_id=room.owner_id,
+                learner_user_id=requesting_user_id,
                 question=question,
                 focused_material_id=focused_material_id,
             )
@@ -867,10 +868,26 @@ def build_conversation_message_prompt(
 
     elif conversation.surface == "general_ai":
         identity = "StudySnap General AI"
-        boundary = (
-            "This is a general conversation. Do not claim to use "
-            "room materials unless room context is actually present."
-        )
+
+        if conversation.study_room_id is not None:
+            boundary = (
+                "This General AI conversation is connected to a "
+                "Study Room. Use the supplied selected material, "
+                "supporting uploads, notes, PDFs, concept cards, "
+                "saved quizzes, Brain memory, recent practice, "
+                "mistakes, confidence, and quiz results when they "
+                "are relevant. Treat a focused selected material "
+                "as the primary source. Keep personal progress "
+                "separate from shared room source ownership. "
+                "Do not invent evidence that is not supplied."
+            )
+        else:
+            boundary = (
+                "This is a global General AI conversation. Do not "
+                "claim to use Study Room materials, progress, or "
+                "learning evidence unless that context is actually "
+                "present."
+            )
 
     elif conversation.surface == "notes_ai":
         identity = "StudySnap Notes AI"

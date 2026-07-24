@@ -20,6 +20,7 @@ import {
 type Props = {
   messageId: number;
   messageContent?: string | null;
+  preferredStudyRoomId?: number | null;
 };
 
 type RoomOption = {
@@ -342,6 +343,7 @@ function BackIcon() {
 export default function CentralActionBar({
   messageId,
   messageContent,
+  preferredStudyRoomId = null,
 }: Props) {
   const anchorRef =
     useRef<HTMLSpanElement | null>(
@@ -445,6 +447,20 @@ export default function CentralActionBar({
     setError("");
     setNotice("");
   }
+
+  useEffect(() => {
+    if (
+      typeof preferredStudyRoomId !== "number" ||
+      Number.isNaN(preferredStudyRoomId) ||
+      preferredStudyRoomId <= 0
+    ) {
+      return;
+    }
+
+    setSelectedRoomId(
+      preferredStudyRoomId
+    );
+  }, [preferredStudyRoomId]);
 
   useEffect(() => {
     setMounted(true);

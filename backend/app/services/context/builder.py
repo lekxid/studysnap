@@ -9,6 +9,9 @@ from app.services.context.providers.conversation import (
 from app.services.context.providers.flashcards import (
     build_flashcards_context,
 )
+from app.services.context.providers.learning_progress import (
+    build_learning_progress_context,
+)
 from app.services.context.providers.materials import (
     build_materials_context,
 )
@@ -30,6 +33,7 @@ def build_study_room_context(
     owner_id: int,
     question: str = "",
     focused_material_id: int | None = None,
+    learner_user_id: int | None = None,
 ) -> str:
     """
     Build the connected StudySnap Brain context for a Study Room.
@@ -97,6 +101,18 @@ def build_study_room_context(
         )
     )
 
+    learning_progress_context = (
+        build_learning_progress_context(
+            db=db,
+            study_room_id=study_room_id,
+            learner_user_id=(
+                learner_user_id
+                if learner_user_id is not None
+                else owner_id
+            ),
+        )
+    )
+
     context_parts = []
 
     if conversation_context.strip():
@@ -139,6 +155,12 @@ def build_study_room_context(
         context_parts.append(
             "Study Room learning evidence and concept mastery:\n"
             + brain_memory_context.strip()
+        )
+
+    if learning_progress_context.strip():
+        context_parts.append(
+            "Student recent practice, mistakes, quiz results, and progress:\n"
+            + learning_progress_context.strip()
         )
 
     return (

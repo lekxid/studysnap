@@ -372,7 +372,7 @@ export default function StudyRoomDetailPage() {
     changeRoomTab("ai");
 
     const aiTutorUrl =
-      `/study-rooms/${studyRoomId}?tab=ai`;
+      `/general-ai?roomId=${studyRoomId}`;
 
     router.push(aiTutorUrl);
 
@@ -1054,6 +1054,83 @@ export default function StudyRoomDetailPage() {
   if (!ready) {
     return <div className="min-h-screen bg-[#0b0f14] p-6 text-white">Checking authentication...</div>;
   }
+
+  // Unified General AI room redirect
+  useEffect(() => {
+    if (
+      !ready ||
+      activeRoomTab !== "ai" ||
+      !studyRoomId ||
+      Number.isNaN(studyRoomId)
+    ) {
+      return;
+    }
+
+    saveProjectRoomId(
+      studyRoomId
+    );
+
+    window.localStorage.setItem(
+      `studysnap:room:${studyRoomId}:last-tab`,
+      "overview"
+    );
+
+    setActiveRoomTab(
+      "overview"
+    );
+
+    const params = new URLSearchParams({
+      roomId: String(studyRoomId),
+    });
+
+    if (
+      selectedUniversalMaterial?.id
+    ) {
+      params.set(
+        "materialId",
+        String(
+          selectedUniversalMaterial.id
+        )
+      );
+
+      if (
+        selectedUniversalMaterial.name
+          ?.trim()
+      ) {
+        params.set(
+          "materialName",
+          selectedUniversalMaterial.name
+            .trim()
+        );
+      }
+    }
+
+    window.sessionStorage.setItem(
+      "studysnap:unified-ai-context",
+      JSON.stringify({
+        roomId: studyRoomId,
+        materialId:
+          selectedUniversalMaterial?.id ??
+          null,
+        materialName:
+          selectedUniversalMaterial?.name ??
+          null,
+        openedAt:
+          new Date().toISOString(),
+      })
+    );
+
+    router.push(
+      `/general-ai?${params.toString()}`
+    );
+  }, [
+    activeRoomTab,
+    ready,
+    router,
+    selectedUniversalMaterial,
+    studyRoomId,
+  ]);
+
 
   function renderOverviewTab() {
     return (

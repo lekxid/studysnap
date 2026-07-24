@@ -82,7 +82,15 @@ type DisplayMessage = {
   generatedImage?: boolean;
 };
 
-const suggestions = ["Summarize notes", "Explain a topic", "Create a quiz"];
+const suggestions = [
+  "Explain this material in simple words",
+  "Teach me this material step by step",
+  "Quiz me on this material",
+  "Give me clear examples from this material",
+  "Simplify this material for a beginner",
+  "Give me practice questions on this material",
+  "Summarize the most important points",
+];
 
 function makeId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -91,6 +99,72 @@ function makeId() {
 
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+
+function parseGeneralAIRoomId(
+  value: string | null
+): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  if (
+    !Number.isInteger(parsed) ||
+    parsed <= 0
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function buildGeneralAIUrl({
+  studyRoomId,
+  materialId,
+  materialName,
+}: {
+  studyRoomId: number | null;
+  materialId: number | null;
+  materialName: string;
+}): string {
+  const params = new URLSearchParams();
+
+  if (studyRoomId !== null) {
+    params.set(
+      "roomId",
+      String(studyRoomId)
+    );
+  }
+
+  if (
+    studyRoomId !== null &&
+    materialId !== null
+  ) {
+    params.set(
+      "materialId",
+      String(materialId)
+    );
+  }
+
+  if (
+    studyRoomId !== null &&
+    materialName.trim()
+  ) {
+    params.set(
+      "materialName",
+      materialName.trim()
+    );
+  }
+
+  const query = params.toString();
+
+  return query
+    ? `/general-ai?${query}`
+    : "/general-ai";
+}
+
 
 function cleanStoredMessageContent(message: AIMessage): string {
   const content = message.content.trim();
@@ -546,6 +620,62 @@ export default function GeneralAIChat({
   const router = useRouter();
   const initialPromptHandledRef = useRef(false);
   const [handoffPrompt, setHandoffPrompt] = useState(initialPrompt);
+
+  const [
+    activeStudyRoomId,
+    setActiveStudyRoomId,
+  ] = useState<number | null>(null);
+
+  const [
+    activeMaterialId,
+    setActiveMaterialId,
+  ] = useState<number | null>(null);
+
+  const [
+    activeMaterialName,
+    setActiveMaterialName,
+  ] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(
+      window.location.search
+    );
+
+    const roomId = parseGeneralAIRoomId(
+      params.get("roomId")
+    );
+
+    const materialId =
+      parseGeneralAIRoomId(
+        params.get("materialId")
+      );
+
+    const materialName = (
+      params.get("materialName") ?? ""
+    ).trim();
+
+    setActiveStudyRoomId(roomId);
+
+    setActiveMaterialId(
+      roomId !== null
+        ? materialId
+        : null
+    );
+
+    setActiveMaterialName(
+      roomId !== null
+        ? materialName
+        : ""
+    );
+
+    if (roomId !== null) {
+      saveProjectRoomId(roomId);
+    }
+  }, []);
 
   useEffect(() => {
     const savedPrompt = window.sessionStorage.getItem(
@@ -1777,23 +1907,74 @@ export default function GeneralAIChat({
   }
 
   async function ensureConversation() {
-    if (activeConversationId !== null) {
+    const activeTrailContext =
+      activeTrail as
+        | (AIConversation & {
+            study_room_id?: number | null;
+            context_type?: string | null;
+            context_id?: number | null;
+          })
+        | undefined;
+
+    const conversationMatchesContext =
+      activeStudyRoomId === null
+        ? (
+            activeTrailContext?.study_room_id == null
+          )
+        : activeMaterialId !== null
+          ? (
+              activeTrailContext?.study_room_id ===
+                activeStudyRoomId &&
+              activeTrailContext?.context_type ===
+                "study_material" &&
+              activeTrailContext?.context_id ===
+                activeMaterialId
+            )
+          : (
+              activeTrailContext?.study_room_id ===
+                activeStudyRoomId &&
+              activeTrailContext?.context_type !==
+                "study_material"
+            );
+
+    if (
+      activeConversationId !== null &&
+      conversationMatchesContext
+    ) {
       return activeConversationId;
     }
 
     const conversation = await createAIConversation({
-      studyRoomId: null,
-      title: "New Conversation",
+      studyRoomId: activeStudyRoomId,
+      title:
+        activeMaterialId !== null
+          ? `Study ${
+              activeMaterialName ||
+              "selected material"
+            }`
+          : activeStudyRoomId !== null
+            ? "Room Study Trail"
+            : "New Conversation",
       mode: "general",
       surface: "general_ai",
-      contextType: "general",
-      contextId: null,
+      contextType:
+        activeMaterialId !== null
+          ? "study_material"
+          : activeStudyRoomId !== null
+            ? "study_room"
+            : "general",
+      contextId:
+        activeMaterialId ??
+        activeStudyRoomId,
       forceNew: true,
     });
 
     setTrails((current) => [
       conversation,
-      ...current.filter((trail) => trail.id !== conversation.id),
+      ...current.filter(
+        (trail) =>
+          trail.id !== conversation.id
+      ),
     ]);
 
     setActiveConversationId(
@@ -1807,7 +1988,14 @@ export default function GeneralAIChat({
       window.history.replaceState(
         {},
         "",
-        "/general-ai"
+        buildGeneralAIUrl({
+          studyRoomId:
+            activeStudyRoomId,
+          materialId:
+            activeMaterialId,
+          materialName:
+            activeMaterialName,
+        })
       );
     }
 
@@ -4324,6 +4512,9 @@ export default function GeneralAIChat({
                           <CentralActionBar
                             messageId={message.id}
                             messageContent={displayedContent}
+                            preferredStudyRoomId={
+                              activeStudyRoomId
+                            }
                           />
                         ) : (
                           <span
