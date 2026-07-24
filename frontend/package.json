@@ -6,12 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "lint": "next lint",
-    "postbuild": "node scripts/prepare-standalone.mjs"
+    "lint": "eslint --max-warnings=0 src",
+    "postbuild": "node scripts/prepare-standalone.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:ai-activity": "node scripts/test-ai-activity-panel.cjs"
   },
   "dependencies": {
     "heic2any": "^0.0.4",
-    "next": "16.1.7",
+    "next": "16.2.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",
@@ -19,11 +21,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.1",
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.2.11",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }
