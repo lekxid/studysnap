@@ -155,7 +155,7 @@ export default function QuizzesPage() {
   const [answers, setAnswers] = useState<Record<number, AnswerLetter>>({});
   const [confidenceByQuestion, setConfidenceByQuestion] = useState<Record<number, ConfidenceLevel>>({});
   const [timeByQuestion, setTimeByQuestion] = useState<Record<number, number>>({});
-  const [lastAnswerAt, setLastAnswerAt] = useState(Date.now());
+  const [lastAnswerAt, setLastAnswerAt] = useState(0);
 
   const [submitted, setSubmitted] = useState(false);
   const [attemptSavedMessage, setAttemptSavedMessage] = useState("");

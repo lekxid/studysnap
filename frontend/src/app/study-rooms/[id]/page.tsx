@@ -1050,10 +1050,6 @@ export default function StudyRoomDetailPage() {
     void loadRoomFoundation();
   }, [ready, room?.id, studyRoomId]);
 
-  if (!ready) {
-    return <div className="min-h-screen bg-[#0b0f14] p-6 text-white">Checking authentication...</div>;
-  }
-
   // Unified General AI room redirect
   useEffect(() => {
     if (
@@ -1130,6 +1126,13 @@ export default function StudyRoomDetailPage() {
     studyRoomId,
   ]);
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
+        Checking authentication...
+      </div>
+    );
+  }
 
   function renderOverviewTab() {
     return (
