@@ -62,6 +62,7 @@ type UploadTask = {
   resumableUploadId?: string;
   createdAt: string;
   completedAt?: string;
+  retryAvailable?: boolean;
 };
 
 type FloatingButtonPosition = {
@@ -401,6 +402,7 @@ export default function GlobalTaskDock({
                 let restoredTask: UploadTask =
                   {
                     ...task,
+                    retryAvailable: false,
                   };
 
                 if (
@@ -439,7 +441,10 @@ export default function GlobalTaskDock({
                         restoredFile
                       );
 
-                      return restoredTask;
+                      return {
+                        ...restoredTask,
+                        retryAvailable: true,
+                      };
                     }
                   } catch {
                     // Fall through to the
@@ -1025,6 +1030,7 @@ export default function GlobalTaskDock({
         status: "failed",
         error:
           "Select this file again to retry.",
+        retryAvailable: false,
       });
       return;
     }
@@ -1127,6 +1133,7 @@ export default function GlobalTaskDock({
         message: result.message,
         completedAt:
           new Date().toISOString(),
+        retryAvailable: false,
       });
 
       fileRefs.current.delete(
@@ -1188,6 +1195,8 @@ export default function GlobalTaskDock({
           offline || interrupted
             ? undefined
             : new Date().toISOString(),
+        retryAvailable:
+          fileRefs.current.has(taskId),
       });
     } finally {
       controllers.current.delete(
@@ -1324,6 +1333,8 @@ export default function GlobalTaskDock({
             completedAt: exceedsLimit
               ? new Date().toISOString()
               : undefined,
+            retryAvailable:
+              !exceedsLimit,
           };
         }
       );
@@ -1500,6 +1511,7 @@ export default function GlobalTaskDock({
       message: undefined,
       completedAt:
         new Date().toISOString(),
+      retryAvailable: false,
     });
 
     fileRefs.current.delete(
@@ -1529,6 +1541,7 @@ export default function GlobalTaskDock({
         message: undefined,
         completedAt:
           new Date().toISOString(),
+        retryAvailable: false,
       });
 
       fileRefs.current.delete(
@@ -1549,6 +1562,7 @@ export default function GlobalTaskDock({
         status: "failed",
         error:
           "Select this file again to retry.",
+        retryAvailable: false,
       });
       return;
     }
@@ -1562,6 +1576,7 @@ export default function GlobalTaskDock({
       error: undefined,
       message: undefined,
       completedAt: undefined,
+      retryAvailable: true,
     });
 
     setQueueTick(
@@ -1848,9 +1863,8 @@ export default function GlobalTaskDock({
                   <div className="space-y-2.5">
                     {tasks.map((task) => {
                       const canRetry =
-                        fileRefs.current.has(
-                          task.id
-                        );
+                        task.retryAvailable ===
+                        true;
 
 
                       const canAskAI =
