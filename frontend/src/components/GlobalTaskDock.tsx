@@ -5,6 +5,7 @@ import {
   DragEvent,
   PointerEvent as ReactPointerEvent,
   ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -942,15 +943,24 @@ export default function GlobalTaskDock({
   }, []);
 
   useEffect(() => {
+    const mountedControllers =
+      controllers.current;
+
+    const mountedActiveUploadIds =
+      activeUploadIds.current;
+
+    const mountedCancelledIds =
+      userCancelledIds.current;
+
     return () => {
-      controllers.current.forEach(
+      mountedControllers.forEach(
         (controller) =>
           controller.abort()
       );
 
-      controllers.current.clear();
-      activeUploadIds.current.clear();
-      userCancelledIds.current.clear();
+      mountedControllers.clear();
+      mountedActiveUploadIds.clear();
+      mountedCancelledIds.clear();
     };
   }, []);
 
@@ -985,45 +995,43 @@ export default function GlobalTaskDock({
     [rooms, selectedRoomId]
   );
 
-  function updateTask(
-    taskId: string,
-    patch:
-      | Partial<UploadTask>
-      | ((
-          current: UploadTask
-        ) => Partial<UploadTask>)
-  ) {
-    setTasks((currentTasks) =>
-      currentTasks.map((task) => {
-        if (task.id !== taskId) {
-          return task;
-        }
+  const updateTask = useCallback(
+    (
+      taskId: string,
+      patch:
+        | Partial<UploadTask>
+        | ((
+            current: UploadTask
+          ) => Partial<UploadTask>)
+    ) => {
+      setTasks((currentTasks) =>
+        currentTasks.map((task) => {
+          if (task.id !== taskId) {
+            return task;
+          }
 
-        const nextPatch =
-          typeof patch === "function"
-            ? patch(task)
-            : patch;
+          const nextPatch =
+            typeof patch === "function"
+              ? patch(task)
+              : patch;
 
-        return {
-          ...task,
-          ...nextPatch,
-        };
-      })
-    );
-  }
+          return {
+            ...task,
+            ...nextPatch,
+          };
+        })
+      );
+    },
+    [],
+  );
 
-  async function startUpload(
-    taskId: string,
-    taskOverride?: UploadTask
-  ) {
+  const startUpload = useCallback(
+    async (
+      taskId: string,
+      task: UploadTask
+    ) => {
     const file =
       fileRefs.current.get(taskId);
-
-    const task =
-      taskOverride ??
-      tasks.find(
-        (item) => item.id === taskId
-      );
 
     if (!file) {
       updateTask(taskId, {
@@ -1034,8 +1042,6 @@ export default function GlobalTaskDock({
       });
       return;
     }
-
-    if (!task) return;
 
     if (
       typeof navigator !==
@@ -1215,7 +1221,9 @@ export default function GlobalTaskDock({
         (current) => current + 1
       );
     }
-  }
+    },
+    [updateTask],
+  );
 
   useEffect(() => {
     if (!hydrated || !getToken()) {
@@ -1255,7 +1263,12 @@ export default function GlobalTaskDock({
         task
       );
     });
-  }, [hydrated, queueTick, tasks]);
+  }, [
+    hydrated,
+    queueTick,
+    startUpload,
+    tasks,
+  ]);
 
   async function queueFiles(
     files: File[]

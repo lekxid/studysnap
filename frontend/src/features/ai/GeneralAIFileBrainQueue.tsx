@@ -404,6 +404,12 @@ export function useGeneralAIFileBrainQueue():
   useEffect(() => {
     let cancelled = false;
 
+    const mountedControllers =
+      controllers.current;
+
+    const mountedActiveIds =
+      activeIds.current;
+
     async function hydrateQueue() {
       try {
         const raw =
@@ -569,13 +575,13 @@ export function useGeneralAIFileBrainQueue():
     return () => {
       cancelled = true;
 
-      controllers.current.forEach(
+      mountedControllers.forEach(
         (controller) =>
           controller.abort(),
       );
 
-      controllers.current.clear();
-      activeIds.current.clear();
+      mountedControllers.clear();
+      mountedActiveIds.clear();
     };
   }, []);
 
@@ -900,9 +906,10 @@ export function useGeneralAIFileBrainQueue():
     );
 
 
-  async function beginSession(
-    task: GeneralAIFileBrainTask,
-  ) {
+  const beginSession = useCallback(
+    async (
+      task: GeneralAIFileBrainTask,
+    ) => {
     if (task.status === "failed") {
       return retryFileBrainUpload(
         task.itemId,
@@ -968,13 +975,17 @@ export function useGeneralAIFileBrainQueue():
     }
 
     return existing;
-  }
+    },
+    [],
+  );
 
 
-  async function markTaskReady(
-    task: GeneralAIFileBrainTask,
-    duplicateFound: boolean,
-  ) {
+
+  const markTaskReady = useCallback(
+    async (
+      task: GeneralAIFileBrainTask,
+      duplicateFound: boolean,
+    ) => {
     fileRefs.current.delete(
       task.localId,
     );
@@ -1029,12 +1040,16 @@ export function useGeneralAIFileBrainQueue():
           : item
       );
     });
-  }
+    },
+    [],
+  );
 
 
-  async function startTask(
-    localId: string,
-  ) {
+
+  const startTask = useCallback(
+    async (
+      localId: string,
+    ) => {
     const task =
       tasksRef.current.find(
         (item) =>
@@ -1430,7 +1445,10 @@ export function useGeneralAIFileBrainQueue():
           current + 1,
       );
     }
-  }
+    },
+    [beginSession, markTaskReady, updateTask],
+  );
+
 
 
   useEffect(() => {
@@ -1479,6 +1497,7 @@ export function useGeneralAIFileBrainQueue():
   }, [
     hydrated,
     queueTick,
+    startTask,
     tasks,
   ]);
 

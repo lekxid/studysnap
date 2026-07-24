@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { universalSearch, type UniversalSearchResult } from "@/lib/api";
 
@@ -176,6 +181,16 @@ export default function CommandBar() {
     return filteredCommands;
   }, [filteredCommands, liveResults]);
 
+  const runItem = useCallback(
+    (item: CommandBarItem) => {
+      setOpen(false);
+      setQuery("");
+      setSelectedIndex(0);
+      router.push(item.href);
+    },
+    [router],
+  );
+
   useEffect(() => {
     queueMicrotask(
       () => setSelectedIndex(0),
@@ -225,7 +240,7 @@ export default function CommandBar() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [displayItems, open, selectedIndex]);
+  }, [displayItems, open, runItem, selectedIndex]);
 
   function getItemTitle(item: CommandBarItem) {
     return item.kind === "command" ? item.label : item.title;
@@ -237,13 +252,6 @@ export default function CommandBar() {
 
   function getItemIcon(item: CommandBarItem) {
     return item.kind === "command" ? item.icon : searchIcons[item.type];
-  }
-
-  function runItem(item: CommandBarItem) {
-    setOpen(false);
-    setQuery("");
-    setSelectedIndex(0);
-    router.push(item.href);
   }
 
   return (

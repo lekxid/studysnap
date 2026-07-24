@@ -263,7 +263,7 @@ export default function QuizzesPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [activeQuiz?.id]);
+  }, [activeQuiz]);
 
   const orderedQuestions = useMemo(() => {
     if (!activeQuiz) return [];
