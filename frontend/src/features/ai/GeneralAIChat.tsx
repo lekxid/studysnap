@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- General AI renders uploaded, generated, blob-backed, and data-URL previews that intentionally use native images. */
+
 import CentralActionBar from "@/components/ai/CentralActionBar";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -768,9 +770,9 @@ export default function GeneralAIChat({
     setIdentityReferenceName,
   ] = useState("");
 
-  const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [, setImageUploadProgress] = useState(0);
 
-  const [imageUploadStatus, setImageUploadStatus] = useState<
+  const [, setImageUploadStatus] = useState<
     "idle" | "converting" | "reading" | "ready" | "uploading" | "analyzing"
   >("idle");
 
@@ -789,10 +791,8 @@ export default function GeneralAIChat({
     setBulkDeleteRequest,
   ] = useState<AIConversation[]>([]);
 
-  const [
-    queuedFollowUp,
-    setQueuedFollowUp,
-  ] = useState("");
+  const [, setQueuedFollowUp] =
+    useState("");
 
   const [createImageMode, setCreateImageMode] = useState(false);
   const [imageSize, setImageSize] = useState<GenerateAIImageSize>("1024x1024");
@@ -1141,6 +1141,9 @@ export default function GeneralAIChat({
     void sendMessage(
       nextMessage
     );
+
+    // Release the queued follow-up only when loading completes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   useEffect(() => {
@@ -1165,6 +1168,9 @@ export default function GeneralAIChat({
       );
 
     window.history.replaceState({}, "", "/general-ai");
+
+    // Pending attachment handoff is intentionally consumed once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1184,6 +1190,9 @@ export default function GeneralAIChat({
     window.history.replaceState({}, "", "/general-ai");
 
     void sendMessage(prompt);
+
+    // Consume the initial handoff only after trails finish loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handoffPrompt, loading, loadingTrails]);
 
   function attachmentId(file: File) {
@@ -1584,6 +1593,7 @@ export default function GeneralAIChat({
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for single-file input compatibility.
   async function handleAttachmentChange(selectedFile: File | undefined) {
     if (!selectedFile) {
       return;
@@ -1678,6 +1688,7 @@ export default function GeneralAIChat({
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the explicit save-to-room action.
   async function openSaveToRoomPicker() {
     if (!pendingDocument || loadingRooms) {
       return;
@@ -1767,6 +1778,7 @@ export default function GeneralAIChat({
     setIdentityReferenceName("");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the composer reset action.
   function clearComposer() {
     setInput("");
     removeSelectedImage();
@@ -2034,7 +2046,9 @@ export default function GeneralAIChat({
         : lastGeneratedImage;
 
     const referenceImage =
-      explicitReference || queuedReference;
+      explicitReference ||
+      queuedReference ||
+      previousReference;
 
     const newIdentityReference =
       forceNew
