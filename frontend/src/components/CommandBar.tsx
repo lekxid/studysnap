@@ -119,16 +119,22 @@ export default function CommandBar() {
     const search = query.trim();
 
     if (search.length < 2) {
-      setLiveResults([]);
-      setSearching(false);
-      setSearchError("");
+      queueMicrotask(() => {
+        setLiveResults([]);
+        setSearching(false);
+        setSearchError("");
+      });
       return;
     }
 
     let cancelled = false;
 
-    setSearching(true);
-    setSearchError("");
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setSearching(true);
+        setSearchError("");
+      }
+    });
 
     const timer = window.setTimeout(async () => {
       try {
@@ -171,7 +177,9 @@ export default function CommandBar() {
   }, [filteredCommands, liveResults]);
 
   useEffect(() => {
-    setSelectedIndex(0);
+    queueMicrotask(
+      () => setSelectedIndex(0),
+    );
   }, [query, open]);
 
   useEffect(() => {

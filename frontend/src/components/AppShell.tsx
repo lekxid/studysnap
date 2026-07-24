@@ -498,7 +498,11 @@ export default function AppShell({
     );
 
     if (savedSidebarState !== null) {
-      setDesktopSidebarOpen(savedSidebarState !== "false");
+      queueMicrotask(() => {
+        setDesktopSidebarOpen(
+          savedSidebarState !== "false"
+        );
+      });
     }
   }, []);
 
@@ -618,30 +622,45 @@ export default function AppShell({
         ? (new URLSearchParams(window.location.search).get("tab") ?? undefined)
         : undefined;
 
-    setActiveQueryTab(tab);
+    queueMicrotask(
+      () => setActiveQueryTab(tab),
+    );
   }, [pathname]);
 
   useEffect(() => {
     const roomIdFromPath = getRoomIdFromStudyRoomPath(pathname);
 
-    if (roomIdFromPath !== null) {
-      const savedRoomId = saveProjectRoomId(roomIdFromPath);
+    const nextRoomId =
+      roomIdFromPath !== null
+        ? saveProjectRoomId(roomIdFromPath)
+        : getSavedProjectRoomId();
 
-      setActiveProjectRoomId(savedRoomId);
-    } else {
-      setActiveProjectRoomId(getSavedProjectRoomId());
-    }
+    const openStudyTools =
+      isAnyNavItemActive(
+        pathname,
+        studyToolNavItems
+      );
 
-    if (isAnyNavItemActive(pathname, studyToolNavItems)) {
-      setStudyToolsOpen(true);
-    }
+    const openMore =
+      isAnyNavItemActive(
+        pathname,
+        moreNavItems
+      );
 
-    if (isAnyNavItemActive(pathname, moreNavItems)) {
-      setMoreOpen(true);
-    }
+    queueMicrotask(() => {
+      setActiveProjectRoomId(nextRoomId);
 
-    setRoomMenuOpen(false);
-    setMobileMenuOpen(false);
+      if (openStudyTools) {
+        setStudyToolsOpen(true);
+      }
+
+      if (openMore) {
+        setMoreOpen(true);
+      }
+
+      setRoomMenuOpen(false);
+      setMobileMenuOpen(false);
+    });
   }, [pathname]);
 
   useEffect(() => {

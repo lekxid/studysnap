@@ -473,7 +473,9 @@ export default function SettingsPage() {
       params.get("focus");
 
     if (requestedTab === "profile") {
-      setActiveSettingsTab("profile");
+      queueMicrotask(
+        () => setActiveSettingsTab("profile"),
+      );
     }
 
     if (requestedFocus !== "account") {
@@ -501,9 +503,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!account) return;
 
-    setProfileEmojiDraft(
-      account.greeting_emoji ?? ""
-    );
+    queueMicrotask(() => {
+      setProfileEmojiDraft(
+        account.greeting_emoji ?? ""
+      );
+    });
   }, [
     account?.id,
     account?.greeting_emoji,

@@ -959,7 +959,9 @@ export default function DashboardPage() {
       }
     }
 
-    void loadSmartDashboard();
+    queueMicrotask(
+      () => void loadSmartDashboard(),
+    );
 
     window.addEventListener("studysnap:dashboard-refresh", refreshDashboard);
 
@@ -1051,13 +1053,15 @@ export default function DashboardPage() {
 
     const payload = parseJwt(token);
 
-    if (payload) {
-      setFullName(payload.full_name || payload.sub?.split("@")[0] || "Student");
-    } else {
-      setFullName("Student");
-    }
+    const initialName =
+      payload?.full_name ||
+      payload?.sub?.split("@")[0] ||
+      "Student";
 
-    setChecked(true);
+    queueMicrotask(() => {
+      setFullName(initialName);
+      setChecked(true);
+    });
 
     async function loadCurrentProfile() {
       try {
@@ -1113,10 +1117,12 @@ export default function DashboardPage() {
     const roomId = activeRoomId;
 
     if (roomId === null) {
-      setPdfs([]);
-      setNotes([]);
-      setFlashcards([]);
-      setQuizCount(0);
+      queueMicrotask(() => {
+        setPdfs([]);
+        setNotes([]);
+        setFlashcards([]);
+        setQuizCount(0);
+      });
       return;
     }
 
@@ -1152,12 +1158,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!rooms.length) {
-      setAllStats({
-        pdfs: 0,
-        notes: 0,
-        flashcards: 0,
-        quizzes: 0,
-        rooms: 0,
+      queueMicrotask(() => {
+        setAllStats({
+          pdfs: 0,
+          notes: 0,
+          flashcards: 0,
+          quizzes: 0,
+          rooms: 0,
+        });
       });
       return;
     }

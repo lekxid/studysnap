@@ -323,26 +323,28 @@ export default function StudyTrailPanel({
         )
       );
 
-    setSelectedIds(
-      (current) => {
-        const next =
-          new Set(
-            [...current].filter(
-              (id) =>
-                validIds.has(id)
-            )
-          );
+    queueMicrotask(() => {
+      setSelectedIds(
+        (current) => {
+          const next =
+            new Set(
+              [...current].filter(
+                (id) =>
+                  validIds.has(id)
+              )
+            );
 
-        if (
-          next.size ===
-          current.size
-        ) {
-          return current;
+          if (
+            next.size ===
+            current.size
+          ) {
+            return current;
+          }
+
+          return next;
         }
-
-        return next;
-      }
-    );
+      );
+    });
   }, [trails]);
 
   const cleanSearch =

@@ -508,7 +508,10 @@ export default function StudyTogetherWorkspace({
       null;
 
     isNearChatBottomRef.current = true;
-    setShowJumpToLatest(false);
+
+    queueMicrotask(
+      () => setShowJumpToLatest(false),
+    );
   }, [studyRoomId]);
 
   useEffect(() => {
@@ -648,10 +651,12 @@ export default function StudyTogetherWorkspace({
 
   useEffect(() => {
     if (!canManageInvitations) {
-      setInviteLoading(false);
-      setInvitationLoadError("");
-      setEmailInvitations([]);
-      setShareLinks([]);
+      queueMicrotask(() => {
+        setInviteLoading(false);
+        setInvitationLoadError("");
+        setEmailInvitations([]);
+        setShareLinks([]);
+      });
       return;
     }
 
@@ -691,7 +696,11 @@ export default function StudyTogetherWorkspace({
       }
     }
 
-    void loadInvitations();
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadInvitations();
+      }
+    });
 
     return () => {
       cancelled = true;

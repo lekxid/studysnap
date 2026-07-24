@@ -595,8 +595,10 @@ function ProtectedFeedImage({
     let active = true;
     let objectUrl = "";
 
-    setSource("");
-    setFailed(false);
+    queueMicrotask(() => {
+      setSource("");
+      setFailed(false);
+    });
 
     void getProtectedFileBlobUrl(
       path,
@@ -1102,9 +1104,11 @@ function PinnedMaterialsSection({
   );
 
   useEffect(() => {
-    setDismissedItemIds(
-      new Set(),
-    );
+    queueMicrotask(() => {
+      setDismissedItemIds(
+        new Set(),
+      );
+    });
   }, [data.generated_at]);
 
   const pinnedItems = (

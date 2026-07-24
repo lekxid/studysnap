@@ -93,7 +93,10 @@ export default function StudyRoomsPage() {
 
   useEffect(() => {
     if (!ready) return;
-    loadRooms();
+
+    queueMicrotask(
+      () => void loadRooms(),
+    );
   }, [ready]);
 
   const selectedRoom = useMemo(() => {
@@ -101,16 +104,13 @@ export default function StudyRoomsPage() {
   }, [rooms, selectedRoomId]);
 
   useEffect(() => {
-    if (!selectedRoom) {
-      setEditName("");
-      setEditSubject("");
-      setEditDescription("");
-      return;
-    }
-
-    setEditName(selectedRoom.name || "");
-    setEditSubject(selectedRoom.subject || "");
-    setEditDescription(selectedRoom.description || "");
+    queueMicrotask(() => {
+      setEditName(selectedRoom?.name || "");
+      setEditSubject(selectedRoom?.subject || "");
+      setEditDescription(
+        selectedRoom?.description || ""
+      );
+    });
   }, [selectedRoom]);
 
   const filteredRooms = useMemo(() => {

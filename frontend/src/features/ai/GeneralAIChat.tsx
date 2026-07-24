@@ -1096,11 +1096,13 @@ export default function GeneralAIChat({
       );
 
     if (savedDraft) {
-      setInput((current) =>
-        current.trim()
-          ? current
-          : savedDraft
-      );
+      queueMicrotask(() => {
+        setInput((current) =>
+          current.trim()
+            ? current
+            : savedDraft
+        );
+      });
     }
 
     // Saved responsive General AI draft
