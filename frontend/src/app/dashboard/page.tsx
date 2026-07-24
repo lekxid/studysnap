@@ -7,7 +7,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -31,7 +30,6 @@ import {
 } from "@/features/projects/projectRoomContext";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
-import { setPendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 
 type TokenPayload = {
   sub?: string;
@@ -396,6 +394,7 @@ function GeneralAIStartCard({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the upcoming expanded dashboard view.
 function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   return (
     <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
@@ -481,6 +480,7 @@ function ContinueLearningCard({ items }: { items: ContinueItem[] }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for the upcoming expanded dashboard view.
 function RecentActivityCard({ items }: { items: ActivityItem[] }) {
   return (
     <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl p-4 sm:p-5">
@@ -855,7 +855,7 @@ export default function DashboardPage() {
   const [greetingEmoji, setGreetingEmoji] = useState("👋");
   const [learningInsights, setLearningInsights] =
     useState<LearningInsights | null>(null);
-  const [learningInsightsError, setLearningInsightsError] = useState("");
+  const [, setLearningInsightsError] = useState("");
 
   const [smartDashboard, setSmartDashboard] =
     useState<SmartDashboardResponse | null>(null);
@@ -1236,6 +1236,7 @@ export default function DashboardPage() {
     );
   }, [flashcards.length, notes.length, pdfs.length, quizCount]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Prepared for the retained expanded dashboard view.
   const continueItems = useMemo<ContinueItem[]>(() => {
     if (!activeRoomId) return [];
 
@@ -1273,6 +1274,7 @@ export default function DashboardPage() {
     return [...pdfItems, ...noteItems, ...flashcardItems].slice(0, 3);
   }, [activeRoom, activeRoomId, flashcards, notes, pdfs]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Prepared for the retained expanded dashboard view.
   const recentActivityItems = useMemo<ActivityItem[]>(() => {
     if (!activeRoomId) {
       return [];
@@ -1374,6 +1376,8 @@ export default function DashboardPage() {
   }
 
   const streak = insights?.study_streak || 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for expanded dashboard navigation.
   const roomHref = activeRoomId
     ? `/study-rooms/${activeRoomId}`
     : "/study-rooms";
