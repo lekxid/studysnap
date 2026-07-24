@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Dashboard attachments may be authenticated, blob, or data-URL previews and intentionally use native images. */
+
 import Link from "next/link";
 import {
   useEffect,

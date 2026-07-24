@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Profile pictures are authenticated or blob-backed user content and intentionally use native image elements. */
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createPortal } from "react-dom";

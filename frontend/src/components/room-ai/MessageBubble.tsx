@@ -1,8 +1,9 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Chat images are user-provided preview URLs and intentionally use native image elements. */
+
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useState } from "react";
 import MessageToolbar from "@/components/room-ai/MessageToolbar";
 
 type MessageBubbleProps = {

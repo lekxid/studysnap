@@ -195,6 +195,7 @@ export async function signup(
       full_name: name,
       email,
       password,
+      invite_code: inviteCode,
       learning_mode: "medium",
     }),
   });
