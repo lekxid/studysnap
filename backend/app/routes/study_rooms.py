@@ -14,6 +14,10 @@ from app.services.rooms.access import (
     get_user_room_role,
     require_room_roles,
 )
+from app.services.rooms.deletion import (
+    cleanup_deleted_room_files,
+    delete_room_graph,
+)
 from app.utils.deps import get_current_user
 
 
@@ -272,9 +276,32 @@ def delete_study_room(
         allowed_roles={"owner"},
     )
 
-    db.delete(room)
-    db.commit()
+    try:
+        result = delete_room_graph(
+            db=db,
+            room_id=room.id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    cleanup_failures = (
+        cleanup_deleted_room_files(
+            result.file_paths
+        )
+    )
 
     return {
-        "message": "Study room deleted"
+        "message": "Study room deleted",
+        "id": room_id,
+        "deleted_counts": (
+            result.deleted_counts
+        ),
+        "detached_counts": (
+            result.detached_counts
+        ),
+        "file_cleanup_failures": len(
+            cleanup_failures
+        ),
     }
