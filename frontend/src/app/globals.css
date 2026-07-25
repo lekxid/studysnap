@@ -1929,3 +1929,91 @@ body {
 }
 
 /* STUDYSNAP_COMPACT_TOOLS_POPOVER_V2_END */
+
+/* STUDYSNAP_CHATGPT_COMPOSER_V1 */
+
+:root {
+  --studysnap-visual-viewport-height: 100dvh;
+  --studysnap-visual-viewport-offset-top: 0px;
+}
+
+.studysnap-general-ai-fullscreen {
+  inset: auto 0 auto 0 !important;
+  top: var(--studysnap-visual-viewport-offset-top, 0px) !important;
+  height: var(--studysnap-visual-viewport-height, 100dvh) !important;
+  max-height: var(--studysnap-visual-viewport-height, 100dvh) !important;
+}
+
+.studysnap-ai-composer-dock {
+  position: relative;
+  z-index: 35;
+  padding-top: 0.35rem !important;
+}
+
+.studysnap-composer {
+  border-radius: 1.65rem !important;
+  padding: 0.4rem !important;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.studysnap-composer-dragging {
+  border-color: rgba(201, 173, 80, 0.72) !important;
+  box-shadow:
+    0 0 0 3px rgba(201, 173, 80, 0.14),
+    0 18px 50px rgba(0, 0, 0, 0.48) !important;
+}
+
+.studysnap-composer-input-row {
+  min-height: 2.75rem;
+}
+
+.studysnap-composer-input-row textarea {
+  min-height: 2.625rem !important;
+  max-height: 10rem !important;
+  padding: 0.5rem 0.25rem !important;
+  overscroll-behavior: contain;
+}
+
+.studysnap-composer-files {
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.studysnap-composer-files::-webkit-scrollbar {
+  display: none;
+}
+
+.studysnap-composer-file-chip {
+  min-width: 8.25rem;
+}
+
+@media (max-width: 640px) {
+  .studysnap-ai-composer-dock {
+    padding:
+      0.3rem 0.5rem
+      max(0.35rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .studysnap-general-ai-fullscreen .studysnap-composer {
+    border-radius: 1.55rem !important;
+    padding: 0.35rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer-input-row
+  textarea {
+    min-height: 2.5rem !important;
+    max-height: 8.25rem !important;
+    padding: 0.45rem 0.2rem !important;
+    line-height: 1.4 !important;
+  }
+
+  .studysnap-composer-file-chip {
+    min-width: 7.75rem;
+    max-width: 10.5rem;
+  }
+}
+
+/* STUDYSNAP_CHATGPT_COMPOSER_V1_END */

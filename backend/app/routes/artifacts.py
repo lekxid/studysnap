@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -18,12 +19,14 @@ from app.schemas.artifact import (
     ArtifactTicketResponse,
 )
 from app.services.artifact_service import (
+    artifact_content_is_final,
     create_download_ticket,
     create_text_artifact,
     decode_download_ticket,
     get_owned_artifact_or_404,
     resolve_artifact_file,
     serialize_artifact,
+    suggest_artifact_title,
 )
 from app.utils.deps import get_current_user
 
@@ -135,6 +138,157 @@ def download_artifact_with_ticket(
     )
 
 
+
+
+@router.post("/image-pdf")
+async def create_image_pdf_from_upload(
+    conversation_id: int = Form(...),
+    command: str = Form(
+        default="Convert this image to PDF."
+    ),
+    title: str = Form(
+        default="StudySnap Image"
+    ),
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    from app.services.artifact_service import (
+        create_image_pdf_artifact,
+    )
+
+    conversation = verify_conversation_owner(
+        db,
+        conversation_id,
+        current_user.id,
+    )
+
+    clean_command = (
+        command.strip()
+        or "Convert this image to PDF."
+    )
+
+    content_type = (
+        image.content_type
+        or ""
+    ).lower()
+
+    suffix = Path(
+        image.filename or ""
+    ).suffix.lower()
+
+    allowed_suffixes = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+    }
+
+    allowed_content_types = {
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/webp",
+        "image/gif",
+    }
+
+    if (
+        suffix not in allowed_suffixes
+        and content_type not in allowed_content_types
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Choose a PNG, JPG, JPEG, "
+                "WEBP, or GIF image."
+            ),
+        )
+
+    image_bytes = await image.read()
+    await image.close()
+
+    if not image_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The image is empty. "
+                "Choose another image."
+            ),
+        )
+
+    if len(image_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "The image is larger "
+                "than 20 MB."
+            ),
+        )
+
+    user_message = AIMessage(
+        conversation_id=conversation.id,
+        role="user",
+        content=clean_command,
+    )
+
+    assistant_message = AIMessage(
+        conversation_id=conversation.id,
+        role="assistant",
+        content=(
+            "I created a PDF from the image. "
+            "Open or download it below."
+        ),
+    )
+
+    db.add(user_message)
+    db.add(assistant_message)
+    db.flush()
+
+    artifact = create_image_pdf_artifact(
+        db=db,
+        owner_id=current_user.id,
+        title=(
+            title.strip()
+            or "StudySnap Image"
+        ),
+        image_bytes=image_bytes,
+        conversation_id=conversation.id,
+        message_id=assistant_message.id,
+    )
+
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+
+    return {
+        "artifact": serialize_artifact(
+            artifact
+        ),
+        "user_message": {
+            "id": user_message.id,
+            "conversation_id":
+                user_message.conversation_id,
+            "role": user_message.role,
+            "content": user_message.content,
+            "created_at":
+                user_message.created_at,
+        },
+        "assistant_message": {
+            "id": assistant_message.id,
+            "conversation_id":
+                assistant_message.conversation_id,
+            "role":
+                assistant_message.role,
+            "content":
+                assistant_message.content,
+            "created_at":
+                assistant_message.created_at,
+        },
+    }
+
+
 @router.post(
     "/text",
     response_model=ArtifactResponse,
@@ -202,7 +356,48 @@ def create_artifact_from_message(
             detail="Only StudySnap AI answers can be exported from a message.",
         )
 
-    title = payload.title or conversation.title or "StudySnap AI Answer"
+    if not artifact_content_is_final(
+        message.content
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This answer is not a completed "
+                "document and cannot be exported."
+            ),
+        )
+
+    conversation_title = (
+        conversation.title or ""
+    ).strip()
+
+    generic_title = (
+        not conversation_title
+        or conversation_title.lower()
+        in {
+            "new conversation",
+            "room study trail",
+        }
+        or conversation_title.lower().startswith(
+            "summarize this"
+        )
+        or conversation_title.lower().startswith(
+            "explain this"
+        )
+    )
+
+    title = (
+        payload.title
+        or (
+            suggest_artifact_title(
+                "",
+                message.content,
+                fallback="StudySnap AI Answer",
+            )
+            if generic_title
+            else conversation_title
+        )
+    )
 
     artifact = create_text_artifact(
         db=db,

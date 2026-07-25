@@ -17,7 +17,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+from reportlab.pdfgen import canvas
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -42,7 +44,7 @@ ARTIFACT_FORMAT_LABELS = {
 }
 
 _ARTIFACT_ACTION_PATTERN = re.compile(
-    r"\b(create|make|turn|convert|save|export|download|prepare|generate|send|give)\b",
+    r"\b(create|make|turn|convert|change|transform|save|export|download|prepare|generate|send|give)\b",
     flags=re.IGNORECASE,
 )
 
@@ -53,7 +55,7 @@ _ARTIFACT_INFORMATION_QUESTION_PATTERN = re.compile(
 
 _ARTIFACT_FORMAT_PATTERNS = (
     ("docx", re.compile(r"\b(docx|word document|word file)\b", re.IGNORECASE)),
-    ("pdf", re.compile(r"\bpdf\b", re.IGNORECASE)),
+    ("pdf", re.compile(r"\b(pdf|dpf)\b", re.IGNORECASE)),
     ("md", re.compile(r"\b(markdown|md file)\b", re.IGNORECASE)),
     ("txt", re.compile(r"\b(txt|text file)\b", re.IGNORECASE)),
 )
@@ -108,44 +110,476 @@ def safe_stem(value: str, fallback: str = "studysnap-export") -> str:
     return (stem or fallback)[:120]
 
 
-def build_pdf_bytes(title: str, content: str) -> bytes:
+def build_artifact_generation_instructions(
+    artifact_format: str,
+    request_text: str,
+) -> str:
+    format_label = artifact_format_label(
+        artifact_format
+    )
+
+    return f"""
+The student requested a finished {format_label} document.
+
+Complete the student's real task before creating the file.
+
+Mandatory rules:
+- Resolve follow-ups such as "yes please", "send it", "make it PDF", "use the previous one", and "humanize it" from the full conversation.
+- Use every relevant stored source file attached to this conversation.
+- Apply all requested corrections, adjustments, rewriting, and humanization before generating the document.
+- Humanized writing must sound natural, specific, and appropriate for the student's intended audience.
+- Preserve names, dates, employment, education, qualifications, facts, figures, and source details.
+- Never invent missing personal details, employment, education, dates, skills, achievements, credentials, or contact information.
+- Do not export an earlier suggestion, explanation, loading message, placeholder, or clarification question.
+- Produce the complete final document content for the student to review.
+- Use clear headings, spacing, bullets, and structure when appropriate.
+- Do not wrap the document in a code block.
+- Do not add an introduction such as "Here is your document".
+- Do not add commentary after the finished document.
+- When essential information is genuinely unavailable, begin exactly with NEEDS_CLARIFICATION: and ask one concise question. No artifact will be created in that case.
+
+Latest student request:
+{request_text.strip()}
+""".strip()
+
+
+def artifact_content_is_final(
+    content: str | None,
+) -> bool:
+    clean = " ".join(
+        (content or "").split()
+    ).strip()
+
+    if len(clean) < 40:
+        return False
+
+    lowered = clean.lower()
+
+    rejected_starts = (
+        "needs_clarification:",
+        "could you please provide",
+        "could you provide",
+        "please provide",
+        "please confirm",
+        "can you please provide",
+        "can you provide",
+        "before i create",
+        "before creating",
+        "i need more information",
+        "i would need",
+        "to create this",
+        "to make this",
+        "i can help you",
+        "sure, please send",
+        "please resend",
+        "upload the file again",
+    )
+
+    if lowered.startswith(
+        rejected_starts
+    ):
+        return False
+
+    rejected_phrases = (
+        "please share the updated details",
+        "please send the information",
+        "confirm or provide the updated",
+        "once you provide",
+        "after you provide",
+        "then i can create",
+        "then i will create",
+        "send your resume again",
+        "resend the resume",
+    )
+
+    opening = lowered[:900]
+
+    if any(
+        phrase in opening
+        for phrase in rejected_phrases
+    ):
+        return False
+
+    if (
+        clean.endswith("?")
+        and len(clean) < 500
+        and "\n#" not in (content or "")
+    ):
+        return False
+
+    return True
+
+
+def suggest_artifact_title(
+    request_text: str | None,
+    content: str | None,
+    fallback: str = "StudySnap Document",
+) -> str:
+    request = " ".join(
+        (request_text or "").split()
+    ).strip().lower()
+
+    body = (
+        content or ""
+    ).strip()
+
+    body_lower = body.lower()
+
+    resume_signals = sum(
+        signal in body_lower
+        for signal in (
+            "professional summary",
+            "work experience",
+            "employment history",
+            "education",
+            "skills",
+            "certifications",
+        )
+    )
+
+    if (
+        re.search(
+            r"\b(?:resume|résumé|cv)\b",
+            request,
+            flags=re.IGNORECASE,
+        )
+        or resume_signals >= 3
+    ):
+        return "Updated Resume"
+
+    named_targets = (
+        (
+            r"\bcover\s+letter\b",
+            "Cover Letter",
+        ),
+        (
+            r"\bcare\s+plan\b",
+            "Care Plan",
+        ),
+        (
+            r"\bstudy\s+guide\b",
+            "Study Guide",
+        ),
+        (
+            r"\breflection\b",
+            "Reflection",
+        ),
+        (
+            r"\breport\b",
+            "Report",
+        ),
+        (
+            r"\bassignment\b",
+            "Assignment",
+        ),
+        (
+            r"\bofficial\s+letter\b",
+            "Official Letter",
+        ),
+        (
+            r"\bletter\b",
+            "Letter",
+        ),
+        (
+            r"\bmeeting\s+notes\b",
+            "Meeting Notes",
+        ),
+        (
+            r"\bsummary\b",
+            "Summary",
+        ),
+    )
+
+    for pattern, title in named_targets:
+        if re.search(
+            pattern,
+            request,
+            flags=re.IGNORECASE,
+        ):
+            return title
+
+    heading = re.search(
+        r"(?m)^\s*#{1,3}\s+(.+?)\s*$",
+        body,
+    )
+
+    if heading:
+        candidate = re.sub(
+            r"[*_`#]+",
+            "",
+            heading.group(1),
+        ).strip()
+
+        if (
+            candidate
+            and len(candidate) <= 100
+        ):
+            return candidate
+
+    first_line = next(
+        (
+            line.strip()
+            for line in body.splitlines()
+            if line.strip()
+        ),
+        "",
+    )
+
+    first_line = re.sub(
+        r"^[#>*\-\s]+",
+        "",
+        first_line,
+    )
+
+    first_line = re.sub(
+        r"[*_`]+",
+        "",
+        first_line,
+    ).strip()
+
+    if (
+        4 <= len(first_line) <= 80
+        and not first_line.endswith("?")
+    ):
+        return first_line
+
+    return (
+        fallback.strip()
+        or "StudySnap Document"
+    )
+
+
+def _artifact_inline_pdf_markup(
+    value: str,
+) -> str:
+    cleaned = escape(
+        value.strip()
+    )
+
+    cleaned = re.sub(
+        r"\*\*(.+?)\*\*",
+        r"<b>\1</b>",
+        cleaned,
+    )
+
+    cleaned = re.sub(
+        r"__(.+?)__",
+        r"<b>\1</b>",
+        cleaned,
+    )
+
+    cleaned = re.sub(
+        r"`(.+?)`",
+        r"<font name='Courier'>\1</font>",
+        cleaned,
+    )
+
+    return cleaned
+
+
+def build_pdf_bytes(
+    title: str,
+    content: str,
+) -> bytes:
     buffer = BytesIO()
+
     document = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=0.7 * inch,
-        leftMargin=0.7 * inch,
-        topMargin=0.7 * inch,
-        bottomMargin=0.7 * inch,
+        rightMargin=0.65 * inch,
+        leftMargin=0.65 * inch,
+        topMargin=0.65 * inch,
+        bottomMargin=0.65 * inch,
         title=title,
         author="StudySnap AI",
     )
 
     styles = getSampleStyleSheet()
+
     title_style = ParagraphStyle(
         "StudySnapArtifactTitle",
         parent=styles["Title"],
         alignment=TA_CENTER,
+        fontSize=18,
+        leading=22,
         spaceAfter=16,
     )
+
+    heading_one = ParagraphStyle(
+        "StudySnapHeadingOne",
+        parent=styles["Heading1"],
+        fontSize=15,
+        leading=19,
+        spaceBefore=7,
+        spaceAfter=7,
+    )
+
+    heading_two = ParagraphStyle(
+        "StudySnapHeadingTwo",
+        parent=styles["Heading2"],
+        fontSize=12,
+        leading=16,
+        spaceBefore=7,
+        spaceAfter=5,
+    )
+
     body_style = ParagraphStyle(
         "StudySnapArtifactBody",
         parent=styles["BodyText"],
         fontSize=10.5,
-        leading=15,
-        spaceAfter=8,
+        leading=14.5,
+        spaceAfter=5,
     )
 
-    story = [Paragraph(escape(title), title_style), Spacer(1, 6)]
+    bullet_style = ParagraphStyle(
+        "StudySnapArtifactBullet",
+        parent=body_style,
+        leftIndent=16,
+        firstLineIndent=-8,
+        spaceAfter=3,
+    )
 
-    paragraphs = re.split(r"\n\s*\n", content.strip())
-    for paragraph in paragraphs:
-        cleaned = escape(paragraph.strip()).replace("\n", "<br/>")
-        if cleaned:
-            story.append(Paragraph(cleaned, body_style))
+    first_line = next(
+        (
+            line.strip()
+            for line in content.splitlines()
+            if line.strip()
+        ),
+        "",
+    )
+
+    content_has_title = bool(
+        re.match(
+            r"^#{1,3}\s+",
+            first_line,
+        )
+    )
+
+    suppress_generic_resume_title = (
+        title.strip().lower()
+        == "updated resume"
+    )
+
+    story = []
+
+    if (
+        not content_has_title
+        and not suppress_generic_resume_title
+    ):
+        story.append(
+            Paragraph(
+                escape(
+                    title.strip()
+                    or "StudySnap Document"
+                ),
+                title_style,
+            )
+        )
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+
+        if not line:
+            story.append(
+                Spacer(1, 5)
+            )
+            continue
+
+        if re.fullmatch(
+            r"[-_*]{3,}",
+            line,
+        ):
+            story.append(
+                Spacer(1, 6)
+            )
+            continue
+
+        heading_match = re.match(
+            r"^(#{1,3})\s+(.+)$",
+            line,
+        )
+
+        if heading_match:
+            level = len(
+                heading_match.group(1)
+            )
+
+            story.append(
+                Paragraph(
+                    _artifact_inline_pdf_markup(
+                        heading_match.group(2)
+                    ),
+                    heading_one
+                    if level == 1
+                    else heading_two,
+                )
+            )
+            continue
+
+        bullet_match = re.match(
+            r"^(?:[-*•])\s+(.+)$",
+            line,
+        )
+
+        if bullet_match:
+            story.append(
+                Paragraph(
+                    "• "
+                    + _artifact_inline_pdf_markup(
+                        bullet_match.group(1)
+                    ),
+                    bullet_style,
+                )
+            )
+            continue
+
+        numbered_match = re.match(
+            r"^(\d+[.)])\s+(.+)$",
+            line,
+        )
+
+        if numbered_match:
+            story.append(
+                Paragraph(
+                    "<b>"
+                    + escape(
+                        numbered_match.group(1)
+                    )
+                    + "</b> "
+                    + _artifact_inline_pdf_markup(
+                        numbered_match.group(2)
+                    ),
+                    bullet_style,
+                )
+            )
+            continue
+
+        story.append(
+            Paragraph(
+                _artifact_inline_pdf_markup(
+                    line
+                ),
+                body_style,
+            )
+        )
 
     document.build(story)
-    return buffer.getvalue()
+
+    payload = buffer.getvalue()
+
+    if (
+        not payload.startswith(b"%PDF")
+        or len(payload) < 500
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "StudySnap could not verify "
+                "the generated PDF."
+            ),
+        )
+
+    return payload
 
 
 def build_docx_bytes(title: str, content: str) -> bytes:
@@ -249,6 +683,240 @@ def build_docx_bytes(title: str, content: str) -> bytes:
         )
 
     return buffer.getvalue()
+
+
+
+
+def build_image_pdf_bytes(
+    title: str,
+    image_bytes: bytes,
+) -> bytes:
+    if not image_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="The image is empty.",
+        )
+
+    try:
+        image_reader = ImageReader(
+            BytesIO(image_bytes)
+        )
+
+        image_width, image_height = (
+            image_reader.getSize()
+        )
+    except Exception as error:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "StudySnap could not read "
+                "the selected image."
+            ),
+        ) from error
+
+    if (
+        image_width <= 0
+        or image_height <= 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The image has no readable size."
+            ),
+        )
+
+    buffer = BytesIO()
+
+    page_width, page_height = letter
+
+    margin = 0.55 * inch
+    title_space = 0.55 * inch
+
+    available_width = (
+        page_width - (margin * 2)
+    )
+
+    available_height = (
+        page_height
+        - (margin * 2)
+        - title_space
+    )
+
+    scale = min(
+        available_width / image_width,
+        available_height / image_height,
+    )
+
+    draw_width = image_width * scale
+    draw_height = image_height * scale
+
+    left = (
+        page_width - draw_width
+    ) / 2
+
+    bottom = (
+        margin
+        + (
+            available_height
+            - draw_height
+        ) / 2
+    )
+
+    clean_title = (
+        title.strip()
+        or "StudySnap Image"
+    )
+
+    display_title = (
+        clean_title[:100]
+        .encode(
+            "latin-1",
+            errors="replace",
+        )
+        .decode("latin-1")
+    )
+
+    document = canvas.Canvas(
+        buffer,
+        pagesize=letter,
+    )
+
+    document.setTitle(
+        display_title
+    )
+
+    document.setAuthor(
+        "StudySnap AI"
+    )
+
+    document.setFont(
+        "Helvetica-Bold",
+        15,
+    )
+
+    document.drawString(
+        margin,
+        page_height - margin,
+        display_title,
+    )
+
+    document.drawImage(
+        image_reader,
+        left,
+        bottom,
+        width=draw_width,
+        height=draw_height,
+        preserveAspectRatio=True,
+        mask="auto",
+    )
+
+    document.showPage()
+    document.save()
+
+    payload = buffer.getvalue()
+
+    if (
+        not payload.startswith(b"%PDF")
+        or len(payload) < 1000
+    ):
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "StudySnap could not verify "
+                "the generated PDF."
+            ),
+        )
+
+    return payload
+
+
+def create_image_pdf_artifact(
+    *,
+    db: Session,
+    owner_id: int,
+    title: str,
+    image_bytes: bytes,
+    conversation_id: int | None = None,
+    message_id: int | None = None,
+) -> Artifact:
+    clean_title = (
+        title.strip()
+        or "StudySnap Image"
+    )
+
+    payload = build_image_pdf_bytes(
+        clean_title,
+        image_bytes,
+    )
+
+    filename = (
+        f"{safe_stem(clean_title)}.pdf"
+    )
+
+    owner_directory = (
+        artifact_root()
+        / str(owner_id)
+    )
+
+    owner_directory.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    stored_filename = (
+        f"{uuid.uuid4().hex}.pdf"
+    )
+
+    file_path = (
+        owner_directory
+        / stored_filename
+    )
+
+    temporary_path = (
+        owner_directory
+        / f".{stored_filename}.tmp"
+    )
+
+    temporary_path.write_bytes(
+        payload
+    )
+
+    os.replace(
+        temporary_path,
+        file_path,
+    )
+
+    artifact = Artifact(
+        owner_id=owner_id,
+        conversation_id=conversation_id,
+        message_id=message_id,
+        kind="document",
+        filename=filename,
+        stored_filename=stored_filename,
+        file_path=str(file_path),
+        file_size=len(payload),
+        content_type="application/pdf",
+        sha256=hashlib.sha256(
+            payload
+        ).hexdigest(),
+        status="ready",
+        expires_at=None,
+    )
+
+    try:
+        db.add(artifact)
+        db.commit()
+        db.refresh(artifact)
+    except Exception:
+        db.rollback()
+
+        file_path.unlink(
+            missing_ok=True
+        )
+
+        raise
+
+    return artifact
 
 
 def build_artifact_bytes(

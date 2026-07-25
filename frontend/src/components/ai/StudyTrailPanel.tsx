@@ -230,6 +230,8 @@ export default function StudyTrailPanel({
     () => new Set()
   );
 
+  // MOBILE_DELETE_CONTROLS_V1
+
   function exitSelection() {
     setSelecting(false);
 
@@ -451,7 +453,7 @@ export default function StudyTrailPanel({
                 true
               );
             }}
-            className="min-h-9 rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="min-h-11 touch-manipulation rounded-xl border border-white/10 bg-white/[0.035] px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
           >
             Select
           </button>
@@ -466,7 +468,7 @@ export default function StudyTrailPanel({
             }}
             aria-label="New chat"
             title="New chat"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63]"
+            className="grid h-11 w-11 shrink-0 touch-manipulation place-items-center rounded-xl bg-[#c9ad50] text-xl font-black text-[#111317] transition hover:bg-[#d5bb63]"
           >
             ＋
           </button>
@@ -518,7 +520,7 @@ export default function StudyTrailPanel({
                 filteredTrails.length ===
                 0
               }
-              className="min-h-9 rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-40"
+              className="min-h-11 touch-manipulation rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08] disabled:opacity-40"
             >
               {allFilteredSelected
                 ? "Clear all"
@@ -541,7 +543,7 @@ export default function StudyTrailPanel({
                   selectedTrails
                 )
               }
-              className="min-h-9 rounded-lg border border-red-300/15 bg-red-400/10 px-3 text-[11px] font-black text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="min-h-11 touch-manipulation rounded-lg border border-red-300/15 bg-red-400/10 px-3 text-[11px] font-black text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Delete
             </button>
@@ -551,7 +553,7 @@ export default function StudyTrailPanel({
               onClick={
                 exitSelection
               }
-              className="min-h-9 rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08]"
+              className="min-h-11 touch-manipulation rounded-lg border border-white/10 px-3 text-[11px] font-black text-slate-300 transition hover:bg-white/[0.08]"
             >
               Cancel
             </button>
@@ -613,7 +615,7 @@ export default function StudyTrailPanel({
                             key={
                               trail.id
                             }
-                            className={`overflow-hidden rounded-xl border transition ${
+                            className={`overflow-visible rounded-xl border transition ${
                               selected
                                 ? "border-[#c9ad50]/40 bg-[#c9ad50]/[0.12]"
                                 : active
@@ -708,7 +710,7 @@ export default function StudyTrailPanel({
                                   aria-expanded={
                                     menuOpen
                                   }
-                                  className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-black tracking-[0.1em] text-slate-500 transition hover:bg-white/[0.07] hover:text-white"
+                                  className="mr-1 grid h-11 w-11 shrink-0 touch-manipulation place-items-center rounded-xl text-sm font-black tracking-[0.1em] text-slate-300 transition hover:bg-white/[0.09] hover:text-white active:bg-white/[0.12]"
                                 >
                                   •••
                                 </button>
@@ -717,7 +719,7 @@ export default function StudyTrailPanel({
 
                             {!selecting &&
                             menuOpen ? (
-                              <div className="flex items-center justify-end gap-1 border-t border-white/[0.06] px-2 py-1.5">
+                              <div className="grid grid-cols-3 gap-2 border-t border-white/[0.06] px-2 py-2">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -739,7 +741,7 @@ export default function StudyTrailPanel({
                                       ? "Unpin"
                                       : "Pin"
                                   }
-                                  className="grid h-8 w-8 place-items-center rounded-lg text-base text-slate-400 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c]"
+                                  className="grid h-11 w-full touch-manipulation place-items-center rounded-xl border border-white/[0.06] text-base text-slate-300 transition hover:bg-[#c9ad50]/10 hover:text-[#e4d89c] active:bg-[#c9ad50]/15"
                                 >
                                   {trail.is_pinned
                                     ? "★"
@@ -759,14 +761,17 @@ export default function StudyTrailPanel({
                                   }}
                                   aria-label="Rename chat"
                                   title="Rename"
-                                  className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                                  className="grid h-11 w-full touch-manipulation place-items-center rounded-xl border border-white/[0.06] text-sm text-slate-300 transition hover:bg-white/[0.09] hover:text-white active:bg-white/[0.12]"
                                 >
                                   ✎
                                 </button>
 
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+
                                     setOpenMenuId(
                                       null
                                     );
@@ -777,7 +782,7 @@ export default function StudyTrailPanel({
                                   }}
                                   aria-label="Delete chat"
                                   title="Delete"
-                                  className="grid h-8 w-8 place-items-center rounded-lg text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-200"
+                                  className="grid h-11 w-full touch-manipulation place-items-center rounded-xl border border-red-300/15 bg-red-400/[0.06] text-sm text-red-200 transition hover:bg-red-500/15 active:bg-red-500/20"
                                 >
                                   🗑
                                 </button>

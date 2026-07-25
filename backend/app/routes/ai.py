@@ -1,3 +1,4 @@
+import re
 import asyncio
 import base64
 import io
@@ -47,9 +48,11 @@ from app.services.ai_service import (
     generate_basic_quiz,
 )
 from app.services.artifact_service import (
-    artifact_format_label,
+    artifact_content_is_final,
+    build_artifact_generation_instructions,
     create_text_artifact,
     detect_artifact_export_request,
+    suggest_artifact_title,
 )
 from app.services.context.builder import build_study_room_context
 from app.services.context.providers.conversation import build_conversation_context
@@ -637,6 +640,7 @@ class AskAIRequest(BaseModel):
 
 
 class GenerateImageRequest(BaseModel):
+    context_messages: list[str] | None = None
     prompt: str
     conversation_id: int | None = None
     study_room_id: int | None = None
@@ -777,6 +781,121 @@ def serialize_conversation(
     }
 
 
+def build_recent_attachment_context(
+    *,
+    db: Session,
+    conversation: AIConversation,
+    requesting_user_id: int,
+    max_characters: int = 90_000,
+) -> str:
+    messages = (
+        db.query(AIMessage)
+        .filter(
+            AIMessage.conversation_id
+            == conversation.id,
+            AIMessage.attachment_filename
+            .isnot(None),
+        )
+        .order_by(
+            AIMessage.id.desc()
+        )
+        .limit(8)
+        .all()
+    )
+
+    sections: list[str] = []
+    remaining = max_characters
+    seen: set[tuple] = set()
+
+    for message in messages:
+        if remaining <= 0:
+            break
+
+        content_type = (
+            message.attachment_content_type
+            or "application/octet-stream"
+        ).lower()
+
+        if (
+            message.attachment_kind == "image"
+            or content_type.startswith(
+                "image/"
+            )
+        ):
+            continue
+
+        source_key = (
+            message.attachment_source_type,
+            message.attachment_source_id,
+            message.attachment_file_path,
+        )
+
+        if source_key in seen:
+            continue
+
+        seen.add(source_key)
+
+        try:
+            source_path = (
+                resolve_message_attachment_path(
+                    db=db,
+                    message=message,
+                    owner_id=requesting_user_id,
+                )
+            )
+
+            if (
+                not source_path.is_file()
+                or source_path.stat().st_size
+                > DIRECT_FILE_MAX_BYTES
+            ):
+                continue
+
+            file_bytes = source_path.read_bytes()
+
+            extracted_text, file_kind = (
+                _extract_direct_file_text(
+                    filename=(
+                        message.attachment_filename
+                        or source_path.name
+                    ),
+                    content_type=content_type,
+                    data=file_bytes,
+                )
+            )
+        except (
+            HTTPException,
+            OSError,
+            ValueError,
+        ):
+            continue
+
+        clean_text = (
+            extracted_text or ""
+        ).strip()
+
+        if not clean_text:
+            continue
+
+        excerpt = clean_text[:remaining]
+
+        sections.append(
+            "Stored source file:\n"
+            f"Name: "
+            f"{message.attachment_filename or source_path.name}\n"
+            f"Type: {file_kind}\n"
+            "--- BEGIN STORED SOURCE ---\n"
+            f"{excerpt}\n"
+            "--- END STORED SOURCE ---"
+        )
+
+        remaining -= len(excerpt)
+
+    return "\n\n".join(
+        sections
+    )
+
+
 def build_conversation_history_context(
     *,
     db: Session,
@@ -786,66 +905,118 @@ def build_conversation_history_context(
     context_override: str = "",
 ) -> str:
     sections: list[str] = []
-    override_text = (context_override or "").strip()
 
-    if conversation.study_room_id is not None:
-        room = verify_study_room(
-            db,
-            conversation.study_room_id,
-            requesting_user_id,
+    history = build_conversation_context(
+        db=db,
+        conversation_id=conversation.id,
+    ).strip()
+
+    if history:
+        sections.append(
+            "Exact conversation history:\n"
+            + history
         )
-
-        focused_material_id = (
-            conversation.context_id
-            if (
-                conversation.context_type
-                == "study_material"
-                and isinstance(
-                    conversation.context_id,
-                    int,
-                )
-            )
-            else None
-        )
-
-        room_context = (
-            build_study_room_context(
-                db=db,
-                conversation_id=conversation.id,
-                study_room_id=conversation.study_room_id,
-                owner_id=room.owner_id,
-                learner_user_id=requesting_user_id,
-                question=question,
-                focused_material_id=focused_material_id,
-            )
-            or ""
-        ).strip()
-
-        if room_context:
-            sections.append(room_context)
     else:
-        history = build_conversation_context(
-            db=db,
-            conversation_id=conversation.id,
-        ).strip()
+        sections.append(
+            "No previous messages in this "
+            "Study Trail."
+        )
 
-        if history:
+    attachment_context = (
+        build_recent_attachment_context(
+            db=db,
+            conversation=conversation,
+            requesting_user_id=(
+                requesting_user_id
+            ),
+        )
+    ).strip()
+
+    if attachment_context:
+        sections.append(
+            "Reusable stored source files:\n"
+            + attachment_context
+        )
+
+    if (
+        conversation.study_room_id
+        is not None
+    ):
+        try:
+            room = verify_study_room(
+                db,
+                conversation.study_room_id,
+                requesting_user_id,
+            )
+        except HTTPException:
             sections.append(
-                "Conversation history:\n" + history
+                "The previously connected "
+                "Study Room is unavailable. "
+                "Continue using this conversation's "
+                "messages and stored files without "
+                "claiming access to unavailable "
+                "room material."
             )
         else:
-            sections.append(
-                "No previous messages in this Study Trail."
+            focused_material_id = (
+                conversation.context_id
+                if (
+                    conversation.context_type
+                    in {
+                        "study_material",
+                        "material",
+                    }
+                    and isinstance(
+                        conversation.context_id,
+                        int,
+                    )
+                )
+                else None
             )
+
+            room_context = (
+                build_study_room_context(
+                    db=db,
+                    conversation_id=(
+                        conversation.id
+                    ),
+                    study_room_id=(
+                        conversation.study_room_id
+                    ),
+                    owner_id=room.owner_id,
+                    learner_user_id=(
+                        requesting_user_id
+                    ),
+                    question=question,
+                    focused_material_id=(
+                        focused_material_id
+                    ),
+                )
+                or ""
+            ).strip()
+
+            if room_context:
+                sections.append(
+                    "Relevant Study Room context:\n"
+                    + room_context
+                )
+
+    override_text = (
+        context_override or ""
+    ).strip()
 
     if override_text:
         sections.append(
-            "Current surface context:\n" + override_text
+            "Current surface context:\n"
+            + override_text
         )
 
     return (
         "\n\n".join(sections)
-        or "No additional conversation context available."
+        or (
+            "No additional conversation "
+            "context available."
+        )
     )
 
 
@@ -969,6 +1140,74 @@ def ask_ai(
     return {"answer": answer}
 
 
+
+IMAGE_CONTEXT_REFERENCE_PATTERN = re.compile(
+    r"\b(?:this|that|it|both|them|these|those|"
+    r"same|another|the two|those two)\b",
+    flags=re.IGNORECASE,
+)
+
+
+def build_contextual_image_prompt(
+    prompt: str,
+    context_messages: list[str],
+) -> str:
+    """
+    Resolve short references only from recent conversation messages.
+
+    A detailed standalone prompt remains unchanged.
+    """
+
+    clean_prompt = " ".join(
+        (prompt or "").split()
+    ).strip()
+
+    if (
+        not clean_prompt
+        or not IMAGE_CONTEXT_REFERENCE_PATTERN.search(
+            clean_prompt
+        )
+    ):
+        return clean_prompt
+
+    safe_context: list[str] = []
+
+    for raw_message in context_messages[-8:]:
+        message = " ".join(
+            str(raw_message or "").split()
+        ).strip()
+
+        if (
+            not message
+            or "[Generated image]" in message
+            or "StudySnap is creating the image"
+            in message
+        ):
+            continue
+
+        safe_context.append(
+            message[:600]
+        )
+
+    if not safe_context:
+        return clean_prompt
+
+    context_text = "\n".join(
+        safe_context
+    )
+
+    return (
+        "Use the recent conversation below only "
+        "to resolve references in the current "
+        "image request. The current request is "
+        "authoritative. Ignore unrelated older "
+        "subjects and never invent a different "
+        "topic.\n\n"
+        f"Recent conversation:\n{context_text}\n\n"
+        f"Current image request:\n{clean_prompt}"
+    )
+
+
 @router.post("/generate-image")
 def generate_image(
     data: GenerateImageRequest,
@@ -1028,6 +1267,13 @@ def generate_image(
             current_user.id,
         )
 
+    resolved_image_prompt = (
+        build_contextual_image_prompt(
+            clean_prompt,
+            data.context_messages or [],
+        )
+    )
+
     image_model = (
         os.getenv("OPENAI_IMAGE_MODEL")
         or "gpt-image-1"
@@ -1043,8 +1289,8 @@ Do not add unrelated logos, watermarks, or decorative text.
 When the request is ambiguous, create the most useful
 student-friendly interpretation.
 
-Student request:
-{clean_prompt}
+Resolved student request:
+{resolved_image_prompt}
 """.strip()
 
     try:
@@ -3114,6 +3360,12 @@ def create_message(
 ):
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
+    requested_export_format = (
+        detect_artifact_export_request(
+            data.content
+        )
+    )
+
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
@@ -3128,6 +3380,16 @@ def create_message(
         message=data.content,
     )
 
+    if requested_export_format is not None:
+        prompt = (
+            prompt
+            + "\n\n"
+            + build_artifact_generation_instructions(
+                requested_export_format,
+                data.content,
+            )
+        )
+
     user_message = AIMessage(
         conversation_id=conversation.id,
         role="user",
@@ -3138,7 +3400,28 @@ def create_message(
     db.commit()
     db.refresh(user_message)
 
-    answer = generate_studysnap_answer(prompt)
+    raw_answer = (
+        generate_studysnap_answer(
+            prompt
+        ).strip()
+        or "No answer was returned."
+    )
+
+    needs_clarification = (
+        raw_answer.lower().startswith(
+            "needs_clarification:"
+        )
+    )
+
+    answer = (
+        raw_answer.split(
+            ":",
+            1,
+        )[1].strip()
+        if needs_clarification
+        and ":" in raw_answer
+        else raw_answer
+    )
 
     ai_message = AIMessage(
         conversation_id=conversation.id,
@@ -3147,7 +3430,36 @@ def create_message(
     )
 
     db.add(ai_message)
-    db.commit()
+
+    if (
+        requested_export_format
+        is not None
+        and not needs_clarification
+        and artifact_content_is_final(
+            answer
+        )
+    ):
+        db.flush()
+
+        create_text_artifact(
+            db=db,
+            owner_id=current_user.id,
+            title=suggest_artifact_title(
+                data.content,
+                answer,
+            ),
+            content=answer,
+            artifact_format=(
+                requested_export_format
+            ),
+            conversation_id=(
+                conversation.id
+            ),
+            message_id=ai_message.id,
+        )
+    else:
+        db.commit()
+
     db.refresh(ai_message)
 
     if conversation.title == "New Conversation":
@@ -3298,32 +3610,6 @@ def create_message_stream(
         )
     )
 
-    export_source_message = None
-
-    if requested_export_format is not None:
-        recent_assistant_messages = (
-            db.query(AIMessage)
-            .filter(
-                AIMessage.conversation_id
-                == conversation.id,
-                AIMessage.role == "assistant",
-            )
-            .order_by(AIMessage.id.desc())
-            .limit(20)
-            .all()
-        )
-
-        export_source_message = next(
-            (
-                item
-                for item in recent_assistant_messages
-                if not item.content.strip().lower().startswith(
-                    "i created the "
-                )
-            ),
-            None,
-        )
-
     history_text = build_conversation_history_context(
         db=db,
         conversation=conversation,
@@ -3337,6 +3623,16 @@ def create_message_stream(
         history_text=history_text,
         message=data.content,
     )
+
+    if requested_export_format is not None:
+        prompt = (
+            prompt
+            + "\n\n"
+            + build_artifact_generation_instructions(
+                requested_export_format,
+                data.content,
+            )
+        )
 
     user_message = AIMessage(
         conversation_id=conversation.id,
@@ -3375,51 +3671,6 @@ def create_message_stream(
         stream_iterator = None
 
         try:
-            if (
-                requested_export_format is not None
-                and export_source_message is not None
-            ):
-                format_label = artifact_format_label(
-                    requested_export_format
-                )
-
-                assistant_text = (
-                    f"I created the {format_label} for you."
-                )
-
-                ai_message = AIMessage(
-                    conversation_id=conversation.id,
-                    role="assistant",
-                    content=assistant_text,
-                )
-
-                db.add(ai_message)
-                db.flush()
-
-                create_text_artifact(
-                    db=db,
-                    owner_id=current_user.id,
-                    title=(
-                        conversation.title
-                        or "StudySnap file"
-                    ),
-                    content=export_source_message.content,
-                    artifact_format=requested_export_format,
-                    conversation_id=conversation.id,
-                    message_id=ai_message.id,
-                )
-
-                db.refresh(ai_message)
-
-                yield (
-                    "data: "
-                    + json.dumps(assistant_text)
-                    + "\n\n"
-                )
-
-                yield "data: [DONE]\n\n"
-                return
-
             stream_iterator = (
                 stream_studysnap_answer(
                     prompt
@@ -3458,44 +3709,59 @@ def create_message_stream(
             if cancelled:
                 return
 
-            assistant_content = full_answer
+            raw_final_content = (
+                full_answer.strip()
+                or "No answer was returned."
+            )
 
-            if (
-                requested_export_format is not None
-                and full_answer.strip()
-            ):
-                format_label = artifact_format_label(
-                    requested_export_format
+            needs_clarification = (
+                raw_final_content.lower().startswith(
+                    "needs_clarification:"
                 )
+            )
 
-                assistant_content = (
-                    f"I created the {format_label} for you."
-                )
+            final_content = (
+                raw_final_content.split(
+                    ":",
+                    1,
+                )[1].strip()
+                if needs_clarification
+                and ":" in raw_final_content
+                else raw_final_content
+            )
 
             ai_message = AIMessage(
                 conversation_id=conversation.id,
                 role="assistant",
-                content=assistant_content,
+                content=final_content,
             )
 
             db.add(ai_message)
 
             if (
-                requested_export_format is not None
-                and full_answer.strip()
+                requested_export_format
+                is not None
+                and not needs_clarification
+                and artifact_content_is_final(
+                    final_content
+                )
             ):
                 db.flush()
 
                 create_text_artifact(
                     db=db,
                     owner_id=current_user.id,
-                    title=(
-                        conversation.title
-                        or "StudySnap file"
+                    title=suggest_artifact_title(
+                        data.content,
+                        final_content,
                     ),
-                    content=full_answer,
-                    artifact_format=requested_export_format,
-                    conversation_id=conversation.id,
+                    content=final_content,
+                    artifact_format=(
+                        requested_export_format
+                    ),
+                    conversation_id=(
+                        conversation.id
+                    ),
                     message_id=ai_message.id,
                 )
             else:

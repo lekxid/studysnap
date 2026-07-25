@@ -7,7 +7,15 @@ import AIActivityPanel, {
   type AIActivityStep,
 } from "@/components/ai/AIActivityPanel";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ClipboardEvent as ReactClipboardEvent,
+  DragEvent as ReactDragEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -19,7 +27,6 @@ import ArtifactFileCards from "@/components/ai/ArtifactFileCards";
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
 import {
-  GeneralAIFileBrainQueue,
   buildFileBrainDisplayAttachments,
   useGeneralAIFileBrainQueue,
 } from "@/features/ai/GeneralAIFileBrainQueue";
@@ -30,6 +37,7 @@ import {
   askAiWithFiles,
   askAiWithImage,
   createAIConversation,
+  createImagePdfArtifact,
   getStudyRooms,
   organizeFilesIntoStudyRooms,
   uploadUniversalMaterial,
@@ -168,6 +176,79 @@ function buildGeneralAIUrl({
   return query
     ? `/general-ai?${query}`
     : "/general-ai";
+}
+
+
+
+function hasExplicitImageGenerationRequest(
+  value: string,
+  hasImageContext: boolean,
+): boolean {
+  const normalized = value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  const explicitPatterns = [
+    /\b(?:create|generate|draw|design|render|make)\b[\s\S]{0,60}\b(?:image|picture|photo|diagram|illustration|poster|logo|artwork)\b/i,
+    /\b(?:image|picture|photo|diagram|illustration|poster|logo|artwork)\b[\s\S]{0,60}\b(?:create|generate|draw|design|render|make)\b/i,
+  ];
+
+  if (
+    explicitPatterns.some(
+      (pattern) => pattern.test(normalized)
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    hasImageContext &&
+    /\b(?:another one|one more|new one|regenerate(?: it)?|redo(?: it)?)\b/i.test(
+      normalized
+    )
+  );
+}
+
+
+function buildRecentImageContext(
+  recentMessages: Array<{
+    role: string;
+    content: string;
+  }>,
+): string[] {
+  return recentMessages
+    .slice(-8)
+    .map((message) => {
+      const content = message.content
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (
+        !content ||
+        content.startsWith(
+          "[Generated image]"
+        ) ||
+        content.includes(
+          "StudySnap is creating the image"
+        )
+      ) {
+        return "";
+      }
+
+      return (
+        `${message.role}: `
+        + content.slice(0, 600)
+      );
+    })
+    .filter(
+      (item): item is string =>
+        Boolean(item)
+    );
 }
 
 
@@ -319,6 +400,9 @@ type AIActivityState = {
 const GENERAL_AI_DRAFT_KEY =
   "studysnap:general-ai-draft-v1";
 
+const GENERAL_AI_ACTIVE_CONVERSATION_KEY =
+  "studysnap:general-ai-active-conversation-v1";
+
 function asksForCurrentInformation(
   value: string,
 ) {
@@ -364,6 +448,79 @@ function asksToCreateImage(
 
   return !clearlyNonVisualTarget;
 }
+
+
+type ArtifactExportTarget =
+  | "pdf"
+  | "docx"
+  | "txt"
+  | "md";
+
+
+function detectArtifactExportTarget(
+  value: string,
+): ArtifactExportTarget | null {
+  const normalized = value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    /^(?:what is|what are|how do|how does|how can|why does|explain)\b/i.test(
+      normalized
+    )
+  ) {
+    return null;
+  }
+
+  const hasAction =
+    /\b(?:create|make|turn|convert|change|transform|save|export|download|prepare|generate|send|give)\b/i.test(
+      normalized
+    );
+
+  if (!hasAction) {
+    return null;
+  }
+
+  if (
+    /\b(?:docx|word document|word file|word doc)\b/i.test(
+      normalized
+    )
+  ) {
+    return "docx";
+  }
+
+  if (
+    /\b(?:pdf|dpf)\b/i.test(
+      normalized
+    )
+  ) {
+    return "pdf";
+  }
+
+  if (
+    /\b(?:markdown|md file)\b/i.test(
+      normalized
+    )
+  ) {
+    return "md";
+  }
+
+  if (
+    /\b(?:txt|text file)\b/i.test(
+      normalized
+    )
+  ) {
+    return "txt";
+  }
+
+  return null;
+}
+
 
 function asksToEditImage(
   value: string,
@@ -799,6 +956,17 @@ export default function GeneralAIChat({
   const [deletingTrail, setDeletingTrail] =
     useState(false);
 
+  // MOBILE_DELETE_FEEDBACK_V1
+  const [
+    deleteNotice,
+    setDeleteNotice,
+  ] = useState("");
+
+  const deleteNoticeTimerRef =
+    useRef<number | null>(
+      null
+    );
+
   const [
     bulkDeleteRequest,
     setBulkDeleteRequest,
@@ -809,6 +977,9 @@ export default function GeneralAIChat({
 
   const [createImageMode, setCreateImageMode] = useState(false);
   const [imageSize, setImageSize] = useState<GenerateAIImageSize>("1024x1024");
+
+  const [composerDragging, setComposerDragging] =
+    useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -844,6 +1015,33 @@ export default function GeneralAIChat({
   const hasMessages = messages.length > 0;
 
   const activeTrail = trails.find((trail) => trail.id === activeConversationId);
+
+  function showDeleteNotice(
+    message: string
+  ) {
+    setDeleteNotice(
+      message
+    );
+
+    if (
+      deleteNoticeTimerRef.current !==
+      null
+    ) {
+      window.clearTimeout(
+        deleteNoticeTimerRef.current
+      );
+    }
+
+    deleteNoticeTimerRef.current =
+      window.setTimeout(
+        () => {
+          setDeleteNotice("");
+          deleteNoticeTimerRef.current =
+            null;
+        },
+        2400
+      );
+  }
 
   const canSend = useMemo(() => {
     if (createImageMode) {
@@ -892,6 +1090,178 @@ export default function GeneralAIChat({
       scrollToBottom(loadingMessages ? "auto" : "smooth");
     }
   }, [messages, loading, loadingMessages]);
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+
+    const maxHeight =
+      window.matchMedia("(max-width: 640px)").matches
+        ? 132
+        : 160;
+
+    const height = Math.min(
+      Math.max(textarea.scrollHeight, 42),
+      maxHeight
+    );
+
+    textarea.style.height = `${height}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight
+        ? "auto"
+        : "hidden";
+  }, [input]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+
+    function syncViewport() {
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+
+      root.style.setProperty(
+        "--studysnap-visual-viewport-height",
+        `${Math.max(320, Math.round(height))}px`
+      );
+
+      root.style.setProperty(
+        "--studysnap-visual-viewport-offset-top",
+        `${Math.max(0, Math.round(offsetTop))}px`
+      );
+    }
+
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      root.style.removeProperty("--studysnap-visual-viewport-height");
+      root.style.removeProperty("--studysnap-visual-viewport-offset-top");
+    };
+  }, []);
+
+
+  function clearRememberedConversation() {
+    window.sessionStorage.removeItem(
+      GENERAL_AI_ACTIVE_CONVERSATION_KEY
+    );
+  }
+
+  function rememberedConversationId() {
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const requested = Number(
+      params.get("conversationId") ??
+      params.get("conversation_id")
+    );
+
+    if (
+      Number.isInteger(requested) &&
+      requested > 0
+    ) {
+      return requested;
+    }
+
+    const remembered = Number(
+      window.sessionStorage.getItem(
+        GENERAL_AI_ACTIVE_CONVERSATION_KEY
+      )
+    );
+
+    if (
+      Number.isInteger(remembered) &&
+      remembered > 0
+    ) {
+      return remembered;
+    }
+
+    return null;
+  }
+
+  function trailMaterialId(
+    trail: AIConversation
+  ) {
+    return (
+      (
+        trail.context_type ===
+          "study_material" ||
+        trail.context_type ===
+          "material"
+      ) &&
+      typeof trail.context_id ===
+        "number"
+        ? trail.context_id
+        : null
+    );
+  }
+
+  function rememberActiveTrail(
+    trail: AIConversation
+  ) {
+    const nextRoomId =
+      typeof trail.study_room_id ===
+        "number"
+        ? trail.study_room_id
+        : null;
+
+    const nextMaterialId =
+      trailMaterialId(trail);
+
+    setActiveConversationId(
+      trail.id
+    );
+
+    setActiveStudyRoomId(
+      nextRoomId
+    );
+
+    setActiveMaterialId(
+      nextMaterialId
+    );
+
+    setActiveMaterialName("");
+
+    if (nextRoomId !== null) {
+      saveProjectRoomId(
+        nextRoomId
+      );
+    }
+
+    window.sessionStorage.setItem(
+      GENERAL_AI_ACTIVE_CONVERSATION_KEY,
+      String(trail.id)
+    );
+
+    const baseUrl =
+      buildGeneralAIUrl({
+        studyRoomId:
+          nextRoomId,
+        materialId:
+          nextMaterialId,
+        materialName: "",
+      });
+
+    const separator =
+      baseUrl.includes("?")
+        ? "&"
+        : "?";
+
+    window.history.replaceState(
+      {},
+      "",
+      `${baseUrl}${separator}conversationId=${trail.id}`
+    );
+  }
 
   async function loadMessages(conversationId: number) {
     try {
@@ -1033,10 +1403,21 @@ export default function GeneralAIChat({
     setTrails(list);
 
     if (
-      typeof preferredConversationId === "number" &&
-      list.some((trail) => trail.id === preferredConversationId)
+      typeof preferredConversationId ===
+        "number"
     ) {
-      setActiveConversationId(preferredConversationId);
+      const preferredTrail =
+        list.find(
+          (trail) =>
+            trail.id ===
+            preferredConversationId
+        );
+
+      if (preferredTrail) {
+        rememberActiveTrail(
+          preferredTrail
+        );
+      }
     }
 
     return list;
@@ -1077,14 +1458,30 @@ export default function GeneralAIChat({
           !startFresh &&
           list.length > 0
         ) {
-          setActiveConversationId(
-            list[0].id
+          const rememberedId =
+            rememberedConversationId();
+
+          const preferredTrail =
+            (
+              rememberedId !== null
+                ? list.find(
+                    (trail) =>
+                      trail.id ===
+                      rememberedId
+                  )
+                : undefined
+            ) ||
+            list[0];
+
+          rememberActiveTrail(
+            preferredTrail
           );
 
           await loadMessages(
-            list[0].id
+            preferredTrail.id
           );
         } else {
+          clearRememberedConversation();
           setActiveConversationId(null);
           setMessages([]);
         }
@@ -1106,6 +1503,8 @@ export default function GeneralAIChat({
     return () => {
       cancelled = true;
     };
+  // Restore startup state only when startFresh changes; rememberActiveTrail uses stable setters and imported helpers.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startFresh]);
 
   useEffect(() => {
@@ -1954,12 +2353,13 @@ export default function GeneralAIChat({
     delay = 1000,
   ) {
     clearActivityTimer();
-
-
     completeActivitySession();
-activityTimerRef.current =
+
+    activityTimerRef.current =
       window.setTimeout(() => {
         setActivity(null);
+        setActivityStartedAt(null);
+        activitySessionRef.current = null;
         activityTimerRef.current = null;
       }, delay);
   }
@@ -2144,34 +2544,166 @@ activityTimerRef.current =
       ),
     ]);
 
-    setActiveConversationId(
-      conversation.id
+    rememberActiveTrail(
+      conversation
     );
-
-    if (
-      startFresh &&
-      typeof window !== "undefined"
-    ) {
-      window.history.replaceState(
-        {},
-        "",
-        buildGeneralAIUrl({
-          studyRoomId:
-            activeStudyRoomId,
-          materialId:
-            activeMaterialId,
-          materialName:
-            activeMaterialName,
-        })
-      );
-    }
 
     return conversation.id;
   }
 
+
+  async function createPdfFromImage(
+    command: string,
+    imageFile: File,
+  ) {
+    if (
+      loading ||
+      !command.trim()
+    ) {
+      return;
+    }
+
+    const pendingUserId =
+      makeId();
+
+    const pendingAssistantId =
+      makeId();
+
+    try {
+      setLoading(true);
+      setCanStopCurrent(false);
+      setCreateImageMode(false);
+      setError("");
+      setInput("");
+
+      startActivitySession();
+
+      recordActivity({
+        label: "Creating PDF",
+        detail:
+          "StudySnap is placing the image "
+          + "into a verified PDF.",
+        progress: 25,
+      });
+
+      const conversationId =
+        await ensureConversation();
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: pendingUserId,
+          role: "user",
+          content: command,
+          imagePreview:
+            lastGeneratedImagePreview ||
+            selectedImagePreview ||
+            undefined,
+          imageName:
+            imageFile.name,
+        },
+        {
+          id: pendingAssistantId,
+          role: "assistant",
+          content:
+            "StudySnap is creating the PDF...",
+        },
+      ]);
+
+      const cleanName =
+        (
+          lastGeneratedImageName ||
+          imageFile.name ||
+          "StudySnap Image"
+        )
+          .replace(
+            /\.[^.]+$/,
+            ""
+          )
+          .trim();
+
+      await createImagePdfArtifact(
+        imageFile,
+        {
+          conversationId,
+          command,
+          title:
+            cleanName ||
+            "StudySnap Image",
+        }
+      );
+
+      recordActivity({
+        label: "PDF ready",
+        detail:
+          "The PDF passed storage "
+          + "and file verification.",
+        progress: 100,
+      });
+
+      await loadMessages(
+        conversationId
+      );
+
+      await refreshTrails(
+        conversationId
+      );
+
+      if (
+        selectedImage ===
+        imageFile
+      ) {
+        removeSelectedImage();
+      }
+
+      setPendingAttachments(
+        (current) =>
+          current.filter(
+            (attachment) =>
+              attachment.file !==
+              imageFile
+          )
+      );
+
+      scrollToBottom();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : (
+              "StudySnap could not "
+              + "create the image PDF."
+            );
+
+      setMessages((current) =>
+        current.filter(
+          (item) =>
+            item.id !==
+              pendingUserId &&
+            item.id !==
+              pendingAssistantId
+        )
+      );
+
+      setInput(command);
+      setError(message);
+
+      recordActivity({
+        label: "PDF failed",
+        detail: message,
+      });
+    } finally {
+      clearActivityAfter();
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  }
+
+
   async function createGeneratedImage(
     promptText?: string,
     forceNew = false,
+    allowPreviousReference = false,
   ) {
     const pendingImageReference =
       pendingAttachments.find(
@@ -2193,7 +2725,8 @@ activityTimerRef.current =
     const previousReference =
       forceNew ||
       explicitReference ||
-      queuedReference
+      queuedReference ||
+      !allowPreviousReference
         ? null
         : lastGeneratedImage;
 
@@ -2382,6 +2915,10 @@ activityTimerRef.current =
               size: imageSize,
               quality: "medium",
               signal: imageController.signal,
+              contextMessages:
+                buildRecentImageContext(
+                  messages
+                ),
             }
           );
 
@@ -2412,6 +2949,12 @@ activityTimerRef.current =
       setLastGeneratedImageName(
         generatedFile.name
       );
+
+      if (forceNew) {
+        setIdentityReferenceImage(null);
+        setIdentityReferencePreview("");
+        setIdentityReferenceName("");
+      }
 
       if (
         newIdentityReference
@@ -2447,8 +2990,14 @@ activityTimerRef.current =
       recordActivity({
         label: "Image ready",
         detail:
-          "The original identity remains "
-          + "active for your next edit.",
+          newIdentityReference ||
+          identityImageForRequest
+            ? (
+                "The image and its identity "
+                + "reference are ready for "
+                + "your next edit."
+              )
+            : "The image is ready.",
         progress: 100,
       });
 
@@ -3053,6 +3602,16 @@ activityTimerRef.current =
 
       await refreshTrails(conversationId);
 
+      if (
+        detectArtifactExportTarget(
+          finalQuestion
+        ) !== null
+      ) {
+        await loadMessages(
+          conversationId
+        );
+      }
+
       if (imageToSend) {
         removeSelectedImage();
       }
@@ -3160,15 +3719,62 @@ activityTimerRef.current =
       input.trim();
 
     const queuedImage =
-      pendingAttachments.some(
+      pendingAttachments.find(
         (attachment) =>
           attachment.kind === "image"
-      );
+      ) ?? null;
 
     const hasCurrentImage =
       selectedImage !== null ||
-      queuedImage ||
+      queuedImage !== null ||
       lastGeneratedImage !== null;
+
+    const artifactTarget =
+      detectArtifactExportTarget(
+        cleanInput
+      );
+
+    if (
+      artifactTarget === "pdf" &&
+      hasCurrentImage
+    ) {
+      const imageForPdf =
+        selectedImage ||
+        queuedImage?.file ||
+        lastGeneratedImage;
+
+      if (imageForPdf) {
+        await createPdfFromImage(
+          cleanInput,
+          imageForPdf,
+        );
+
+        return;
+      }
+    }
+
+    if (
+      artifactTarget !== null
+    ) {
+      if (
+        hasCurrentImage &&
+        artifactTarget !== "pdf"
+      ) {
+        setError(
+          "StudySnap can currently convert "
+          + "images directly to PDF. Ask it "
+          + "to describe the image first "
+          + "before exporting DOCX, TXT, "
+          + "or Markdown."
+        );
+
+        return;
+      }
+
+      setCreateImageMode(false);
+      await sendMessage();
+      return;
+    }
 
     if (
       hasCurrentImage &&
@@ -3176,19 +3782,28 @@ activityTimerRef.current =
     ) {
       await createGeneratedImage(
         cleanInput ||
-          "Improve this image while keeping its important details."
+          "Improve this image while keeping its important details.",
+        false,
+        true,
       );
       return;
     }
 
     if (
-      asksToCreateImage(
-        cleanInput
+      createImageMode ||
+      (
+        asksToCreateImage(
+          cleanInput
+        ) &&
+        hasExplicitImageGenerationRequest(
+          cleanInput,
+          hasCurrentImage,
+        )
       )
     ) {
       const forceNewImage =
         selectedImage === null &&
-        !queuedImage;
+        queuedImage === null;
 
       await createGeneratedImage(
         cleanInput,
@@ -3214,6 +3829,21 @@ activityTimerRef.current =
   }
 
   function startNewTrail() {
+    clearRememberedConversation();
+
+    window.history.replaceState(
+      {},
+      "",
+      buildGeneralAIUrl({
+        studyRoomId:
+          activeStudyRoomId,
+        materialId:
+          activeMaterialId,
+        materialName:
+          activeMaterialName,
+      })
+    );
+
     setActiveConversationId(null);
     setMessages([]);
     setInput("");
@@ -3222,10 +3852,13 @@ activityTimerRef.current =
     setExpandedMessageIds(new Set());
     setCreateImageMode(false);
     setRoomCreationOffer(null);
+
     removeSelectedImage();
+    removeSelectedDocument();
     clearLastGeneratedImage();
     clearPendingAttachments();
     fileBrainQueue.clearSelection();
+
     inputRef.current?.focus();
   }
 
@@ -3281,17 +3914,28 @@ activityTimerRef.current =
   async function selectTrail(trail: AIConversation) {
     if (loading) return;
 
-    setActiveConversationId(trail.id);
+    rememberActiveTrail(
+      trail
+    );
+
     setInput("");
     setError("");
     setCreateImageMode(false);
-    removeSelectedImage();
+    setRoomCreationOffer(null);
 
-    // Close immediately on desktop and mobile
-    // so the selected conversation is visible.
+    removeSelectedImage();
+    removeSelectedDocument();
+    clearLastGeneratedImage();
+    clearPendingAttachments();
+    fileBrainQueue.clearSelection();
+
+    // Stay inside unified General AI while
+    // restoring the exact selected chat.
     updateHistoryOpen(false);
 
-    await loadMessages(trail.id);
+    await loadMessages(
+      trail.id
+    );
   }
 
   async function renameTrail(trail: AIConversation) {
@@ -3376,8 +4020,8 @@ activityTimerRef.current =
         trail.id
       ) {
         if (remaining.length > 0) {
-          setActiveConversationId(
-            remaining[0].id
+          rememberActiveTrail(
+            remaining[0]
           );
 
           await loadMessages(
@@ -3389,6 +4033,10 @@ activityTimerRef.current =
       }
 
       setDeleteRequest(null);
+
+      showDeleteNotice(
+        "Chat deleted."
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -3473,8 +4121,8 @@ activityTimerRef.current =
         if (
           remaining.length > 0
         ) {
-          setActiveConversationId(
-            remaining[0].id
+          rememberActiveTrail(
+            remaining[0]
           );
 
           await loadMessages(
@@ -3486,6 +4134,18 @@ activityTimerRef.current =
       }
 
       setBulkDeleteRequest([]);
+
+      if (
+        deletedIds.size > 0
+      ) {
+        showDeleteNotice(
+          `Deleted ${deletedIds.size} chat${
+            deletedIds.size === 1
+              ? ""
+              : "s"
+          }.`
+        );
+      }
 
       if (
         failedTitles.length > 0
@@ -3765,13 +4425,175 @@ activityTimerRef.current =
     }
   }
 
+  function normalizeComposerFiles(files: File[]) {
+    const stamp = Date.now();
+
+    return files.map((file, index) => {
+      if (file.name.trim()) return file;
+
+      const extension =
+        file.type.includes("/")
+          ? file.type.split("/")[1].replace(/[^a-z0-9]+/gi, "") || "bin"
+          : "bin";
+
+      return new File(
+        [file],
+        `pasted-file-${stamp}-${index + 1}.${extension}`,
+        {
+          type: file.type || "application/octet-stream",
+          lastModified: file.lastModified || stamp,
+        }
+      );
+    });
+  }
+
+  async function addComposerFiles(incomingFiles: File[]) {
+    const files = normalizeComposerFiles(incomingFiles);
+    if (!files.length) return;
+
+    setError("");
+    setCreateImageMode(false);
+
+    if (files.length === 1 && isImageAttachment(files[0])) {
+      clearPendingAttachments();
+      fileBrainQueue.clearSelection();
+      await Promise.resolve(handleImageChange(files[0]));
+      updateStudyToolsOpen(false);
+      inputRef.current?.focus();
+      return;
+    }
+
+    try {
+      const result = await fileBrainQueue.addFiles(files);
+      clearPendingAttachments();
+
+      if (result.accepted > 0) {
+        recordActivity({
+          label: "Files queued",
+          detail: `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately.`,
+          progress: 0,
+        });
+        clearActivityAfter(1600);
+      }
+
+      if (result.rejected > 0) {
+        setError(
+          `${result.rejected} file${result.rejected === 1 ? " was" : "s were"} not added.`
+        );
+      }
+    } catch (error) {
+      await addAttachments(files.slice(0, 10));
+      setError(
+        (error instanceof Error ? `${error.message} ` : "")
+        + "StudySnap kept up to 10 files in the immediate-upload fallback."
+      );
+    } finally {
+      inputRef.current?.focus();
+    }
+  }
+
+  function handleComposerPaste(
+    event: ReactClipboardEvent<HTMLTextAreaElement>
+  ) {
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    if (!files.length) return;
+
+    event.preventDefault();
+
+    const text = event.clipboardData.getData("text/plain");
+
+    if (text) {
+      const start =
+        event.currentTarget.selectionStart ?? input.length;
+      const end =
+        event.currentTarget.selectionEnd ?? start;
+
+      setInput(
+        (current) =>
+          current.slice(0, start)
+          + text
+          + current.slice(end)
+      );
+    }
+
+    void addComposerFiles(files);
+  }
+
+  function dragHasFiles(
+    event: ReactDragEvent<HTMLFormElement>
+  ) {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function handleComposerDragEnter(
+    event: ReactDragEvent<HTMLFormElement>
+  ) {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setComposerDragging(true);
+  }
+
+  function handleComposerDragOver(
+    event: ReactDragEvent<HTMLFormElement>
+  ) {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setComposerDragging(true);
+  }
+
+  function handleComposerDragLeave(
+    event: ReactDragEvent<HTMLFormElement>
+  ) {
+    const next = event.relatedTarget;
+
+    if (
+      next instanceof Node &&
+      event.currentTarget.contains(next)
+    ) {
+      return;
+    }
+
+    setComposerDragging(false);
+  }
+
+  function handleComposerDrop(
+    event: ReactDragEvent<HTMLFormElement>
+  ) {
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.length) return;
+
+    event.preventDefault();
+    setComposerDragging(false);
+    void addComposerFiles(files);
+  }
+
   function renderComposer(
     large = false
   ) {
+    const compactQueueTasks =
+      fileBrainQueue.tasks
+        .filter((task) => task.status !== "cancelled")
+        .slice(0, 8);
+
     return (
       <form
         onSubmit={handleSubmit}
-        className={`studysnap-composer overflow-hidden border border-white/[0.09] ${
+        onDragEnter={handleComposerDragEnter}
+        onDragOver={handleComposerDragOver}
+        onDragLeave={handleComposerDragLeave}
+        onDrop={handleComposerDrop}
+        aria-label="Message StudySnap"
+        className={`studysnap-composer relative overflow-hidden border border-white/[0.09] ${
+          composerDragging
+            ? "studysnap-composer-dragging"
+            : ""
+        } ${
           large
             ? "rounded-[1.45rem] p-2"
             : "rounded-[1.35rem] p-2"
@@ -3886,9 +4708,65 @@ activityTimerRef.current =
           </div>
         ) : null}
 
-        <GeneralAIFileBrainQueue
-          queue={fileBrainQueue}
-        />
+        {compactQueueTasks.length > 0 ? (
+          <div className="studysnap-composer-files mb-1.5 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1">
+            {compactQueueTasks.map((task) => {
+              const selectable =
+                task.status === "ready" ||
+                task.status === "duplicate";
+
+              return (
+                <button
+                  key={task.localId}
+                  type="button"
+                  disabled={!selectable}
+                  onClick={() =>
+                    fileBrainQueue.toggleSelected(task.localId)
+                  }
+                  aria-pressed={task.selectedForAsk}
+                  className={`studysnap-composer-file-chip flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-xl border px-2 text-left ${
+                    task.selectedForAsk
+                      ? "border-[#c9ad50]/45 bg-[#c9ad50]/12"
+                      : task.status === "failed"
+                        ? "border-red-300/20 bg-red-300/[0.06]"
+                        : "border-white/[0.08] bg-white/[0.045]"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-black/25 text-[12px] text-zinc-400"
+                  >
+                    ▤
+                  </span>
+
+                  <span className="min-w-0">
+                    <span className="block truncate text-[10px] font-bold text-zinc-200">
+                      {task.filename}
+                    </span>
+                    <span className="block truncate text-[9px] text-zinc-500">
+                      {task.selectedForAsk
+                        ? "Included"
+                        : task.status === "ready" ||
+                            task.status === "duplicate"
+                          ? "Tap to include"
+                          : task.status === "uploading"
+                            ? `${Math.round(task.progress)}%`
+                            : task.status}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {fileBrainQueue.error ||
+        fileBrainQueue.recoveryWarning ? (
+          <p className="mb-1 truncate px-2 text-[9px] text-amber-200/80">
+            {fileBrainQueue.error ||
+              fileBrainQueue.recoveryWarning}
+          </p>
+        ) : null}
 
         {pendingAttachments.length > 0 ? (
           <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
@@ -4008,63 +4886,61 @@ activityTimerRef.current =
           </div>
         ) : null}
 
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(event) =>
-            setInput(event.target.value)
-          }
-          onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              (
-                event.ctrlKey ||
-                event.metaKey
-              )
-            ) {
-              event.preventDefault();
-
-              if (canSend) {
-                event.currentTarget
-                  .form
-                  ?.requestSubmit();
-              }
-            }
-          }}
-          enterKeyHint="enter"
-          placeholder={
-            selectedImage
-              ? "Tell StudySnap what to do with this image..."
-              : createImageMode
-                ? "Describe the image you want..."
-                : "Message StudySnap..."
-          }
-          rows={1}
-          className="max-h-32 min-h-[42px] w-full resize-none overflow-y-auto bg-transparent px-2.5 py-2 text-[16px] font-medium leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
-        />
-
-        <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-1">
+        <div className="studysnap-composer-input-row flex items-end gap-2 px-1">
           <button
             type="button"
-            onClick={() =>
-              updateStudyToolsOpen(true)
-            }
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.08] text-xl font-light text-zinc-100 transition hover:bg-white/[0.13]"
+            onClick={() => updateStudyToolsOpen(true)}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.08] text-xl font-light text-zinc-100 transition hover:bg-white/[0.13]"
             aria-label="Add files or tools"
             title="Add files or tools"
           >
             ＋
           </button>
 
-          <button
-            type={
-              loading
-                ? "button"
-                : "submit"
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(event) =>
+              setInput(event.target.value)
             }
+            onPaste={handleComposerPaste}
+            onKeyDown={(event) => {
+              const explicitSend =
+                event.ctrlKey || event.metaKey;
+
+              const desktopEnter =
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                window.matchMedia("(pointer: fine)").matches;
+
+              if (
+                event.key === "Enter" &&
+                (explicitSend || desktopEnter)
+              ) {
+                event.preventDefault();
+
+                if (canSend) {
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }
+            }}
+            enterKeyHint="enter"
+            placeholder={
+              selectedImage
+                ? "Tell StudySnap what to do with this image..."
+                : createImageMode
+                  ? "Describe the image you want..."
+                  : "Message StudySnap..."
+            }
+            rows={1}
+            className="min-h-[42px] max-h-40 min-w-0 flex-1 resize-none overflow-y-hidden bg-transparent px-1.5 py-2 text-[16px] font-medium leading-6 text-zinc-100 outline-none placeholder:text-zinc-500"
+          />
+
+          <button
+            type={loading ? "button" : "submit"}
             onClick={
-              loading &&
-              canStopCurrent
+              loading && canStopCurrent
                 ? stopCurrentResponse
                 : undefined
             }
@@ -4073,15 +4949,13 @@ activityTimerRef.current =
                 ? !canStopCurrent
                 : !canSend
             }
-            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-base font-black transition disabled:cursor-not-allowed disabled:opacity-30 ${
-              loading &&
-              canStopCurrent
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-base font-black transition disabled:cursor-not-allowed disabled:opacity-30 ${
+              loading && canStopCurrent
                 ? "bg-white text-black"
                 : "bg-[#c9ad50] text-black hover:bg-[#d7bd63]"
             }`}
             aria-label={
-              loading &&
-              canStopCurrent
+              loading && canStopCurrent
                 ? "Stop response"
                 : "Send"
             }
@@ -4908,6 +5782,16 @@ activityTimerRef.current =
             </>
           )}
 
+          {deleteNotice ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="pointer-events-none absolute bottom-[calc(5.8rem+env(safe-area-inset-bottom))] left-1/2 z-[275] -translate-x-1/2 rounded-full border border-emerald-300/20 bg-[#10241a]/95 px-4 py-2 text-xs font-black text-emerald-100 shadow-2xl backdrop-blur-xl"
+            >
+              {deleteNotice}
+            </div>
+          ) : null}
+
           {error ? (
             <div className="absolute left-4 right-4 top-[4.25rem] z-50 mx-auto max-w-xl rounded-xl border border-red-400/20 bg-[#2b0d11]/95 px-4 py-3 text-sm font-bold text-red-100 shadow-2xl backdrop-blur-xl">
               {error}
@@ -5104,7 +5988,7 @@ activityTimerRef.current =
 
       {bulkDeleteRequest.length > 0 ? (
         <div
-          className="fixed inset-0 z-[185] grid place-items-center px-4 py-6"
+          className="fixed inset-0 z-[280] grid place-items-end px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-6 sm:place-items-center sm:px-4 sm:py-6"
           role="presentation"
         >
           <button
@@ -5189,7 +6073,7 @@ activityTimerRef.current =
 
       {deleteRequest ? (
         <div
-          className="fixed inset-0 z-[180] grid place-items-center px-4 py-6"
+          className="fixed inset-0 z-[280] grid place-items-end px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-6 sm:place-items-center sm:px-4 sm:py-6"
           role="presentation"
         >
           <button

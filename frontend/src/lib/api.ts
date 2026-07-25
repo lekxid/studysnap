@@ -613,6 +613,7 @@ export type GenerateAIImageOptions = {
   size?: GenerateAIImageSize;
   quality?: GenerateAIImageQuality;
   signal?: AbortSignal;
+  contextMessages?: string[];
 };
 
 export type GenerateAIImageResponse = {
@@ -713,6 +714,9 @@ export async function generateAIImage(
           : null,
       size: options.size || "1024x1024",
       quality: options.quality || "medium",
+      context_messages:
+        options.contextMessages
+          ?.slice(-8) || [],
     }),
   }) as Promise<GenerateAIImageResponse>;
 }
@@ -3849,6 +3853,60 @@ export async function getArtifactsForMessage(
   ) as Promise<StudySnapArtifact[]>;
 }
 
+
+export type CreateImagePdfArtifactResponse = {
+  artifact: StudySnapArtifact;
+  user_message: AIMessage;
+  assistant_message: AIMessage;
+};
+
+export async function createImagePdfArtifact(
+  image: File,
+  options: {
+    conversationId: number;
+    command: string;
+    title?: string;
+  }
+): Promise<CreateImagePdfArtifactResponse> {
+  if (!image.size) {
+    throw new Error(
+      "The image is empty."
+    );
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "conversation_id",
+    String(options.conversationId)
+  );
+
+  formData.append(
+    "command",
+    options.command
+  );
+
+  formData.append(
+    "title",
+    options.title ||
+      "StudySnap Image"
+  );
+
+  formData.append(
+    "image",
+    image
+  );
+
+  return apiFetch(
+    "/api/artifacts/image-pdf",
+    {
+      method: "POST",
+      body: formData,
+    }
+  ) as Promise<CreateImagePdfArtifactResponse>;
+}
+
 export async function getArtifactAccessUrl(
   artifactId: number,
   inline = false
@@ -3858,14 +3916,33 @@ export async function getArtifactAccessUrl(
       artifactId
     );
 
+  const rawUrl =
+    ticket.url.trim();
+
+  if (!rawUrl) {
+    throw new Error(
+      "StudySnap returned an empty file link."
+    );
+  }
+
+  const accessUrl =
+    /^https?:\/\//i.test(rawUrl)
+      ? rawUrl
+      : (
+          `${API_BASE.replace(/\/$/, "")}/`
+          + rawUrl.replace(/^\//, "")
+        );
+
   const separator =
-    ticket.url.includes("?")
+    accessUrl.includes("?")
       ? "&"
       : "?";
 
   return (
-    `${API_BASE}${ticket.url}`
-    + `${separator}inline=${inline ? "true" : "false"}`
+    accessUrl
+    + `${separator}inline=${
+      inline ? "true" : "false"
+    }`
   );
 }
 
@@ -3877,16 +3954,62 @@ export async function downloadArtifactFile(
     false
   );
 
+  const response = await fetch(
+    url,
+    {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+    }
+  );
+
+  if (!response.ok) {
+    let message =
+      "The file could not be downloaded.";
+
+    try {
+      const payload =
+        await response.json();
+
+      if (
+        typeof payload?.detail ===
+        "string"
+      ) {
+        message = payload.detail;
+      }
+    } catch {
+      // Keep the safe fallback message.
+    }
+
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+
+  if (!blob.size) {
+    throw new Error(
+      "StudySnap returned an empty file."
+    );
+  }
+
+  const objectUrl =
+    URL.createObjectURL(blob);
+
   const anchor =
     document.createElement("a");
 
-  anchor.href = url;
+  anchor.href = objectUrl;
   anchor.download = artifact.filename;
   anchor.rel = "noopener noreferrer";
+  anchor.style.display = "none";
 
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 1500);
 }
 
 export async function downloadAIMessageArtifact(
