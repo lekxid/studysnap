@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from openai import OpenAI
+from app.services.openai_instrumentation import OpenAI
 
 from app.config import settings
 from app.services.brain.prompt_builder import BrainPrompt

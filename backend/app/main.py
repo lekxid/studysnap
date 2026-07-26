@@ -33,6 +33,8 @@ from app.routes.room_messages import router as room_messages_router
 from app.routes.room_members import router as room_members_router
 from app.routes.room_realtime import router as room_realtime_router
 from app.routes.artifacts import router as artifacts_router
+from app.routes.product_analytics import router as product_analytics_router
+from app.routes.admin_analytics import router as admin_analytics_router
 
 from app.routes.central_actions import router as central_actions_router
 
@@ -88,6 +90,14 @@ app.include_router(
 app.include_router(
     central_actions_router,
     prefix="/api/actions",
+)
+app.include_router(
+    product_analytics_router,
+    prefix="/api/analytics",
+)
+app.include_router(
+    admin_analytics_router,
+    prefix="/api/admin/analytics",
 )
 
 

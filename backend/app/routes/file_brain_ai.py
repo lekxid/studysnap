@@ -10,7 +10,7 @@ from fastapi import (
     Depends,
     HTTPException,
 )
-from openai import OpenAI
+from app.services.openai_instrumentation import OpenAI
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session

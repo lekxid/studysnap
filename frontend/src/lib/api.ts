@@ -60,6 +60,251 @@ async function readResponseError(
   }
 }
 
+export type ProductEventPayload = {
+  event_name: string;
+  category: string;
+  source?: string;
+  surface?: string | null;
+  room_id?: number | null;
+  entity_type?: string | null;
+  entity_id?: number | null;
+  quantity?: number;
+  bytes_count?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export async function trackProductEvent(
+  payload: ProductEventPayload
+): Promise<void> {
+  const token = getToken();
+
+  if (!token) return;
+
+  try {
+    await fetch(
+      `${API_BASE}/api/analytics/events`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }
+    );
+  } catch {
+    // Analytics must never interrupt studying.
+  }
+}
+
+type ClassifiedProductEvent = {
+  event_name: string;
+  category: string;
+};
+
+function classifySuccessfulApiAction(
+  path: string,
+  methodValue?: string
+): ClassifiedProductEvent | null {
+  const method = (
+    methodValue || "GET"
+  ).toUpperCase();
+
+  if (
+    method === "GET" ||
+    path.startsWith("/api/analytics") ||
+    path.startsWith("/api/admin")
+  ) {
+    return null;
+  }
+
+  const cleanPath = path.split("?")[0];
+
+  const rules: Array<{
+    method: string;
+    pattern: RegExp;
+    event_name: string;
+    category: string;
+  }> = [
+    { method: "POST", pattern: /^\/api\/study-rooms$/, event_name: "room_created", category: "rooms" },
+    { method: "PUT", pattern: /^\/api\/study-rooms\/\d+$/, event_name: "room_updated", category: "rooms" },
+    { method: "DELETE", pattern: /^\/api\/study-rooms\/\d+$/, event_name: "room_deleted", category: "rooms" },
+    { method: "POST", pattern: /^\/api\/notes$/, event_name: "note_created", category: "notes" },
+    { method: "PATCH", pattern: /^\/api\/notes\/\d+$/, event_name: "note_updated", category: "notes" },
+    { method: "DELETE", pattern: /^\/api\/notes\/\d+$/, event_name: "note_deleted", category: "notes" },
+    { method: "POST", pattern: /^\/api\/flashcards$/, event_name: "flashcard_created", category: "flashcards" },
+    { method: "DELETE", pattern: /^\/api\/flashcards\/\d+$/, event_name: "flashcard_deleted", category: "flashcards" },
+    { method: "POST", pattern: /^\/api\/quizzes$/, event_name: "quiz_created", category: "quizzes" },
+    { method: "DELETE", pattern: /^\/api\/quizzes\/\d+$/, event_name: "quiz_deleted", category: "quizzes" },
+    { method: "POST", pattern: /^\/api\/planner$/, event_name: "planner_created", category: "planner" },
+    { method: "PATCH", pattern: /^\/api\/planner\/\d+$/, event_name: "planner_updated", category: "planner" },
+    { method: "DELETE", pattern: /^\/api\/planner\/\d+$/, event_name: "planner_deleted", category: "planner" },
+    { method: "POST", pattern: /^\/api\/materials\/resumable\/[^/]+\/complete$/, event_name: "file_uploaded", category: "files" },
+    { method: "DELETE", pattern: /^\/api\/materials\/\d+$/, event_name: "file_deleted", category: "files" },
+    { method: "POST", pattern: /^\/api\/artifacts(?:\/|$)/, event_name: "artifact_created", category: "artifacts" },
+    { method: "DELETE", pattern: /^\/api\/artifacts\/\d+$/, event_name: "artifact_deleted", category: "artifacts" },
+    { method: "POST", pattern: /^\/api\/smart-scan$/, event_name: "smart_scan_created", category: "smart_scan" },
+    { method: "POST", pattern: /^\/api\/smart-scan\/\d+\/(?:recognize|ask)$/, event_name: "smart_scan_used", category: "smart_scan" },
+    { method: "DELETE", pattern: /^\/api\/smart-scan\/\d+$/, event_name: "smart_scan_deleted", category: "smart_scan" },
+    { method: "POST", pattern: /^\/api\/room-messages\/rooms\/\d+$/, event_name: "study_together_message", category: "study_together" },
+    { method: "POST", pattern: /^\/api\/learning-events$/, event_name: "learning_event_recorded", category: "progress" },
+    { method: "PUT", pattern: /^\/api\/users\/me\/profile$/, event_name: "profile_updated", category: "account" },
+    { method: "PUT", pattern: /^\/api\/users\/me\/settings$/, event_name: "settings_updated", category: "account" },
+    { method: "POST", pattern: /^\/api\/actions\/\d+\/execute$/, event_name: "central_action_executed", category: "actions" },
+    { method: "POST", pattern: /^\/api\/ai\/generate-image$/, event_name: "ai_image_generated", category: "ai" },
+    { method: "POST", pattern: /^\/api\/ai\//, event_name: "ai_used", category: "ai" },
+    { method: "POST", pattern: /^\/api\/brain\//, event_name: "ai_used", category: "ai" },
+  ];
+
+  const matched = rules.find(
+    (rule) =>
+      rule.method === method &&
+      rule.pattern.test(cleanPath)
+  );
+
+  return matched
+    ? {
+        event_name: matched.event_name,
+        category: matched.category,
+      }
+    : null;
+}
+
+function trackSuccessfulApiAction(
+  path: string,
+  method?: string
+) {
+  const event =
+    classifySuccessfulApiAction(
+      path,
+      method
+    );
+
+  if (!event) return;
+
+  void trackProductEvent({
+    ...event,
+    source: "web_api",
+    surface: path,
+  });
+}
+
+export type AdminAnalyticsAccess = {
+  is_platform_admin: boolean;
+};
+
+export async function getAdminAnalyticsAccess(): Promise<AdminAnalyticsAccess> {
+  return apiFetch(
+    "/api/admin/analytics/access"
+  ) as Promise<AdminAnalyticsAccess>;
+}
+
+export type AdminAnalyticsSummary = {
+  generated_at: string;
+  window_days: number;
+  privacy: {
+    content_collected: boolean;
+    private_messages_visible: boolean;
+    notes_visible: boolean;
+    file_contents_visible: boolean;
+  };
+  ai_usage: {
+    pricing_version: string;
+    requests: number;
+    successful_requests: number;
+    failed_requests: number;
+    unpriced_requests: number;
+    input_tokens: number;
+    cached_input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    estimated_cost_usd: number;
+    monthly_estimated_cost_usd: number;
+    average_latency_ms: number;
+    p95_latency_ms: number;
+    monthly_budget_usd: number;
+    monthly_budget_used_percent: number;
+    budget_status:
+      | "not_configured"
+      | "ok"
+      | "warning"
+      | "exceeded";
+    by_model: Array<{
+      model: string;
+      requests: number;
+      failures: number;
+      tokens: number;
+      estimated_cost_usd: number;
+      average_latency_ms: number;
+    }>;
+    by_feature: Array<{
+      feature: string;
+      requests: number;
+      failures: number;
+      tokens: number;
+      estimated_cost_usd: number;
+    }>;
+  };
+  totals: {
+    users: number;
+    new_users_today: number;
+    new_users_7d: number;
+    new_users_30d: number;
+    active_today: number;
+    active_7d: number;
+    active_30d: number;
+    events_in_window: number;
+    uploads_in_window: number;
+    uploaded_bytes_in_window: number;
+    established_return_rate_7d: number;
+  };
+  inventory: Record<string, number>;
+  feature_usage: Array<{
+    category: string;
+    events: number;
+  }>;
+  event_usage: Array<{
+    event_name: string;
+    events: number;
+    quantity: number;
+  }>;
+  daily_activity: Array<{
+    date: string;
+    events: number;
+    active_users: number;
+  }>;
+  recent_events: Array<{
+    id: number;
+    user_id: number;
+    user_email: string | null;
+    event_name: string;
+    category: string;
+    source: string;
+    surface: string | null;
+    quantity: number;
+    bytes_count: number;
+    occurred_at: string | null;
+  }>;
+  users: Array<{
+    id: number;
+    email: string;
+    full_name: string;
+    created_at: string | null;
+    last_active_at: string | null;
+    events_30d: number;
+    top_feature: string | null;
+  }>;
+};
+
+export async function getAdminAnalyticsSummary(
+  days = 30
+): Promise<AdminAnalyticsSummary> {
+  return apiFetch(
+    `/api/admin/analytics/summary?days=${days}`
+  ) as Promise<AdminAnalyticsSummary>;
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = new Headers(options.headers || {});
@@ -87,11 +332,18 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 
   const contentType = res.headers.get("content-type") || "";
 
-  if (contentType.includes("application/json")) {
-    return res.json();
-  }
+  const result = contentType.includes(
+    "application/json"
+  )
+    ? await res.json()
+    : await res.text();
 
-  return res.text();
+  trackSuccessfulApiAction(
+    path,
+    options.method
+  );
+
+  return result;
 }
 
 
@@ -834,6 +1086,13 @@ export async function editAIImage(
     GenerateAIImageResponse =
       await response.json();
 
+  void trackProductEvent({
+    event_name: "ai_image_edited",
+    category: "ai",
+    source: "web_image_edit",
+    surface: "/api/ai/edit-image",
+  });
+
   return responsePayload;
 }
 
@@ -1198,6 +1457,13 @@ export async function streamAIMessage(
   } catch {
     // Stream already closed.
   }
+
+  void trackProductEvent({
+    event_name: "ai_used",
+    category: "ai",
+    source: "web_stream",
+    surface: "/api/ai/messages/stream",
+  });
 }
 
 export async function generateFlashcardsFromNotes(studyRoomId: number) {
@@ -2996,9 +3262,23 @@ export function uploadUniversalMaterial({
 
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
-        resolve(
-          body as UniversalMaterialUploadResponse
-        );
+
+        const result =
+          body as UniversalMaterialUploadResponse;
+
+        void trackProductEvent({
+          event_name: "file_uploaded",
+          category: "files",
+          source: "web_upload",
+          surface: "/api/materials/upload",
+          room_id: result.study_room_id,
+          entity_type: "study_material",
+          entity_id: result.id,
+          quantity: 1,
+          bytes_count: result.file_size,
+        });
+
+        resolve(result);
         return;
       }
 

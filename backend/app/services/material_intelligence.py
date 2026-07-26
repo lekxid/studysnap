@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
-from openai import OpenAI
+from app.services.openai_instrumentation import OpenAI
 from PIL import Image
 from pypdf import PdfReader
 from sqlalchemy.orm import Session

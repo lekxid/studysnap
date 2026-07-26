@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     INVITE_ONLY_SIGNUP: bool = False
     SIGNUP_INVITE_CODE: str = ""
 
+    # Comma-separated platform founder/admin accounts.
+    # This is separate from Study Room roles such as owner/admin.
+    STUDYSNAP_ADMIN_EMAILS: str = ""
+
     # Local default: backend/uploads
     # Cloud example: /mnt/studysnap
     storage_root: str = "uploads"

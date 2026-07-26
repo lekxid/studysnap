@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from openai import OpenAI
+from app.services.openai_instrumentation import OpenAI
 from PIL import Image
 from pillow_heif import register_heif_opener
 from app.config import settings
@@ -1572,7 +1572,7 @@ async def edit_ai_image(
     from pathlib import Path as LocalPath
 
     from PIL import Image as PILImage
-    from openai import OpenAI
+    from app.services.openai_instrumentation import OpenAI
 
     from app.config import settings as app_settings
 

@@ -22,11 +22,13 @@ import {
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
 import {
+  getAdminAnalyticsAccess,
   getCurrentUser,
   getCurrentUserAvatarBlob,
   getStudyRooms,
   PROFILE_UPDATED_EVENT,
   signOutCurrentSession,
+  trackProductEvent,
   type UserProfile,
 } from "@/lib/api";
 
@@ -128,6 +130,12 @@ const moreNavItems: NavItem[] = [
     icon: "◎",
   },
 ];
+
+const founderAnalyticsNavItem: NavItem = {
+  href: "/admin/analytics",
+  label: "Founder Analytics",
+  icon: "▥",
+};
 
 const topNavItems: NavItem[] = [
   {
@@ -299,6 +307,10 @@ function getPageKicker(pathname: string) {
     pathname.startsWith("/groups")
   ) {
     return "Study Together";
+  }
+
+  if (pathname.startsWith("/admin/analytics")) {
+    return "Founder Control Center";
   }
 
   if (pathname.startsWith("/settings")) {
@@ -493,6 +505,14 @@ export default function AppShell({
 
   const [learnerName, setLearnerName] = useState("StudySnap Learner");
   const [learnerAvatarUrl, setLearnerAvatarUrl] = useState<string | null>(null);
+  const [platformAdmin, setPlatformAdmin] = useState(false);
+
+  const visibleMoreNavItems = platformAdmin
+    ? [
+        ...moreNavItems,
+        founderAnalyticsNavItem,
+      ]
+    : moreNavItems;
 
   useEffect(() => {
     const savedSidebarState = window.localStorage.getItem(
@@ -571,6 +591,42 @@ export default function AppShell({
       }
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFounderAccess() {
+      try {
+        const access =
+          await getAdminAnalyticsAccess();
+
+        if (!cancelled) {
+          setPlatformAdmin(
+            access.is_platform_admin
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setPlatformAdmin(false);
+        }
+      }
+    }
+
+    void loadFounderAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    void trackProductEvent({
+      event_name: "page_view",
+      category: "navigation",
+      source: "web",
+      surface: pathname,
+    });
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1282,7 +1338,7 @@ export default function AppShell({
             {renderExpandableNav({
               title: "More",
               icon: "•••",
-              items: moreNavItems,
+              items: visibleMoreNavItems,
               open: moreOpen,
               onToggle: () => setMoreOpen((current) => !current),
             })}
@@ -1795,7 +1851,7 @@ export default function AppShell({
                 {renderExpandableNav({
                   title: "More",
                   icon: "•••",
-                  items: moreNavItems,
+                  items: visibleMoreNavItems,
                   open: moreOpen,
                   onToggle: () => setMoreOpen((current) => !current),
                   closeMobile: true,

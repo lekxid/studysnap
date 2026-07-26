@@ -36,3 +36,5 @@ from app.models.smart_scan import SmartScan, SmartScanPage
 from app.models.file_brain import FileBrainBatch, FileBrainItem
 from app.models.artifact import Artifact
 from app.models.central_action import CentralAction
+from app.models.product_event import ProductEvent
+from app.models.ai_usage_event import AIUsageEvent

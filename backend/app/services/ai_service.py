@@ -1,7 +1,7 @@
 import json
 from functools import lru_cache
 
-from openai import OpenAI
+from app.services.openai_instrumentation import OpenAI
 from app.config import settings
 from app.services.ai_intent import (
     WEB_SOURCE_INSTRUCTIONS,
