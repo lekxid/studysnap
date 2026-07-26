@@ -2,7 +2,6 @@ from app.routes import quizzes
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import Base, engine
 import app.models
 from app.routes.auth import router as auth_router
 from app.routes.study_rooms import router as study_rooms_router
@@ -37,7 +36,6 @@ from app.routes.artifacts import router as artifacts_router
 
 from app.routes.central_actions import router as central_actions_router
 
-Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.app_name)
 
 app.add_middleware(
