@@ -327,22 +327,139 @@ def downgrade() -> None:
     ):
         return
 
-    existing_indexes = index_names(
-        inspector,
-        TABLE_NAME,
+    backup_table = (
+        "_study_plans_real_planner_backup"
     )
 
-    for index_name in [
-        "ix_study_plans_status",
-        "ix_study_plans_scheduled_for",
-        "ix_study_plans_study_room_id",
-        "ix_study_plans_user_id",
-        "ix_study_plans_id",
-    ]:
-        if index_name in existing_indexes:
-            op.drop_index(
-                index_name,
-                table_name=TABLE_NAME,
-            )
+    if table_exists(
+        inspector,
+        backup_table,
+    ):
+        raise RuntimeError(
+            f"Temporary table already exists: {backup_table}"
+        )
 
-    op.drop_table(TABLE_NAME)
+    expected_indexes = {
+        "ix_study_plans_id",
+        "ix_study_plans_user_id",
+        "ix_study_plans_study_room_id",
+        "ix_study_plans_scheduled_for",
+        "ix_study_plans_status",
+    }
+
+    existing_indexes = set(
+        index_names(
+            inspector,
+            TABLE_NAME,
+        )
+    )
+
+    unexpected_indexes = (
+        existing_indexes - expected_indexes
+    )
+
+    if unexpected_indexes:
+        raise RuntimeError(
+            "Unexpected study_plans indexes: "
+            f"{sorted(unexpected_indexes)}"
+        )
+
+    for index_name in sorted(
+        existing_indexes,
+        reverse=True,
+    ):
+        op.drop_index(
+            index_name,
+            table_name=TABLE_NAME,
+        )
+
+    op.rename_table(
+        TABLE_NAME,
+        backup_table,
+    )
+
+    op.create_table(
+        TABLE_NAME,
+        sa.Column(
+            "id",
+            sa.Integer(),
+            nullable=False,
+        ),
+        sa.Column(
+            "user_id",
+            sa.Integer(),
+            nullable=True,
+        ),
+        sa.Column(
+            "title",
+            sa.String(),
+            nullable=True,
+        ),
+        sa.Column(
+            "description",
+            sa.String(),
+            nullable=True,
+        ),
+        sa.Column(
+            "scheduled_for",
+            sa.DateTime(),
+            nullable=True,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            nullable=True,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    legacy_columns = [
+        "id",
+        "user_id",
+        "title",
+        "description",
+        "scheduled_for",
+        "created_at",
+    ]
+
+    destination = sa.table(
+        TABLE_NAME,
+        *[
+            sa.column(column_name)
+            for column_name in legacy_columns
+        ],
+    )
+
+    source = sa.table(
+        backup_table,
+        *[
+            sa.column(column_name)
+            for column_name in legacy_columns
+        ],
+    )
+
+    op.execute(
+        destination.insert().from_select(
+            legacy_columns,
+            sa.select(
+                *[
+                    source.c[column_name]
+                    for column_name
+                    in legacy_columns
+                ]
+            ),
+        )
+    )
+
+    op.drop_table(backup_table)
+
+    op.create_index(
+        "ix_study_plans_id",
+        TABLE_NAME,
+        ["id"],
+        unique=False,
+    )
