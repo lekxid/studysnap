@@ -3341,16 +3341,37 @@ def delete_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conversation = verify_conversation(db, conversation_id, current_user.id)
+    conversation = verify_conversation(
+        db,
+        conversation_id,
+        current_user.id,
+    )
 
-    db.query(AIMessage).filter(
-        AIMessage.conversation_id == conversation.id,
-    ).delete(synchronize_session=False)
+    from app.services.ai_conversation_deletion import (
+        delete_ai_conversation_graph,
+    )
 
-    db.delete(conversation)
-    db.commit()
+    try:
+        result = delete_ai_conversation_graph(
+            db=db,
+            conversation_id=conversation.id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
-    return {"message": "Conversation deleted successfully"}
+    return {
+        "message": (
+            "Conversation deleted successfully"
+        ),
+        "deleted_counts": (
+            result.deleted_counts
+        ),
+        "detached_counts": (
+            result.detached_counts
+        ),
+    }
 
 @router.post("/messages")
 def create_message(
