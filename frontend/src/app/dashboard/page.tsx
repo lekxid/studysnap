@@ -14,6 +14,7 @@ import AppShell from "@/components/AppShell";
 import SmartDashboardCenter from "@/components/dashboard/SmartDashboardCenter";
 
 import {
+  apiFetch,
   getCurrentUser,
   getFlashcards,
   getLearningInsights,
@@ -244,6 +245,261 @@ type ActivityItem = {
   label: string;
 };
 
+
+type ApiPlannerItem = {
+  id: number;
+  user_id: number;
+  study_room_id: number | null;
+  title: string;
+  subject: string;
+  description: string | null;
+  scheduled_for: string;
+  duration_minutes: number;
+  priority: "Low" | "Medium" | "High";
+  status: "Planned" | "Done";
+  created_at: string;
+  updated_at: string;
+};
+
+type DashboardSettings = {
+  daily_goal?: string;
+};
+
+type DailyGoalInsights = {
+  cards_reviewed_today?: number;
+  has_learning_data?: boolean;
+  learning_score?: number;
+};
+
+type DailyGoalProgress = {
+  percent: number;
+  label: string;
+  caption: string;
+};
+
+function clampPercent(value: number) {
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(value)
+    )
+  );
+}
+
+function getDailyGoalProgress(
+  dailyGoal: string,
+  insights:
+    DailyGoalInsights |
+    null |
+    undefined
+): DailyGoalProgress {
+  const goal = dailyGoal.trim();
+
+  const cardTarget =
+    goal.match(
+      /(\d+)\s*(?:flashcards?|concept\s*cards?|cards?|questions?|quiz\s*questions?)/i
+    );
+
+  if (cardTarget) {
+    const target = Math.max(
+      1,
+      Number(cardTarget[1])
+    );
+
+    const completed =
+      insights
+        ?.cards_reviewed_today ||
+      0;
+
+    return {
+      percent: clampPercent(
+        (completed / target) * 100
+      ),
+      label: "Daily Goal",
+      caption:
+        `${completed} of ${target} reviews today`,
+    };
+  }
+
+  if (
+    insights?.has_learning_data
+  ) {
+    return {
+      percent: clampPercent(
+        insights.learning_score ||
+        0
+      ),
+      label: "Learning Score",
+      caption:
+        goal ||
+        "Based on your real review activity",
+    };
+  }
+
+  return {
+    percent: 0,
+    label: "Daily Goal",
+    caption:
+      goal ||
+      "Set your daily goal in Settings",
+  };
+}
+
+function selectNextPlannerItem(
+  items: ApiPlannerItem[]
+) {
+  const planned = items.filter(
+    (item) =>
+      item.status === "Planned"
+  );
+
+  if (!planned.length) {
+    return null;
+  }
+
+  const now = Date.now();
+
+  const future = planned
+    .filter((item) => {
+      const timestamp =
+        new Date(
+          item.scheduled_for
+        ).getTime();
+
+      return (
+        !Number.isNaN(
+          timestamp
+        ) &&
+        timestamp >= now - 60_000
+      );
+    })
+    .sort(
+      (first, second) =>
+        new Date(
+          first.scheduled_for
+        ).getTime() -
+        new Date(
+          second.scheduled_for
+        ).getTime()
+    );
+
+  if (future.length) {
+    return future[0];
+  }
+
+  return [...planned].sort(
+    (first, second) =>
+      new Date(
+        second.scheduled_for
+      ).getTime() -
+      new Date(
+        first.scheduled_for
+      ).getTime()
+  )[0];
+}
+
+function formatPlannerDateTime(
+  value: string
+) {
+  const date = new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "Scheduled session";
+  }
+
+  const difference =
+    date.getTime() -
+    Date.now();
+
+  const absoluteMinutes =
+    Math.max(
+      1,
+      Math.round(
+        Math.abs(
+          difference
+        ) / 60_000
+      )
+    );
+
+  if (difference >= 0) {
+    if (
+      absoluteMinutes < 60
+    ) {
+      return (
+        `Starts in ` +
+        `${absoluteMinutes} min`
+      );
+    }
+
+    if (
+      absoluteMinutes < 1_440
+    ) {
+      const hours =
+        Math.round(
+          absoluteMinutes /
+          60
+        );
+
+      return (
+        `Starts in ` +
+        `${hours} hr`
+      );
+    }
+  } else if (
+    absoluteMinutes < 1_440
+  ) {
+    return "Ready to continue";
+  }
+
+  return date.toLocaleString(
+    undefined,
+    {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }
+  );
+}
+
+function getPlannerActionHref(
+  item: ApiPlannerItem,
+  action: "start" | "edit"
+) {
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    action === "start"
+      ? "startPlanId"
+      : "editPlanId",
+    String(item.id)
+  );
+
+  if (
+    typeof item.study_room_id ===
+    "number"
+  ) {
+    params.set(
+      "roomId",
+      String(
+        item.study_room_id
+      )
+    );
+  }
+
+  return (
+    `/planner?` +
+    params.toString()
+  );
+}
+
 function GeneralAIStartCard({
   prompt,
   onPromptChange,
@@ -251,71 +507,142 @@ function GeneralAIStartCard({
   activeRoomId,
   displayName,
   greetingEmoji,
+  dailyGoal,
+  nextSessionSummary,
 }: {
   prompt: string;
-  onPromptChange: (value: string) => void;
-  onSubmit: (
-    event: FormEvent<HTMLFormElement>
+  onPromptChange: (
+    value: string
   ) => void;
-  activeRoomId: number | null;
+  onSubmit: (
+    event:
+      FormEvent<HTMLFormElement>
+  ) => void;
+  activeRoomId:
+    number |
+    null;
   displayName: string;
   greetingEmoji: string;
+  dailyGoal:
+    DailyGoalProgress;
+  nextSessionSummary:
+    string |
+    null;
 }) {
   const learnerName =
-    displayName.trim() || "Learner";
+    displayName.trim() ||
+    "Learner";
+
+  const goalDegrees =
+    clampPercent(
+      dailyGoal.percent
+    ) * 3.6;
+
+  const addMaterialHref =
+    activeRoomId
+      ? (
+          "/general-ai?" +
+          "new=1&roomId=" +
+          activeRoomId
+        )
+      : "/general-ai?new=1";
 
   return (
-    <section className="relative overflow-hidden rounded-[1.65rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(183,163,95,0.095),transparent_31%),linear-gradient(145deg,rgba(17,22,27,0.97),rgba(3,6,8,0.995))] p-4 shadow-[0_24px_75px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-5">
+    <section className="relative overflow-hidden rounded-[1.85rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(214,184,74,0.10),transparent_31%),linear-gradient(145deg,rgba(17,21,25,0.985),rgba(3,5,7,0.998))] p-4 shadow-[0_26px_80px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-6">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full border border-[#b7a35f]/10 bg-[#b7a35f]/[0.035] blur-2xl"
+        className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-[#d6b84a]/10 bg-[#d6b84a]/[0.025] blur-3xl"
       />
 
-      <div className="relative flex items-start gap-3.5">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[1rem] border border-white/[0.105] bg-[linear-gradient(145deg,rgba(28,33,38,0.96),rgba(8,11,14,0.98))] text-xl font-black text-[#d4c78d] shadow-[0_12px_34px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.065)]">
+      <div className="relative flex items-start gap-4">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-[1.15rem] border border-white/[0.11] bg-[linear-gradient(145deg,rgba(30,33,35,0.98),rgba(8,10,12,0.99))] text-2xl font-black text-[#d8ca91] shadow-[0_14px_40px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.07)]">
           S
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a99b68]">
-              StudySnap AI
-            </p>
-
-            {activeRoomId ? (
-              <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.055] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200">
-                Room connected
-              </span>
-            ) : null}
-          </div>
-
-          <p className="mt-1 text-sm font-black text-[#d7cc9b]">
-            Welcome back, {learnerName}{" "}
-            {greetingEmoji}
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a99b68]">
+            Your study command center
           </p>
 
-          <h1 className="mt-1.5 text-[1.35rem] font-black leading-tight tracking-[-0.025em] text-white sm:text-[1.55rem]">
-            What are you studying today?
+          <h1 className="mt-2 text-[1.45rem] font-black leading-tight tracking-[-0.03em] text-white sm:text-[1.8rem]">
+            Welcome back,{" "}
+            {learnerName}{" "}
+            {greetingEmoji}
           </h1>
 
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
-            Ask a question, explain a difficult
-            topic, or continue work already
-            connected to your room.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+            {nextSessionSummary ||
+              "Your connected study workspace is ready."}
           </p>
+
+          {activeRoomId ? (
+            <span className="mt-3 inline-flex rounded-full border border-[#d6b84a]/15 bg-[#d6b84a]/[0.055] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#d8ca91]">
+              Current room connected
+            </span>
+          ) : null}
+        </div>
+
+        <div className="hidden shrink-0 sm:block">
+          <div
+            className="grid h-28 w-28 place-items-center rounded-full p-[6px] shadow-[0_0_32px_rgba(214,184,74,0.12)]"
+            style={{
+              background:
+                `conic-gradient(#d6b84a ${goalDegrees}deg, rgba(255,255,255,0.075) 0deg)`,
+            }}
+          >
+            <div className="grid h-full w-full place-items-center rounded-full border border-white/[0.07] bg-[#080b0e] text-center">
+              <div>
+                <p className="text-2xl font-black text-white">
+                  {dailyGoal.percent}%
+                </p>
+
+                <p className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#b9aa70]">
+                  {dailyGoal.label}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative mt-5 grid gap-3 rounded-[1.35rem] border border-white/[0.075] bg-black/20 p-3 sm:hidden">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#b9aa70]">
+              {dailyGoal.label}
+            </p>
+
+            <p className="mt-1 text-xs text-slate-400">
+              {dailyGoal.caption}
+            </p>
+          </div>
+
+          <p className="text-2xl font-black text-white">
+            {dailyGoal.percent}%
+          </p>
+        </div>
+
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+          <div
+            className="h-full rounded-full bg-[#d6b84a] transition-[width]"
+            style={{
+              width:
+                `${dailyGoal.percent}%`,
+            }}
+          />
         </div>
       </div>
 
       <form
         onSubmit={onSubmit}
-        className="relative mt-4 rounded-[1.2rem] border border-white/[0.09] bg-[#05080b]/90 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition focus-within:border-[#b7a35f]/35 focus-within:bg-[#070a0d]"
+        className="relative mt-5 rounded-[1.35rem] border border-white/[0.09] bg-[#050708]/95 p-2 shadow-[0_18px_45px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.035)] transition focus-within:border-[#d6b84a]/35 focus-within:bg-[#07090b]"
       >
         <div className="flex items-center gap-2">
           <Link
-            href="/general-ai?add=1"
-            aria-label="Add study material"
+            href={addMaterialHref}
+            aria-label="Open StudySnap AI with materials"
             title="Add study material"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.9rem] border border-white/[0.09] bg-white/[0.04] text-xl font-light text-slate-300 transition hover:border-white/[0.15] hover:bg-white/[0.075] hover:text-white"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-white/[0.09] bg-white/[0.04] text-xl font-light text-slate-300 transition hover:border-white/[0.15] hover:bg-white/[0.075] hover:text-white"
           >
             +
           </Link>
@@ -329,34 +656,33 @@ function GeneralAIStartCard({
             }
             placeholder="Ask StudySnap anything..."
             aria-label="Ask StudySnap"
-            className="min-w-0 flex-1 bg-transparent px-1.5 py-3 text-sm font-medium text-white outline-none placeholder:text-slate-600"
+            className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm font-medium text-white outline-none placeholder:text-slate-600 sm:text-[15px]"
           />
 
           <button
             type="submit"
-            disabled={!prompt.trim()}
             aria-label="Send to StudySnap"
             title="Send"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.9rem] border border-[#b7a35f]/30 bg-[#a89355] text-lg font-black text-[#090a08] shadow-[0_10px_25px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.22)] transition hover:bg-[#b5a161] active:scale-95 disabled:cursor-not-allowed disabled:border-white/[0.07] disabled:bg-white/[0.05] disabled:text-slate-600 disabled:shadow-none"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-[#d6b84a]/30 bg-[#b49b4d] text-lg font-black text-[#090a08] shadow-[0_10px_25px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.22)] transition hover:bg-[#c2aa59] active:scale-95"
           >
             →
           </button>
         </div>
       </form>
 
-      <div className="relative mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="relative mt-3 grid grid-cols-3 gap-2">
         <Link
           href={getRoomAwareHref(
             "/notes",
             activeRoomId,
           )}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
         >
-          <span className="text-emerald-300">
+          <span className="text-[#d8ca91]">
             ▣
           </span>
 
-          Create note
+          Create Note
         </Link>
 
         <Link
@@ -364,31 +690,116 @@ function GeneralAIStartCard({
             "/quizzes",
             activeRoomId,
           )}
-          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
         >
-          <span className="text-[#b7a35f]">
+          <span className="text-[#d6b84a]">
             ▤
           </span>
 
-          Start quiz
+          Start Quiz
         </Link>
 
         <Link
-          href={
-            activeRoomId
-              ? `/study-rooms/${activeRoomId}`
-              : "/study-rooms"
-          }
-          className="col-span-2 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-3 py-2.5 text-xs font-black text-slate-300 transition hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-white sm:col-span-1"
+          href={getRoomAwareHref(
+            "/planner",
+            activeRoomId,
+          )}
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
         >
-          <span className="text-slate-400">
-            ▦
+          <span className="text-[#d8ca91]">
+            ◫
           </span>
 
-          {activeRoomId
-            ? "Open room"
-            : "Choose room"}
+          Add to Planner
         </Link>
+      </div>
+
+      <p className="relative mt-3 hidden text-right text-[10px] font-bold text-slate-600 sm:block">
+        {dailyGoal.caption}
+      </p>
+    </section>
+  );
+}
+
+function NextSessionCard({
+  item,
+  busy,
+  onSnooze,
+}: {
+  item: ApiPlannerItem;
+  busy: boolean;
+  onSnooze: (
+    item: ApiPlannerItem
+  ) => void;
+}) {
+  return (
+    <section className="studysnap-glass-panel overflow-hidden rounded-[1.55rem] border border-[#d6b84a]/20 bg-[linear-gradient(145deg,rgba(18,22,25,0.94),rgba(4,7,9,0.96))] shadow-[0_20px_58px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.045)]">
+      <div className="h-px bg-gradient-to-r from-transparent via-[#d6b84a]/70 to-transparent" />
+
+      <div className="p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5 rounded-full bg-[#d6b84a] shadow-[0_0_18px_rgba(214,184,74,0.55)]"
+              />
+
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b9aa70]">
+                Next Session
+              </p>
+            </div>
+
+            <h2 className="mt-3 truncate text-lg font-black text-white sm:text-xl">
+              {item.title}
+            </h2>
+
+            <p className="mt-1.5 text-sm text-slate-400">
+              {item.subject}
+              {" · "}
+              {item.duration_minutes}
+              {" min · "}
+              {formatPlannerDateTime(
+                item.scheduled_for
+              )}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:shrink-0">
+            <Link
+              href={getPlannerActionHref(
+                item,
+                "start"
+              )}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d6b84a]/30 bg-[#b49b4d] px-4 text-xs font-black text-[#090a08] transition hover:bg-[#c2aa59]"
+            >
+              Start
+            </Link>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                onSnooze(item)
+              }
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-xs font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy
+                ? "Saving"
+                : "Snooze"}
+            </button>
+
+            <Link
+              href={getPlannerActionHref(
+                item,
+                "edit"
+              )}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-xs font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07]"
+            >
+              Edit
+            </Link>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -849,6 +1260,12 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [generalAiPrompt, setGeneralAiPrompt] = useState("");
+  const [plannerItems, setPlannerItems] =
+    useState<ApiPlannerItem[]>([]);
+  const [dailyGoal, setDailyGoal] =
+    useState("");
+  const [plannerActionBusy, setPlannerActionBusy] =
+    useState(false);
 
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -943,6 +1360,72 @@ export default function DashboardPage() {
       setSmartDashboardLoadingMore(false);
     }
   }, [smartDashboard?.next_cursor, smartDashboardLoadingMore]);
+
+  useEffect(() => {
+    if (!checked) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPlannerAndGoal() {
+      try {
+        const [
+          plansResponse,
+          settingsResponse,
+        ] = await Promise.all([
+          apiFetch(
+            "/api/planner"
+          ) as Promise<
+            ApiPlannerItem[]
+          >,
+          apiFetch(
+            "/api/users/me/settings"
+          ) as Promise<
+            DashboardSettings
+          >,
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setPlannerItems(
+          Array.isArray(
+            plansResponse
+          )
+            ? plansResponse
+            : []
+        );
+
+        setDailyGoal(
+          typeof settingsResponse
+            ?.daily_goal ===
+            "string"
+            ? settingsResponse
+                .daily_goal
+            : ""
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "Could not load dashboard planner data.",
+          error
+        );
+
+        setPlannerItems([]);
+      }
+    }
+
+    void loadPlannerAndGoal();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checked]);
 
   useEffect(() => {
     if (!checked) {
@@ -1331,6 +1814,75 @@ export default function DashboardPage() {
     return items.slice(0, 6);
   }, [activeRoom, activeRoomId, flashcards, notes, pdfs, quizCount]);
 
+  async function handleSnoozeNextSession(
+    item: ApiPlannerItem
+  ) {
+    if (plannerActionBusy) {
+      return;
+    }
+
+    setPlannerActionBusy(true);
+
+    try {
+      const currentTime =
+        new Date(
+          item.scheduled_for
+        ).getTime();
+
+      const baseTime =
+        Number.isNaN(
+          currentTime
+        )
+          ? Date.now()
+          : Math.max(
+              currentTime,
+              Date.now()
+            );
+
+      const scheduledFor =
+        new Date(
+          baseTime +
+          10 * 60_000
+        ).toISOString();
+
+      const updated =
+        await apiFetch(
+          `/api/planner/${item.id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              scheduled_for:
+                scheduledFor,
+            }),
+          }
+        ) as ApiPlannerItem;
+
+      setPlannerItems(
+        (current) =>
+          current.map(
+            (plan) =>
+              plan.id ===
+              updated.id
+                ? updated
+                : plan
+          )
+      );
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "studysnap:dashboard-refresh"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Could not snooze the study session.",
+        error
+      );
+    } finally {
+      setPlannerActionBusy(false);
+    }
+  }
+
   async function handleGeneralAiSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1401,28 +1953,89 @@ export default function DashboardPage() {
     />
   );
 
+  const nextSession =
+    selectNextPlannerItem(
+      plannerItems
+    );
+
+  const dailyGoalProgress =
+    getDailyGoalProgress(
+      dailyGoal,
+      currentInsights
+    );
+
+  // Retained internally so the
+  // previous calculations remain
+  // validated, but it is not shown
+  // as fake learning progress.
+  void dashboardRightPanel;
+
   return (
     <AppShell
       title="Dashboard"
       subtitle={`${getTimeGreeting()}, ${displayName}. ${roomTitle} · ${roomSubject}`}
-      rightPanel={dashboardRightPanel}
     >
       <div className="studysnap-dashboard-readable space-y-4">
         <GeneralAIStartCard
           prompt={generalAiPrompt}
-          onPromptChange={setGeneralAiPrompt}
-          onSubmit={handleGeneralAiSubmit}
-          activeRoomId={activeRoomId}
-          displayName={displayName}
-          greetingEmoji={greetingEmoji}
+          onPromptChange={
+            setGeneralAiPrompt
+          }
+          onSubmit={
+            handleGeneralAiSubmit
+          }
+          activeRoomId={
+            activeRoomId
+          }
+          displayName={
+            displayName
+          }
+          greetingEmoji={
+            greetingEmoji
+          }
+          dailyGoal={
+            dailyGoalProgress
+          }
+          nextSessionSummary={
+            nextSession
+              ? (
+                  `${nextSession.title} · ` +
+                  formatPlannerDateTime(
+                    nextSession
+                      .scheduled_for
+                  )
+                )
+              : null
+          }
         />
+
+        {nextSession ? (
+          <NextSessionCard
+            item={nextSession}
+            busy={
+              plannerActionBusy
+            }
+            onSnooze={
+              handleSnoozeNextSession
+            }
+          />
+        ) : null}
 
         <SmartDashboardCenter
           data={smartDashboard}
-          loading={smartDashboardLoading}
-          loadingMore={smartDashboardLoadingMore}
-          error={smartDashboardError}
-          onRefresh={loadSmartDashboard}
+          loading={
+            smartDashboardLoading
+          }
+          loadingMore={
+            smartDashboardLoadingMore
+          }
+          error={
+            smartDashboardError
+          }
+          commandCenterOnly
+          onRefresh={
+            loadSmartDashboard
+          }
           onRetry={() => {
             void loadSmartDashboard();
           }}
@@ -1430,8 +2043,6 @@ export default function DashboardPage() {
             void loadMoreSmartDashboard();
           }}
         />
-
-        <div className="xl:hidden">{dashboardRightPanel}</div>
       </div>
     </AppShell>
   );

@@ -32,6 +32,7 @@ type SmartDashboardCenterProps = {
   onRetry: () => void;
   onRefresh: () => void | Promise<void>;
   onLoadMore: () => void;
+  commandCenterOnly?: boolean;
 };
 
 type DashboardNotice = {
@@ -987,6 +988,65 @@ function AttachmentActionMenu({
   );
 }
 
+function openPinnedStudyAction(
+  item: DashboardFeedItem,
+  action: "note" | "quiz"
+) {
+  const prompt =
+    action === "note"
+      ? (
+          `Create a clear, organized study note from the pinned file "${item.title}".`
+        )
+      : (
+          `Create a practice quiz from the pinned file "${item.title}".`
+        );
+
+  window.sessionStorage.setItem(
+    "studysnap:pending-general-ai-prompt",
+    prompt
+  );
+
+  const params =
+    new URLSearchParams();
+
+  const conversationId =
+    item.metadata
+      .conversation_id;
+
+  if (
+    typeof conversationId ===
+    "number"
+  ) {
+    params.set(
+      "conversationId",
+      String(
+        conversationId
+      )
+    );
+  } else {
+    params.set(
+      "new",
+      "1"
+    );
+  }
+
+  if (
+    typeof item.room_id ===
+    "number"
+  ) {
+    params.set(
+      "roomId",
+      String(
+        item.room_id
+      )
+    );
+  }
+
+  window.location.assign(
+    `/general-ai?${params.toString()}`
+  );
+}
+
 function PinnedMaterialCard({
   item,
   onRefresh,
@@ -1082,6 +1142,46 @@ function PinnedMaterialCard({
           </p>
         </div>
       </button>
+
+      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/[0.065] pt-3">
+        <button
+          type="button"
+          onClick={() =>
+            void openProtectedAttachment(
+              item
+            )
+          }
+          className="min-h-9 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[10px] font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07] hover:text-white"
+        >
+          Open
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            openPinnedStudyAction(
+              item,
+              "note"
+            )
+          }
+          className="min-h-9 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[10px] font-black text-slate-200 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.07] hover:text-white"
+        >
+          Make Note
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            openPinnedStudyAction(
+              item,
+              "quiz"
+            )
+          }
+          className="min-h-9 rounded-lg border border-[#d6b84a]/18 bg-[#d6b84a]/[0.055] px-2 text-[10px] font-black text-[#ddcf96] transition hover:bg-[#d6b84a]/[0.09]"
+        >
+          Quiz Me
+        </button>
+      </div>
     </article>
   );
 }
@@ -1172,12 +1272,12 @@ function PinnedMaterialsSection({
 
       <div
         aria-label="Pinned materials"
-        className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth"
+        className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
       >
         {pinnedItems.map((item) => (
           <div
             key={item.id}
-            className="w-[min(82vw,20rem)] shrink-0 snap-start sm:w-80 lg:w-[22rem]"
+            className="min-w-0"
           >
             <PinnedMaterialCard
               item={item}
@@ -1676,6 +1776,7 @@ export default function SmartDashboardCenter({
   onRetry,
   onRefresh,
   onLoadMore,
+  commandCenterOnly = false,
 }: SmartDashboardCenterProps) {
   const [
     notice,
@@ -1742,6 +1843,52 @@ export default function SmartDashboardCenter({
       data.next_step
         ?.reason,
     );
+
+  if (commandCenterOnly) {
+    return (
+      <div className="space-y-4">
+        {notice ? (
+          <div
+            role="status"
+            className={`rounded-xl border px-4 py-3 text-xs font-bold ${
+              notice.type === "success"
+                ? "border-emerald-300/15 bg-emerald-400/[0.06] text-emerald-100"
+                : "border-red-300/15 bg-red-400/[0.06] text-red-100"
+            }`}
+          >
+            {notice.message}
+          </div>
+        ) : null}
+
+        <PinnedMaterialsSection
+          data={data}
+          onRefresh={
+            onRefresh
+          }
+          onNotice={
+            setNotice
+          }
+        />
+
+        <LearningFeedSection
+          data={data}
+          loadingMore={
+            loadingMore
+          }
+          onLoadMore={
+            onLoadMore
+          }
+          onRefresh={
+            onRefresh
+          }
+          onNotice={
+            setNotice
+          }
+        />
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-5">

@@ -160,6 +160,8 @@ function getPriorityStyle(priority?: PlannerItem["priority"]) {
 
 export default function PlannerPage() {
   const ready = useRequireAuth();
+  const handledPlannerActionRef =
+    useRef(false);
 
   const [connectedRoomId, setConnectedRoomId] =
     useState<number | null>(null);
@@ -172,6 +174,8 @@ export default function PlannerPage() {
 
   const [plannerBusy, setPlannerBusy] =
     useState(false);
+  const [editingId, setEditingId] =
+    useState<number | null>(null);
 
   const [items, setItems] =
     useState<PlannerItem[]>([]);
@@ -434,6 +438,140 @@ export default function PlannerPage() {
     }
   }, [secondsLeft]);
 
+  useEffect(() => {
+    if (
+      !plannerContextReady ||
+      plannerLoading ||
+      handledPlannerActionRef
+        .current
+    ) {
+      return;
+    }
+
+    const searchParams =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const startPlanId =
+      Number(
+        searchParams.get(
+          "startPlanId"
+        )
+      );
+
+    const editPlanId =
+      Number(
+        searchParams.get(
+          "editPlanId"
+        )
+      );
+
+    if (
+      Number.isFinite(
+        startPlanId
+      ) &&
+      startPlanId > 0
+    ) {
+      const item =
+        items.find(
+          (candidate) =>
+            candidate.id ===
+            startPlanId
+        );
+
+      if (item) {
+        handledPlannerActionRef
+          .current = true;
+
+        window.setTimeout(
+          () => {
+            setTimerMinutes(
+              item.duration || 25
+            );
+
+            setTimerRunning(true);
+
+            window.scrollTo({
+              top: 0,
+              behavior:
+                "smooth",
+            });
+          },
+          0
+        );
+      }
+
+      return;
+    }
+
+    if (
+      Number.isFinite(
+        editPlanId
+      ) &&
+      editPlanId > 0
+    ) {
+      const item =
+        items.find(
+          (candidate) =>
+            candidate.id ===
+            editPlanId
+        );
+
+      if (item) {
+        handledPlannerActionRef
+          .current = true;
+
+        window.setTimeout(
+          () => {
+            setEditingId(
+              item.id
+            );
+
+            setTitle(
+              item.title
+            );
+
+            setSubject(
+              item.subject
+            );
+
+            setDate(
+              item.date
+            );
+
+            setTime(
+              item.time || ""
+            );
+
+            setDuration(
+              String(
+                item.duration ||
+                25
+              )
+            );
+
+            setPriority(
+              item.priority ||
+              "Medium"
+            );
+
+            window.scrollTo({
+              top: 0,
+              behavior:
+                "smooth",
+            });
+          },
+          0
+        );
+      }
+    }
+  }, [
+    items,
+    plannerContextReady,
+    plannerLoading,
+  ]);
+
   const stats = useMemo(() => {
     const done = items.filter((item) => item.status === "Done").length;
     const planned = items.length - done;
@@ -479,68 +617,128 @@ export default function PlannerPage() {
     if (plannerBusy) return;
 
     if (!title.trim()) {
-      setError("Enter a study task.");
+      setError(
+        "Enter a study task."
+      );
       return;
     }
 
     if (!subject.trim()) {
-      setError("Enter a subject.");
+      setError(
+        "Enter a subject."
+      );
       return;
     }
 
     if (!date) {
-      setError("Choose a date.");
+      setError(
+        "Choose a date."
+      );
       return;
     }
 
     setError("");
     setPlannerBusy(true);
 
+    const payload = {
+      title: title.trim(),
+      subject: subject.trim(),
+      description: null,
+      scheduled_for:
+        buildScheduledFor(
+          date,
+          time
+        ),
+      duration_minutes:
+        Number(duration) ||
+        25,
+      priority,
+      study_room_id:
+        connectedRoomId,
+    };
+
     try {
-      const created =
-        await apiFetch(
-          "/api/planner",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              title: title.trim(),
-              subject: subject.trim(),
-              description: null,
-              scheduled_for:
-                buildScheduledFor(
-                  date,
-                  time
+      if (
+        editingId !== null
+      ) {
+        const updated =
+          await apiFetch(
+            `/api/planner/${editingId}`,
+            {
+              method: "PATCH",
+              body:
+                JSON.stringify(
+                  payload
                 ),
-              duration_minutes:
-                Number(duration) || 25,
-              priority,
-              study_room_id:
-                connectedRoomId,
-            }),
-          }
-        ) as ApiPlannerItem;
+            }
+          ) as ApiPlannerItem;
 
-      setItems((currentItems) => [
-        mapApiPlannerItem(created),
-        ...currentItems,
-      ]);
+        setItems(
+          (currentItems) =>
+            currentItems.map(
+              (item) =>
+                item.id ===
+                editingId
+                  ? mapApiPlannerItem(
+                      updated
+                    )
+                  : item
+            )
+        );
 
-      addNotification(
-        `📘 Study session added: ` +
-        `${title.trim()} ` +
-        `(${subject.trim()})`
-      );
+        addNotification(
+          `✏️ Study session updated: ${title.trim()}`
+        );
+      } else {
+        const created =
+          await apiFetch(
+            "/api/planner",
+            {
+              method: "POST",
+              body:
+                JSON.stringify(
+                  payload
+                ),
+            }
+          ) as ApiPlannerItem;
 
+        setItems(
+          (currentItems) => [
+            mapApiPlannerItem(
+              created
+            ),
+            ...currentItems,
+          ]
+        );
+
+        addNotification(
+          `📘 Study session added: ` +
+          `${title.trim()} ` +
+          `(${subject.trim()})`
+        );
+      }
+
+      setEditingId(null);
       setTitle("");
-      setDate(getTodayDateInput());
+      setDate(
+        getTodayDateInput()
+      );
       setTime("");
       setDuration("25");
-      setPriority("Medium");
+      setPriority(
+        "Medium"
+      );
     } catch (saveError) {
       setError(
-        saveError instanceof Error
+        saveError instanceof
+          Error
           ? saveError.message
-          : "The study session could not be saved."
+          : (
+              editingId !==
+              null
+                ? "The study session could not be updated."
+                : "The study session could not be saved."
+            )
       );
     } finally {
       setPlannerBusy(false);
@@ -866,7 +1064,9 @@ export default function PlannerPage() {
               >
                 {plannerBusy
                   ? "Saving..."
-                  : "Save session"}
+                  : editingId !== null
+                    ? "Save changes"
+                    : "Save session"}
               </button>
 
               {error ? (
