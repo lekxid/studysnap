@@ -44,34 +44,66 @@ function expect(
 
 expect(
   dashboard.includes(
+    "StudySnap AI"
+  ) &&
+  dashboard.includes(
+    "What are we studying?"
+  ) &&
+  dashboard.includes(
+    "studysnap:dashboard-welcome"
+  ) &&
+  dashboard.includes(
+    "getDashboardLoginFingerprint"
+  ),
+  "Login-aware StudySnap welcome behavior is missing."
+);
+
+expect(
+  !dashboard.includes(
     "Your study command center"
   ),
-  "Welcome command center is missing."
+  "The rejected command-center wording remains."
 );
 
 expect(
   dashboard.includes(
-    "Ask StudySnap anything..."
+    "title=\"Current room\""
+  ) &&
+  dashboard.includes(
+    "activeRoomName"
+  ),
+  "The active room name is not shown naturally."
+);
+
+expect(
+  !dashboard.includes(
+    "Daily Goal"
+  ) &&
+  !dashboard.includes(
+    "getDailyGoalProgress"
+  ) &&
+  !dashboard.includes(
+    '"/api/users/me/settings"'
+  ),
+  "Daily-goal UI or loading remains in the hero."
+);
+
+expect(
+  dashboard.includes(
+    "Ask StudySnap..."
   ),
   "Main StudySnap composer is missing."
 );
 
 expect(
-  !dashboard.includes(
-    ">Ask Question<"
-  ),
-  "Duplicate Ask Question action remains."
-);
-
-expect(
   dashboard.includes(
-    "Create Note"
+    "Note"
   ) &&
   dashboard.includes(
-    "Start Quiz"
+    "Quiz"
   ) &&
   dashboard.includes(
-    "Add to Planner"
+    "Plan"
   ),
   "Required quick actions are incomplete."
 );
@@ -85,16 +117,28 @@ expect(
 
 expect(
   dashboard.includes(
-    '"/api/users/me/settings"'
+    "return future[0] || null;"
+  ) &&
+  !dashboard.includes(
+    "return [...planned].sort"
   ),
-  "Real daily-goal setting is not loaded."
+  "Past planned items can still become Next Session."
 );
 
 expect(
   dashboard.includes(
-    "cards_reviewed_today"
+    "SESSION_COUNTDOWN_WINDOW_MS"
+  ) &&
+  dashboard.includes(
+    "plannerClock"
+  ) &&
+  dashboard.includes(
+    "T− ${timing.label}"
+  ) &&
+  dashboard.includes(
+    'aria-label="Snooze 10 minutes"'
   ),
-  "Daily progress is not tied to real review activity."
+  "Live 30-minute countdown controls are missing."
 );
 
 expect(
@@ -122,13 +166,6 @@ expect(
 );
 
 expect(
-  dashboard.includes(
-    "void dashboardRightPanel"
-  ),
-  "Hidden previous panel calculations are not handled safely."
-);
-
-expect(
   center.includes(
     "if (pinnedItems.length === 0)"
   ) &&
@@ -140,10 +177,33 @@ expect(
 
 expect(
   center.includes(
-    "Make Note"
+    "flex snap-x snap-mandatory"
   ) &&
   center.includes(
-    "Quiz Me"
+    "overflow-x-auto"
+  ),
+  "Pinned materials are not presented left to right."
+);
+
+expect(
+  center.includes(
+    'aria-label="Remove pinned material"'
+  ) &&
+  center.includes(
+    "closePinnedItem"
+  ) &&
+  center.includes(
+    "false"
+  ),
+  "Pinned materials do not have a persistent close/unpin action."
+);
+
+expect(
+  center.includes(
+    "▣ Note"
+  ) &&
+  center.includes(
+    "? Quiz"
   ),
   "Pinned-material actions are incomplete."
 );
@@ -155,11 +215,42 @@ expect(
   "Protected previews were not preserved."
 );
 
+const compactStart =
+  center.indexOf(
+    "if (commandCenterOnly)"
+  );
+
+const compactEnd =
+  center.indexOf(
+    "\n  return (",
+    compactStart
+  );
+
+const compact =
+  center.slice(
+    compactStart,
+    compactEnd
+  );
+
 expect(
-  center.includes(
-    "commandCenterOnly = false"
+  compact.includes(
+    "ContinueLearningSection"
   ),
-  "Compact dashboard mode is missing."
+  "Continue Learning is missing from compact dashboard mode."
+);
+
+expect(
+  compact.indexOf(
+    "ContinueLearningSection"
+  ) < compact.indexOf(
+    "PinnedMaterialsSection"
+  ) &&
+  compact.indexOf(
+    "PinnedMaterialsSection"
+  ) < compact.indexOf(
+    "LearningFeedSection"
+  ),
+  "Dashboard learning sections are in the wrong order."
 );
 
 expect(
@@ -201,5 +292,5 @@ expect(
 );
 
 console.log(
-  "PASS: Connected dashboard command-center contract verified."
+  "PASS: Polished connected dashboard contract verified."
 );

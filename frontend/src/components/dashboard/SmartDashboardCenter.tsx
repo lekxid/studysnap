@@ -1153,7 +1153,7 @@ function PinnedMaterialCard({
           }
           className="min-h-9 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[10px] font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07] hover:text-white"
         >
-          Open
+          ↗ Open
         </button>
 
         <button
@@ -1166,7 +1166,7 @@ function PinnedMaterialCard({
           }
           className="min-h-9 rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[10px] font-black text-slate-200 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.07] hover:text-white"
         >
-          Make Note
+          ▣ Note
         </button>
 
         <button
@@ -1179,7 +1179,7 @@ function PinnedMaterialCard({
           }
           className="min-h-9 rounded-lg border border-[#d6b84a]/18 bg-[#d6b84a]/[0.055] px-2 text-[10px] font-black text-[#ddcf96] transition hover:bg-[#d6b84a]/[0.09]"
         >
-          Quiz Me
+          ? Quiz
         </button>
       </div>
     </article>
@@ -1236,6 +1236,55 @@ function PinnedMaterialsSection({
     );
   }
 
+  async function closePinnedItem(
+    item: DashboardFeedItem
+  ) {
+    const messageId =
+      getAttachmentMessageId(
+        item
+      );
+
+    if (messageId === null) {
+      removeItem(item.id);
+      return;
+    }
+
+    removeItem(item.id);
+
+    try {
+      await pinAIAttachment(
+        messageId,
+        false
+      );
+
+      onNotice({
+        type: "success",
+        message:
+          `${item.title} was removed from pinned materials.`,
+      });
+
+      await onRefresh();
+    } catch (error) {
+      setDismissedItemIds(
+        (current) => {
+          const next =
+            new Set(current);
+
+          next.delete(item.id);
+          return next;
+        }
+      );
+
+      onNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "The pinned material could not be removed.",
+      });
+    }
+  }
+
   if (pinnedItems.length === 0) {
     return null;
   }
@@ -1258,9 +1307,7 @@ function PinnedMaterialsSection({
           </div>
 
           <p className="mt-1 text-xs text-slate-500">
-            Keep up to three
-            important study
-            files within reach.
+            Swipe to browse.
           </p>
         </div>
 
@@ -1272,13 +1319,27 @@ function PinnedMaterialsSection({
 
       <div
         aria-label="Pinned materials"
-        className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth"
       >
         {pinnedItems.map((item) => (
           <div
             key={item.id}
-            className="min-w-0"
+            className="relative w-[min(82vw,20rem)] shrink-0 snap-start sm:w-80 lg:w-[22rem]"
           >
+            <button
+              type="button"
+              aria-label="Remove pinned material"
+              title="Unpin material"
+              onClick={() =>
+                void closePinnedItem(
+                  item
+                )
+              }
+              className="absolute right-14 top-3 z-20 grid h-9 w-9 place-items-center rounded-xl border border-white/[0.1] bg-[#080b0e]/95 text-lg font-bold text-slate-400 shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:border-[#d6b84a]/25 hover:text-white"
+            >
+              ×
+            </button>
+
             <PinnedMaterialCard
               item={item}
               onRefresh={onRefresh}
@@ -1859,6 +1920,8 @@ export default function SmartDashboardCenter({
             {notice.message}
           </div>
         ) : null}
+
+        <ContinueLearningSection data={data} />
 
         <PinnedMaterialsSection
           data={data}

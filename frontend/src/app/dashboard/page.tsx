@@ -261,107 +261,18 @@ type ApiPlannerItem = {
   updated_at: string;
 };
 
-type DashboardSettings = {
-  daily_goal?: string;
-};
-
-type DailyGoalInsights = {
-  cards_reviewed_today?: number;
-  has_learning_data?: boolean;
-  learning_score?: number;
-};
-
-type DailyGoalProgress = {
-  percent: number;
-  label: string;
-  caption: string;
-};
-
-function clampPercent(value: number) {
-  return Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(value)
-    )
-  );
-}
-
-function getDailyGoalProgress(
-  dailyGoal: string,
-  insights:
-    DailyGoalInsights |
-    null |
-    undefined
-): DailyGoalProgress {
-  const goal = dailyGoal.trim();
-
-  const cardTarget =
-    goal.match(
-      /(\d+)\s*(?:flashcards?|concept\s*cards?|cards?|questions?|quiz\s*questions?)/i
-    );
-
-  if (cardTarget) {
-    const target = Math.max(
-      1,
-      Number(cardTarget[1])
-    );
-
-    const completed =
-      insights
-        ?.cards_reviewed_today ||
-      0;
-
-    return {
-      percent: clampPercent(
-        (completed / target) * 100
-      ),
-      label: "Daily Goal",
-      caption:
-        `${completed} of ${target} reviews today`,
-    };
-  }
-
-  if (
-    insights?.has_learning_data
-  ) {
-    return {
-      percent: clampPercent(
-        insights.learning_score ||
-        0
-      ),
-      label: "Learning Score",
-      caption:
-        goal ||
-        "Based on your real review activity",
-    };
-  }
-
-  return {
-    percent: 0,
-    label: "Daily Goal",
-    caption:
-      goal ||
-      "Set your daily goal in Settings",
-  };
-}
-
 function selectNextPlannerItem(
-  items: ApiPlannerItem[]
+  items: ApiPlannerItem[],
+  now: number
 ) {
-  const planned = items.filter(
-    (item) =>
-      item.status === "Planned"
-  );
-
-  if (!planned.length) {
-    return null;
-  }
-
-  const now = Date.now();
-
-  const future = planned
+  const future = items
     .filter((item) => {
+      if (
+        item.status !== "Planned"
+      ) {
+        return false;
+      }
+
       const timestamp =
         new Date(
           item.scheduled_for
@@ -371,7 +282,7 @@ function selectNextPlannerItem(
         !Number.isNaN(
           timestamp
         ) &&
-        timestamp >= now - 60_000
+        timestamp >= now - 30 * 60_000
       );
     })
     .sort(
@@ -384,20 +295,21 @@ function selectNextPlannerItem(
         ).getTime()
     );
 
-  if (future.length) {
-    return future[0];
-  }
-
-  return [...planned].sort(
-    (first, second) =>
-      new Date(
-        second.scheduled_for
-      ).getTime() -
-      new Date(
-        first.scheduled_for
-      ).getTime()
-  )[0];
+  return future[0] || null;
 }
+
+const SESSION_COUNTDOWN_WINDOW_MS =
+  30 * 60_000;
+
+const SESSION_READY_GRACE_MS =
+  30 * 60_000;
+
+type SessionTiming = {
+  label: string;
+  countdown: boolean;
+  ready: boolean;
+  expired: boolean;
+};
 
 function formatPlannerDateTime(
   value: string
@@ -409,51 +321,42 @@ function formatPlannerDateTime(
       date.getTime()
     )
   ) {
-    return "Scheduled session";
+    return "Scheduled";
   }
 
-  const difference =
-    date.getTime() -
-    Date.now();
-
-  const absoluteMinutes =
-    Math.max(
-      1,
-      Math.round(
-        Math.abs(
-          difference
-        ) / 60_000
-      )
+  const now = new Date();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const scheduledDay = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+  const dayDifference =
+    Math.round(
+      (
+        scheduledDay.getTime() -
+        today.getTime()
+      ) / 86_400_000
+    );
+  const time =
+    date.toLocaleTimeString(
+      undefined,
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      }
     );
 
-  if (difference >= 0) {
-    if (
-      absoluteMinutes < 60
-    ) {
-      return (
-        `Starts in ` +
-        `${absoluteMinutes} min`
-      );
-    }
+  if (dayDifference === 0) {
+    return `Today · ${time}`;
+  }
 
-    if (
-      absoluteMinutes < 1_440
-    ) {
-      const hours =
-        Math.round(
-          absoluteMinutes /
-          60
-        );
-
-      return (
-        `Starts in ` +
-        `${hours} hr`
-      );
-    }
-  } else if (
-    absoluteMinutes < 1_440
-  ) {
-    return "Ready to continue";
+  if (dayDifference === 1) {
+    return `Tomorrow · ${time}`;
   }
 
   return date.toLocaleString(
@@ -465,6 +368,191 @@ function formatPlannerDateTime(
       hour: "numeric",
       minute: "2-digit",
     }
+  );
+}
+
+function getSessionTiming(
+  value: string,
+  now: number
+): SessionTiming {
+  const timestamp =
+    new Date(value).getTime();
+
+  if (
+    Number.isNaN(timestamp)
+  ) {
+    return {
+      label: "Scheduled",
+      countdown: false,
+      ready: false,
+      expired: true,
+    };
+  }
+
+  const difference =
+    timestamp - now;
+
+  if (
+    difference <
+    -SESSION_READY_GRACE_MS
+  ) {
+    return {
+      label: "Ended",
+      countdown: false,
+      ready: false,
+      expired: true,
+    };
+  }
+
+  if (difference <= 0) {
+    return {
+      label: "Ready now",
+      countdown: false,
+      ready: true,
+      expired: false,
+    };
+  }
+
+  if (
+    difference <=
+    SESSION_COUNTDOWN_WINDOW_MS
+  ) {
+    const totalSeconds =
+      Math.max(
+        0,
+        Math.ceil(
+          difference / 1_000
+        )
+      );
+    const minutes =
+      Math.floor(
+        totalSeconds / 60
+      );
+    const seconds =
+      totalSeconds % 60;
+
+    return {
+      label:
+        `${minutes}:` +
+        String(seconds).padStart(
+          2,
+          "0"
+        ),
+      countdown: true,
+      ready: false,
+      expired: false,
+    };
+  }
+
+  return {
+    label:
+      formatPlannerDateTime(
+        value
+      ),
+    countdown: false,
+    ready: false,
+    expired: false,
+  };
+}
+
+function useSessionTiming(
+  value: string
+) {
+  const [now, setNow] =
+    useState(() => Date.now());
+
+  useEffect(() => {
+    const timer =
+      window.setInterval(
+        () => {
+          setNow(Date.now());
+        },
+        1_000
+      );
+
+    return () => {
+      window.clearInterval(
+        timer
+      );
+    };
+  }, []);
+
+  return getSessionTiming(
+    value,
+    now
+  );
+}
+
+function hashDashboardSession(
+  value: string
+) {
+  let hash = 0;
+
+  for (
+    let index = 0;
+    index < value.length;
+    index += 1
+  ) {
+    hash =
+      (
+        hash * 31 +
+        value.charCodeAt(index)
+      ) | 0;
+  }
+
+  return Math.abs(hash)
+    .toString(36);
+}
+
+function getDashboardLoginFingerprint(
+  fallback: string
+) {
+  try {
+    const candidates: string[] = [];
+
+    for (
+      let index = 0;
+      index <
+        window.localStorage.length;
+      index += 1
+    ) {
+      const key =
+        window.localStorage.key(
+          index
+        );
+
+      if (
+        !key ||
+        !/(token|auth|session)/i.test(
+          key
+        )
+      ) {
+        continue;
+      }
+
+      const value =
+        window.localStorage.getItem(
+          key
+        );
+
+      if (value) {
+        candidates.push(
+          `${key}:${value}`
+        );
+      }
+    }
+
+    if (candidates.length) {
+      return hashDashboardSession(
+        candidates.sort().join("|")
+      );
+    }
+  } catch {
+    // Storage can be unavailable in strict browser modes.
+  }
+
+  return hashDashboardSession(
+    fallback
   );
 }
 
@@ -505,10 +593,9 @@ function GeneralAIStartCard({
   onPromptChange,
   onSubmit,
   activeRoomId,
+  activeRoomName,
   displayName,
   greetingEmoji,
-  dailyGoal,
-  nextSessionSummary,
 }: {
   prompt: string;
   onPromptChange: (
@@ -521,22 +608,76 @@ function GeneralAIStartCard({
   activeRoomId:
     number |
     null;
+  activeRoomName: string;
   displayName: string;
   greetingEmoji: string;
-  dailyGoal:
-    DailyGoalProgress;
-  nextSessionSummary:
-    string |
-    null;
 }) {
   const learnerName =
     displayName.trim() ||
     "Learner";
 
-  const goalDegrees =
-    clampPercent(
-      dailyGoal.percent
-    ) * 3.6;
+  const roomName =
+    activeRoomName.trim() ||
+    "Study Room";
+
+  const [showWelcome, setShowWelcome] =
+    useState(false);
+
+  useEffect(() => {
+    const timer =
+      window.setTimeout(
+        () => {
+          const fingerprint =
+            getDashboardLoginFingerprint(
+              learnerName
+            );
+          const storageKey =
+            `studysnap:dashboard-welcome:${fingerprint}`;
+          let firstVisit = true;
+
+          try {
+            firstVisit =
+              window.localStorage.getItem(
+                storageKey
+              ) !== "1";
+
+            if (firstVisit) {
+              window.localStorage.setItem(
+                storageKey,
+                "1"
+              );
+            }
+          } catch {
+            try {
+              firstVisit =
+                window.sessionStorage.getItem(
+                  storageKey
+                ) !== "1";
+
+              if (firstVisit) {
+                window.sessionStorage.setItem(
+                  storageKey,
+                  "1"
+                );
+              }
+            } catch {
+              firstVisit = false;
+            }
+          }
+
+          setShowWelcome(
+            firstVisit
+          );
+        },
+        0
+      );
+
+    return () => {
+      window.clearTimeout(
+        timer
+      );
+    };
+  }, [learnerName]);
 
   const addMaterialHref =
     activeRoomId
@@ -548,7 +689,7 @@ function GeneralAIStartCard({
       : "/general-ai?new=1";
 
   return (
-    <section className="relative overflow-hidden rounded-[1.85rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(214,184,74,0.10),transparent_31%),linear-gradient(145deg,rgba(17,21,25,0.985),rgba(3,5,7,0.998))] p-4 shadow-[0_26px_80px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-6">
+    <section className="relative overflow-hidden rounded-[1.85rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(214,184,74,0.09),transparent_31%),linear-gradient(145deg,rgba(17,21,25,0.985),rgba(3,5,7,0.998))] p-4 shadow-[0_26px_80px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-6">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border border-[#d6b84a]/10 bg-[#d6b84a]/[0.025] blur-3xl"
@@ -561,75 +702,42 @@ function GeneralAIStartCard({
 
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a99b68]">
-            Your study command center
+            ✦ StudySnap AI
           </p>
 
           <h1 className="mt-2 text-[1.45rem] font-black leading-tight tracking-[-0.03em] text-white sm:text-[1.8rem]">
-            Welcome back,{" "}
-            {learnerName}{" "}
-            {greetingEmoji}
+            {showWelcome ? (
+              <>
+                Welcome back,{" "}
+                {learnerName}{" "}
+                {greetingEmoji}
+              </>
+            ) : (
+              "What are we studying?"
+            )}
           </h1>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            {nextSessionSummary ||
-              "Your connected study workspace is ready."}
+          <p className="mt-2 text-xs font-bold text-slate-400 sm:text-sm">
+            {showWelcome
+              ? "Ready when you are."
+              : "Ask · Upload · Continue"}
           </p>
 
           {activeRoomId ? (
-            <span className="mt-3 inline-flex rounded-full border border-[#d6b84a]/15 bg-[#d6b84a]/[0.055] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-[#d8ca91]">
-              Current room connected
+            <span
+              title="Current room"
+              className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-[#d6b84a]/15 bg-[#d6b84a]/[0.055] px-2.5 py-1 text-[10px] font-black text-[#d8ca91]"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d6b84a]"
+              />
+
+              <span className="truncate">
+                {roomName}
+              </span>
             </span>
           ) : null}
-        </div>
-
-        <div className="hidden shrink-0 sm:block">
-          <div
-            className="grid h-28 w-28 place-items-center rounded-full p-[6px] shadow-[0_0_32px_rgba(214,184,74,0.12)]"
-            style={{
-              background:
-                `conic-gradient(#d6b84a ${goalDegrees}deg, rgba(255,255,255,0.075) 0deg)`,
-            }}
-          >
-            <div className="grid h-full w-full place-items-center rounded-full border border-white/[0.07] bg-[#080b0e] text-center">
-              <div>
-                <p className="text-2xl font-black text-white">
-                  {dailyGoal.percent}%
-                </p>
-
-                <p className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#b9aa70]">
-                  {dailyGoal.label}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative mt-5 grid gap-3 rounded-[1.35rem] border border-white/[0.075] bg-black/20 p-3 sm:hidden">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#b9aa70]">
-              {dailyGoal.label}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-400">
-              {dailyGoal.caption}
-            </p>
-          </div>
-
-          <p className="text-2xl font-black text-white">
-            {dailyGoal.percent}%
-          </p>
-        </div>
-
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-          <div
-            className="h-full rounded-full bg-[#d6b84a] transition-[width]"
-            style={{
-              width:
-                `${dailyGoal.percent}%`,
-            }}
-          />
         </div>
       </div>
 
@@ -640,8 +748,8 @@ function GeneralAIStartCard({
         <div className="flex items-center gap-2">
           <Link
             href={addMaterialHref}
-            aria-label="Open StudySnap AI with materials"
-            title="Add study material"
+            aria-label="Add study material"
+            title="Add material"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-white/[0.09] bg-white/[0.04] text-xl font-light text-slate-300 transition hover:border-white/[0.15] hover:bg-white/[0.075] hover:text-white"
           >
             +
@@ -654,16 +762,17 @@ function GeneralAIStartCard({
                 event.target.value
               )
             }
-            placeholder="Ask StudySnap anything..."
+            placeholder="Ask StudySnap..."
             aria-label="Ask StudySnap"
             className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm font-medium text-white outline-none placeholder:text-slate-600 sm:text-[15px]"
           />
 
           <button
             type="submit"
+            disabled={!prompt.trim()}
             aria-label="Send to StudySnap"
             title="Send"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-[#d6b84a]/30 bg-[#b49b4d] text-lg font-black text-[#090a08] shadow-[0_10px_25px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.22)] transition hover:bg-[#c2aa59] active:scale-95"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-[#d6b84a]/30 bg-[#b49b4d] text-lg font-black text-[#090a08] shadow-[0_10px_25px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.22)] transition hover:bg-[#c2aa59] active:scale-95 disabled:cursor-not-allowed disabled:border-white/[0.07] disabled:bg-white/[0.05] disabled:text-slate-600 disabled:shadow-none"
           >
             →
           </button>
@@ -676,13 +785,14 @@ function GeneralAIStartCard({
             "/notes",
             activeRoomId,
           )}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
+          aria-label="Create note"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-xs font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white"
         >
           <span className="text-[#d8ca91]">
             ▣
           </span>
 
-          Create Note
+          Note
         </Link>
 
         <Link
@@ -690,13 +800,14 @@ function GeneralAIStartCard({
             "/quizzes",
             activeRoomId,
           )}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
+          aria-label="Start quiz"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-xs font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white"
         >
           <span className="text-[#d6b84a]">
             ▤
           </span>
 
-          Start Quiz
+          Quiz
         </Link>
 
         <Link
@@ -704,23 +815,19 @@ function GeneralAIStartCard({
             "/planner",
             activeRoomId,
           )}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-[11px] font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white sm:px-3 sm:text-xs"
+          aria-label="Add to planner"
+          className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.028] px-2 py-2.5 text-center text-xs font-black text-slate-300 transition hover:border-[#d6b84a]/20 hover:bg-white/[0.06] hover:text-white"
         >
           <span className="text-[#d8ca91]">
             ◫
           </span>
 
-          Add to Planner
+          Plan
         </Link>
       </div>
-
-      <p className="relative mt-3 hidden text-right text-[10px] font-bold text-slate-600 sm:block">
-        {dailyGoal.caption}
-      </p>
     </section>
   );
 }
-
 function NextSessionCard({
   item,
   busy,
@@ -732,6 +839,15 @@ function NextSessionCard({
     item: ApiPlannerItem
   ) => void;
 }) {
+  const timing =
+    useSessionTiming(
+      item.scheduled_for
+    );
+
+  if (timing.expired) {
+    return null;
+  }
+
   return (
     <section className="studysnap-glass-panel overflow-hidden rounded-[1.55rem] border border-[#d6b84a]/20 bg-[linear-gradient(145deg,rgba(18,22,25,0.94),rgba(4,7,9,0.96))] shadow-[0_20px_58px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.045)]">
       <div className="h-px bg-gradient-to-r from-transparent via-[#d6b84a]/70 to-transparent" />
@@ -739,15 +855,24 @@ function NextSessionCard({
       <div className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-full bg-[#d6b84a] shadow-[0_0_18px_rgba(214,184,74,0.55)]"
-              />
-
+            <div className="flex flex-wrap items-center gap-2">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b9aa70]">
-                Next Session
+                ◷ Upcoming
               </p>
+
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${
+                  timing.ready
+                    ? "border-emerald-300/20 bg-emerald-400/[0.08] text-emerald-100"
+                    : timing.countdown
+                      ? "border-[#d6b84a]/25 bg-[#d6b84a]/[0.08] tabular-nums text-[#eadb9d]"
+                      : "border-white/[0.08] bg-white/[0.035] text-slate-400"
+                }`}
+              >
+                {timing.countdown
+                  ? `T− ${timing.label}`
+                  : timing.label}
+              </span>
             </div>
 
             <h2 className="mt-3 truncate text-lg font-black text-white sm:text-xl">
@@ -758,10 +883,7 @@ function NextSessionCard({
               {item.subject}
               {" · "}
               {item.duration_minutes}
-              {" min · "}
-              {formatPlannerDateTime(
-                item.scheduled_for
-              )}
+              {" min"}
             </p>
           </div>
 
@@ -771,22 +893,26 @@ function NextSessionCard({
                 item,
                 "start"
               )}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[#d6b84a]/30 bg-[#b49b4d] px-4 text-xs font-black text-[#090a08] transition hover:bg-[#c2aa59]"
+              aria-label={`Start ${item.title}`}
+              title="Start"
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-[#d6b84a]/30 bg-[#b49b4d] px-4 text-xs font-black text-[#090a08] transition hover:bg-[#c2aa59]"
             >
-              Start
+              ▶ <span>Start</span>
             </Link>
 
             <button
               type="button"
               disabled={busy}
+              aria-label="Snooze 10 minutes"
+              title="Snooze 10 minutes"
               onClick={() =>
                 onSnooze(item)
               }
               className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-xs font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy
-                ? "Saving"
-                : "Snooze"}
+                ? "…"
+                : "+10m"}
             </button>
 
             <Link
@@ -794,9 +920,11 @@ function NextSessionCard({
                 item,
                 "edit"
               )}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-xs font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07]"
+              aria-label={`Edit ${item.title}`}
+              title="Edit"
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] px-4 text-base font-black text-slate-200 transition hover:border-white/[0.15] hover:bg-white/[0.07]"
             >
-              Edit
+              ✎
             </Link>
           </div>
         </div>
@@ -1262,11 +1390,11 @@ export default function DashboardPage() {
   const [generalAiPrompt, setGeneralAiPrompt] = useState("");
   const [plannerItems, setPlannerItems] =
     useState<ApiPlannerItem[]>([]);
-  const [dailyGoal, setDailyGoal] =
-    useState("");
   const [plannerActionBusy, setPlannerActionBusy] =
     useState(false);
 
+  const [plannerClock, setPlannerClock] =
+    useState(() => Date.now());
   const [checked, setChecked] = useState(false);
   const [fullName, setFullName] = useState("");
   const [greetingEmoji, setGreetingEmoji] = useState("👋");
@@ -1362,29 +1490,36 @@ export default function DashboardPage() {
   }, [smartDashboard?.next_cursor, smartDashboardLoadingMore]);
 
   useEffect(() => {
+    const timer =
+      window.setInterval(
+        () => {
+          setPlannerClock(
+            Date.now()
+          );
+        },
+        30_000
+      );
+
+    return () => {
+      window.clearInterval(
+        timer
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     if (!checked) {
       return;
     }
 
     let cancelled = false;
 
-    async function loadPlannerAndGoal() {
+    async function loadPlannerItems() {
       try {
-        const [
-          plansResponse,
-          settingsResponse,
-        ] = await Promise.all([
-          apiFetch(
+        const plansResponse =
+          await apiFetch(
             "/api/planner"
-          ) as Promise<
-            ApiPlannerItem[]
-          >,
-          apiFetch(
-            "/api/users/me/settings"
-          ) as Promise<
-            DashboardSettings
-          >,
-        ]);
+          ) as ApiPlannerItem[];
 
         if (cancelled) {
           return;
@@ -1396,15 +1531,6 @@ export default function DashboardPage() {
           )
             ? plansResponse
             : []
-        );
-
-        setDailyGoal(
-          typeof settingsResponse
-            ?.daily_goal ===
-            "string"
-            ? settingsResponse
-                .daily_goal
-            : ""
         );
       } catch (error) {
         if (cancelled) {
@@ -1420,7 +1546,7 @@ export default function DashboardPage() {
       }
     }
 
-    void loadPlannerAndGoal();
+    void loadPlannerItems();
 
     return () => {
       cancelled = true;
@@ -1955,13 +2081,8 @@ export default function DashboardPage() {
 
   const nextSession =
     selectNextPlannerItem(
-      plannerItems
-    );
-
-  const dailyGoalProgress =
-    getDailyGoalProgress(
-      dailyGoal,
-      currentInsights
+      plannerItems,
+      plannerClock
     );
 
   // Retained internally so the
@@ -1987,25 +2108,14 @@ export default function DashboardPage() {
           activeRoomId={
             activeRoomId
           }
+          activeRoomName={
+            roomTitle
+          }
           displayName={
             displayName
           }
           greetingEmoji={
             greetingEmoji
-          }
-          dailyGoal={
-            dailyGoalProgress
-          }
-          nextSessionSummary={
-            nextSession
-              ? (
-                  `${nextSession.title} · ` +
-                  formatPlannerDateTime(
-                    nextSession
-                      .scheduled_for
-                  )
-                )
-              : null
           }
         />
 
