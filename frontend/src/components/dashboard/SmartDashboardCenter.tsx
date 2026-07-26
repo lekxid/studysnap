@@ -1136,6 +1136,10 @@ function PinnedMaterialsSection({
     );
   }
 
+  if (pinnedItems.length === 0) {
+    return null;
+  }
+
   return (
     <section className="studysnap-glass-panel rounded-2xl border border-white/[0.075] bg-[linear-gradient(145deg,rgba(18,24,30,0.84),rgba(4,7,10,0.74))] p-4 shadow-[0_20px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl sm:p-5">
       <div className="flex items-start justify-between gap-4">
@@ -1166,35 +1170,24 @@ function PinnedMaterialsSection({
         </span>
       </div>
 
-      {pinnedItems.length ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {pinnedItems.map(
-            (item) => (
-              <PinnedMaterialCard
-                key={item.id}
-                item={item}
-                onRefresh={
-                  onRefresh
-                }
-                onRemove={
-                  removeItem
-                }
-                onNotice={
-                  onNotice
-                }
-              />
-            ),
-          )}
-        </div>
-      ) : (
-        <div className="mt-4">
-          <EmptySection
-            icon="S"
-            title="No pinned materials yet"
-            description="Use the three-dot menu on an uploaded file to keep it here."
-          />
-        </div>
-      )}
+      <div
+        aria-label="Pinned materials"
+        className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth"
+      >
+        {pinnedItems.map((item) => (
+          <div
+            key={item.id}
+            className="w-[min(82vw,20rem)] shrink-0 snap-start sm:w-80 lg:w-[22rem]"
+          >
+            <PinnedMaterialCard
+              item={item}
+              onRefresh={onRefresh}
+              onRemove={removeItem}
+              onNotice={onNotice}
+            />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

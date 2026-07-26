@@ -678,7 +678,28 @@ export default function NotificationBell() {
   }
 
   function clearAll() {
-    rememberDismissedDashboardNotices(items);
+    const now = new Date();
+    const todayKey = getDayKey(now);
+
+    rememberDismissedDashboardNotices(
+      items,
+    );
+
+    window.localStorage.setItem(
+      LAST_REMINDER_DAY_KEY,
+      todayKey,
+    );
+
+    window.localStorage.setItem(
+      LAST_DAILY_SUMMARY_DAY_KEY,
+      todayKey,
+    );
+
+    window.localStorage.setItem(
+      LAST_APP_VISIT_KEY,
+      now.toISOString(),
+    );
+
     persist([]);
   }
 

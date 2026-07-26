@@ -3857,6 +3857,22 @@ export default function GeneralAIChat({
     removeSelectedDocument();
     clearLastGeneratedImage();
     clearPendingAttachments();
+
+    fileBrainQueue.tasks
+      .filter((task) =>
+        [
+          "ready",
+          "duplicate",
+          "failed",
+          "cancelled",
+        ].includes(task.status),
+      )
+      .forEach((task) => {
+        fileBrainQueue.dismissTask(
+          task.localId,
+        );
+      });
+
     fileBrainQueue.clearSelection();
 
     inputRef.current?.focus();

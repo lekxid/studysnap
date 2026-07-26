@@ -508,7 +508,7 @@ def ask_file_brain_items(
                             "attachment_source_id"
                         ] = int(
                             item[
-                                "requested_item_id"
+                                "item_id"
                             ]
                         )
 
