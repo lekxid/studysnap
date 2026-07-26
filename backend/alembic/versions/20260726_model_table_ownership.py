@@ -574,13 +574,36 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    for specification in reversed(TABLES):
-        inspector = sa.inspect(bind)
-        table_name = specification["name"]
-
+    existing_tables = [
+        specification["name"]
+        for specification in TABLES
         if table_exists(
             inspector,
-            table_name,
-        ):
-            op.drop_table(table_name)
+            specification["name"],
+        )
+    ]
+
+    populated_tables = []
+
+    for table_name in existing_tables:
+        row = bind.execute(
+            sa.text(
+                f'SELECT 1 FROM "{table_name}" LIMIT 1'
+            )
+        ).first()
+
+        if row is not None:
+            populated_tables.append(table_name)
+
+    if populated_tables:
+        raise RuntimeError(
+            "Refusing to downgrade and delete populated "
+            "StudySnap tables. Back up and migrate their "
+            "data manually first: "
+            + ", ".join(sorted(populated_tables))
+        )
+
+    for table_name in reversed(existing_tables):
+        op.drop_table(table_name)
