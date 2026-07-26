@@ -14,6 +14,77 @@ function formatNumber(value: number) {
 }
 
 
+function formatUsd(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "$0.00";
+  }
+
+  if (value < 0.01) {
+    return value.toLocaleString(
+      "en-US",
+      {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 6,
+        maximumFractionDigits: 6,
+      }
+    );
+  }
+
+  return value.toLocaleString(
+    "en-US",
+    {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }
+  );
+}
+
+
+function formatBudgetPercent(value: number) {
+  if (value > 0 && value < 0.1) {
+    return "<0.1";
+  }
+
+  return value.toFixed(1);
+}
+
+
+function formatTrackingStart(
+  pricingVersion: string
+) {
+  const match = pricingVersion.match(
+    /(\d{4})-(\d{2})-(\d{2})$/
+  );
+
+  if (!match) {
+    return "OpenAI tracking active";
+  }
+
+  const [, year, month, day] = match;
+
+  const date = new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day)
+    )
+  );
+
+  return `Tracking since ${new Intl.DateTimeFormat(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }
+  ).format(date)}`;
+}
+
+
 function formatBytes(value: number) {
   if (!value) return "0 B";
 
@@ -46,10 +117,12 @@ function formatDate(value: string | null) {
 
 function label(value: string) {
   return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) =>
-      character.toUpperCase()
-    );
+    .replace(/_/g, " ")
+    .replace(
+      /\b\w/g,
+      (character) => character.toUpperCase()
+    )
+    .replace(/\bAi\b/g, "AI");
 }
 
 
@@ -248,10 +321,15 @@ export default function FounderAnalyticsPage() {
                   <p className="mt-2 max-w-3xl text-xs leading-5 text-slate-400">
                     Records model, tokens, latency, feature, status, and estimated cost. Prompts, answers, notes, messages, and file contents are never stored here.
                   </p>
+
+                  <p className="mt-2 max-w-3xl text-[11px] leading-5 text-slate-500">
+                    Provider-level OpenAI tracking begins from the activation date shown here. Earlier AI product actions remain counted separately and are not retroactively assigned tokens or cost.
+
+                  </p>
                 </div>
 
                 <span className="w-fit rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[10px] font-bold text-slate-400">
-                  {summary.ai_usage.pricing_version}
+                  {formatTrackingStart(summary.ai_usage.pricing_version)}
                 </span>
               </div>
 
@@ -278,24 +356,8 @@ export default function FounderAnalyticsPage() {
 
                 <MetricCard
                   title="Estimated cost"
-                  value={summary.ai_usage.estimated_cost_usd.toLocaleString(
-                    "en-US",
-                    {
-                      style: "currency",
-                      currency: "USD",
-                      minimumFractionDigits: 4,
-                      maximumFractionDigits: 4,
-                    }
-                  )}
-                  detail={`${summary.ai_usage.monthly_estimated_cost_usd.toLocaleString(
-                    "en-US",
-                    {
-                      style: "currency",
-                      currency: "USD",
-                      minimumFractionDigits: 4,
-                      maximumFractionDigits: 4,
-                    }
-                  )} this month`}
+                  value={formatUsd(summary.ai_usage.estimated_cost_usd)}
+                  detail={`${formatUsd(summary.ai_usage.monthly_estimated_cost_usd)} this month`}
                 />
 
                 <MetricCard
@@ -317,8 +379,8 @@ export default function FounderAnalyticsPage() {
                     </span>
 
                     <span className="font-bold text-slate-400">
-                      {summary.ai_usage.monthly_budget_used_percent.toFixed(
-                        1
+                      {formatBudgetPercent(
+                        summary.ai_usage.monthly_budget_used_percent
                       )}
                       % of{" "}
                       {summary.ai_usage.monthly_budget_usd.toLocaleString(
@@ -401,15 +463,7 @@ export default function FounderAnalyticsPage() {
                               </p>
 
                               <p className="text-[10px] text-slate-500">
-                                {item.estimated_cost_usd.toLocaleString(
-                                  "en-US",
-                                  {
-                                    style: "currency",
-                                    currency: "USD",
-                                    minimumFractionDigits: 4,
-                                    maximumFractionDigits: 4,
-                                  }
-                                )}
+                                {formatUsd(item.estimated_cost_usd)}
                               </p>
                             </div>
                           </div>
@@ -417,7 +471,7 @@ export default function FounderAnalyticsPage() {
                       )
                     ) : (
                       <p className="py-4 text-xs text-slate-500">
-                        Real model usage will appear after the OpenAI call recorder is activated.
+                        No OpenAI model usage is recorded in this window yet.
                       </p>
                     )}
                   </div>
@@ -464,15 +518,7 @@ export default function FounderAnalyticsPage() {
                               </p>
 
                               <p className="text-[10px] text-slate-500">
-                                {item.estimated_cost_usd.toLocaleString(
-                                  "en-US",
-                                  {
-                                    style: "currency",
-                                    currency: "USD",
-                                    minimumFractionDigits: 4,
-                                    maximumFractionDigits: 4,
-                                  }
-                                )}
+                                {formatUsd(item.estimated_cost_usd)}
                               </p>
                             </div>
                           </div>
@@ -480,7 +526,7 @@ export default function FounderAnalyticsPage() {
                       )
                     ) : (
                       <p className="py-4 text-xs text-slate-500">
-                        Feature-level AI usage will appear after the OpenAI call recorder is activated.
+                        No feature-level OpenAI usage is recorded in this window yet.
                       </p>
                     )}
                   </div>
@@ -506,7 +552,21 @@ export default function FounderAnalyticsPage() {
                   </p>
                 </div>
 
-                <div className="mt-6 flex h-44 items-end gap-1 overflow-hidden">
+                <div
+                  className="relative mt-6 flex h-44 items-end gap-1 overflow-hidden rounded-2xl border border-white/[0.06] bg-black/20 px-3 pt-4"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)",
+                    backgroundSize: "100% 25%",
+                  }}
+                >
+                  {summary.daily_activity.every(
+                    (item) => item.events === 0
+                  ) ? (
+                    <div className="absolute inset-0 flex items-center justify-center px-5 text-center text-xs leading-5 text-slate-500">
+                      No tracked actions in this window yet. Activity will appear here as people use StudySnap.
+                    </div>
+                  ) : null}
                   {summary.daily_activity.map(
                     (item) => {
                       const height =
