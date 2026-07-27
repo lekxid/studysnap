@@ -4033,12 +4033,12 @@ def update_ai_attachment_pin(
             .count()
         )
 
-        if pinned_count >= 3:
+        if pinned_count >= 10:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "You can pin up to "
-                    "3 dashboard files."
+                    "10 dashboard files."
                 ),
             )
 

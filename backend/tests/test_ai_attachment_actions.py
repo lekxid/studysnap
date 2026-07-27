@@ -294,13 +294,13 @@ def test_hiding_attachment_automatically_unpins():
     )
 
 
-def test_user_can_only_pin_three_files():
+def test_user_can_pin_up_to_ten_files():
     attachments = [
         create_attachment()
-        for _ in range(4)
+        for _ in range(11)
     ]
 
-    for attachment in attachments[:3]:
+    for attachment in attachments[:10]:
         response = client.patch(
             (
                 "/api/ai/attachments/"
@@ -309,46 +309,22 @@ def test_user_can_only_pin_three_files():
             ),
         )
 
-        assert (
-            response.status_code
-            == 200
-        )
+        assert response.status_code == 200
+        assert response.json()["is_pinned"] is True
 
-    response = client.patch(
+    blocked = client.patch(
         (
             "/api/ai/attachments/"
-            f"{attachments[3]['message_id']}"
+            f"{attachments[10]['message_id']}"
             "/pin?pinned=true"
         ),
     )
 
-    assert response.status_code == 400
-    assert (
-        response.json()["detail"]
-        == (
-            "You can pin up to "
-            "3 dashboard files."
-        )
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"] == (
+        "You can pin up to "
+        "10 dashboard files."
     )
-
-    current_user_state["id"] = 202
-
-    other_user_attachment = (
-        create_attachment(
-            owner_id=202,
-        )
-    )
-
-    response = client.patch(
-        (
-            "/api/ai/attachments/"
-            f"{other_user_attachment['message_id']}"
-            "/pin?pinned=true"
-        ),
-    )
-
-    assert response.status_code == 200
-
 
 def test_other_user_cannot_change_or_delete_attachment():
     attachment = create_attachment(

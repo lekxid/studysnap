@@ -44,6 +44,21 @@ export default function StudyRoomsPage() {
   const [openRoomMenuId, setOpenRoomMenuId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
 
+  const [selecting, setSelecting] =
+    useState(false);
+
+  const [
+    selectedRoomIds,
+    setSelectedRoomIds,
+  ] = useState<Set<number>>(
+    () => new Set(),
+  );
+
+  const [
+    bulkDeleting,
+    setBulkDeleting,
+  ] = useState(false);
+
   const [newName, setNewName] = useState("");
   const [newSubject, setNewSubject] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -68,6 +83,20 @@ export default function StudyRoomsPage() {
       const roomList: StudyRoom[] = Array.isArray(data) ? data : [];
 
       setRooms(roomList);
+
+      setSelectedRoomIds(
+        (current) =>
+          new Set(
+            [...current].filter(
+              (roomId) =>
+                roomList.some(
+                  (room) =>
+                    room.id ===
+                    roomId,
+                ),
+            ),
+          ),
+      );
 
       const savedRoomId = getSavedProjectRoomId();
       const savedRoomExists =
@@ -125,6 +154,87 @@ export default function StudyRoomsPage() {
         .includes(q);
     });
   }, [rooms, query]);
+
+  const filteredRoomIds =
+    useMemo(
+      () =>
+        filteredRooms.map(
+          (room) => room.id,
+        ),
+      [filteredRooms],
+    );
+
+  const allFilteredRoomsSelected =
+    filteredRoomIds.length > 0 &&
+    filteredRoomIds.every(
+      (roomId) =>
+        selectedRoomIds.has(
+          roomId,
+        ),
+    );
+
+  function toggleSelectionMode() {
+    setOpenRoomMenuId(null);
+
+    if (selecting) {
+      setSelecting(false);
+      setSelectedRoomIds(
+        new Set(),
+      );
+      return;
+    }
+
+    setSelecting(true);
+  }
+
+  function toggleRoomSelection(
+    roomId: number,
+  ) {
+    setSelectedRoomIds(
+      (current) => {
+        const next =
+          new Set(current);
+
+        if (next.has(roomId)) {
+          next.delete(roomId);
+        } else {
+          next.add(roomId);
+        }
+
+        return next;
+      },
+    );
+  }
+
+  function toggleAllFilteredRooms() {
+    setSelectedRoomIds(
+      (current) => {
+        const next =
+          new Set(current);
+
+        if (
+          allFilteredRoomsSelected
+        ) {
+          for (
+            const roomId
+            of filteredRoomIds
+          ) {
+            next.delete(roomId);
+          }
+        } else {
+          for (
+            const roomId
+            of filteredRoomIds
+          ) {
+            next.add(roomId);
+          }
+        }
+
+        return next;
+      },
+    );
+  }
+
 
   function selectRoom(roomId: number) {
     setOpenRoomMenuId(null);
@@ -289,6 +399,155 @@ export default function StudyRoomsPage() {
     }
   }
 
+  async function handleDeleteSelectedRooms() {
+    if (
+      bulkDeleting ||
+      selectedRoomIds.size === 0
+    ) {
+      return;
+    }
+
+    const selectedRooms =
+      rooms.filter(
+        (room) =>
+          selectedRoomIds.has(
+            room.id,
+          ),
+      );
+
+    if (
+      selectedRooms.length === 0
+    ) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Delete ${selectedRooms.length} selected room${
+          selectedRooms.length === 1
+            ? ""
+            : "s"
+        }? This cannot be undone.`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setOpenRoomMenuId(null);
+    setBulkDeleting(true);
+    setDeleting(true);
+    setError("");
+    setMessage("");
+
+    const deletedIds =
+      new Set<number>();
+
+    const failedRooms:
+      StudyRoom[] = [];
+
+    try {
+      for (
+        const room
+        of selectedRooms
+      ) {
+        try {
+          await deleteStudyRoom(
+            room.id,
+          );
+
+          deletedIds.add(
+            room.id,
+          );
+        } catch {
+          failedRooms.push(
+            room,
+          );
+        }
+      }
+
+      const nextRooms =
+        rooms.filter(
+          (room) =>
+            !deletedIds.has(
+              room.id,
+            ),
+        );
+
+      const currentWasDeleted =
+        selectedRoomId !== null &&
+        deletedIds.has(
+          selectedRoomId,
+        );
+
+      const nextSelectedId =
+        currentWasDeleted
+          ? (
+              nextRooms[0]
+                ?.id ??
+              null
+            )
+          : selectedRoomId;
+
+      setRooms(nextRooms);
+      setSelectedRoomId(
+        nextSelectedId,
+      );
+
+      setSelectedRoomIds(
+        new Set(
+          failedRooms.map(
+            (room) =>
+              room.id,
+          ),
+        ),
+      );
+
+      if (
+        nextSelectedId !== null
+      ) {
+        saveProjectRoomId(
+          nextSelectedId,
+        );
+      } else {
+        clearProjectRoomId();
+      }
+
+      if (
+        deletedIds.size > 0
+      ) {
+        setMessage(
+          `${deletedIds.size} room${
+            deletedIds.size === 1
+              ? ""
+              : "s"
+          } deleted.`,
+        );
+      }
+
+      if (
+        failedRooms.length > 0
+      ) {
+        setError(
+          `${failedRooms.length} selected room${
+            failedRooms.length === 1
+              ? ""
+              : "s"
+          } could not be deleted. You may not own ${
+            failedRooms.length === 1
+              ? "it"
+              : "them"
+          }.`,
+        );
+      } else {
+        setSelecting(false);
+      }
+    } finally {
+      setBulkDeleting(false);
+      setDeleting(false);
+    }
+  }
+
   if (!ready) {
     return (
       <div className="min-h-screen bg-[#0b0f14] p-6 text-white">
@@ -323,6 +582,28 @@ export default function StudyRoomsPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={
+                  toggleSelectionMode
+                }
+                disabled={
+                  bulkDeleting
+                }
+                aria-pressed={
+                  selecting
+                }
+                className={`min-h-10 rounded-[14px] border px-3 text-xs font-black transition ${
+                  selecting
+                    ? "border-[#c9ad50]/35 bg-[#c9ad50]/15 text-[#eadb98]"
+                    : "border-white/[0.1] bg-white/[0.045] text-slate-300"
+                }`}
+              >
+                {selecting
+                  ? "Done"
+                  : "Select"}
+              </button>
+
               <Link
                 href="/study-rooms/organize"
                 title="Smart Organizer"
@@ -360,6 +641,50 @@ export default function StudyRoomsPage() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
+
+          {selecting ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[1rem] border border-[#c9ad50]/15 bg-[#c9ad50]/[0.045] p-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={
+                    toggleAllFilteredRooms
+                  }
+                  disabled={
+                    filteredRoomIds.length ===
+                    0
+                  }
+                  className="min-h-9 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-40"
+                >
+                  {allFilteredRoomsSelected
+                    ? "Clear visible"
+                    : "Select all"}
+                </button>
+
+                <span className="text-xs font-bold text-slate-400">
+                  {selectedRoomIds.size}
+                  {" "}selected
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDeleteSelectedRooms()
+                }
+                disabled={
+                  selectedRoomIds.size ===
+                    0 ||
+                  bulkDeleting
+                }
+                className="min-h-9 rounded-xl border border-red-400/20 bg-red-500/10 px-3 text-xs font-black text-red-200 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {bulkDeleting
+                  ? "Deleting…"
+                  : `Delete selected (${selectedRoomIds.size})`}
+              </button>
+            </div>
+          ) : null}
         </section>
 
         {filteredRooms.length === 0 ? (
@@ -383,6 +708,11 @@ export default function StudyRoomsPage() {
             {filteredRooms.map((room) => {
               const active = room.id === selectedRoomId;
 
+              const selectedForDelete =
+                selectedRoomIds.has(
+                  room.id,
+                );
+
               return (
                 <article
                   key={room.id}
@@ -395,13 +725,50 @@ export default function StudyRoomsPage() {
                   <button
                     type="button"
                     data-room-card-link
-                    onClick={() => openRoom(room.id)}
-                    aria-label={`Open ${room.name}`}
+                    onClick={() => {
+                      if (selecting) {
+                        toggleRoomSelection(
+                          room.id,
+                        );
+                        return;
+                      }
+
+                      openRoom(
+                        room.id,
+                      );
+                    }}
+                    aria-label={
+                      selecting
+                        ? `${
+                            selectedForDelete
+                              ? "Unselect"
+                              : "Select"
+                          } ${room.name}`
+                        : `Open ${room.name}`
+                    }
+                    aria-pressed={
+                      selecting
+                        ? selectedForDelete
+                        : undefined
+                    }
                     className="absolute inset-0 z-0 rounded-[1.4rem] outline-none transition focus-visible:ring-2 focus-visible:ring-[#c9ad50]/75 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
                     <span className="sr-only">Open {room.name}</span>
                   </button>
                   <div className="pointer-events-none relative z-10 flex items-start gap-3">
+                    {selecting ? (
+                      <span
+                        aria-hidden="true"
+                        className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border text-sm font-black ${
+                          selectedForDelete
+                            ? "border-red-300/35 bg-red-500/15 text-red-100"
+                            : "border-white/[0.12] bg-black/20 text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </span>
+                    ) : null}
+
                     <div
                       aria-hidden="true"
                       className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-base font-black text-[#e0ce80]"
@@ -436,6 +803,7 @@ export default function StudyRoomsPage() {
 
                     <button
                       type="button"
+                      disabled={selecting}
                       data-room-menu-trigger
                       onPointerDown={(event) => {
                         event.stopPropagation();
@@ -457,7 +825,7 @@ export default function StudyRoomsPage() {
                       className={`pointer-events-auto relative z-20 grid h-11 w-11 shrink-0 place-items-center rounded-[15px] border text-xl font-black transition ${
                         openRoomMenuId === room.id
                           ? "border-[#c9ad50]/35 bg-[#c9ad50]/15 text-[#e3d285]"
-                          : "border-white/[0.1] bg-white/[0.045] text-slate-400 active:bg-white/[0.09]"
+                          : "border-white/[0.1] bg-white/[0.045] text-slate-400 active:bg-white/[0.09] disabled:pointer-events-none disabled:opacity-0"
                       }`}
                     >
                       ⋯

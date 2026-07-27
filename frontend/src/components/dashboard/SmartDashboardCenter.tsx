@@ -1313,7 +1313,7 @@ function PinnedMaterialsSection({
 
         <span className="rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-[10px] font-black text-slate-400">
           {pinnedItems.length}
-          /3
+          /10
         </span>
       </div>
 
@@ -1350,6 +1350,66 @@ function PinnedMaterialsSection({
         ))}
       </div>
     </section>
+  );
+}
+
+
+export function DashboardPinnedMaterials({
+  data,
+  loading,
+  onRefresh,
+}: {
+  data:
+    SmartDashboardResponse |
+    null;
+  loading: boolean;
+  onRefresh:
+    () => void | Promise<void>;
+}) {
+  const [
+    notice,
+    setNotice,
+  ] = useState<
+    DashboardNotice |
+    null
+  >(null);
+
+  if (
+    loading &&
+    !data
+  ) {
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      {notice ? (
+        <div
+          role="status"
+          className={`rounded-xl border px-4 py-3 text-xs font-bold ${
+            notice.type === "success"
+              ? "border-emerald-300/15 bg-emerald-400/[0.06] text-emerald-100"
+              : "border-red-300/15 bg-red-400/[0.06] text-red-100"
+          }`}
+        >
+          {notice.message}
+        </div>
+      ) : null}
+
+      <PinnedMaterialsSection
+        data={data}
+        onRefresh={
+          onRefresh
+        }
+        onNotice={
+          setNotice
+        }
+      />
+    </div>
   );
 }
 
@@ -1922,16 +1982,6 @@ export default function SmartDashboardCenter({
         ) : null}
 
         <ContinueLearningSection data={data} />
-
-        <PinnedMaterialsSection
-          data={data}
-          onRefresh={
-            onRefresh
-          }
-          onNotice={
-            setNotice
-          }
-        />
 
         <LearningFeedSection
           data={data}

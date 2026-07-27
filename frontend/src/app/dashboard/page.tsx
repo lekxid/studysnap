@@ -11,7 +11,9 @@ import {
 } from "react";
 
 import AppShell from "@/components/AppShell";
-import SmartDashboardCenter from "@/components/dashboard/SmartDashboardCenter";
+import SmartDashboardCenter, {
+  DashboardPinnedMaterials,
+} from "@/components/dashboard/SmartDashboardCenter";
 
 import {
   apiFetch,
@@ -1507,23 +1509,17 @@ export default function DashboardPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!checked) {
-      return;
-    }
+  const loadPlannerItems =
+    useCallback(async () => {
+      if (!checked) {
+        return;
+      }
 
-    let cancelled = false;
-
-    async function loadPlannerItems() {
       try {
         const plansResponse =
           await apiFetch(
             "/api/planner"
           ) as ApiPlannerItem[];
-
-        if (cancelled) {
-          return;
-        }
 
         setPlannerItems(
           Array.isArray(
@@ -1533,10 +1529,6 @@ export default function DashboardPage() {
             : []
         );
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
         console.error(
           "Could not load dashboard planner data.",
           error
@@ -1544,14 +1536,86 @@ export default function DashboardPage() {
 
         setPlannerItems([]);
       }
+    }, [checked]);
+
+  useEffect(() => {
+    if (!checked) {
+      return;
     }
 
-    void loadPlannerItems();
+    function refreshPlannerItems() {
+      void loadPlannerItems();
+    }
+
+    function refreshWhenVisible() {
+      if (
+        document.visibilityState ===
+        "visible"
+      ) {
+        void loadPlannerItems();
+      }
+    }
+
+    function refreshFromStorage(
+      event: StorageEvent
+    ) {
+      if (
+        event.key ===
+        "studysnap:planner-updated"
+      ) {
+        void loadPlannerItems();
+      }
+    }
+
+    queueMicrotask(
+      refreshPlannerItems
+    );
+
+    window.addEventListener(
+      "studysnap:planner-updated",
+      refreshPlannerItems,
+    );
+
+    window.addEventListener(
+      "focus",
+      refreshPlannerItems,
+    );
+
+    window.addEventListener(
+      "storage",
+      refreshFromStorage,
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible,
+    );
 
     return () => {
-      cancelled = true;
+      window.removeEventListener(
+        "studysnap:planner-updated",
+        refreshPlannerItems,
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshPlannerItems,
+      );
+
+      window.removeEventListener(
+        "storage",
+        refreshFromStorage,
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible,
+      );
     };
-  }, [checked]);
+  }, [
+    checked,
+    loadPlannerItems,
+  ]);
 
   useEffect(() => {
     if (!checked) {
@@ -2116,6 +2180,16 @@ export default function DashboardPage() {
           }
           greetingEmoji={
             greetingEmoji
+          }
+        />
+
+        <DashboardPinnedMaterials
+          data={smartDashboard}
+          loading={
+            smartDashboardLoading
+          }
+          onRefresh={
+            loadSmartDashboard
           }
         />
 

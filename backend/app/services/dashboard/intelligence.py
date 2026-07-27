@@ -2727,7 +2727,7 @@ def build_dashboard_intelligence(
     serialized_pinned_feed = [
         serialize_feed_item(item)
         for item
-        in pinned_attachment_items[:3]
+        in pinned_attachment_items[:10]
     ]
 
     return {

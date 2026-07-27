@@ -171,6 +171,41 @@ function classifySuccessfulApiAction(
     : null;
 }
 
+export const PLANNER_UPDATED_EVENT =
+  "studysnap:planner-updated";
+
+export const PLANNER_UPDATED_STORAGE_KEY =
+  "studysnap:planner-updated";
+
+function announcePlannerUpdated() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const updatedAt =
+    new Date().toISOString();
+
+  try {
+    window.localStorage.setItem(
+      PLANNER_UPDATED_STORAGE_KEY,
+      updatedAt,
+    );
+  } catch {
+    // Planner refresh still works in this tab.
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(
+      PLANNER_UPDATED_EVENT,
+      {
+        detail: {
+          updatedAt,
+        },
+      },
+    ),
+  );
+}
+
 function trackSuccessfulApiAction(
   path: string,
   method?: string
@@ -182,6 +217,10 @@ function trackSuccessfulApiAction(
     );
 
   if (!event) return;
+
+  if (event.category === "planner") {
+    announcePlannerUpdated();
+  }
 
   void trackProductEvent({
     ...event,

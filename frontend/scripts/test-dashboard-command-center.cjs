@@ -240,17 +240,19 @@ expect(
 );
 
 expect(
+  !compact.includes(
+    "PinnedMaterialsSection"
+  ),
+  "Pinned Materials is still duplicated in the lower dashboard."
+);
+
+expect(
   compact.indexOf(
     "ContinueLearningSection"
   ) < compact.indexOf(
-    "PinnedMaterialsSection"
-  ) &&
-  compact.indexOf(
-    "PinnedMaterialsSection"
-  ) < compact.indexOf(
     "LearningFeedSection"
   ),
-  "Dashboard learning sections are in the wrong order."
+  "Continue Learning must remain above Learning Feed."
 );
 
 expect(
