@@ -60,6 +60,7 @@ export type GeneralAIFileBrainTask = {
   filename: string;
   fileSize: number;
   contentType: string;
+  previewUrl?: string;
   progress: number;
   status: GeneralAIFileBrainStatus;
   selectedForAsk: boolean;
@@ -127,6 +128,70 @@ export type GeneralAIFileBrainQueueController = {
     },
   ) => Promise<AskFileBrainResponse>;
 };
+
+
+function isImagePreviewFile(
+  file: File,
+): boolean {
+  return (
+    file.type.startsWith(
+      "image/"
+    ) ||
+    /\.(png|jpe?g|webp|gif|heic|heif|avif)$/i.test(
+      file.name
+    )
+  );
+}
+
+
+function createTaskPreview(
+  file: File,
+): string | undefined {
+  if (
+    typeof URL === "undefined" ||
+    !isImagePreviewFile(file)
+  ) {
+    return undefined;
+  }
+
+  return URL.createObjectURL(
+    file
+  );
+}
+
+
+function releaseTaskPreview(
+  task:
+    GeneralAIFileBrainTask,
+) {
+  if (
+    task.previewUrl?.startsWith(
+      "blob:"
+    )
+  ) {
+    URL.revokeObjectURL(
+      task.previewUrl
+    );
+  }
+}
+
+
+function serializeQueueTask(
+  task:
+    GeneralAIFileBrainTask,
+): Omit<
+  GeneralAIFileBrainTask,
+  "previewUrl"
+> {
+  const {
+    previewUrl,
+    ...serializable
+  } = task;
+
+  void previewUrl;
+
+  return serializable;
+}
 
 
 function makeLocalId(
@@ -380,6 +445,16 @@ export function useGeneralAIFileBrainQueue():
   }, [tasks]);
 
 
+  useEffect(
+    () => () => {
+      tasksRef.current.forEach(
+        releaseTaskPreview,
+      );
+    },
+    [],
+  );
+
+
   const updateTask = useCallback(
     (
       localId: string,
@@ -463,8 +538,11 @@ export function useGeneralAIFileBrainQueue():
               ): Promise<
                 GeneralAIFileBrainTask
               > => {
-                let nextTask = {
+                let nextTask:
+                  GeneralAIFileBrainTask = {
                   ...task,
+                  previewUrl:
+                    undefined,
                   status:
                     task.status ===
                     "uploading"
@@ -509,6 +587,14 @@ export function useGeneralAIFileBrainQueue():
                         nextTask.localId,
                         file,
                       );
+
+                      nextTask = {
+                        ...nextTask,
+                        previewUrl:
+                          createTaskPreview(
+                            file
+                          ),
+                      };
                     } else {
                       nextTask = {
                         ...nextTask,
@@ -594,10 +680,14 @@ export function useGeneralAIFileBrainQueue():
     window.localStorage.setItem(
       QUEUE_STORAGE_KEY,
       JSON.stringify(
-        tasks.slice(
-          0,
-          MAX_QUEUE_FILES,
-        ),
+        tasks
+          .slice(
+            0,
+            MAX_QUEUE_FILES,
+          )
+          .map(
+            serializeQueueTask,
+          ),
       ),
     );
   }, [
@@ -832,6 +922,10 @@ export function useGeneralAIFileBrainQueue():
                   item.content_type ||
                   file.type ||
                   "application/octet-stream",
+                previewUrl:
+                  createTaskPreview(
+                    file
+                  ),
                 progress: 0,
                 status: "queued",
                 selectedForAsk: false,
@@ -1693,6 +1787,8 @@ export function useGeneralAIFileBrainQueue():
       // created yet.
     }
 
+    releaseTaskPreview(task);
+
     fileRefs.current.delete(
       localId,
     );
@@ -1737,6 +1833,8 @@ export function useGeneralAIFileBrainQueue():
     ) {
       return;
     }
+
+    releaseTaskPreview(task);
 
     fileRefs.current.delete(
       localId,
@@ -2359,6 +2457,7 @@ export function buildFileBrainDisplayAttachments(
   name: string;
   size: number;
   kind: "image" | "file";
+  preview?: string;
 }> {
   return tasks.map(
     (task) => ({
@@ -2371,6 +2470,8 @@ export function buildFileBrainDisplayAttachments(
         )
           ? "image"
           : "file",
+      preview:
+        task.previewUrl,
     }),
   );
 }

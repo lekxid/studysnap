@@ -118,6 +118,44 @@ function getAttachmentUrl(
     : "";
 }
 
+type DashboardPinnedConversation = {
+  id: number;
+  title: string;
+  study_room_id: number | null;
+  is_pinned: boolean;
+  updated_at: string;
+};
+
+function getPinnedConversationHref(
+  conversation:
+    DashboardPinnedConversation
+) {
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "conversationId",
+    String(conversation.id)
+  );
+
+  if (
+    typeof conversation.study_room_id ===
+    "number"
+  ) {
+    params.set(
+      "roomId",
+      String(
+        conversation.study_room_id
+      )
+    );
+  }
+
+  return (
+    `/general-ai?${params.toString()}`
+  );
+}
+
+
 function getAttachmentKind(
   item: DashboardFeedItem,
 ) {
@@ -1186,12 +1224,121 @@ function PinnedMaterialCard({
   );
 }
 
+function PinnedConversationCard({
+  conversation,
+  onUnpin,
+}: {
+  conversation:
+    DashboardPinnedConversation;
+  onUnpin: (
+    conversationId: number
+  ) => void | Promise<void>;
+}) {
+  const [
+    unpinning,
+    setUnpinning,
+  ] = useState(false);
+
+  async function handleUnpin() {
+    if (unpinning) {
+      return;
+    }
+
+    setUnpinning(true);
+
+    try {
+      await onUnpin(
+        conversation.id
+      );
+    } finally {
+      setUnpinning(false);
+    }
+  }
+
+  return (
+    <article className="relative h-full min-w-0 rounded-2xl border border-white/[0.075] bg-[radial-gradient(circle_at_top_right,rgba(214,184,74,0.09),transparent_35%),linear-gradient(145deg,rgba(16,21,26,0.96),rgba(5,8,11,0.92))] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <button
+        type="button"
+        onClick={() =>
+          void handleUnpin()
+        }
+        disabled={unpinning}
+        aria-label={`Unpin conversation ${conversation.title}`}
+        title="Unpin conversation"
+        className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-xl border border-white/[0.1] bg-[#080b0e]/95 text-lg font-bold text-slate-400 shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:border-[#d6b84a]/25 hover:text-white disabled:cursor-wait disabled:opacity-50"
+      >
+        {unpinning
+          ? "…"
+          : "×"}
+      </button>
+
+      <Link
+        href={
+          getPinnedConversationHref(
+            conversation
+          )
+        }
+        className="block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9ad50]/60"
+      >
+        <div className="grid h-32 place-items-center rounded-xl border border-[#d6b84a]/[0.12] bg-[#d6b84a]/[0.035]">
+          <span className="relative grid h-14 w-14 place-items-center rounded-2xl border border-[#d6b84a]/20 bg-[#d6b84a]/[0.08] text-lg font-black text-[#d8c57d]">
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 animate-pulse rounded-2xl border border-[#d6b84a]/10"
+            />
+            <span className="relative">
+              S
+            </span>
+          </span>
+        </div>
+
+        <div className="px-1 pb-1 pt-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-[#c9ad50]/[0.18] bg-[#9f8948]/[0.08] px-2 py-1 text-[9px] font-black text-[#d8c57d]">
+              Pinned
+            </span>
+
+            <span className="text-[10px] font-bold text-slate-600">
+              AI conversation
+            </span>
+          </div>
+
+          <h3 className="mt-2 line-clamp-2 pr-8 text-sm font-black leading-5 text-white">
+            {conversation.title ||
+              "StudySnap conversation"}
+          </h3>
+
+          <p className="mt-2 text-[10px] font-bold text-slate-600">
+            {formatRelativeTime(
+              conversation.updated_at
+            )}
+          </p>
+
+          <span className="mt-3 inline-flex min-h-9 items-center rounded-lg border border-[#d6b84a]/18 bg-[#d6b84a]/[0.055] px-3 text-[10px] font-black text-[#ddcf96]">
+            Open chat →
+          </span>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
+
 function PinnedMaterialsSection({
   data,
+  pinnedConversations = [],
+  onUnpinConversation,
   onRefresh,
   onNotice,
 }: {
-  data: SmartDashboardResponse;
+  data:
+    SmartDashboardResponse |
+    null;
+  pinnedConversations?:
+    DashboardPinnedConversation[];
+  onUnpinConversation?: (
+    conversationId: number
+  ) => void | Promise<void>;
   onRefresh:
     () => void | Promise<void>;
   onNotice: (
@@ -1211,16 +1358,38 @@ function PinnedMaterialsSection({
         new Set(),
       );
     });
-  }, [data.generated_at]);
+  }, [data?.generated_at]);
 
-  const pinnedItems = (
-    data.pinned_feed || []
+  const materialPinnedItems = (
+    data?.pinned_feed || []
   ).filter(
     (item) =>
       !dismissedItemIds.has(
         item.id,
       ),
   );
+
+  const visiblePinnedConversations =
+    pinnedConversations
+      .filter(
+        (conversation) =>
+          conversation.is_pinned
+      )
+      .slice(0, 10);
+
+  const pinnedItems =
+    materialPinnedItems.slice(
+      0,
+      Math.max(
+        0,
+        10 -
+          visiblePinnedConversations.length
+      )
+    );
+
+  const combinedPinnedCount =
+    visiblePinnedConversations.length +
+    pinnedItems.length;
 
   function removeItem(
     itemId: string,
@@ -1285,7 +1454,7 @@ function PinnedMaterialsSection({
     }
   }
 
-  if (pinnedItems.length === 0) {
+  if (combinedPinnedCount === 0) {
     return null;
   }
 
@@ -1312,7 +1481,7 @@ function PinnedMaterialsSection({
         </div>
 
         <span className="rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-[10px] font-black text-slate-400">
-          {pinnedItems.length}
+          {combinedPinnedCount}
           /10
         </span>
       </div>
@@ -1321,6 +1490,25 @@ function PinnedMaterialsSection({
         aria-label="Pinned materials"
         className="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth"
       >
+        {visiblePinnedConversations.map(
+          (conversation) => (
+            <div
+              key={`conversation-${conversation.id}`}
+              className="relative w-[min(82vw,20rem)] shrink-0 snap-start sm:w-80 lg:w-[22rem]"
+            >
+              <PinnedConversationCard
+                conversation={
+                  conversation
+                }
+                onUnpin={
+                  onUnpinConversation ||
+                  (() => undefined)
+                }
+              />
+            </div>
+          )
+        )}
+
         {pinnedItems.map((item) => (
           <div
             key={item.id}
@@ -1357,12 +1545,19 @@ function PinnedMaterialsSection({
 export function DashboardPinnedMaterials({
   data,
   loading,
+  pinnedConversations = [],
+  onUnpinConversation,
   onRefresh,
 }: {
   data:
     SmartDashboardResponse |
     null;
   loading: boolean;
+  pinnedConversations?:
+    DashboardPinnedConversation[];
+  onUnpinConversation?: (
+    conversationId: number
+  ) => void | Promise<void>;
   onRefresh:
     () => void | Promise<void>;
 }) {
@@ -1376,12 +1571,16 @@ export function DashboardPinnedMaterials({
 
   if (
     loading &&
-    !data
+    !data &&
+    pinnedConversations.length === 0
   ) {
     return null;
   }
 
-  if (!data) {
+  if (
+    !data &&
+    pinnedConversations.length === 0
+  ) {
     return null;
   }
 
@@ -1402,6 +1601,12 @@ export function DashboardPinnedMaterials({
 
       <PinnedMaterialsSection
         data={data}
+        pinnedConversations={
+          pinnedConversations
+        }
+        onUnpinConversation={
+          onUnpinConversation
+        }
         onRefresh={
           onRefresh
         }

@@ -23,6 +23,7 @@ import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import SmartActionLinks from "@/components/ai/SmartActionLinks";
 import ArtifactFileCards from "@/components/ai/ArtifactFileCards";
+import AttachmentPreviewButton from "@/components/ai/AttachmentPreviewButton";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { detectGeneralAIActionIntent } from "@/lib/generalAiActionIntent";
@@ -105,6 +106,10 @@ const suggestions = [
   "Give me practice questions on this material",
   "Summarize the most important points",
 ];
+
+const GENERAL_AI_HIDDEN_FILE_QUEUE_KEY =
+  "studysnap:general-ai-hidden-file-queue-v1";
+
 
 function makeId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -754,31 +759,183 @@ function pendingAssistantActivityLabel(
 }
 
 
+// GENERAL_AI_TASK_AWARE_ACTIVITY_V1
+
+type AIActivityVisual = {
+  symbol: string;
+  fallbackLabel: string;
+};
+
+function getAIActivityVisual(
+  label: string
+): AIActivityVisual {
+  const normalized =
+    label
+      .trim()
+      .toLowerCase();
+
+  if (
+    normalized.includes("finish") ||
+    normalized.includes("complete") ||
+    normalized.includes("ready")
+  ) {
+    return {
+      symbol: "✓",
+      fallbackLabel: "Finishing",
+    };
+  }
+
+  if (
+    normalized.includes("image") ||
+    normalized.includes("picture") ||
+    normalized.includes("photo") ||
+    normalized.includes("visual")
+  ) {
+    return {
+      symbol: "◩",
+      fallbackLabel: "Creating image",
+    };
+  }
+
+  if (
+    normalized.includes("quiz") ||
+    normalized.includes("question")
+  ) {
+    return {
+      symbol: "?",
+      fallbackLabel: "Creating quiz",
+    };
+  }
+
+  if (
+    normalized.includes("flashcard") ||
+    normalized.includes("card")
+  ) {
+    return {
+      symbol: "▦",
+      fallbackLabel: "Creating cards",
+    };
+  }
+
+  if (
+    normalized.includes("note") ||
+    normalized.includes("summary") ||
+    normalized.includes("saving")
+  ) {
+    return {
+      symbol: "▣",
+      fallbackLabel: "Creating notes",
+    };
+  }
+
+  if (
+    normalized.includes("search") ||
+    normalized.includes("research") ||
+    normalized.includes("web") ||
+    normalized.includes("source")
+  ) {
+    return {
+      symbol: "⌕",
+      fallbackLabel: "Searching",
+    };
+  }
+
+  if (
+    normalized.includes("read") ||
+    normalized.includes("analyz") ||
+    normalized.includes("upload") ||
+    normalized.includes("file") ||
+    normalized.includes("document") ||
+    normalized.includes("material")
+  ) {
+    return {
+      symbol: "▤",
+      fallbackLabel: "Reading files",
+    };
+  }
+
+  if (
+    normalized.includes("organiz") ||
+    normalized.includes("process") ||
+    normalized.includes("classif") ||
+    normalized.includes("arrang")
+  ) {
+    return {
+      symbol: "◇",
+      fallbackLabel: "Organizing",
+    };
+  }
+
+  if (
+    normalized.includes("writing") ||
+    normalized.includes("responding")
+  ) {
+    return {
+      symbol: "✦",
+      fallbackLabel: "Writing",
+    };
+  }
+
+  if (
+    normalized.includes("stop") ||
+    normalized.includes("cancel") ||
+    normalized.includes("fail") ||
+    normalized.includes("error")
+  ) {
+    return {
+      symbol: "!",
+      fallbackLabel: "Stopped",
+    };
+  }
+
+  return {
+    symbol: "S",
+    fallbackLabel: "Thinking",
+  };
+}
+
 function AIActivityIndicator({
   label,
 }: {
   label: string;
 }) {
+  const visual =
+    getAIActivityVisual(
+      label
+    );
+
+  const visibleLabel =
+    label.trim() ||
+    visual.fallbackLabel;
+
   return (
     <div
       className="flex min-h-16 flex-col items-start justify-center gap-2 py-1"
       role="status"
       aria-live="polite"
-      aria-label={label}
+      aria-label={`${visibleLabel}. StudySnap is working.`}
     >
-      <span className="relative grid h-9 w-9 place-items-center">
+      <span
+        className="relative grid h-9 w-9 place-items-center"
+        title={visual.fallbackLabel}
+      >
         <span
           aria-hidden="true"
           className="absolute inset-0 animate-spin rounded-xl border border-[#c9ad50]/20 border-t-[#eadf9f]"
         />
 
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#c9ad50]/10 text-[11px] font-black text-[#dfcf80]">
-          S
+        <span
+          aria-hidden="true"
+          className="absolute inset-[5px] animate-pulse rounded-lg bg-[#c9ad50]/[0.08]"
+        />
+
+        <span className="relative grid h-7 w-7 place-items-center rounded-lg bg-[#c9ad50]/10 text-[12px] font-black text-[#dfcf80]">
+          {visual.symbol}
         </span>
       </span>
 
       <span className="flex items-center text-xs font-bold text-zinc-400">
-        {label}
+        {visibleLabel}
 
         <span
           aria-hidden="true"
@@ -921,6 +1078,119 @@ export default function GeneralAIChat({
 
   const fileBrainQueue =
     useGeneralAIFileBrainQueue();
+  const [
+    hiddenFileQueueTaskIds,
+    setHiddenFileQueueTaskIds,
+  ] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const startFreshQueueHandledRef =
+    useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw =
+        window.localStorage.getItem(
+          GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+        );
+
+      if (!raw) {
+        return;
+      }
+
+      const parsed =
+        JSON.parse(raw) as unknown;
+
+      if (!Array.isArray(parsed)) {
+        window.localStorage.removeItem(
+          GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+        );
+        return;
+      }
+
+      const restored =
+        new Set(
+          parsed.filter(
+            (value): value is string =>
+              typeof value === "string" &&
+              value.trim().length > 0,
+          ),
+        );
+
+      queueMicrotask(() => {
+        setHiddenFileQueueTaskIds(
+          restored,
+        );
+      });
+    } catch {
+      window.localStorage.removeItem(
+        GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!fileBrainQueue.hydrated) {
+      return;
+    }
+
+    const activeTaskIds =
+      new Set(
+        fileBrainQueue.tasks.map(
+          (task) => task.localId,
+        ),
+      );
+
+    const timer = window.setTimeout(
+      () => {
+        setHiddenFileQueueTaskIds(
+          (current) => {
+            const next =
+              new Set(
+                [...current].filter(
+                  (localId) =>
+                    activeTaskIds.has(
+                      localId,
+                    ),
+                ),
+              );
+
+            if (
+              next.size === current.size &&
+              [...next].every(
+                (localId) =>
+                  current.has(localId),
+              )
+            ) {
+              return current;
+            }
+
+            if (next.size === 0) {
+              window.localStorage.removeItem(
+                GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+              );
+            } else {
+              window.localStorage.setItem(
+                GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+                JSON.stringify([...next]),
+              );
+            }
+
+            return next;
+          },
+        );
+      },
+      0,
+    );
+
+    return () =>
+      window.clearTimeout(timer);
+  }, [
+    fileBrainQueue.hydrated,
+    fileBrainQueue.tasks,
+  ]);
+
   const [roomCreationOffer, setRoomCreationOffer] =
     useState<RoomCreationOffer | null>(null);
   const [availableRooms, setAvailableRooms] = useState<StudyRoom[]>([]);
@@ -1002,6 +1272,13 @@ export default function GeneralAIChat({
     useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // GENERAL_AI_PROFESSIONAL_CHAT_SHELL_V8
+  const chatScrollRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const shouldStickToBottomRef =
+    useRef(false);
 
   const activeRequestRef =
     useRef<AbortController | null>(null);
@@ -1094,22 +1371,95 @@ export default function GeneralAIChat({
     documentUploading,
   ]);
 
-  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+  function scrollToBottom(
+    behavior: ScrollBehavior = "smooth"
+  ) {
+    const scroller =
+      chatScrollRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({
-          behavior,
-          block: "end",
-        });
+      scroller.scrollTo({
+        top: scroller.scrollHeight,
+        behavior,
       });
     });
   }
 
-  useEffect(() => {
-    if (messages.length > 0 || loading || loadingMessages) {
-      scrollToBottom(loadingMessages ? "auto" : "smooth");
+  function resetChatScroll() {
+    shouldStickToBottomRef.current =
+      false;
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+
+    chatScrollRef.current?.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }
+
+  function handleChatScroll() {
+    const scroller =
+      chatScrollRef.current;
+
+    if (!scroller) {
+      return;
     }
-  }, [messages, loading, loadingMessages]);
+
+    const distanceFromBottom =
+      scroller.scrollHeight -
+      scroller.scrollTop -
+      scroller.clientHeight;
+
+    shouldStickToBottomRef.current =
+      distanceFromBottom < 140;
+  }
+
+  useEffect(() => {
+    if (
+      (
+        messages.length > 0 ||
+        loading ||
+        loadingMessages
+      ) &&
+      shouldStickToBottomRef.current
+    ) {
+      scrollToBottom(
+        loadingMessages
+          ? "auto"
+          : "smooth"
+      );
+    }
+  }, [
+    messages,
+    loading,
+    loadingMessages,
+  ]);
+
+  useEffect(() => {
+    const previousRestoration =
+      window.history.scrollRestoration;
+
+    window.history.scrollRestoration =
+      "manual";
+
+    resetChatScroll();
+
+    return () => {
+      window.history.scrollRestoration =
+        previousRestoration;
+    };
+
+    // Initial route positioning is intentionally fixed.
+  }, []);
 
   useEffect(() => {
     const textarea = inputRef.current;
@@ -1528,6 +1878,69 @@ export default function GeneralAIChat({
   }, [startFresh]);
 
   useEffect(() => {
+    if (!startFresh) {
+      startFreshQueueHandledRef.current =
+        false;
+      return;
+    }
+
+    if (
+      !fileBrainQueue.hydrated ||
+      startFreshQueueHandledRef.current
+    ) {
+      return;
+    }
+
+    startFreshQueueHandledRef.current =
+      true;
+
+    hideFileQueueForNewConversation();
+
+    // The reset helper intentionally reads
+    // the latest queue snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    startFresh,
+    fileBrainQueue.hydrated,
+    fileBrainQueue.tasks,
+  ]);
+
+  useEffect(() => {
+    if (!aiToolsOpen) {
+      return;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    function closeOnEscape(
+      event: KeyboardEvent
+    ) {
+      if (event.key === "Escape") {
+        setAiToolsOpen(false);
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      closeOnEscape
+    );
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+
+      window.removeEventListener(
+        "keydown",
+        closeOnEscape
+      );
+    };
+  }, [aiToolsOpen]);
+
+  useEffect(() => {
     const savedDraft =
       window.localStorage.getItem(
         GENERAL_AI_DRAFT_KEY
@@ -1775,7 +2188,7 @@ export default function GeneralAIChat({
     }
   }
 
-      async function handleMultipleAttachmentChange(
+        async function handleMultipleAttachmentChange(
     fileList: FileList | null
   ) {
     const files =
@@ -1787,78 +2200,9 @@ export default function GeneralAIChat({
       return;
     }
 
-    setError("");
-
-    const firstFile =
-      files[0];
-
-    const singleImage =
-      files.length === 1 &&
-      (
-        firstFile.type.startsWith(
-          "image/"
-        ) ||
-        /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(
-          firstFile.name
-        )
-      );
-
-    if (singleImage) {
-      clearPendingAttachments();
-      fileBrainQueue.clearSelection();
-      setCreateImageMode(false);
-      handleImageChange(firstFile);
-      updateStudyToolsOpen(false);
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value =
-          "";
-      }
-
-      return;
-    }
-
     try {
-      const result =
-        await fileBrainQueue.addFiles(
-          files
-        );
-
-      clearPendingAttachments();
-
-      if (result.accepted > 0) {
-        recordActivity({
-          label: "Files queued",
-          detail:
-            `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately in the background.`,
-          progress: 0,
-        });
-
-        clearActivityAfter(
-          1600
-        );
-      }
-
-      if (result.rejected > 0) {
-        setError(
-          `${result.rejected} file${result.rejected === 1 ? " was" : "s were"} not added because of the queue or file-size limit.`
-        );
-      }
-    } catch (queueError) {
-      const legacyFiles =
-        files.slice(0, 10);
-
-      await addAttachments(
-        legacyFiles
-      );
-
-      setError(
-        (
-          queueError instanceof Error
-            ? queueError.message + " "
-            : ""
-        )
-        + "StudySnap kept up to 10 files in the immediate-upload fallback."
+      await addComposerFiles(
+        files
       );
     } finally {
       if (fileInputRef.current) {
@@ -2589,6 +2933,9 @@ export default function GeneralAIChat({
     const pendingAssistantId =
       makeId();
 
+    shouldStickToBottomRef.current =
+      true;
+
     try {
       setLoading(true);
       setCanStopCurrent(false);
@@ -2824,6 +3171,8 @@ export default function GeneralAIChat({
     const assistantMessageId =
       makeId();
 
+    shouldStickToBottomRef.current =
+      true;
 
     const imageController =
       new AbortController();
@@ -3280,6 +3629,9 @@ export default function GeneralAIChat({
       asksForCurrentInformation(
         finalQuestion
       );
+
+    shouldStickToBottomRef.current =
+      true;
 
     setLoading(true);
     setError("");
@@ -3895,6 +4247,55 @@ export default function GeneralAIChat({
     setStudyToolsOpen(next);
   }
 
+  function hideFileQueueForNewConversation() {
+    const currentTasks =
+      fileBrainQueue.tasks;
+
+    const currentTaskIds =
+      currentTasks.map(
+        (task) => task.localId,
+      );
+
+    if (currentTaskIds.length > 0) {
+      setHiddenFileQueueTaskIds(
+        (current) => {
+          const next =
+            new Set(current);
+
+          currentTaskIds.forEach(
+            (localId) =>
+              next.add(localId),
+          );
+
+          window.localStorage.setItem(
+            GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+            JSON.stringify([...next]),
+          );
+
+          return next;
+        },
+      );
+    }
+
+    currentTasks
+      .filter((task) =>
+        [
+          "ready",
+          "duplicate",
+          "failed",
+          "cancelled",
+        ].includes(task.status),
+      )
+      .forEach((task) => {
+        fileBrainQueue.dismissTask(
+          task.localId,
+        );
+      });
+
+    fileBrainQueue.clearSelection();
+  }
+
+
   function startNewTrail() {
     clearRememberedConversation();
 
@@ -3925,22 +4326,9 @@ export default function GeneralAIChat({
     clearLastGeneratedImage();
     clearPendingAttachments();
 
-    fileBrainQueue.tasks
-      .filter((task) =>
-        [
-          "ready",
-          "duplicate",
-          "failed",
-          "cancelled",
-        ].includes(task.status),
-      )
-      .forEach((task) => {
-        fileBrainQueue.dismissTask(
-          task.localId,
-        );
-      });
+    hideFileQueueForNewConversation();
 
-    fileBrainQueue.clearSelection();
+    resetChatScroll();
 
     inputRef.current?.focus();
   }
@@ -4019,6 +4407,8 @@ export default function GeneralAIChat({
     await loadMessages(
       trail.id
     );
+
+    resetChatScroll();
   }
 
   async function renameTrail(trail: AIConversation) {
@@ -4530,33 +4920,44 @@ export default function GeneralAIChat({
     });
   }
 
-  async function addComposerFiles(incomingFiles: File[]) {
-    const files = normalizeComposerFiles(incomingFiles);
-    if (!files.length) return;
+    async function addComposerFiles(
+    incomingFiles: File[]
+  ) {
+    const files =
+      normalizeComposerFiles(
+        incomingFiles
+      );
+
+    if (!files.length) {
+      return;
+    }
 
     setError("");
     setCreateImageMode(false);
 
-    if (files.length === 1 && isImageAttachment(files[0])) {
-      clearPendingAttachments();
-      fileBrainQueue.clearSelection();
-      await Promise.resolve(handleImageChange(files[0]));
-      updateStudyToolsOpen(false);
-      inputRef.current?.focus();
-      return;
-    }
+    // Every normal attachment now uses one connected queue.
+    // This prevents a legacy single image from silently
+    // suppressing other files marked Included.
+    removeSelectedImage();
+    clearPendingAttachments();
 
     try {
-      const result = await fileBrainQueue.addFiles(files);
-      clearPendingAttachments();
+      const result =
+        await fileBrainQueue.addFiles(
+          files
+        );
 
       if (result.accepted > 0) {
         recordActivity({
           label: "Files queued",
-          detail: `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately.`,
+          detail:
+            `${result.accepted} file${result.accepted === 1 ? "" : "s"} will upload privately.`,
           progress: 0,
         });
-        clearActivityAfter(1600);
+
+        clearActivityAfter(
+          1600
+        );
       }
 
       if (result.rejected > 0) {
@@ -4564,13 +4965,21 @@ export default function GeneralAIChat({
           `${result.rejected} file${result.rejected === 1 ? " was" : "s were"} not added.`
         );
       }
-    } catch (error) {
-      await addAttachments(files.slice(0, 10));
+    } catch (queueError) {
+      await addAttachments(
+        files.slice(0, 10)
+      );
+
       setError(
-        (error instanceof Error ? `${error.message} ` : "")
+        (
+          queueError instanceof Error
+            ? `${queueError.message} `
+            : ""
+        )
         + "StudySnap kept up to 10 files in the immediate-upload fallback."
       );
     } finally {
+      updateStudyToolsOpen(false);
       inputRef.current?.focus();
     }
   }
@@ -4660,9 +5069,13 @@ export default function GeneralAIChat({
     large = false
   ) {
     const compactQueueTasks =
-      fileBrainQueue.tasks
-        .filter((task) => task.status !== "cancelled")
-        .slice(0, 8);
+      fileBrainQueue.tasks.filter(
+      (task) =>
+        !hiddenFileQueueTaskIds.has(
+          task.localId,
+        ),
+    )
+        .filter((task) => task.status !== "cancelled");
 
     return (
       <form
@@ -4792,52 +5205,190 @@ export default function GeneralAIChat({
         ) : null}
 
         {compactQueueTasks.length > 0 ? (
-          <div className="studysnap-composer-files mb-1.5 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1">
+          <div
+            className="studysnap-composer-files mb-1.5 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1"
+            aria-label="File upload queue"
+            aria-live="polite"
+          >
             {compactQueueTasks.map((task) => {
               const selectable =
                 task.status === "ready" ||
                 task.status === "duplicate";
 
+              const canPause =
+                task.status === "uploading";
+
+              const canResume =
+                task.status === "paused";
+
+              const canRetry =
+                task.status === "failed";
+
+              const canCancel =
+                task.status === "queued" ||
+                task.status === "uploading" ||
+                task.status === "paused" ||
+                task.status === "failed";
+
+              const canDismiss =
+                task.status === "ready" ||
+                task.status === "duplicate" ||
+                task.status === "cancelled";
+
+              const statusLabel =
+                task.selectedForAsk
+                  ? "Included"
+                  : selectable
+                    ? "Tap to include"
+                    : task.status === "uploading"
+                      ? `${Math.round(task.progress)}%`
+                      : task.status === "paused"
+                        ? `Paused · ${Math.round(task.progress)}%`
+                        : task.status === "failed"
+                          ? "Retry available"
+                          : task.status;
+
               return (
-                <button
+                <div
                   key={task.localId}
-                  type="button"
-                  disabled={!selectable}
-                  onClick={() =>
-                    fileBrainQueue.toggleSelected(task.localId)
-                  }
-                  aria-pressed={task.selectedForAsk}
-                  className={`studysnap-composer-file-chip flex h-11 max-w-[12rem] shrink-0 items-center gap-2 rounded-xl border px-2 text-left ${
+                  className={`studysnap-composer-file-chip flex h-12 max-w-[14.5rem] shrink-0 items-center gap-1 rounded-xl border p-1 ${
                     task.selectedForAsk
                       ? "border-[#c9ad50]/45 bg-[#c9ad50]/12"
                       : task.status === "failed"
                         ? "border-red-300/20 bg-red-300/[0.06]"
-                        : "border-white/[0.08] bg-white/[0.045]"
+                        : task.status === "paused"
+                          ? "border-amber-200/20 bg-amber-200/[0.055]"
+                          : "border-white/[0.08] bg-white/[0.045]"
                   }`}
                 >
-                  <span
-                    aria-hidden="true"
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-black/25 text-[12px] text-zinc-400"
-                  >
-                    ▤
-                  </span>
+                  {task.previewUrl ? (
+                    <AttachmentPreviewButton
+                      src={task.previewUrl}
+                      name={task.filename}
+                      groupId="composer-file-brain-attachments"
+                      variant="composer"
+                      className="h-9 w-9 shrink-0 rounded-lg"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/25 text-[12px] text-zinc-400"
+                    >
+                      ▤
+                    </span>
+                  )}
 
-                  <span className="min-w-0">
-                    <span className="block truncate text-[10px] font-bold text-zinc-200">
-                      {task.filename}
+                  <button
+                    type="button"
+                    disabled={!selectable}
+                    onClick={() =>
+                      fileBrainQueue.toggleSelected(
+                        task.localId
+                      )
+                    }
+                    aria-pressed={
+                      task.selectedForAsk
+                    }
+                    aria-label={
+                      selectable
+                        ? `${statusLabel}: ${task.filename}`
+                        : `${task.filename}: ${statusLabel}`
+                    }
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left disabled:cursor-default"
+                  >
+
+
+                    <span className="min-w-0">
+                      <span className="block truncate text-[10px] font-bold text-zinc-200">
+                        {task.filename}
+                      </span>
+
+                      <span className="block truncate text-[9px] text-zinc-500">
+                        {statusLabel}
+                      </span>
                     </span>
-                    <span className="block truncate text-[9px] text-zinc-500">
-                      {task.selectedForAsk
-                        ? "Included"
-                        : task.status === "ready" ||
-                            task.status === "duplicate"
-                          ? "Tap to include"
-                          : task.status === "uploading"
-                            ? `${Math.round(task.progress)}%`
-                            : task.status}
-                    </span>
+                  </button>
+
+                  <span className="flex shrink-0 items-center gap-0.5">
+                    {canPause ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void fileBrainQueue.pauseTask(
+                            task.localId
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[12px] font-black text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                        aria-label={`Pause upload ${task.filename}`}
+                        title="Pause"
+                      >
+                        Ⅱ
+                      </button>
+                    ) : null}
+
+                    {canResume ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fileBrainQueue.resumeTask(
+                            task.localId
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[12px] font-black text-[#d8c878] transition hover:bg-[#c9ad50]/12"
+                        aria-label={`Resume upload ${task.filename}`}
+                        title="Resume"
+                      >
+                        ▶
+                      </button>
+                    ) : null}
+
+                    {canRetry ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fileBrainQueue.retryTask(
+                            task.localId
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[15px] font-black text-red-200 transition hover:bg-red-200/[0.08]"
+                        aria-label={`Retry upload ${task.filename}`}
+                        title="Retry"
+                      >
+                        ↻
+                      </button>
+                    ) : null}
+
+                    {canCancel ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void fileBrainQueue.cancelTask(
+                            task.localId
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[17px] text-zinc-500 transition hover:bg-white/[0.08] hover:text-zinc-200"
+                        aria-label={`Cancel upload ${task.filename}`}
+                        title="Cancel"
+                      >
+                        ×
+                      </button>
+                    ) : canDismiss ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fileBrainQueue.dismissTask(
+                            task.localId
+                          )
+                        }
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[17px] text-zinc-500 transition hover:bg-white/[0.08] hover:text-zinc-200"
+                        aria-label={`Dismiss file ${task.filename}`}
+                        title="Dismiss"
+                      >
+                        ×
+                      </button>
+                    ) : null}
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -4860,10 +5411,11 @@ export default function GeneralAIChat({
                   className="relative flex h-12 max-w-[12rem] shrink-0 items-center gap-2 rounded-xl bg-white/[0.05] px-2 pr-8"
                 >
                   {attachment.preview ? (
-                    <img
+                    <AttachmentPreviewButton
                       src={attachment.preview}
-                      alt={attachment.name}
-                      className="h-8 w-8 shrink-0 rounded-lg object-cover"
+                      name={attachment.name}
+                      groupId="composer-pending-attachments"
+                      variant="composer"
                     />
                   ) : (
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-black/25">
@@ -4896,10 +5448,11 @@ export default function GeneralAIChat({
         {selectedImage ? (
           <div className="mb-2 flex h-12 items-center gap-2 rounded-xl bg-white/[0.05] px-2">
             {selectedImagePreview ? (
-              <img
+              <AttachmentPreviewButton
                 src={selectedImagePreview}
-                alt="Selected image"
-                className="h-8 w-8 shrink-0 rounded-lg object-cover"
+                name={selectedImage.name}
+                groupId="composer-selected-image"
+                variant="composer"
               />
             ) : null}
 
@@ -4972,10 +5525,27 @@ export default function GeneralAIChat({
         <div className="studysnap-composer-input-row flex items-end gap-2 px-1">
           <button
             type="button"
-            onClick={() => updateStudyToolsOpen(true)}
+            onClick={() => {
+              setError("");
+              updateStudyToolsOpen(false);
+
+              const picker =
+                fileInputRef.current;
+
+              if (!picker) {
+                setError(
+                  "The file picker could not open. Please refresh and try again."
+                );
+
+                return;
+              }
+
+              picker.value = "";
+              picker.click();
+            }}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.08] text-xl font-light text-zinc-100 transition hover:bg-white/[0.13]"
-            aria-label="Add files or tools"
-            title="Add files or tools"
+            aria-label="Attach photos and files"
+            title="Attach photos and files"
           >
             ＋
           </button>
@@ -5155,10 +5725,10 @@ export default function GeneralAIChat({
             onClick={() =>
               setAiToolsOpen(false)
             }
-            className="absolute inset-0 bg-transparent"
+            className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
           />
 
-          <aside className="absolute right-3 top-[calc(3.6rem+env(safe-area-inset-top))] max-h-[calc(100dvh-5rem)] w-[min(19rem,calc(100vw-1.5rem))] overflow-y-auto rounded-[1.15rem] border border-white/[0.11] bg-[#292929] p-1.5 shadow-[0_24px_75px_rgba(0,0,0,0.72)]">
+          <aside className="studysnap-ai-tools-panel absolute left-3 right-3 top-[calc(4rem+env(safe-area-inset-top))] max-h-[min(72dvh,38rem)] overflow-y-auto overscroll-contain rounded-[1.5rem] border border-white/[0.10] bg-[#202020]/[0.98] p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:left-auto sm:right-4 sm:w-[24rem]">
             <div className="flex h-10 items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="grid h-7 w-7 place-items-center rounded-lg border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[10px] font-black text-[#dfcf80]">
@@ -5213,14 +5783,14 @@ export default function GeneralAIChat({
                 Chat history
               </button>
 
-              <details className="rounded-xl">
+              <details className="rounded-xl" data-studysnap-quick-prompts="true">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/[0.08]">
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.06]">
                     •••
                   </span>
 
                   <span className="flex-1">
-                    More tools
+                    Quick prompts
                   </span>
 
                   <span className="text-[10px] text-zinc-500">
@@ -5296,6 +5866,31 @@ export default function GeneralAIChat({
                       <span>×</span>
 
                       Stop editing last image
+                    </button>
+                  ) : null}
+
+                  {/* GENERAL_AI_CURRENT_CHAT_PIN_V1 */}
+                  {activeTrail ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiToolsOpen(false);
+
+                        void togglePinTrail(
+                          activeTrail
+                        );
+                      }}
+                      className="flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs font-medium text-zinc-200 hover:bg-white/[0.07]"
+                    >
+                      <span className="text-[#d8c878]">
+                        {activeTrail.is_pinned
+                          ? "−"
+                          : "S"}
+                      </span>
+
+                      {activeTrail.is_pinned
+                        ? "Unpin conversation"
+                        : "Pin conversation"}
                     </button>
                   ) : null}
 
@@ -5551,7 +6146,11 @@ export default function GeneralAIChat({
             </div>
           ) : (
             <>
-              <div className="studysnap-scroll mx-auto min-h-0 w-full max-w-[820px] flex-1 space-y-6 overflow-y-auto px-4 pb-7 pt-5 sm:px-6">
+              <div
+                  ref={chatScrollRef}
+                  onScroll={handleChatScroll}
+                  className="studysnap-scroll mx-auto min-h-0 w-full max-w-[820px] flex-1 space-y-6 overflow-y-auto px-4 pb-7 pt-5 sm:px-6 overscroll-contain"
+                >
                 {loadingMessages ? (
                   <p className="py-12 text-center text-sm font-bold text-slate-400">
                     Opening chat...
@@ -5587,7 +6186,7 @@ export default function GeneralAIChat({
                       }
                     >
                       {message.attachments?.length ? (
-                        <div className="mb-3 flex max-w-full gap-2 overflow-x-auto pb-1">
+                        <div className="studysnap-message-attachment-gallery mb-3 flex max-w-full gap-2 overflow-x-auto pb-1 overscroll-x-contain">
                           {message.attachments.map((attachment) => (
                             <div
                               key={attachment.id}
@@ -5595,10 +6194,11 @@ export default function GeneralAIChat({
                             >
                               {attachment.kind === "image" &&
                               attachment.preview ? (
-                                <img
+                                <AttachmentPreviewButton
                                   src={attachment.preview}
-                                  alt={attachment.name}
-                                  className="h-24 w-full object-cover"
+                                  name={attachment.name}
+                                  groupId={`message-${message.id}-attachments`}
+                                  variant="message"
                                 />
                               ) : (
                                 <div className="grid h-24 place-items-center text-3xl">
@@ -5636,14 +6236,22 @@ export default function GeneralAIChat({
                       ) : null}
 
                       {message.imagePreview ? (
-                        <img
+                        <AttachmentPreviewButton
                           src={message.imagePreview}
-                          alt={message.imageName || "Uploaded image"}
-                          className={`mb-3 rounded-xl object-contain ${
+                          name={
+                            message.imageName ||
+                            (
+                              message.generatedImage
+                                ? "StudySnap image.png"
+                                : "Uploaded image"
+                            )
+                          }
+                          groupId={`message-${message.id}-primary-image`}
+                          variant={
                             message.generatedImage
-                              ? "max-h-[520px] w-full"
-                              : "max-h-72"
-                          }`}
+                              ? "generated"
+                              : "message"
+                          }
                         />
                       ) : null}
 

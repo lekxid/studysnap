@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -25,14 +26,16 @@ import {
   getQuizzes,
   getSmartDashboard,
   getStudyRooms,
+  getStudyTrails,
+  pinAIConversation,
+  type AIConversation,
   type SmartDashboardResponse,
 } from "@/lib/api";
 import {
   getSavedProjectRoomId,
   saveProjectRoomId,
 } from "@/features/projects/projectRoomContext";
-
-import { resolveStudyCommand } from "@/lib/studyCommandRouter";
+import { setPendingAIAttachments } from "@/lib/aiAttachmentHandoff";
 
 type TokenPayload = {
   sub?: string;
@@ -133,6 +136,7 @@ type ContinueItem = {
   percent: number;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained for future dashboard natural-action routing.
 function shouldResolveAsStudyCommand(
   value: string,
 ) {
@@ -263,6 +267,31 @@ type ApiPlannerItem = {
   updated_at: string;
 };
 
+const LEGACY_DASHBOARD_UPCOMING_TITLES =
+  new Set([
+    "review 10 concept cards",
+  ]);
+
+function isExplicitDashboardPlannerItem(
+  item: ApiPlannerItem
+) {
+  const normalizedTitle =
+    item.title.trim().toLowerCase();
+
+  const normalizedDescription =
+    item.description
+      ?.trim()
+      .toLowerCase() || "";
+
+  return (
+    !LEGACY_DASHBOARD_UPCOMING_TITLES.has(
+      normalizedTitle
+    ) &&
+    normalizedDescription !==
+      "daily smart action"
+  );
+}
+
 function selectNextPlannerItem(
   items: ApiPlannerItem[],
   now: number
@@ -270,7 +299,10 @@ function selectNextPlannerItem(
   const future = items
     .filter((item) => {
       if (
-        item.status !== "Planned"
+        item.status !== "Planned" ||
+        !isExplicitDashboardPlannerItem(
+          item
+        )
       ) {
         return false;
       }
@@ -594,6 +626,7 @@ function GeneralAIStartCard({
   prompt,
   onPromptChange,
   onSubmit,
+  onAddFiles,
   activeRoomId,
   activeRoomName,
   displayName,
@@ -606,6 +639,9 @@ function GeneralAIStartCard({
   onSubmit: (
     event:
       FormEvent<HTMLFormElement>
+  ) => void;
+  onAddFiles: (
+    files: File[]
   ) => void;
   activeRoomId:
     number |
@@ -621,6 +657,10 @@ function GeneralAIStartCard({
   const roomName =
     activeRoomName.trim() ||
     "Study Room";
+
+  // DASHBOARD_DIRECT_FILE_PICKER_V1
+  const addMaterialInputRef =
+    useRef<HTMLInputElement | null>(null);
 
   const [showWelcome, setShowWelcome] =
     useState(false);
@@ -681,14 +721,6 @@ function GeneralAIStartCard({
     };
   }, [learnerName]);
 
-  const addMaterialHref =
-    activeRoomId
-      ? (
-          "/general-ai?" +
-          "new=1&roomId=" +
-          activeRoomId
-        )
-      : "/general-ai?new=1";
 
   return (
     <section className="relative overflow-hidden rounded-[1.85rem] border border-white/[0.085] bg-[radial-gradient(circle_at_top_right,rgba(214,184,74,0.09),transparent_31%),linear-gradient(145deg,rgba(17,21,25,0.985),rgba(3,5,7,0.998))] p-4 shadow-[0_26px_80px_rgba(0,0,0,0.44),inset_0_1px_0_rgba(255,255,255,0.055)] sm:p-6">
@@ -748,14 +780,48 @@ function GeneralAIStartCard({
         className="relative mt-5 rounded-[1.35rem] border border-white/[0.09] bg-[#050708]/95 p-2 shadow-[0_18px_45px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.035)] transition focus-within:border-[#d6b84a]/35 focus-within:bg-[#07090b]"
       >
         <div className="flex items-center gap-2">
-          <Link
-            href={addMaterialHref}
-            aria-label="Add study material"
-            title="Add material"
+          <button
+            type="button"
+            onClick={() => {
+              const input =
+                addMaterialInputRef.current;
+
+              if (!input) {
+                return;
+              }
+
+              input.value = "";
+              input.click();
+            }}
+            aria-label="Choose files to upload"
+            title="Upload files"
             className="grid h-11 w-11 shrink-0 place-items-center rounded-[0.95rem] border border-white/[0.09] bg-white/[0.04] text-xl font-light text-slate-300 transition hover:border-white/[0.15] hover:bg-white/[0.075] hover:text-white"
           >
             +
-          </Link>
+          </button>
+
+          <input
+            ref={addMaterialInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.log,.rtf,.py,.java,.js,.jsx,.ts,.tsx,.sql,.html,.css,.xml,.yaml,.yml,.toml"
+            className="hidden"
+            aria-label="Upload study files"
+            onChange={(event) => {
+              const files =
+                Array.from(
+                  event.target.files || []
+                );
+
+              event.target.value = "";
+
+              if (files.length > 0) {
+                onAddFiles(
+                  files.slice(0, 100)
+                );
+              }
+            }}
+          />
 
           <input
             value={prompt}
@@ -1411,6 +1477,12 @@ export default function DashboardPage() {
     useState(false);
   const [smartDashboardError, setSmartDashboardError] = useState("");
 
+  // DASHBOARD_PINNED_CONVERSATIONS_V1
+  const [pinnedConversations, setPinnedConversations] =
+    useState<AIConversation[]>([]);
+  const [pinnedConversationsLoading, setPinnedConversationsLoading] =
+    useState(true);
+
   const [rooms, setRooms] = useState<StudyRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [pdfs, setPdfs] = useState<PDFDocument[]>([]);
@@ -1425,6 +1497,80 @@ export default function DashboardPage() {
     rooms: 0,
   });
   const [insights, setInsights] = useState<LearningInsights | null>(null);
+
+  const loadPinnedConversations =
+    useCallback(async () => {
+      setPinnedConversationsLoading(true);
+
+      try {
+        const conversations =
+          await getStudyTrails(
+            "general_ai",
+            "",
+            100
+          );
+
+        setPinnedConversations(
+          conversations
+            .filter(
+              (conversation) =>
+                conversation.is_pinned
+            )
+            .sort(
+              (first, second) =>
+                new Date(
+                  second.updated_at
+                ).getTime() -
+                new Date(
+                  first.updated_at
+                ).getTime()
+            )
+            .slice(0, 10)
+        );
+      } catch {
+        setPinnedConversations([]);
+      } finally {
+        setPinnedConversationsLoading(false);
+      }
+    }, []);
+
+  useEffect(() => {
+    const timer =
+      window.setTimeout(
+        () => {
+          void loadPinnedConversations();
+        },
+        0
+      );
+
+    return () => {
+      window.clearTimeout(
+        timer
+      );
+    };
+  }, [loadPinnedConversations]);
+
+  const handleUnpinPinnedConversation =
+    useCallback(
+      async (
+        conversationId: number
+      ) => {
+        await pinAIConversation(
+          conversationId,
+          false
+        );
+
+        setPinnedConversations(
+          (current) =>
+            current.filter(
+              (conversation) =>
+                conversation.id !==
+                conversationId
+            )
+        );
+      },
+      []
+    );
 
   const loadSmartDashboard = useCallback(async () => {
     setSmartDashboardLoading(true);
@@ -2073,40 +2219,85 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleGeneralAiSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const prompt = generalAiPrompt.trim();
-
-    if (!prompt) {
-      router.push("/general-ai?new=1");
+  function handleDashboardAddFiles(
+    files: File[]
+  ) {
+    if (files.length === 0) {
       return;
     }
 
-    if (
-      shouldResolveAsStudyCommand(prompt)
-    ) {
-      const commandResult =
-        await resolveStudyCommand(
-          prompt,
-          rooms
-        );
+    setPendingAIAttachments(
+      files.slice(0, 100)
+    );
 
-      if (commandResult.handled) {
-        router.push(
-          commandResult.href
-        );
-        return;
-      }
+    const params =
+      new URLSearchParams();
+
+    params.set(
+      "new",
+      "1"
+    );
+
+    if (
+      activeRoomId !== null
+    ) {
+      params.set(
+        "roomId",
+        String(activeRoomId)
+      );
     }
 
+    router.push(
+      `/general-ai?${params.toString()}`
+    );
+  }
+
+  function handleGeneralAiSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    const prompt =
+      generalAiPrompt.trim();
+
+    if (!prompt) {
+      return;
+    }
+
+    const params =
+      new URLSearchParams();
+
+    params.set(
+      "new",
+      "1"
+    );
+
+    params.set(
+      "prompt",
+      prompt
+    );
+
+    if (
+      activeRoomId !== null
+    ) {
+      params.set(
+        "roomId",
+        String(activeRoomId)
+      );
+    }
+
+    // Keep a storage fallback so the prompt
+    // survives even if URL state is interrupted.
     window.sessionStorage.setItem(
       "studysnap:pending-general-ai-prompt",
       prompt,
     );
 
     setGeneralAiPrompt("");
-    router.push("/general-ai?new=1");
+
+    router.push(
+      `/general-ai?${params.toString()}`
+    );
   }
 
   if (!checked) {
@@ -2169,6 +2360,9 @@ export default function DashboardPage() {
           onSubmit={
             handleGeneralAiSubmit
           }
+          onAddFiles={
+            handleDashboardAddFiles
+          }
           activeRoomId={
             activeRoomId
           }
@@ -2186,7 +2380,14 @@ export default function DashboardPage() {
         <DashboardPinnedMaterials
           data={smartDashboard}
           loading={
-            smartDashboardLoading
+            smartDashboardLoading &&
+            pinnedConversationsLoading
+          }
+          pinnedConversations={
+            pinnedConversations
+          }
+          onUnpinConversation={
+            handleUnpinPinnedConversation
           }
           onRefresh={
             loadSmartDashboard
