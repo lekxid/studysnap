@@ -481,6 +481,8 @@ export default function CentralActionBar({
       const customEvent =
         event as CustomEvent<{
           messageId?: number;
+          actionType?:
+            CentralActionType;
         }>;
 
       if (
@@ -491,11 +493,92 @@ export default function CentralActionBar({
         return;
       }
 
+      const requestedAction =
+        customEvent.detail?.actionType ??
+        null;
+
       setSetupAction(null);
       setActionRecord(null);
       setError("");
       setNotice("");
       setOpen(true);
+
+      if (requestedAction) {
+        setSetupAction(
+          requestedAction
+        );
+        setBusy(true);
+
+        void getStudyRooms()
+          .then((response) => {
+            const nextRooms:
+              RoomOption[] =
+              response.map(
+                (room) => ({
+                  id: room.id,
+                  name: room.name,
+                  subject:
+                    room.subject,
+                })
+              );
+
+            setRooms(
+              nextRooms
+            );
+            setRoomsLoaded(
+              true
+            );
+
+            const preferredRoom =
+              nextRooms.find(
+                (room) =>
+                  room.id ===
+                  preferredStudyRoomId
+              );
+
+            const defaultRoom =
+              preferredRoom ||
+              (
+                nextRooms.length === 1
+                  ? nextRooms[0]
+                  : null
+              );
+
+            if (defaultRoom) {
+              setSelectedRoomId(
+                defaultRoom.id
+              );
+
+              setPlannerSubject(
+                (current) =>
+                  (
+                    current.trim() &&
+                    current !== "Study"
+                  )
+                    ? current
+                    : defaultRoom.subject
+              );
+            }
+          })
+          .catch(() => {
+            setError(
+              requestedAction ===
+                "add_to_planner"
+                ? (
+                    "Rooms could not be loaded. "
+                    + "The planner item can still "
+                    + "be created without a room."
+                  )
+                : (
+                    "StudySnap could not load "
+                    + "your Study Rooms."
+                  )
+            );
+          })
+          .finally(() => {
+            setBusy(false);
+          });
+      }
     }
 
     window.addEventListener(
@@ -512,6 +595,7 @@ export default function CentralActionBar({
   }, [
     actionable,
     messageId,
+    preferredStudyRoomId,
   ]);
 
   useEffect(() => {
@@ -973,7 +1057,8 @@ export default function CentralActionBar({
 
     await prepareAction(
       actionType,
-      null
+      selectedRoomId ??
+        preferredStudyRoomId
     );
   }
 

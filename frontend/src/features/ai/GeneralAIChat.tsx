@@ -25,6 +25,7 @@ import SmartActionLinks from "@/components/ai/SmartActionLinks";
 import ArtifactFileCards from "@/components/ai/ArtifactFileCards";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
+import { detectGeneralAIActionIntent } from "@/lib/generalAiActionIntent";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
 import {
   buildFileBrainDisplayAttachments,
@@ -389,6 +390,25 @@ function shouldResolveAsStudyCommand(
     /```|^#!|bash\s+<<|\b(set|cd|git|npm|npx|python|python3|curl|grep|sed|cat|echo|sudo|systemctl)\b|[{};$]|=>|\\$/im;
 
   return !codePattern.test(text);
+}
+
+function findLatestActionTargetMessage(
+  items: DisplayMessage[],
+): DisplayMessage | null {
+  return (
+    [...items]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          typeof message.id === "number" &&
+          !message.generatedImage &&
+          message.content.trim().length >= 40 &&
+          pendingAssistantActivityLabel(
+            message.content
+          ) === null
+      ) ?? null
+  );
 }
 
 type AIActivityState = {
@@ -3183,6 +3203,53 @@ export default function GeneralAIChat({
       buildFileBrainDisplayAttachments(
         fileBrainItemsToSend
       );
+
+    const actionIntent =
+      !imageToSend &&
+      !documentToSend &&
+      attachmentsToSend.length === 0 &&
+      fileBrainItemsToSend.length === 0
+        ? detectGeneralAIActionIntent(
+            question
+          )
+        : null;
+
+    if (actionIntent) {
+      const targetMessage =
+        findLatestActionTargetMessage(
+          messages
+        );
+
+      if (!targetMessage) {
+        setError(
+          "Ask StudySnap to explain or create something first, then save that answer."
+        );
+
+        inputRef.current?.focus();
+        return;
+      }
+
+      setInput("");
+      setError("");
+      updateStudyToolsOpen(false);
+      setAiToolsOpen(false);
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "studysnap:open-study-actions",
+          {
+            detail: {
+              messageId:
+                targetMessage.id,
+              actionType:
+                actionIntent.actionType,
+            },
+          }
+        )
+      );
+
+      return;
+    }
 
     if (
       !imageToSend &&
