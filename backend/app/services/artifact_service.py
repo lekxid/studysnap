@@ -80,6 +80,149 @@ def detect_artifact_export_request(value: str | None) -> str | None:
     return None
 
 
+
+_ARTIFACT_NATURAL_ACTION_PATTERN = re.compile(
+    r"\b(?:create|make|turn|convert|change|transform|save|"
+    r"export|download|prepare|generate|send|give|get|want|"
+    r"need|attach|provide)\b",
+    flags=re.IGNORECASE,
+)
+
+_ARTIFACT_NATURAL_FORMAT_PATTERNS = (
+    (
+        "docx",
+        re.compile(
+            r"\b(?:docx|word document|word file)\b",
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "pdf",
+        re.compile(
+            r"\b(?:pdf|dpf)\b",
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "md",
+        re.compile(
+            r"\b(?:markdown|md file)\b",
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "txt",
+        re.compile(
+            r"\b(?:txt|text file)\b",
+            flags=re.IGNORECASE,
+        ),
+    ),
+)
+
+_ARTIFACT_FOLLOWUP_PATTERN = re.compile(
+    r"^\s*"
+    r"(?:(?:ok(?:ay)?|yes|yeah|yep|please)\s+)*"
+    r"(?:"
+    r"send(?:\s+(?:it|that|this|the file|the link))?"
+    r"(?:\s+now)?|"
+    r"where(?:\s+is)?"
+    r"(?:\s+(?:it|that|this|the file|the link))?|"
+    r"give\s+me"
+    r"(?:\s+(?:it|that|this|the file|the link|"
+    r"the download link))?|"
+    r"download(?:\s+(?:it|that|this|the file))?|"
+    r"open(?:\s+(?:it|that|this|the file))?|"
+    r"(?:create|make)(?:\s+(?:it|that|this|the file))?|"
+    r"do\s+it(?:\s+now)?|"
+    r"try\s+again|"
+    r"now"
+    r")"
+    r"\s*[.!?]*\s*$",
+    flags=re.IGNORECASE,
+)
+
+
+def _detect_natural_artifact_format(
+    value: str | None,
+) -> str | None:
+    normalized = " ".join(
+        (value or "").split()
+    )
+
+    if (
+        not normalized
+        or not _ARTIFACT_NATURAL_ACTION_PATTERN.search(
+            normalized
+        )
+    ):
+        return None
+
+    for artifact_format, pattern in (
+        _ARTIFACT_NATURAL_FORMAT_PATTERNS
+    ):
+        if pattern.search(normalized):
+            return artifact_format
+
+    return None
+
+
+def is_artifact_followup_request(
+    value: str | None,
+) -> bool:
+    normalized = " ".join(
+        (value or "").split()
+    )
+
+    return bool(
+        normalized
+        and _ARTIFACT_FOLLOWUP_PATTERN.fullmatch(
+            normalized
+        )
+    )
+
+
+def resolve_artifact_export_request(
+    value: str | None,
+    recent_user_messages=(),
+) -> str | None:
+    direct = detect_artifact_export_request(
+        value
+    )
+
+    if direct is not None:
+        return direct
+
+    natural = _detect_natural_artifact_format(
+        value
+    )
+
+    if natural is not None:
+        return natural
+
+    if not is_artifact_followup_request(
+        value
+    ):
+        return None
+
+    for previous in recent_user_messages:
+        direct = detect_artifact_export_request(
+            previous
+        )
+
+        if direct is not None:
+            return direct
+
+        natural = (
+            _detect_natural_artifact_format(
+                previous
+            )
+        )
+
+        if natural is not None:
+            return natural
+
+    return None
+
 def artifact_format_label(artifact_format: str) -> str:
     return ARTIFACT_FORMAT_LABELS.get(
         artifact_format,
@@ -137,6 +280,9 @@ Mandatory rules:
 - Do not add an introduction such as "Here is your document".
 - Do not add commentary after the finished document.
 - When essential information is genuinely unavailable, begin exactly with NEEDS_CLARIFICATION: and ask one concise question. No artifact will be created in that case.
+- Never output sandbox:/, file://, a local filesystem path, or an invented download URL.
+- Do not claim that a file exists before StudySnap creates and verifies its real file card.
+- Return only the finished document content. StudySnap will attach the verified Open and Download controls.
 
 Latest student request:
 {request_text.strip()}

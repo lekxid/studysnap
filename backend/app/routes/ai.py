@@ -52,6 +52,8 @@ from app.services.artifact_service import (
     build_artifact_generation_instructions,
     create_text_artifact,
     detect_artifact_export_request,
+    is_artifact_followup_request,
+    resolve_artifact_export_request,
     suggest_artifact_title,
 )
 from app.services.context.builder import build_study_room_context
@@ -3382,10 +3384,40 @@ def create_message(
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
     requested_export_format = (
-        detect_artifact_export_request(
+        resolve_artifact_export_request(
             data.content
         )
     )
+
+    if (
+        requested_export_format is None
+        and is_artifact_followup_request(
+            data.content
+        )
+    ):
+        recent_user_artifact_requests = [
+            item.content
+            for item in (
+                db.query(AIMessage)
+                .filter(
+                    AIMessage.conversation_id
+                    == conversation.id,
+                    AIMessage.role == "user",
+                )
+                .order_by(
+                    AIMessage.id.desc()
+                )
+                .limit(12)
+                .all()
+            )
+        ]
+
+        requested_export_format = (
+            resolve_artifact_export_request(
+                data.content,
+                recent_user_artifact_requests,
+            )
+        )
 
     history_text = build_conversation_history_context(
         db=db,
@@ -3626,10 +3658,40 @@ def create_message_stream(
     conversation = verify_conversation(db, data.conversation_id, current_user.id)
 
     requested_export_format = (
-        detect_artifact_export_request(
+        resolve_artifact_export_request(
             data.content
         )
     )
+
+    if (
+        requested_export_format is None
+        and is_artifact_followup_request(
+            data.content
+        )
+    ):
+        recent_user_artifact_requests = [
+            item.content
+            for item in (
+                db.query(AIMessage)
+                .filter(
+                    AIMessage.conversation_id
+                    == conversation.id,
+                    AIMessage.role == "user",
+                )
+                .order_by(
+                    AIMessage.id.desc()
+                )
+                .limit(12)
+                .all()
+            )
+        ]
+
+        requested_export_format = (
+            resolve_artifact_export_request(
+                data.content,
+                recent_user_artifact_requests,
+            )
+        )
 
     history_text = build_conversation_history_context(
         db=db,
