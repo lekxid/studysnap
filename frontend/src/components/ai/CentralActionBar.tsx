@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -186,29 +185,6 @@ function canUseStudyActions(
   return true;
 }
 
-function isInteractiveTarget(
-  target: EventTarget | null
-): boolean {
-  if (!(target instanceof Element)) {
-    return false;
-  }
-
-  return Boolean(
-    target.closest(
-      [
-        "a",
-        "button",
-        "input",
-        "textarea",
-        "select",
-        "summary",
-        "[role='button']",
-        "[contenteditable='true']",
-      ].join(",")
-    )
-  );
-}
-
 function ActionIcon({
   actionType,
 }: {
@@ -345,11 +321,6 @@ export default function CentralActionBar({
   messageContent,
   preferredStudyRoomId = null,
 }: Props) {
-  const anchorRef =
-    useRef<HTMLSpanElement | null>(
-      null
-    );
-
   const [mounted, setMounted] =
     useState(false);
 
@@ -635,200 +606,6 @@ export default function CentralActionBar({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!actionable) {
-      return;
-    }
-
-    const anchor =
-      anchorRef.current;
-
-    const surface =
-      anchor?.closest("article");
-
-    if (!surface) {
-      return;
-    }
-
-    let timer: number | null =
-      null;
-
-    let startX = 0;
-    let startY = 0;
-
-    function cancelTimer() {
-      if (timer !== null) {
-        window.clearTimeout(
-          timer
-        );
-
-        timer = null;
-      }
-    }
-
-    function activate() {
-      cancelTimer();
-
-      window
-        .getSelection()
-        ?.removeAllRanges();
-
-      if (
-        "vibrate" in navigator
-      ) {
-        navigator.vibrate(12);
-      }
-
-      setError("");
-      setNotice("");
-      setOpen(true);
-    }
-
-    function handlePointerDown(
-      event: PointerEvent
-    ) {
-      if (
-        !event.isPrimary ||
-        isInteractiveTarget(
-          event.target
-        )
-      ) {
-        return;
-      }
-
-      startX = event.clientX;
-      startY = event.clientY;
-
-      cancelTimer();
-
-      timer = window.setTimeout(
-        activate,
-        480
-      );
-    }
-
-    function handlePointerMove(
-      event: PointerEvent
-    ) {
-      if (timer === null) {
-        return;
-      }
-
-      const movement =
-        Math.abs(
-          event.clientX - startX
-        )
-        +
-        Math.abs(
-          event.clientY - startY
-        );
-
-      if (movement > 12) {
-        cancelTimer();
-      }
-    }
-
-    function handlePointerEnd() {
-      cancelTimer();
-    }
-
-    function handleContextMenu(
-      event: MouseEvent
-    ) {
-      if (
-        isInteractiveTarget(
-          event.target
-        )
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      activate();
-    }
-
-    surface.setAttribute(
-      "data-study-actions",
-      "long-press"
-    );
-
-    surface.setAttribute(
-      "title",
-      "Press and hold for study actions"
-    );
-
-    surface.addEventListener(
-      "pointerdown",
-      handlePointerDown
-    );
-
-    surface.addEventListener(
-      "pointermove",
-      handlePointerMove
-    );
-
-    surface.addEventListener(
-      "pointerup",
-      handlePointerEnd
-    );
-
-    surface.addEventListener(
-      "pointercancel",
-      handlePointerEnd
-    );
-
-    surface.addEventListener(
-      "pointerleave",
-      handlePointerEnd
-    );
-
-    surface.addEventListener(
-      "contextmenu",
-      handleContextMenu
-    );
-
-    return () => {
-      cancelTimer();
-
-      surface.removeAttribute(
-        "data-study-actions"
-      );
-
-      surface.removeAttribute(
-        "title"
-      );
-
-      surface.removeEventListener(
-        "pointerdown",
-        handlePointerDown
-      );
-
-      surface.removeEventListener(
-        "pointermove",
-        handlePointerMove
-      );
-
-      surface.removeEventListener(
-        "pointerup",
-        handlePointerEnd
-      );
-
-      surface.removeEventListener(
-        "pointercancel",
-        handlePointerEnd
-      );
-
-      surface.removeEventListener(
-        "pointerleave",
-        handlePointerEnd
-      );
-
-      surface.removeEventListener(
-        "contextmenu",
-        handleContextMenu
-      );
-    };
-  }, [actionable]);
 
   async function loadRooms(): Promise<
     RoomOption[]
@@ -1159,13 +936,6 @@ export default function CentralActionBar({
 
   return (
     <>
-      <span
-        ref={anchorRef}
-        className="hidden"
-        aria-hidden="true"
-      />
-
-
       {actionable ? (
         <button
           type="button"
