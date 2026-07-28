@@ -1437,12 +1437,6 @@ export default function CentralActionBar({
                   </p>
                 ) : null}
 
-                {!setupAction &&
-                !actionRecord ? (
-                  <p className="mt-4 text-center text-[10px] text-zinc-600">
-                    Press and hold any useful StudySnap reply to open this menu.
-                  </p>
-                ) : null}
               </section>
             </div>,
             document.body
