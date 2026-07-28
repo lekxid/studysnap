@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 
 import {
   executeCentralAction,
+  getCentralAction,
   getStudyRooms,
   previewCentralAction,
   undoCentralAction,
@@ -22,6 +23,16 @@ import {
   mergeGeneralAIPlannerDateTime,
   type GeneralAIPlannerDraft,
 } from "@/lib/generalAiPlannerIntent";
+
+import {
+  buildCentralActionIdempotencyKey,
+  clearPersistedCentralAction,
+  getCentralActionResultDetail,
+  getCentralActionResultTitle,
+  getCentralActionSubtitle,
+  persistCentralAction,
+  readPersistedCentralAction,
+} from "@/lib/centralActionPersistence";
 
 type Props = {
   messageId: number;
@@ -413,6 +424,47 @@ export default function CentralActionBar({
       return;
     }
 
+    const cachedAction =
+      readPersistedCentralAction(
+        messageId
+      );
+
+    if (cachedAction) {
+      setActionRecord(
+        cachedAction
+      );
+
+      void getCentralAction(
+        cachedAction.id
+      )
+        .then((freshAction) => {
+          if (
+            freshAction
+              .source_message_id !==
+            messageId
+          ) {
+            clearPersistedCentralAction(
+              messageId
+            );
+
+            return;
+          }
+
+          setActionRecord(
+            freshAction
+          );
+
+          persistCentralAction(
+            messageId,
+            freshAction
+          );
+        })
+        .catch(() => {
+          // Cached snapshot remains
+          // usable while offline.
+        });
+    }
+
     setRequestedRoomHint(null);
     setError("");
     setNotice("");
@@ -423,7 +475,6 @@ export default function CentralActionBar({
     setOpen(false);
     setRequestedRoomHint(null);
     setSetupAction(null);
-    setActionRecord(null);
     setError("");
     setNotice("");
   }
@@ -535,6 +586,13 @@ export default function CentralActionBar({
         requestedRoomHintValue
       );
       setSetupAction(null);
+
+      if (requestedAction) {
+        clearPersistedCentralAction(
+          messageId
+        );
+      }
+
       setActionRecord(null);
       setError("");
       setNotice("");
@@ -652,6 +710,88 @@ export default function CentralActionBar({
     messageId,
     preferredStudyRoomId,
   ]);
+
+  useEffect(() => {
+    let active = true;
+    let timer:
+      number | null = null;
+
+    function restoreLatestAction() {
+      const cachedAction =
+        readPersistedCentralAction(
+          messageId
+        );
+
+      if (!cachedAction) {
+        return;
+      }
+
+      timer = window.setTimeout(
+        () => {
+          if (active) {
+            setActionRecord(
+              cachedAction
+            );
+          }
+        },
+        0
+      );
+
+      void getCentralAction(
+        cachedAction.id
+      )
+        .then((freshAction) => {
+          if (!active) {
+            return;
+          }
+
+          if (
+            freshAction
+              .source_message_id !==
+            messageId
+          ) {
+            clearPersistedCentralAction(
+              messageId
+            );
+
+            return;
+          }
+
+          setActionRecord(
+            freshAction
+          );
+
+          persistCentralAction(
+            messageId,
+            freshAction
+          );
+        })
+        .catch(() => {
+          // Keep the snapshot until
+          // the connection returns.
+        });
+    }
+
+    restoreLatestAction();
+
+    window.addEventListener(
+      "online",
+      restoreLatestAction
+    );
+
+    return () => {
+      active = false;
+
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+
+      window.removeEventListener(
+        "online",
+        restoreLatestAction
+      );
+    };
+  }, [messageId]);
 
   useEffect(() => {
     if (!open) {
@@ -858,6 +998,12 @@ export default function CentralActionBar({
     setNotice("");
 
     try {
+      const payload =
+        actionType ===
+        "add_to_planner"
+          ? plannerPayload()
+          : {};
+
       const result =
         await previewCentralAction({
           actionType,
@@ -865,15 +1011,24 @@ export default function CentralActionBar({
             messageId,
           studyRoomId:
             roomId ?? undefined,
-          payload:
-            actionType ===
-            "add_to_planner"
-              ? plannerPayload()
-              : {},
+          payload,
+          idempotencyKey:
+            buildCentralActionIdempotencyKey({
+              messageId,
+              actionType,
+              studyRoomId:
+                roomId,
+              payload,
+            }),
         });
 
       setSetupAction(null);
       setActionRecord(result);
+
+      persistCentralAction(
+        messageId,
+        result
+      );
 
       if (
         result.status ===
@@ -926,6 +1081,9 @@ export default function CentralActionBar({
   async function beginAction(
     actionType: CentralActionType
   ) {
+    clearPersistedCentralAction(
+      messageId
+    );
     setActionRecord(null);
     setError("");
     setNotice("");
@@ -1001,6 +1159,11 @@ export default function CentralActionBar({
 
       setActionRecord(result);
 
+      persistCentralAction(
+        messageId,
+        result
+      );
+
       setNotice(
         result.already_executed ||
           result.duplicate
@@ -1011,7 +1174,10 @@ export default function CentralActionBar({
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "The action could not be completed."
+          : (
+              "The action could not be completed. "
+              + "Retry safely when the connection returns."
+            )
       );
     } finally {
       setBusy(false);
@@ -1034,6 +1200,11 @@ export default function CentralActionBar({
         );
 
       setActionRecord(result);
+
+      persistCentralAction(
+        messageId,
+        result
+      );
 
       setNotice(
         result.already_undone
@@ -1068,7 +1239,27 @@ export default function CentralActionBar({
           title="Use this reply"
         >
           <span
-            className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#f1d66f] shadow-[0_0_10px_rgba(241,214,111,0.9)]"
+            className={`absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full ${
+              actionRecord?.status ===
+                "executed"
+                ? (
+                    "bg-emerald-300 "
+                    + "shadow-[0_0_10px_rgba(110,231,183,0.9)]"
+                  )
+                : actionRecord?.status ===
+                    "undone"
+                  ? "bg-zinc-500"
+                  : actionRecord?.status ===
+                      "failed"
+                    ? (
+                        "bg-red-300 "
+                        + "shadow-[0_0_10px_rgba(252,165,165,0.8)]"
+                      )
+                    : (
+                        "bg-[#f1d66f] "
+                        + "shadow-[0_0_10px_rgba(241,214,111,0.9)]"
+                      )
+            }`}
             aria-hidden="true"
           />
 
@@ -1151,10 +1342,13 @@ export default function CentralActionBar({
                       </h2>
 
                       <p className="truncate text-xs text-zinc-500">
-                        {setupAction ||
-                        actionRecord
-                          ? "Review before StudySnap creates anything"
-                          : "Use this StudySnap reply"}
+                        {actionRecord
+                          ? getCentralActionSubtitle(
+                              actionRecord
+                            )
+                          : setupAction
+                            ? "Review before StudySnap creates anything"
+                            : "Use this StudySnap reply"}
                       </p>
                     </div>
                   </div>
@@ -1436,11 +1630,34 @@ export default function CentralActionBar({
                   <div className="mt-5">
                     <div className="rounded-[18px] border border-[#c9ad50]/18 bg-[linear-gradient(145deg,rgba(26,24,16,0.92),rgba(13,14,15,0.98))] p-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-black text-white">
-                          {
-                            actionRecord.label
-                          }
-                        </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-black ${
+                              actionRecord.status ===
+                                "failed"
+                                ? "bg-red-300/10 text-red-200"
+                                : actionRecord.status ===
+                                    "undone"
+                                  ? "bg-white/[0.06] text-zinc-400"
+                                  : "bg-emerald-300/10 text-emerald-200"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {actionRecord.status ===
+                              "failed"
+                              ? "!"
+                              : actionRecord.status ===
+                                  "undone"
+                                ? "↶"
+                                : "✓"}
+                          </span>
+
+                          <p className="truncate text-sm font-black text-white">
+                            {getCentralActionResultTitle(
+                              actionRecord
+                            )}
+                          </p>
+                        </div>
 
                         <span className="rounded-full bg-[#c9ad50]/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-[#dfca6d]">
                           {getStatusLabel(
@@ -1449,7 +1666,17 @@ export default function CentralActionBar({
                         </span>
                       </div>
 
-                      <p className="mt-2 text-xs leading-5 text-zinc-400">
+                      <p
+                        className="mt-2 text-xs font-bold leading-5 text-zinc-300"
+                        data-studysnap-persistent-action-result="true"
+                        aria-live="polite"
+                      >
+                        {getCentralActionResultDetail(
+                          actionRecord
+                        )}
+                      </p>
+
+                      <p className="mt-1 text-[11px] leading-4 text-zinc-500">
                         {
                           actionRecord
                             .preview
@@ -1481,8 +1708,13 @@ export default function CentralActionBar({
                     ) : null}
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {actionRecord
-                        .can_execute ? (
+                      {(
+                        actionRecord
+                          .can_execute ||
+                        actionRecord
+                          .status ===
+                          "failed"
+                      ) ? (
                         <button
                           type="button"
                           disabled={busy}
@@ -1493,7 +1725,14 @@ export default function CentralActionBar({
                         >
                           {busy
                             ? "Creating…"
-                            : "Create"}
+                            : (
+                                actionRecord
+                                  .status ===
+                                  "failed" ||
+                                error
+                                  ? "Retry safely"
+                                  : "Create"
+                              )}
                         </button>
                       ) : null}
 
