@@ -1585,6 +1585,11 @@ export default function GeneralAIChat({
 
   const hasMessages = messages.length > 0;
 
+  const hasStudyActionTarget =
+    findLatestActionTargetMessage(
+      messages,
+    ) !== null;
+
   const activeTrail = trails.find((trail) => trail.id === activeConversationId);
 
   function showDeleteNotice(
@@ -2480,7 +2485,7 @@ export default function GeneralAIChat({
 
     // The helper is a stable function declaration and
     // reads only the task IDs supplied above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [
     fileBrainQueue.hydrated,
     fileBrainQueue.tasks,
@@ -5694,6 +5699,112 @@ export default function GeneralAIChat({
     void addComposerFiles(files);
   }
 
+  function openFeatureFilePicker() {
+    setError("");
+    setAiToolsOpen(false);
+    updateStudyToolsOpen(false);
+
+    const picker =
+      fileInputRef.current;
+
+    if (!picker) {
+      setError(
+        "The file picker could not open. Please refresh and try again.",
+      );
+
+      return;
+    }
+
+    picker.value = "";
+    picker.click();
+  }
+
+
+  function openFeatureCamera() {
+    setError("");
+    setAiToolsOpen(false);
+    updateStudyToolsOpen(false);
+
+    const camera =
+      cameraInputRef.current;
+
+    if (!camera) {
+      setError(
+        "The camera picker could not open on this device.",
+      );
+
+      return;
+    }
+
+    camera.value = "";
+    camera.click();
+  }
+
+
+  function beginFeatureImageCreation() {
+    setAiToolsOpen(false);
+    updateStudyToolsOpen(false);
+    setCreateImageMode(true);
+    removeSelectedImage();
+    setError("");
+
+    window.requestAnimationFrame(
+      () =>
+        inputRef.current?.focus(),
+    );
+  }
+
+
+  function prepareFeatureWebSearch() {
+    setAiToolsOpen(false);
+    updateStudyToolsOpen(false);
+    setError("");
+
+    setInput((current) => {
+      const clean =
+        current.trim();
+
+      if (!clean) {
+        return "Search the web for ";
+      }
+
+      if (
+        /^search the web\b/i.test(
+          clean,
+        )
+      ) {
+        return current;
+      }
+
+      return `Search the web for ${clean}`;
+    });
+
+    window.requestAnimationFrame(
+      () =>
+        inputRef.current?.focus(),
+    );
+  }
+
+
+  function runVisibleStudyAction(
+    command: string,
+  ) {
+    setAiToolsOpen(false);
+    updateStudyToolsOpen(false);
+
+    if (!hasStudyActionTarget) {
+      setError(
+        "Ask StudySnap something first, then use this study action on the latest answer.",
+      );
+
+      inputRef.current?.focus();
+      return;
+    }
+
+    void sendMessage(command);
+  }
+
+
   function renderComposer(
     large = false
   ) {
@@ -6357,7 +6468,12 @@ export default function GeneralAIChat({
             className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
           />
 
-          <aside className="studysnap-ai-tools-panel absolute left-3 right-3 top-[calc(4rem+env(safe-area-inset-top))] max-h-[min(72dvh,38rem)] overflow-y-auto overscroll-contain rounded-[1.5rem] border border-white/[0.10] bg-[#202020]/[0.98] p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:left-auto sm:right-4 sm:w-[24rem]">
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="StudySnap tools"
+            className="studysnap-ai-tools-panel absolute left-3 right-3 top-[calc(4rem+env(safe-area-inset-top))] max-h-[min(72dvh,38rem)] overflow-y-auto overscroll-contain rounded-[1.5rem] border border-white/[0.10] bg-[#202020]/[0.98] p-2 shadow-[0_28px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:left-auto sm:right-4 sm:w-[24rem]"
+          >
             <div className="flex h-10 items-center justify-between px-2">
               <div className="flex items-center gap-2">
                 <span className="grid h-7 w-7 place-items-center rounded-lg border border-[#c9ad50]/25 bg-[#c9ad50]/10 text-[10px] font-black text-[#dfcf80]">
@@ -6411,6 +6527,128 @@ export default function GeneralAIChat({
 
                 Chat history
               </button>
+
+              <div
+                data-studysnap-ai-feature-grid="true"
+                className="mt-1 grid grid-cols-2 gap-1"
+              >
+                <button
+                  type="button"
+                  onClick={
+                    beginFeatureImageCreation
+                  }
+                  className="flex min-h-11 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 text-left text-xs font-bold text-zinc-200 transition hover:bg-white/[0.08]"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#c9ad50]/10 text-[#dfcf80]">
+                    ✦
+                  </span>
+                  Create image
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    openFeatureFilePicker
+                  }
+                  className="flex min-h-11 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 text-left text-xs font-bold text-zinc-200 transition hover:bg-white/[0.08]"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
+                    ↥
+                  </span>
+                  Upload files
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    openFeatureCamera
+                  }
+                  className="flex min-h-11 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 text-left text-xs font-bold text-zinc-200 transition hover:bg-white/[0.08]"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
+                    ◉
+                  </span>
+                  Take photo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    prepareFeatureWebSearch
+                  }
+                  className="flex min-h-11 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 text-left text-xs font-bold text-zinc-200 transition hover:bg-white/[0.08]"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]">
+                    ◌
+                  </span>
+                  Search web
+                </button>
+              </div>
+
+              <section
+                data-studysnap-visible-study-actions="true"
+                className="mt-2 rounded-xl border border-white/[0.07] bg-black/15 p-1.5"
+                aria-label="Study actions"
+              >
+                <p className="px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
+                  Study actions
+                </p>
+
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    [
+                      "▤",
+                      "Save note",
+                      "Save this as a note",
+                    ],
+                    [
+                      "▧",
+                      "Make cards",
+                      "Make flashcards from this",
+                    ],
+                    [
+                      "?",
+                      "Make quiz",
+                      "Make a quiz from this",
+                    ],
+                    [
+                      "◷",
+                      "Add to planner",
+                      "Add this to my planner",
+                    ],
+                  ].map(
+                    ([
+                      symbol,
+                      label,
+                      command,
+                    ]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        disabled={
+                          !hasStudyActionTarget
+                        }
+                        onClick={() =>
+                          runVisibleStudyAction(
+                            command,
+                          )
+                        }
+                        title={
+                          hasStudyActionTarget
+                            ? label
+                            : "Ask something first"
+                        }
+                        className="flex min-h-10 items-center gap-2 rounded-lg px-2 text-left text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        <span className="grid h-6 w-6 place-items-center rounded-md bg-white/[0.05] text-[#d8c878]">
+                          {symbol}
+                        </span>
+                        {label}
+                      </button>
+                    ),
+                  )}
+                </div>
+              </section>
 
               <details className="rounded-xl" data-studysnap-quick-prompts="true">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-zinc-100 hover:bg-white/[0.08]">
@@ -7103,6 +7341,82 @@ export default function GeneralAIChat({
 
               <div className="studysnap-ai-composer-dock shrink-0 bg-black/95 px-3 pb-2 pt-1.5 backdrop-blur-2xl sm:px-5 sm:pb-3">
                 <div className="mx-auto w-full max-w-[820px]">
+                  <nav
+                    data-studysnap-visible-ai-actions="true"
+                    aria-label="General AI quick actions"
+                    className="mb-1 flex w-full items-center gap-1 overflow-x-auto px-1 pb-1"
+                  >
+                    <button
+                      type="button"
+                      onClick={startNewTrail}
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.09]"
+                      title="New conversation"
+                    >
+                      <span className="text-sm text-[#d8c878]">
+                        ＋
+                      </span>
+                      New
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiToolsOpen(false);
+                        updateHistoryOpen(true);
+                      }}
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.09]"
+                      title="Chat history"
+                    >
+                      <span className="text-sm">
+                        ≡
+                      </span>
+                      Chats
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        beginFeatureImageCreation
+                      }
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.09]"
+                      title="Create image"
+                    >
+                      <span className="text-sm text-[#d8c878]">
+                        ✦
+                      </span>
+                      Image
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        openFeatureFilePicker
+                      }
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-[10px] font-black text-zinc-300 transition hover:bg-white/[0.09]"
+                      title="Upload files"
+                    >
+                      <span className="text-sm">
+                        ↥
+                      </span>
+                      Upload
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateStudyToolsOpen(false);
+                        setAiToolsOpen(true);
+                      }}
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#c9ad50]/20 bg-[#c9ad50]/[0.07] px-3 text-[10px] font-black text-[#ddd18f] transition hover:bg-[#c9ad50]/[0.13]"
+                      title="All StudySnap tools"
+                    >
+                      <span className="text-sm">
+                        ☰
+                      </span>
+                      Tools
+                    </button>
+                  </nav>
+
                   {renderComposer(false)}
                 </div>
               </div>
