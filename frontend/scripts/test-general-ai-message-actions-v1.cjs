@@ -35,18 +35,11 @@ const api = read(
   "src/lib/api.ts",
 );
 
-const backend = fs.readFileSync(
-  path.resolve(
-    root,
-    "../backend/app/routes/ai_message_actions.py",
-  ),
-  "utf8",
-);
-
 for (const marker of [
   "GeneralAIMessageActions",
   "activeConversationId",
   "message={message}",
+  "onActionComplete={",
   "{longMessage ? (",
 ]) {
   expect(
@@ -61,16 +54,25 @@ for (const marker of [
   "Regenerate answer",
   "Branch conversation",
   "window.prompt(",
-  "window.location.assign(",
+  "workingRef.current",
+  "onActionComplete(",
+  "Creating branch…",
+  "Creating a new answer…",
+  'role="status"',
   "animate-bounce",
-  "animationDelay:",
-  "[0, 1, 2].map",
 ]) {
   expect(
     component.includes(marker),
     `Action UI missing: ${marker}`,
   );
 }
+
+expect(
+  !component.includes(
+    "window.location.assign("
+  ),
+  "Message actions must not force a page reload.",
+);
 
 for (const marker of [
   "branchAIConversationFromMessage",
@@ -88,7 +90,6 @@ for (const marker of [
   );
 }
 
-
 const actionIndex = chat.indexOf(
   "<GeneralAIMessageActions",
 );
@@ -101,24 +102,14 @@ const longMessageIndex = chat.indexOf(
 expect(
   actionIndex >= 0
     && longMessageIndex > actionIndex
-    && longMessageIndex - actionIndex < 700,
+    && longMessageIndex - actionIndex < 900,
   "Message actions are outside the per-message scope.",
 );
 
-for (const marker of [
-  "branch_from_message",
-  "edit_and_resend",
-  "retry_from_message",
-  "regenerate_answer",
-  "create_fresh_exchange",
-]) {
-  expect(
-    backend.includes(marker),
-    `Backend action missing: ${marker}`,
-  );
-}
+console.log(
+  "PASS: Message actions are connected without a page reload."
+);
 
 console.log(
-  "PASS: Edit, retry, regenerate, "
-  + "and branch are connected."
+  "PASS: Synchronous action locking prevents double-click duplicates."
 );

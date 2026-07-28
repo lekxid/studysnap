@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useRef,
   useState,
 } from "react";
 
@@ -25,30 +26,34 @@ type ActionName =
   | "regenerate"
   | "branch";
 
-function openBranch(
-  result: AIMessageActionResponse,
-) {
-  const params = new URLSearchParams(
-    window.location.search,
-  );
+type Props = {
+  message: MessageTarget;
+  conversationId: number | null;
+  onActionComplete: (
+    result: AIMessageActionResponse,
+  ) => Promise<void> | void;
+};
 
-  params.set(
-    "conversationId",
-    String(
-      result.conversation.id,
-    ),
-  );
+function workingLabel(
+  action: ActionName | null,
+): string {
+  if (action === "branch") {
+    return "Creating branch…";
+  }
 
-  window.sessionStorage.setItem(
-    "studysnap:general-ai-message-action-focus",
-    String(
-      result.conversation.id,
-    ),
-  );
+  if (action === "regenerate") {
+    return "Creating a new answer…";
+  }
 
-  window.location.assign(
-    `/general-ai?${params.toString()}`,
-  );
+  if (action === "retry") {
+    return "Retrying from this message…";
+  }
+
+  if (action === "edit") {
+    return "Sending edited message…";
+  }
+
+  return "";
 }
 
 function ActionButton({
@@ -125,16 +130,19 @@ function ActionButton({
 export default function GeneralAIMessageActions({
   message,
   conversationId,
-}: {
-  message: MessageTarget;
-  conversationId: number | null;
-}) {
+  onActionComplete,
+}: Props) {
   const [
     working,
     setWorking,
   ] = useState<ActionName | null>(
     null,
   );
+
+  const workingRef =
+    useRef<ActionName | null>(
+      null,
+    );
 
   const [
     error,
@@ -156,19 +164,30 @@ export default function GeneralAIMessageActions({
     request: () =>
       Promise<AIMessageActionResponse>,
   ) {
-    if (working !== null) {
+    if (
+      workingRef.current !== null
+    ) {
       return;
     }
+
+    workingRef.current = action;
 
     try {
       setWorking(action);
       setError("");
 
-      const result = await request();
+      const result =
+        await request();
 
-      openBranch(result);
+      await onActionComplete(
+        result
+      );
 
+      workingRef.current = null;
+      setWorking(null);
     } catch (reason) {
+      workingRef.current = null;
+
       setError(
         reason instanceof Error
           ? reason.message
@@ -284,9 +303,25 @@ export default function GeneralAIMessageActions({
         />
       </div>
 
-      {error ? (
+      {working ? (
         <p
           role="status"
+          aria-live="polite"
+          className={[
+            "mt-2 text-[11px] font-bold",
+            "text-[#d8c878]",
+            message.role === "user"
+              ? "text-right"
+              : "text-left",
+          ].join(" ")}
+        >
+          {workingLabel(working)}
+        </p>
+      ) : null}
+
+      {error ? (
+        <p
+          role="alert"
           className={[
             "mt-2 text-xs text-red-300",
             message.role === "user"

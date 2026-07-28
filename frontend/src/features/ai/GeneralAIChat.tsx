@@ -55,6 +55,7 @@ import {
   renameAIConversation,
   streamAIMessage,
   cancelAIMessage,
+  type AIMessageActionResponse,
   type AIConversation,
   type AIMessage,
   type GenerateAIImageSize,
@@ -2246,6 +2247,87 @@ export default function GeneralAIChat({
     }
 
     return list;
+  }
+
+
+  async function handleMessageActionComplete(
+    result: AIMessageActionResponse,
+  ) {
+    const destination =
+      result.conversation;
+
+    const staysInCurrentChat =
+      result.action === "regenerate";
+
+    if (
+      staysInCurrentChat
+      && destination.id !==
+        activeConversationId
+    ) {
+      throw new Error(
+        "Regenerate returned a different chat. Nothing was changed."
+      );
+    }
+
+    if (
+      !staysInCurrentChat
+      && destination.id ===
+        activeConversationId
+    ) {
+      throw new Error(
+        "StudySnap could not create a separate branch."
+      );
+    }
+
+    window.sessionStorage.setItem(
+      "studysnap:general-ai-message-action-focus",
+      String(destination.id),
+    );
+
+    setTrails((current) => [
+      destination,
+      ...current.filter(
+        (trail) =>
+          trail.id !==
+          destination.id
+      ),
+    ]);
+
+    rememberActiveTrail(
+      destination
+    );
+
+    await loadMessages(
+      destination.id
+    );
+
+    await refreshTrails(
+      destination.id
+    );
+
+    if (
+      result.action === "branch"
+    ) {
+      showDeleteNotice(
+        "🌿 Branch created."
+      );
+
+      return;
+    }
+
+    if (
+      result.action === "regenerate"
+    ) {
+      showDeleteNotice(
+        "↻ New answer ready."
+      );
+
+      return;
+    }
+
+    showDeleteNotice(
+      "New branch ready."
+    );
   }
 
   useEffect(() => {
@@ -7322,6 +7404,9 @@ export default function GeneralAIChat({
                         message={message}
                         conversationId={
                           activeConversationId
+                        }
+                        onActionComplete={
+                          handleMessageActionComplete
                         }
                       />
 

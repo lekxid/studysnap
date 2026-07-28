@@ -67,3 +67,71 @@ def test_ai_message_actions_file_aware_branch_contract():
         'f"Branch · {branch_title_source}"'
         in route
     )
+
+
+def test_regenerate_stays_in_source_conversation():
+    route = Path(
+        "app/routes/ai_message_actions.py"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = route.index(
+        '"/messages/{message_id}/regenerate"'
+    )
+
+    block = route[start:]
+
+    assert (
+        "temporary_branch = create_branch("
+        in block
+    )
+
+    assert (
+        "db.delete(\n"
+        "            temporary_branch\n"
+        "        )"
+        in block
+    )
+
+    assert (
+        "source_message.content = ("
+        in block
+    )
+
+    assert (
+        "branch=source_conversation"
+        in block
+    )
+
+    assert (
+        "messages=current_messages"
+        in block
+    )
+
+    assert (
+        "assistant_message=source_message"
+        in block
+    )
+
+
+def test_branch_still_returns_a_new_conversation():
+    route = Path(
+        "app/routes/ai_message_actions.py"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    start = route.index(
+        '"/messages/{message_id}/branch"'
+    )
+
+    end = route.index(
+        '"/messages/{message_id}/edit-resend"'
+    )
+
+    block = route[start:end]
+
+    assert "branch = create_branch(" in block
+    assert "branch=branch" in block
+    assert 'action="branch"' in block

@@ -684,52 +684,94 @@ def regenerate_answer(
             inclusive=False,
         )
 
-        branch = create_branch(
+        # Generate against a temporary copy
+        # so the original answer is not fed
+        # back into its own regeneration.
+        temporary_branch = create_branch(
             db,
             source=source_conversation,
             owner_id=current_user.id,
+            requested_title=(
+                "Temporary regeneration"
+            ),
         )
 
-        cloned = clone_messages(
-            db,
-            messages=prefix,
-            branch_id=branch.id,
+        temporary_clones = (
+            clone_messages(
+                db,
+                messages=prefix,
+                branch_id=(
+                    temporary_branch.id
+                ),
+            )
         )
 
         (
-            user_message,
-            assistant_message,
+            temporary_user_message,
+            temporary_answer,
         ) = create_fresh_exchange(
             db,
-            branch=branch,
+            branch=temporary_branch,
             owner_id=current_user.id,
             user_content=(
                 source_user_message.content
             ),
         )
 
-        db.commit()
-        db.refresh(branch)
-        db.refresh(user_message)
-        db.refresh(assistant_message)
+        regenerated_content = (
+            temporary_answer.content
+        )
 
-        for message in cloned:
-            db.refresh(message)
+        for temporary_message in [
+            *temporary_clones,
+            temporary_user_message,
+            temporary_answer,
+        ]:
+            db.delete(
+                temporary_message
+            )
+
+        db.flush()
+
+        db.delete(
+            temporary_branch
+        )
+
+        source_message.content = (
+            regenerated_content
+        )
+
+        source_conversation.updated_at = (
+            utc_now()
+        )
+
+        db.add(source_message)
+        db.add(source_conversation)
+
+        db.commit()
+        db.refresh(source_message)
+        db.refresh(source_conversation)
+
+        current_messages = (
+            db.query(AIMessage)
+            .filter(
+                AIMessage.conversation_id
+                == source_conversation.id
+            )
+            .order_by(
+                AIMessage.id.asc()
+            )
+            .all()
+        )
 
     except Exception:
         db.rollback()
         raise
 
-    messages = [
-        *cloned,
-        user_message,
-        assistant_message,
-    ]
-
     return action_response(
         action="regenerate",
-        branch=branch,
-        messages=messages,
-        user_message=user_message,
-        assistant_message=assistant_message,
+        branch=source_conversation,
+        messages=current_messages,
+        user_message=source_user_message,
+        assistant_message=source_message,
     )
