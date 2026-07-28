@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import StudyTrailPanel from "@/components/ai/StudyTrailPanel";
 import SimpleMarkdown from "@/components/ui/SimpleMarkdown";
 import SmartActionLinks from "@/components/ai/SmartActionLinks";
+import GeneralAIMessageActions from "@/components/ai/GeneralAIMessageActions";
 import ArtifactFileCards from "@/components/ai/ArtifactFileCards";
 import AttachmentPreviewButton from "@/components/ai/AttachmentPreviewButton";
 
@@ -6448,6 +6449,13 @@ export default function GeneralAIChat({
                           {displayedContent}
                         </div>
                       )}
+
+                      <GeneralAIMessageActions
+                        message={message}
+                        conversationId={
+                          activeConversationId
+                        }
+                      />
 
                       {longMessage ? (
                         <button

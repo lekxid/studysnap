@@ -4474,3 +4474,73 @@ export async function getCentralAction(
     `/api/actions/${actionId}`
   ) as Promise<CentralActionRecord>;
 }
+
+// STUDYSNAP_GENERAL_AI_MESSAGE_ACTIONS_V1
+export type AIMessageActionResponse = {
+  action:
+    | "branch"
+    | "edit_resend"
+    | "retry"
+    | "regenerate";
+  conversation: AIConversation;
+  messages: AIMessage[];
+  user_message: AIMessage | null;
+  assistant_message: AIMessage | null;
+};
+
+export async function branchAIConversationFromMessage(
+  messageId: number,
+  options: {
+    includeMessage?: boolean;
+    title?: string;
+  } = {},
+): Promise<AIMessageActionResponse> {
+  return apiFetch(
+    `/api/ai/messages/${messageId}/branch`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        include_message:
+          options.includeMessage ?? true,
+        title: options.title ?? null,
+      }),
+    },
+  ) as Promise<AIMessageActionResponse>;
+}
+
+export async function editAndResendAIMessage(
+  messageId: number,
+  content: string,
+): Promise<AIMessageActionResponse> {
+  return apiFetch(
+    `/api/ai/messages/${messageId}/edit-resend`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+      }),
+    },
+  ) as Promise<AIMessageActionResponse>;
+}
+
+export async function retryAIMessage(
+  messageId: number,
+): Promise<AIMessageActionResponse> {
+  return apiFetch(
+    `/api/ai/messages/${messageId}/retry`,
+    {
+      method: "POST",
+    },
+  ) as Promise<AIMessageActionResponse>;
+}
+
+export async function regenerateAIMessage(
+  messageId: number,
+): Promise<AIMessageActionResponse> {
+  return apiFetch(
+    `/api/ai/messages/${messageId}/regenerate`,
+    {
+      method: "POST",
+    },
+  ) as Promise<AIMessageActionResponse>;
+}
