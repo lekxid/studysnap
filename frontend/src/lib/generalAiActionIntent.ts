@@ -6,6 +6,7 @@ export type GeneralAIActionIntent = {
   actionType: CentralActionType;
   label: string;
   confidence: "high";
+  roomHint: string | null;
 };
 
 const REFERENT =
@@ -57,14 +58,40 @@ function matches(
   ).test(text);
 }
 
+function extractRoomHint(
+  text: string,
+): string | null {
+  const match = text.match(
+    /\b(?:to|in|into)\s+(?:my\s+)?([a-z0-9][a-z0-9 ]{0,80}?)\s+room\b/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const roomHint =
+    match[1]
+      .replace(
+        /^(?:the|a|an)\s+/i,
+        "",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+
+  return roomHint || null;
+}
+
 function action(
   actionType: CentralActionType,
   label: string,
+  text: string,
 ): GeneralAIActionIntent {
   return {
     actionType,
     label,
     confidence: "high",
+    roomHint:
+      extractRoomHint(text),
   };
 }
 
@@ -96,6 +123,7 @@ export function detectGeneralAIActionIntent(
     return action(
       "add_to_planner",
       "Add to planner",
+      text,
     );
   }
 
@@ -114,6 +142,7 @@ export function detectGeneralAIActionIntent(
     return action(
       "create_flashcards",
       "Make cards",
+      text,
     );
   }
 
@@ -132,13 +161,15 @@ export function detectGeneralAIActionIntent(
     return action(
       "create_quiz",
       "Make quiz",
+      text,
     );
   }
 
   const notePatterns = [
     `^(?:save|keep|store)\\s+${REFERENT}$`,
     `^(?:save|keep|store)\\s+${REFERENT}\\s+(?:as|to|in|into)\\s+(?:my\\s+)?(?:a\\s+)?notes?$`,
-    `^(?:put|add)\\s+${REFERENT}\\s+(?:to|in|into)\\s+(?:my\\s+)?(?:notes?|[a-z0-9 ]+\\s+room)$`,
+    `^(?:save|keep|store|put|add)\\s+${REFERENT}\\s+(?:to|in|into)\\s+(?:my\\s+)?[a-z0-9 ]+\\s+room$`,
+    `^(?:put|add)\\s+${REFERENT}\\s+(?:to|in|into)\\s+(?:my\\s+)?notes?$`,
     `^(?:turn|convert)\\s+${REFERENT}\\s+into\\s+(?:a\\s+)?note$`,
   ];
 
@@ -151,6 +182,7 @@ export function detectGeneralAIActionIntent(
     return action(
       "save_note",
       "Save note",
+      text,
     );
   }
 

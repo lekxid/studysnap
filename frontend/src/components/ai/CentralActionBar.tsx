@@ -16,6 +16,8 @@ import {
   type CentralActionType,
 } from "@/lib/api";
 
+import { selectGeneralAIActionRoom } from "@/lib/generalAiActionRoom";
+
 type Props = {
   messageId: number;
   messageContent?: string | null;
@@ -328,6 +330,13 @@ export default function CentralActionBar({
     useState(false);
 
   const [
+    requestedRoomHint,
+    setRequestedRoomHint,
+  ] = useState<string | null>(
+    null
+  );
+
+  const [
     setupAction,
     setSetupAction,
   ] = useState<
@@ -399,6 +408,7 @@ export default function CentralActionBar({
       return;
     }
 
+    setRequestedRoomHint(null);
     setError("");
     setNotice("");
     setOpen(true);
@@ -406,6 +416,7 @@ export default function CentralActionBar({
 
   function closeSheet() {
     setOpen(false);
+    setRequestedRoomHint(null);
     setSetupAction(null);
     setActionRecord(null);
     setError("");
@@ -413,6 +424,7 @@ export default function CentralActionBar({
   }
 
   function showActionMenu() {
+    setRequestedRoomHint(null);
     setSetupAction(null);
     setActionRecord(null);
     setError("");
@@ -454,6 +466,7 @@ export default function CentralActionBar({
           messageId?: number;
           actionType?:
             CentralActionType;
+          roomHint?: string | null;
         }>;
 
       if (
@@ -468,6 +481,13 @@ export default function CentralActionBar({
         customEvent.detail?.actionType ??
         null;
 
+      const requestedRoomHintValue =
+        customEvent.detail?.roomHint
+          ?.trim() || null;
+
+      setRequestedRoomHint(
+        requestedRoomHintValue
+      );
       setSetupAction(null);
       setActionRecord(null);
       setError("");
@@ -500,26 +520,24 @@ export default function CentralActionBar({
               true
             );
 
-            const preferredRoom =
-              nextRooms.find(
-                (room) =>
-                  room.id ===
-                  preferredStudyRoomId
+            const roomDecision =
+              selectGeneralAIActionRoom(
+                nextRooms,
+                {
+                  roomHint:
+                    requestedRoomHintValue,
+                  preferredStudyRoomId,
+                }
               );
 
             const defaultRoom =
-              preferredRoom ||
-              (
-                nextRooms.length === 1
-                  ? nextRooms[0]
-                  : null
-              );
+              roomDecision.room;
+
+            setSelectedRoomId(
+              defaultRoom?.id ?? null
+            );
 
             if (defaultRoom) {
-              setSelectedRoomId(
-                defaultRoom.id
-              );
-
               setPlannerSubject(
                 (current) =>
                   (
@@ -528,6 +546,26 @@ export default function CentralActionBar({
                   )
                     ? current
                     : defaultRoom.subject
+              );
+            }
+
+            if (
+              roomDecision.reason ===
+              "ambiguous"
+            ) {
+              setError(
+                "More than one Study Room matches. Choose the room you meant."
+              );
+            } else if (
+              roomDecision.reason ===
+              "unmatched"
+            ) {
+              setError(
+                requestedRoomHintValue
+                  ? (
+                      `StudySnap could not find a Study Room matching "${requestedRoomHintValue}". Choose a room.`
+                    )
+                  : "Choose a Study Room."
               );
             }
           })
@@ -629,15 +667,52 @@ export default function CentralActionBar({
     setRooms(nextRooms);
     setRoomsLoaded(true);
 
-    if (
-      nextRooms.length === 1
-    ) {
-      setSelectedRoomId(
-        nextRooms[0].id
+    const roomDecision =
+      selectGeneralAIActionRoom(
+        nextRooms,
+        {
+          roomHint:
+            requestedRoomHint,
+          preferredStudyRoomId,
+        }
       );
 
+    const defaultRoom =
+      roomDecision.room;
+
+    setSelectedRoomId(
+      defaultRoom?.id ?? null
+    );
+
+    if (defaultRoom) {
       setPlannerSubject(
-        nextRooms[0].subject
+        (current) =>
+          (
+            current.trim() &&
+            current !== "Study"
+          )
+            ? current
+            : defaultRoom.subject
+      );
+    }
+
+    if (
+      roomDecision.reason ===
+      "ambiguous"
+    ) {
+      setError(
+        "More than one Study Room matches. Choose the room you meant."
+      );
+    } else if (
+      roomDecision.reason ===
+      "unmatched"
+    ) {
+      setError(
+        requestedRoomHint
+          ? (
+              `StudySnap could not find a Study Room matching "${requestedRoomHint}". Choose a room.`
+            )
+          : "Choose a Study Room."
       );
     }
 

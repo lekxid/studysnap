@@ -28,6 +28,7 @@ import AttachmentPreviewButton from "@/components/ai/AttachmentPreviewButton";
 
 import { resolveStudyCommand } from "@/lib/studyCommandRouter";
 import { detectGeneralAIActionIntent } from "@/lib/generalAiActionIntent";
+import { resolveGeneralAIActionTarget } from "@/lib/generalAiActionContext";
 import { asksForLiveResearch } from "@/lib/generalAiIntent";
 import {
   buildFileBrainDisplayAttachments,
@@ -673,20 +674,17 @@ function shouldResolveAsStudyCommand(
 
 function findLatestActionTargetMessage(
   items: DisplayMessage[],
+  pressedMessageId: number | null = null,
 ): DisplayMessage | null {
-  return (
-    [...items]
-      .reverse()
-      .find(
-        (message) =>
-          message.role === "assistant" &&
-          typeof message.id === "number" &&
-          !message.generatedImage &&
-          message.content.trim().length >= 40 &&
-          pendingAssistantActivityLabel(
-            message.content
-          ) === null
-      ) ?? null
+  return resolveGeneralAIActionTarget(
+    items,
+    {
+      pressedMessageId,
+      isTransient: (message) =>
+        pendingAssistantActivityLabel(
+          message.content,
+        ) !== null,
+    },
   );
 }
 
@@ -4083,6 +4081,8 @@ export default function GeneralAIChat({
                 targetMessage.id,
               actionType:
                 actionIntent.actionType,
+              roomHint:
+                actionIntent.roomHint,
             },
           }
         )
