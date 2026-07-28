@@ -2,11 +2,18 @@ import type {
   CentralActionType,
 } from "@/lib/api";
 
+import {
+  parseGeneralAIPlannerDraft,
+  type GeneralAIPlannerDraft,
+} from "@/lib/generalAiPlannerIntent";
+
 export type GeneralAIActionIntent = {
   actionType: CentralActionType;
   label: string;
   confidence: "high";
   roomHint: string | null;
+  plannerDraft:
+    GeneralAIPlannerDraft | null;
 };
 
 const REFERENT =
@@ -92,6 +99,13 @@ function action(
     confidence: "high",
     roomHint:
       extractRoomHint(text),
+    plannerDraft:
+      actionType ===
+      "add_to_planner"
+        ? parseGeneralAIPlannerDraft(
+            text
+          )
+        : null,
   };
 }
 

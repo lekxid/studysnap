@@ -18,6 +18,11 @@ import {
 
 import { selectGeneralAIActionRoom } from "@/lib/generalAiActionRoom";
 
+import {
+  mergeGeneralAIPlannerDateTime,
+  type GeneralAIPlannerDraft,
+} from "@/lib/generalAiPlannerIntent";
+
 type Props = {
   messageId: number;
   messageContent?: string | null;
@@ -467,6 +472,8 @@ export default function CentralActionBar({
           actionType?:
             CentralActionType;
           roomHint?: string | null;
+          plannerDraft?:
+            GeneralAIPlannerDraft | null;
         }>;
 
       if (
@@ -484,6 +491,45 @@ export default function CentralActionBar({
       const requestedRoomHintValue =
         customEvent.detail?.roomHint
           ?.trim() || null;
+
+      const requestedPlannerDraft =
+        customEvent.detail?.plannerDraft
+          ?? null;
+
+      if (
+        requestedAction ===
+          "add_to_planner"
+        && requestedPlannerDraft
+      ) {
+        setPlannerDate(
+          (current) =>
+            mergeGeneralAIPlannerDateTime(
+              current,
+              requestedPlannerDraft
+            )
+        );
+
+        if (
+          typeof requestedPlannerDraft
+            .durationMinutes ===
+            "number"
+        ) {
+          setPlannerDuration(
+            String(
+              requestedPlannerDraft
+                .durationMinutes
+            )
+          );
+        }
+
+        if (
+          requestedPlannerDraft.priority
+        ) {
+          setPlannerPriority(
+            requestedPlannerDraft.priority
+          );
+        }
+      }
 
       setRequestedRoomHint(
         requestedRoomHintValue

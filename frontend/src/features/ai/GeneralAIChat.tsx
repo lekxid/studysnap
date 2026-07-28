@@ -4083,6 +4083,8 @@ export default function GeneralAIChat({
                 actionIntent.actionType,
               roomHint:
                 actionIntent.roomHint,
+              plannerDraft:
+                actionIntent.plannerDraft,
             },
           }
         )
