@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -33,6 +34,12 @@ import {
   persistCentralAction,
   readPersistedCentralAction,
 } from "@/lib/centralActionPersistence";
+
+import {
+  clearCentralActionDraft,
+  persistCentralActionDraft,
+  readCentralActionDraft,
+} from "@/lib/centralActionDraftPersistence";
 
 type Props = {
   messageId: number;
@@ -414,10 +421,84 @@ export default function CentralActionBar({
   const [notice, setNotice] =
     useState("");
 
+  const sheetRef =
+    useRef<HTMLElement | null>(
+      null
+    );
+
+  const pageScrollYRef =
+    useRef(0);
+
   const actionable =
     canUseStudyActions(
       messageContent
     );
+
+  function applyDraft(
+    draft:
+      ReturnType<
+        typeof readCentralActionDraft
+      >
+  ) {
+    if (!draft) {
+      return;
+    }
+
+    setSetupAction(
+      draft.setupAction
+    );
+    setSelectedRoomId(
+      draft.selectedRoomId
+    );
+    setPlannerSubject(
+      draft.plannerSubject
+    );
+    setPlannerDate(
+      draft.plannerDate
+    );
+    setPlannerDuration(
+      draft.plannerDuration
+    );
+    setPlannerPriority(
+      draft.plannerPriority
+    );
+  }
+
+  function saveCurrentDraft() {
+    if (!setupAction) {
+      return;
+    }
+
+    persistCentralActionDraft({
+      messageId,
+      setupAction,
+      selectedRoomId,
+      plannerSubject,
+      plannerDate,
+      plannerDuration,
+      plannerPriority,
+    });
+  }
+
+  function discardCurrentDraft() {
+    clearCentralActionDraft(
+      messageId
+    );
+
+    setSetupAction(null);
+    setActionRecord(null);
+    setSelectedRoomId(
+      preferredStudyRoomId
+    );
+    setPlannerSubject("Study");
+    setPlannerDate(
+      defaultPlannerDate
+    );
+    setPlannerDuration("25");
+    setPlannerPriority("Medium");
+    setError("");
+    setNotice("");
+  }
 
   function openSheet() {
     if (!actionable) {
@@ -463,6 +544,12 @@ export default function CentralActionBar({
           // Cached snapshot remains
           // usable while offline.
         });
+    } else {
+      applyDraft(
+        readCentralActionDraft(
+          messageId
+        )
+      );
     }
 
     setRequestedRoomHint(null);
@@ -472,6 +559,7 @@ export default function CentralActionBar({
   }
 
   function closeSheet() {
+    saveCurrentDraft();
     setOpen(false);
     setRequestedRoomHint(null);
     setSetupAction(null);
@@ -503,6 +591,38 @@ export default function CentralActionBar({
 
     return () => window.clearTimeout(timer);
   }, [preferredStudyRoomId]);
+
+  useEffect(() => {
+    if (!setupAction) {
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => {
+        persistCentralActionDraft({
+          messageId,
+          setupAction,
+          selectedRoomId,
+          plannerSubject,
+          plannerDate,
+          plannerDuration,
+          plannerPriority,
+        });
+      },
+      120
+    );
+
+    return () =>
+      window.clearTimeout(timer);
+  }, [
+    messageId,
+    plannerDate,
+    plannerDuration,
+    plannerPriority,
+    plannerSubject,
+    selectedRoomId,
+    setupAction,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -589,6 +709,9 @@ export default function CentralActionBar({
 
       if (requestedAction) {
         clearPersistedCentralAction(
+          messageId
+        );
+        clearCentralActionDraft(
           messageId
         );
       }
@@ -798,21 +921,108 @@ export default function CentralActionBar({
       return;
     }
 
-    const previousOverflow =
-      document.body.style.overflow;
+    const body =
+      document.body;
 
-    document.body.style.overflow =
+    const root =
+      document.documentElement;
+
+    const previous = {
+      overflow:
+        body.style.overflow,
+      position:
+        body.style.position,
+      top:
+        body.style.top,
+      left:
+        body.style.left,
+      right:
+        body.style.right,
+      width:
+        body.style.width,
+      viewportHeight:
+        root.style.getPropertyValue(
+          "--studysnap-action-sheet-height"
+        ),
+    };
+
+    const lockedScrollY =
+      window.scrollY;
+
+    pageScrollYRef.current =
+      lockedScrollY;
+
+    body.style.overflow =
       "hidden";
+    body.style.position =
+      "fixed";
+    body.style.top =
+      `-${lockedScrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    function syncActionViewport() {
+      const viewport =
+        window.visualViewport;
+
+      const height =
+        viewport?.height
+        ?? window.innerHeight;
+
+      const sheetScrollTop =
+        sheetRef.current
+          ?.scrollTop
+        ?? 0;
+
+      root.style.setProperty(
+        "--studysnap-action-sheet-height",
+        `${Math.round(height)}px`
+      );
+
+      window.requestAnimationFrame(
+        () => {
+          if (sheetRef.current) {
+            sheetRef.current.scrollTop =
+              sheetScrollTop;
+          }
+        }
+      );
+    }
 
     function handleKeyDown(
       event: KeyboardEvent
     ) {
       if (
         event.key === "Escape"
+        && !busy
+        && !setupAction
       ) {
-        closeSheet();
+        setOpen(false);
+        setRequestedRoomHint(null);
+        setError("");
+        setNotice("");
       }
     }
+
+    syncActionViewport();
+
+    window.visualViewport
+      ?.addEventListener(
+        "resize",
+        syncActionViewport
+      );
+
+    window.visualViewport
+      ?.addEventListener(
+        "scroll",
+        syncActionViewport
+      );
+
+    window.addEventListener(
+      "resize",
+      syncActionViewport
+    );
 
     window.addEventListener(
       "keydown",
@@ -820,15 +1030,70 @@ export default function CentralActionBar({
     );
 
     return () => {
-      document.body.style.overflow =
-        previousOverflow;
+      body.style.overflow =
+        previous.overflow;
+      body.style.position =
+        previous.position;
+      body.style.top =
+        previous.top;
+      body.style.left =
+        previous.left;
+      body.style.right =
+        previous.right;
+      body.style.width =
+        previous.width;
+
+      if (
+        previous.viewportHeight
+      ) {
+        root.style.setProperty(
+          "--studysnap-action-sheet-height",
+          previous.viewportHeight
+        );
+      } else {
+        root.style.removeProperty(
+          "--studysnap-action-sheet-height"
+        );
+      }
+
+      window.visualViewport
+        ?.removeEventListener(
+          "resize",
+          syncActionViewport
+        );
+
+      window.visualViewport
+        ?.removeEventListener(
+          "scroll",
+          syncActionViewport
+        );
+
+      window.removeEventListener(
+        "resize",
+        syncActionViewport
+      );
 
       window.removeEventListener(
         "keydown",
         handleKeyDown
       );
+
+      window.requestAnimationFrame(
+        () => {
+          window.scrollTo({
+            top:
+              pageScrollYRef.current,
+            left: 0,
+            behavior: "auto",
+          });
+        }
+      );
     };
-  }, [open]);
+  }, [
+    busy,
+    open,
+    setupAction,
+  ]);
 
 
   async function loadRooms(): Promise<
@@ -1022,6 +1287,10 @@ export default function CentralActionBar({
             }),
         });
 
+      clearCentralActionDraft(
+        messageId
+      );
+
       setSetupAction(null);
       setActionRecord(result);
 
@@ -1081,12 +1350,28 @@ export default function CentralActionBar({
   async function beginAction(
     actionType: CentralActionType
   ) {
+    const savedDraft =
+      readCentralActionDraft(
+        messageId
+      );
+
     clearPersistedCentralAction(
       messageId
     );
     setActionRecord(null);
     setError("");
     setNotice("");
+
+    if (
+      savedDraft?.setupAction ===
+      actionType
+    ) {
+      applyDraft(savedDraft);
+    } else {
+      clearCentralActionDraft(
+        messageId
+      );
+    }
 
     if (
       actionType ===
@@ -1289,18 +1574,26 @@ export default function CentralActionBar({
               ) => {
                 if (
                   event.target ===
-                  event.currentTarget
+                    event.currentTarget
+                  && !busy
+                  && !setupAction
                 ) {
                   closeSheet();
                 }
               }}
             >
               <section
+                ref={sheetRef}
                 id={`study-actions-dialog-${messageId}`}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Study actions"
-                className="w-full max-h-[92dvh] overscroll-contain overflow-y-auto rounded-t-[34px] border border-[#d4b95b]/15 bg-[radial-gradient(circle_at_top,rgba(201,173,80,0.075),transparent_28%),linear-gradient(180deg,#141719_0%,#090b0d_100%)] px-4 pb-[calc(env(safe-area-inset-bottom)+22px)] pt-3 shadow-[0_-32px_100px_rgba(0,0,0,0.75)] sm:max-w-[500px] sm:rounded-[30px] sm:p-5"
+                data-studysnap-mobile-action-sheet="stable"
+                style={{
+                  maxHeight:
+                    "min(92dvh, calc(var(--studysnap-action-sheet-height, 100dvh) - 0.75rem))",
+                }}
+                className="w-full touch-pan-y overscroll-contain overflow-y-auto rounded-t-[34px] border border-[#d4b95b]/15 bg-[radial-gradient(circle_at_top,rgba(201,173,80,0.075),transparent_28%),linear-gradient(180deg,#141719_0%,#090b0d_100%)] px-4 pb-[calc(env(safe-area-inset-bottom)+22px)] pt-3 shadow-[0_-32px_100px_rgba(0,0,0,0.75)] sm:max-w-[500px] sm:rounded-[30px] sm:p-5"
                 onPointerDown={(
                   event
                 ) =>
@@ -1409,6 +1702,16 @@ export default function CentralActionBar({
 
                 {setupAction ? (
                   <div className="mt-5">
+                    <div
+                      className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-300/10 bg-emerald-300/[0.04] px-3 py-2 text-[10px] font-bold text-emerald-100/75"
+                      data-studysnap-action-draft="saved"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-emerald-300"
+                        aria-hidden="true"
+                      />
+                      Draft saves automatically
+                    </div>
                     {rooms.length >
                     0 ? (
                       <label className="block">
@@ -1616,11 +1919,11 @@ export default function CentralActionBar({
                         type="button"
                         disabled={busy}
                         onClick={
-                          showActionMenu
+                          discardCurrentDraft
                         }
                         className="rounded-[14px] border border-white/[0.09] px-4 py-3 text-xs font-black text-zinc-300 hover:bg-white/[0.04]"
                       >
-                        Cancel
+                        Discard
                       </button>
                     </div>
                   </div>
