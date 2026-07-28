@@ -14,8 +14,15 @@ function GeneralAIContent() {
   const startFresh =
     searchParams.get("new") === "1";
 
+  const handoffKey =
+    searchParams.get("handoff")
+    || "general-ai-direct";
+
   return (
-    <AppShell title="">
+    <AppShell
+      key={handoffKey}
+      title=""
+    >
       <GeneralAIChat
         initialPrompt={initialPrompt}
         startFresh={startFresh}

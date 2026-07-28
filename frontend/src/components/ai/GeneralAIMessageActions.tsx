@@ -39,6 +39,13 @@ function openBranch(
     ),
   );
 
+  window.sessionStorage.setItem(
+    "studysnap:general-ai-message-action-focus",
+    String(
+      result.conversation.id,
+    ),
+  );
+
   window.location.assign(
     `/general-ai?${params.toString()}`,
   );

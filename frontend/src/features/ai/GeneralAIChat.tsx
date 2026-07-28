@@ -259,6 +259,73 @@ function buildRecentImageContext(
 }
 
 
+function preserveGeneralAIHandoff(
+  targetUrl: string,
+): string {
+  if (typeof window === "undefined") {
+    return targetUrl;
+  }
+
+  const currentParams =
+    new URLSearchParams(
+      window.location.search,
+    );
+
+  const handoffId =
+    (
+      currentParams.get(
+        "handoff",
+      )
+      ?? ""
+    ).trim();
+
+  if (!handoffId) {
+    return targetUrl;
+  }
+
+  const nextUrl =
+    new URL(
+      targetUrl,
+      window.location.origin,
+    );
+
+  nextUrl.searchParams.set(
+    "handoff",
+    handoffId,
+  );
+
+  return (
+    nextUrl.pathname
+    + nextUrl.search
+    + nextUrl.hash
+  );
+}
+
+function consumeGeneralAIStartupUrl() {
+  const nextUrl =
+    new URL(
+      window.location.href,
+    );
+
+  nextUrl.searchParams.delete(
+    "new",
+  );
+
+  nextUrl.searchParams.delete(
+    "prompt",
+  );
+
+  window.history.replaceState(
+    {},
+    "",
+    (
+      nextUrl.pathname
+      + nextUrl.search
+      + nextUrl.hash
+    ),
+  );
+}
+
 function cleanStoredMessageContent(message: AIMessage): string {
   const content = message.content.trim();
 
@@ -327,6 +394,212 @@ function mapStoredMessage(
     attachments:
       storedAttachment && !generatedImage ? [storedAttachment] : undefined,
   };
+}
+
+function isStoredFileBrainAttachmentMessage(
+  message: DisplayMessage,
+): boolean {
+  return (
+    message.role === "user"
+    && (
+      message.attachments?.length
+      ?? 0
+    ) > 0
+    && /^Attached from File Brain:/i.test(
+      message.content.trim(),
+    )
+  );
+}
+
+function mergeStoredMessageAttachments(
+  messages: DisplayMessage[],
+): MessageAttachment[] | undefined {
+  const attachments =
+    new Map<
+      string,
+      MessageAttachment
+    >();
+
+  messages.forEach((message) => {
+    message.attachments?.forEach(
+      (attachment) => {
+        const key = [
+          attachment.name,
+          attachment.size,
+          attachment.kind,
+        ].join("::");
+
+        const existing =
+          attachments.get(key);
+
+        if (
+          !existing
+          || (
+            !existing.preview
+            && attachment.preview
+          )
+        ) {
+          attachments.set(
+            key,
+            attachment,
+          );
+        }
+      },
+    );
+  });
+
+  const values = [
+    ...attachments.values(),
+  ];
+
+  return values.length > 0
+    ? values
+    : undefined;
+}
+
+function collapseStoredFileBrainTurns(
+  messages: DisplayMessage[],
+): DisplayMessage[] {
+  const collapsed:
+    DisplayMessage[] = [];
+
+  let index = 0;
+
+  while (index < messages.length) {
+    const message =
+      messages[index];
+
+    if (message.role !== "user") {
+      collapsed.push(message);
+      index += 1;
+      continue;
+    }
+
+    let end = index + 1;
+
+    while (
+      end < messages.length
+      && messages[end].role ===
+        "user"
+    ) {
+      end += 1;
+    }
+
+    const userRun =
+      messages.slice(
+        index,
+        end,
+      );
+
+    const containsStoredFileBrainMessage =
+      userRun.some(
+        isStoredFileBrainAttachmentMessage,
+      );
+
+    if (
+      userRun.length === 1
+      || !containsStoredFileBrainMessage
+    ) {
+      collapsed.push(
+        ...userRun,
+      );
+
+      index = end;
+      continue;
+    }
+
+    const meaningfulMessages =
+      userRun.filter(
+        (item) =>
+          item.content.trim()
+          && !isStoredFileBrainAttachmentMessage(
+            item,
+          ),
+      );
+
+    const anchor =
+      meaningfulMessages[
+        meaningfulMessages.length - 1
+      ]
+      ?? userRun[
+        userRun.length - 1
+      ];
+
+    const meaningfulContent =
+      [
+        ...new Set(
+          meaningfulMessages
+            .map(
+              (item) =>
+                item.content.trim(),
+            )
+            .filter(Boolean),
+        ),
+      ].join("\n\n");
+
+    const imageMessage =
+      userRun.find(
+        (item) =>
+          Boolean(
+            item.imagePreview,
+          ),
+      );
+
+    const documentMessage =
+      userRun.find(
+        (item) =>
+          Boolean(
+            item.documentName,
+          ),
+      );
+
+    collapsed.push({
+      ...anchor,
+
+      // Use the final persisted user record as the
+      // branch boundary for the complete file turn.
+      id:
+        userRun[
+          userRun.length - 1
+        ].id,
+
+      content:
+        meaningfulContent,
+
+      created_at:
+        userRun[0].created_at
+        ?? anchor.created_at,
+
+      imagePreview:
+        anchor.imagePreview
+        ?? imageMessage
+          ?.imagePreview,
+
+      imageName:
+        anchor.imageName
+        ?? imageMessage
+          ?.imageName,
+
+      documentName:
+        anchor.documentName
+        ?? documentMessage
+          ?.documentName,
+
+      documentSize:
+        anchor.documentSize
+        ?? documentMessage
+          ?.documentSize,
+
+      attachments:
+        mergeStoredMessageAttachments(
+          userRun,
+        ),
+    });
+
+    index = end;
+  }
+
+  return collapsed;
 }
 
 function extractAIText(data: unknown): string {
@@ -1630,9 +1903,174 @@ export default function GeneralAIChat({
     window.history.replaceState(
       {},
       "",
-      `${baseUrl}${separator}conversationId=${trail.id}`
+      preserveGeneralAIHandoff(
+        `${baseUrl}${separator}conversationId=${trail.id}`,
+      ),
     );
   }
+
+  function takeMessageActionFocus(
+    conversationId: number,
+  ): boolean {
+    const raw =
+      window.sessionStorage.getItem(
+        "studysnap:general-ai-message-action-focus",
+      );
+
+    if (!raw) {
+      return false;
+    }
+
+    window.sessionStorage.removeItem(
+      "studysnap:general-ai-message-action-focus",
+    );
+
+    const requestedId =
+      Number(raw);
+
+    return (
+      Number.isInteger(
+        requestedId,
+      )
+      && requestedId ===
+        conversationId
+    );
+  }
+
+
+  function findMessageScrollContainer(
+    target: HTMLElement,
+  ): HTMLElement | null {
+    let current =
+      target.parentElement;
+
+    while (current) {
+      const style =
+        window.getComputedStyle(
+          current,
+        );
+
+      const canScroll =
+        (
+          style.overflowY ===
+            "auto"
+          || style.overflowY ===
+            "scroll"
+        )
+        && current.scrollHeight >
+          current.clientHeight;
+
+      if (canScroll) {
+        return current;
+      }
+
+      current =
+        current.parentElement;
+    }
+
+    return null;
+  }
+
+
+  function scrollLatestMessageIntoView() {
+    const target =
+      bottomRef.current;
+
+    if (!target) {
+      return;
+    }
+
+    const scrollContainer =
+      findMessageScrollContainer(
+        target,
+      );
+
+    if (scrollContainer) {
+      scrollContainer.scrollTo({
+        top:
+          scrollContainer.scrollHeight,
+        behavior: "auto",
+      });
+    }
+
+    target.scrollIntoView({
+      behavior: "auto",
+      block: "end",
+    });
+  }
+
+
+  function focusLatestMessageAfterRender() {
+    const delays = [
+      0,
+      60,
+      150,
+      320,
+      650,
+      1100,
+      1700,
+    ];
+
+    const timeoutIds =
+      delays.map(
+        (delay) =>
+          window.setTimeout(
+            () => {
+              window.requestAnimationFrame(
+                scrollLatestMessageIntoView,
+              );
+            },
+            delay,
+          ),
+      );
+
+    const observedNode =
+      bottomRef.current
+        ?.parentElement
+      ?? null;
+
+    let observer:
+      ResizeObserver
+      | null = null;
+
+    if (
+      observedNode
+      && typeof ResizeObserver !==
+        "undefined"
+    ) {
+      observer =
+        new ResizeObserver(
+          () => {
+            scrollLatestMessageIntoView();
+          },
+        );
+
+      observer.observe(
+        observedNode,
+      );
+    }
+
+    window.setTimeout(
+      () => {
+        timeoutIds.forEach(
+          (timeoutId) =>
+            window.clearTimeout(
+              timeoutId,
+            ),
+        );
+
+        observer?.disconnect();
+
+        scrollLatestMessageIntoView();
+
+        inputRef.current?.focus({
+          preventScroll: true,
+        });
+      },
+      1950,
+    );
+  }
+
 
   async function loadMessages(conversationId: number) {
     try {
@@ -1641,7 +2079,7 @@ export default function GeneralAIChat({
 
       const storedMessages = await getAIMessages(conversationId);
 
-      const displayMessages = await Promise.all(
+      const mappedMessages = await Promise.all(
         storedMessages.map(async (message) => {
           let attachmentPreview: string | undefined;
 
@@ -1657,7 +2095,20 @@ export default function GeneralAIChat({
         }),
       );
 
+      const displayMessages =
+        collapseStoredFileBrainTurns(
+          mappedMessages,
+        );
+
       setMessages(displayMessages);
+
+      if (
+        takeMessageActionFocus(
+          conversationId,
+        )
+      ) {
+        focusLatestMessageAfterRender();
+      }
 
       const latestGeneratedIndex =
         displayMessages.findLastIndex(
@@ -1874,9 +2325,10 @@ export default function GeneralAIChat({
     return () => {
       cancelled = true;
     };
-  // Restore startup state only when startFresh changes; rememberActiveTrail uses stable setters and imported helpers.
+  // A unique Dashboard handoff key remounts this tree.
+  // Initialization runs once for each mounted handoff.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startFresh]);
+  }, []);
 
   useEffect(() => {
     if (!startFresh) {
@@ -2003,6 +2455,39 @@ export default function GeneralAIChat({
   }, [activeConversationId]);
 
   useEffect(() => {
+    if (!fileBrainQueue.hydrated) {
+      return;
+    }
+
+    const previouslyAskedTaskIds =
+      fileBrainQueue.tasks
+        .filter(
+          (task) =>
+            (
+              task.message
+              ?? ""
+            ).trim() ===
+              "Ready for another question.",
+        )
+        .map(
+          (task) =>
+            task.localId,
+        );
+
+    hideFileBrainTaskIds(
+      previouslyAskedTaskIds,
+    );
+
+    // The helper is a stable function declaration and
+    // reads only the task IDs supplied above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    fileBrainQueue.hydrated,
+    fileBrainQueue.tasks,
+  ]);
+
+
+  useEffect(() => {
     const pendingFiles = takePendingAIAttachments();
 
     if (!pendingFiles.length) {
@@ -2019,7 +2504,7 @@ export default function GeneralAIChat({
         )
       );
 
-    window.history.replaceState({}, "", "/general-ai");
+    consumeGeneralAIStartupUrl();
 
     // Pending attachment handoff is intentionally consumed once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2039,7 +2524,7 @@ export default function GeneralAIChat({
 
     initialPromptHandledRef.current = true;
 
-    window.history.replaceState({}, "", "/general-ai");
+    consumeGeneralAIStartupUrl();
 
     void sendMessage(prompt);
 
@@ -3770,6 +4255,13 @@ export default function GeneralAIChat({
             (task) => task.itemId
           )
         );
+
+        hideFileBrainTaskIds(
+          fileBrainItemsToSend.map(
+            (task) =>
+              task.localId,
+          ),
+        );
       } else if (attachmentsToSend.length > 0) {
         setPendingAttachments((current) =>
           current.map((attachment) =>
@@ -4247,6 +4739,49 @@ export default function GeneralAIChat({
   function updateStudyToolsOpen(next: boolean) {
     setStudyToolsOpen(next);
   }
+
+  function hideFileBrainTaskIds(
+    taskIds: string[],
+  ) {
+    const safeTaskIds = [
+      ...new Set(
+        taskIds.filter(Boolean),
+      ),
+    ];
+
+    if (!safeTaskIds.length) {
+      return;
+    }
+
+    setHiddenFileQueueTaskIds(
+      (current) => {
+        if (
+          safeTaskIds.every(
+            (localId) =>
+              current.has(localId),
+          )
+        ) {
+          return current;
+        }
+
+        const next =
+          new Set(current);
+
+        safeTaskIds.forEach(
+          (localId) =>
+            next.add(localId),
+        );
+
+        window.localStorage.setItem(
+          GENERAL_AI_HIDDEN_FILE_QUEUE_KEY,
+          JSON.stringify([...next]),
+        );
+
+        return next;
+      },
+    );
+  }
+
 
   function hideFileQueueForNewConversation() {
     const currentTasks =
@@ -4985,32 +5520,125 @@ export default function GeneralAIChat({
     }
   }
 
+  function clipboardFileKey(
+    file: File,
+  ) {
+    return [
+      file.name,
+      file.size,
+      file.type,
+      file.lastModified,
+    ].join("::");
+  }
+
+  function collectClipboardFiles(
+    clipboard: DataTransfer,
+  ): File[] {
+    const directFiles =
+      Array.from(
+        clipboard.files ?? [],
+      );
+
+    const itemFiles =
+      Array.from(
+        clipboard.items ?? [],
+      )
+        .filter(
+          (item) =>
+            item.kind === "file",
+        )
+        .map(
+          (item) =>
+            item.getAsFile(),
+        )
+        .filter(
+          (file): file is File =>
+            file !== null,
+        );
+
+    const uniqueFiles =
+      new Map<string, File>();
+
+    [
+      ...directFiles,
+      ...itemFiles,
+    ].forEach((file) => {
+      uniqueFiles.set(
+        clipboardFileKey(file),
+        file,
+      );
+    });
+
+    return [
+      ...uniqueFiles.values(),
+    ];
+  }
+
+  function insertComposerPasteText(
+    target: HTMLTextAreaElement,
+    text: string,
+  ) {
+    const start =
+      target.selectionStart
+      ?? target.value.length;
+
+    const end =
+      target.selectionEnd
+      ?? start;
+
+    const cursor =
+      start + text.length;
+
+    setInput(
+      (current) =>
+        current.slice(0, start)
+        + text
+        + current.slice(end),
+    );
+
+    window.requestAnimationFrame(
+      () => {
+        const textarea =
+          inputRef.current;
+
+        textarea?.focus();
+        textarea?.setSelectionRange(
+          cursor,
+          cursor,
+        );
+      },
+    );
+  }
+
   function handleComposerPaste(
     event: ReactClipboardEvent<HTMLTextAreaElement>
   ) {
-    const files = Array.from(event.clipboardData.items)
-      .filter((item) => item.kind === "file")
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null);
+    const files =
+      collectClipboardFiles(
+        event.clipboardData,
+      );
 
-    if (!files.length) return;
+    if (!files.length) {
+      return;
+    }
 
     event.preventDefault();
 
-    const text = event.clipboardData.getData("text/plain");
+    const text =
+      event.clipboardData.getData(
+        "text/plain",
+      );
 
     if (text) {
-      const start =
-        event.currentTarget.selectionStart ?? input.length;
-      const end =
-        event.currentTarget.selectionEnd ?? start;
-
-      setInput(
-        (current) =>
-          current.slice(0, start)
-          + text
-          + current.slice(end)
+      insertComposerPasteText(
+        event.currentTarget,
+        text,
       );
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value =
+        "";
     }
 
     void addComposerFiles(files);

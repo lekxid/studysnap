@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ClipboardEvent as ReactClipboardEvent,
   FormEvent,
   useCallback,
   useEffect,
@@ -622,6 +623,30 @@ function getPlannerActionHref(
   );
 }
 
+function createGeneralAIHandoffId(): string {
+  try {
+    const randomUuid =
+      globalThis.crypto
+        ?.randomUUID?.();
+
+    if (randomUuid) {
+      return randomUuid;
+    }
+  } catch {
+    // Plain-HTTP local development can omit
+    // secure-context UUID support.
+  }
+
+  return [
+    "handoff",
+    Date.now().toString(36),
+    Math.random()
+      .toString(36)
+      .slice(2),
+  ].join("-");
+}
+
+
 function GeneralAIStartCard({
   prompt,
   onPromptChange,
@@ -641,7 +666,8 @@ function GeneralAIStartCard({
       FormEvent<HTMLFormElement>
   ) => void;
   onAddFiles: (
-    files: File[]
+    files: File[],
+    promptOverride?: string,
   ) => void;
   activeRoomId:
     number |
@@ -661,6 +687,116 @@ function GeneralAIStartCard({
   // DASHBOARD_DIRECT_FILE_PICKER_V1
   const addMaterialInputRef =
     useRef<HTMLInputElement | null>(null);
+
+  function dashboardClipboardFileKey(
+    file: File,
+  ) {
+    return [
+      file.name,
+      file.size,
+      file.type,
+      file.lastModified,
+    ].join("::");
+  }
+
+  function collectDashboardClipboardFiles(
+    clipboard: DataTransfer,
+  ): File[] {
+    const directFiles =
+      Array.from(
+        clipboard.files ?? [],
+      );
+
+    const itemFiles =
+      Array.from(
+        clipboard.items ?? [],
+      )
+        .filter(
+          (item) =>
+            item.kind === "file",
+        )
+        .map(
+          (item) =>
+            item.getAsFile(),
+        )
+        .filter(
+          (file): file is File =>
+            file !== null,
+        );
+
+    const uniqueFiles =
+      new Map<string, File>();
+
+    [
+      ...directFiles,
+      ...itemFiles,
+    ].forEach((file) => {
+      uniqueFiles.set(
+        dashboardClipboardFileKey(
+          file,
+        ),
+        file,
+      );
+    });
+
+    return [
+      ...uniqueFiles.values(),
+    ];
+  }
+
+  function handleDashboardPromptPaste(
+    event:
+      ReactClipboardEvent<HTMLInputElement>,
+  ) {
+    const files =
+      collectDashboardClipboardFiles(
+        event.clipboardData,
+      );
+
+    if (!files.length) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const pastedText =
+      event.clipboardData.getData(
+        "text/plain",
+      );
+
+    const start =
+      event.currentTarget
+        .selectionStart
+      ?? prompt.length;
+
+    const end =
+      event.currentTarget
+        .selectionEnd
+      ?? start;
+
+    const nextPrompt =
+      (
+        prompt.slice(0, start)
+        + pastedText
+        + prompt.slice(end)
+      ).trim();
+
+    onPromptChange(
+      nextPrompt,
+    );
+
+    if (
+      addMaterialInputRef.current
+    ) {
+      addMaterialInputRef
+        .current.value = "";
+    }
+
+    onAddFiles(
+      files.slice(0, 100),
+      nextPrompt,
+    );
+  }
 
   const [showWelcome, setShowWelcome] =
     useState(false);
@@ -817,7 +953,8 @@ function GeneralAIStartCard({
 
               if (files.length > 0) {
                 onAddFiles(
-                  files.slice(0, 100)
+                  files.slice(0, 100),
+                  prompt,
                 );
               }
             }}
@@ -825,6 +962,9 @@ function GeneralAIStartCard({
 
           <input
             value={prompt}
+            onPaste={
+              handleDashboardPromptPaste
+            }
             onChange={(event) =>
               onPromptChange(
                 event.target.value
@@ -2220,11 +2360,15 @@ export default function DashboardPage() {
   }
 
   function handleDashboardAddFiles(
-    files: File[]
+    files: File[],
+    promptOverride = "",
   ) {
     if (files.length === 0) {
       return;
     }
+
+    const prompt =
+      promptOverride.trim();
 
     setPendingAIAttachments(
       files.slice(0, 100)
@@ -2234,9 +2378,32 @@ export default function DashboardPage() {
       new URLSearchParams();
 
     params.set(
+      "handoff",
+      createGeneralAIHandoffId(),
+    );
+
+    params.set(
       "new",
       "1"
     );
+
+    if (prompt) {
+      params.set(
+        "prompt",
+        prompt,
+      );
+
+      window.sessionStorage.setItem(
+        "studysnap:pending-general-ai-prompt",
+        prompt,
+      );
+
+      setGeneralAiPrompt("");
+    } else {
+      window.sessionStorage.removeItem(
+        "studysnap:pending-general-ai-prompt",
+      );
+    }
 
     if (
       activeRoomId !== null
@@ -2266,6 +2433,11 @@ export default function DashboardPage() {
 
     const params =
       new URLSearchParams();
+
+    params.set(
+      "handoff",
+      createGeneralAIHandoffId(),
+    );
 
     params.set(
       "new",
