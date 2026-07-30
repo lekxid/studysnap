@@ -74,3 +74,64 @@ def test_duplicate_image_edit_is_rejected_until_finished():
         owner_id,
         conversation_id,
     )
+
+
+
+def test_new_image_edit_request_supersedes_stopped_worker_lock():
+    owner_id = 9002
+    conversation_id = 7002
+
+    finish_image_edit_request(
+        owner_id,
+        conversation_id,
+    )
+
+    assert begin_image_edit_request(
+        owner_id,
+        conversation_id,
+        "old-stopped-request",
+    ) is True
+
+    assert begin_image_edit_request(
+        owner_id,
+        conversation_id,
+        "old-stopped-request",
+    ) is False
+
+    assert begin_image_edit_request(
+        owner_id,
+        conversation_id,
+        "new-continue-request",
+    ) is True
+
+    # The stopped worker finishes late. It must
+    # not release the newer Continue request.
+    finish_image_edit_request(
+        owner_id,
+        conversation_id,
+        "old-stopped-request",
+    )
+
+    assert begin_image_edit_request(
+        owner_id,
+        conversation_id,
+        "new-continue-request",
+    ) is False
+
+    finish_image_edit_request(
+        owner_id,
+        conversation_id,
+        "new-continue-request",
+    )
+
+    assert begin_image_edit_request(
+        owner_id,
+        conversation_id,
+        "after-continue-request",
+    ) is True
+
+    finish_image_edit_request(
+        owner_id,
+        conversation_id,
+        "after-continue-request",
+    )

@@ -2017,3 +2017,3160 @@ body {
 }
 
 /* STUDYSNAP_CHATGPT_COMPOSER_V1_END */
+
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6B */
+/*
+ * Final General AI-specific layer.
+ * This intentionally overrides older shared AI experiments without removing
+ * them, so other StudySnap surfaces retain compatibility.
+ */
+
+.studysnap-general-ai-fullscreen {
+  background: #000 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-fullscreen-header {
+  min-height:
+    calc(
+      3.25rem +
+      env(safe-area-inset-top)
+    );
+
+  gap: 0.55rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+
+  background:
+    rgba(0, 0, 0, 0.92) !important;
+
+  border-bottom-color:
+    rgba(255, 255, 255, 0.055) !important;
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.015);
+
+  backdrop-filter:
+    blur(22px) saturate(115%);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-surface {
+  background: #000 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-scroll {
+  scroll-padding-bottom: 1rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message {
+  overflow-wrap: anywhere;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message {
+  border-bottom:
+    1px solid
+    rgba(255, 255, 255, 0.035);
+
+  padding-bottom: 1.25rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:last-of-type {
+  border-bottom-color: transparent;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-primary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-secondary-message-actions {
+  display: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:focus-within
+.studysnap-primary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:focus-within
+.studysnap-secondary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message.studysnap-message-actions-open
+.studysnap-primary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message.studysnap-message-actions-open
+.studysnap-secondary-message-actions {
+  display: flex !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  .studysnap-primary-message-actions,
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  .studysnap-secondary-message-actions {
+    display: flex !important;
+  }
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-secondary-message-actions {
+  margin-top: 0.6rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-composer-dock {
+  padding-top: 0.45rem !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0),
+      rgba(0, 0, 0, 0.92) 24%,
+      #000 58%
+    ) !important;
+
+  border-top: 0 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer {
+  background:
+    rgba(31, 31, 31, 0.96) !important;
+
+  border-color:
+    rgba(255, 255, 255, 0.09) !important;
+
+  box-shadow:
+    0 14px 42px
+      rgba(0, 0, 0, 0.46),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.04) !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-fullscreen-header {
+    min-height:
+      calc(
+        3.1rem +
+        env(safe-area-inset-top)
+      );
+
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll {
+    padding:
+      1rem 0.85rem
+      1.1rem !important;
+
+    row-gap: 1.15rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message {
+    padding-bottom: 1rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-composer-dock {
+    padding:
+      0.4rem 0.55rem
+      max(
+        0.45rem,
+        env(safe-area-inset-bottom)
+      ) !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.5rem !important;
+  }
+}
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6B_END */
+
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6C */
+/*
+ * Contextual message chrome:
+ * content stays visible; controls appear only on hover, focus, or tap.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message {
+  position: relative;
+  outline: none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:focus-visible {
+  outline:
+    1px solid
+    rgba(201, 173, 80, 0.42);
+
+  outline-offset: 0.3rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-mark-row {
+  display: flex;
+  align-items: center;
+  min-height: 1.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-mark {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+
+  border:
+    1px solid
+    rgba(201, 173, 80, 0.24);
+
+  border-radius: 0.48rem;
+
+  background:
+    rgba(201, 173, 80, 0.075);
+
+  color: #d8c878;
+
+  font-size: 0.55rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message {
+  border-bottom: 0 !important;
+  padding-bottom: 0.15rem !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-message {
+  min-height: 0;
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.035);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions {
+  display: none;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-message
+.studysnap-contextual-message-actions {
+  justify-content: flex-end;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:focus-within
+.studysnap-contextual-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message.studysnap-message-actions-open
+.studysnap-contextual-message-actions {
+  display: flex;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-contextual-message-actions {
+    display: flex;
+  }
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions
+.studysnap-primary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions
+.studysnap-secondary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions
+.studysnap-central-action-context {
+  display: flex !important;
+  align-items: center;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions
+.studysnap-secondary-message-actions {
+  margin-top: 0 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-contextual-message-actions
+button {
+  flex-shrink: 0;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-scroll
+> :not([hidden])
+~ :not([hidden]) {
+  margin-top: 1rem !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer textarea {
+  appearance: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer textarea:focus,
+.studysnap-general-ai-fullscreen
+.studysnap-composer textarea:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll
+  > :not([hidden])
+  ~ :not([hidden]) {
+    margin-top: 0.8rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-user-message {
+    max-width: 84%;
+    padding:
+      0.7rem 0.9rem !important;
+
+    border-radius:
+      1.1rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-mark-row {
+    margin-bottom: 0.35rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-contextual-message-actions {
+    gap: 0.3rem;
+    margin-top: 0.45rem;
+  }
+}
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6C_END */
+
+
+/* STUDYSNAP_PHASE_6C_VISIBLE_COPY */
+/*
+ * Copy is a primary, always-available action.
+ * Other message tools remain contextual.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-contextual-message-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 0.4rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-contextual-message-actions
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-contextual-message-actions
+.studysnap-secondary-message-actions {
+  display: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-contextual-message-actions
+.studysnap-primary-message-actions {
+  display: flex !important;
+  margin: 0 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button {
+  display: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[aria-label*="copy" i],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[title*="copy" i] {
+  display: grid !important;
+}
+
+/* Reveal the complete toolset after hover, focus or tap. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:focus-within
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:focus-within
+.studysnap-secondary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message.studysnap-message-actions-open
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message.studysnap-message-actions-open
+.studysnap-secondary-message-actions {
+  display: flex !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:focus-within
+.studysnap-primary-message-actions
+> button,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message.studysnap-message-actions-open
+.studysnap-primary-message-actions
+> button {
+  display: grid !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  .studysnap-central-action-context,
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  .studysnap-secondary-message-actions {
+    display: flex !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  .studysnap-primary-message-actions
+  > button {
+    display: grid !important;
+  }
+}
+
+/* STUDYSNAP_PHASE_6C_VISIBLE_COPY_END */
+
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6D_GLASS */
+/*
+ * StudySnap glass chat refinement.
+ * Black remains the foundation; gold is reserved for identity and action.
+ */
+
+.studysnap-general-ai-fullscreen {
+  --studysnap-glass-bg:
+    rgba(24, 24, 25, 0.68);
+
+  --studysnap-glass-bg-strong:
+    rgba(28, 28, 30, 0.84);
+
+  --studysnap-glass-border:
+    rgba(255, 255, 255, 0.105);
+
+  --studysnap-glass-highlight:
+    rgba(255, 255, 255, 0.055);
+
+  --studysnap-glass-shadow:
+    0 22px 65px
+    rgba(0, 0, 0, 0.48);
+
+  background:
+    radial-gradient(
+      circle at 50% -10rem,
+      rgba(201, 173, 80, 0.085),
+      transparent 31rem
+    ),
+    radial-gradient(
+      circle at 15% 68%,
+      rgba(255, 255, 255, 0.024),
+      transparent 25rem
+    ),
+    #000 !important;
+}
+
+/* Floating frosted header */
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-fullscreen-header {
+  width:
+    calc(100% - 1rem);
+
+  min-height:
+    calc(
+      3.35rem +
+      env(safe-area-inset-top)
+    ) !important;
+
+  margin:
+    0.5rem auto 0;
+
+  padding:
+    env(safe-area-inset-top)
+    0.65rem
+    0 !important;
+
+  border:
+    1px solid
+    var(--studysnap-glass-border) !important;
+
+  border-radius:
+    1.25rem;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(34, 34, 36, 0.78),
+      rgba(13, 13, 14, 0.68)
+    ) !important;
+
+  box-shadow:
+    0 14px 45px
+    rgba(0, 0, 0, 0.38),
+    inset 0 1px 0
+    var(--studysnap-glass-highlight) !important;
+
+  backdrop-filter:
+    blur(30px)
+    saturate(135%);
+
+  -webkit-backdrop-filter:
+    blur(30px)
+    saturate(135%);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-fullscreen-header
+> button {
+  width: 2.55rem;
+  height: 2.55rem;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.095) !important;
+
+  border-radius:
+    0.95rem !important;
+
+  background:
+    rgba(255, 255, 255, 0.045) !important;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.05);
+
+  backdrop-filter:
+    blur(16px);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-fullscreen-header
+> button:hover {
+  background:
+    rgba(255, 255, 255, 0.085) !important;
+
+  border-color:
+    rgba(201, 173, 80, 0.27) !important;
+}
+
+/* Conversation surface */
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-surface {
+  background:
+    transparent !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-scroll {
+  max-width:
+    860px !important;
+
+  padding-top:
+    1.35rem !important;
+
+  padding-bottom:
+    1.35rem !important;
+
+  scrollbar-width:
+    none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Messages */
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-message {
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.08);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(52, 52, 55, 0.78),
+      rgba(32, 32, 34, 0.78)
+    ) !important;
+
+  box-shadow:
+    0 12px 32px
+    rgba(0, 0, 0, 0.22),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.045) !important;
+
+  backdrop-filter:
+    blur(20px);
+
+  -webkit-backdrop-filter:
+    blur(20px);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message {
+  padding:
+    0.15rem 0
+    0.35rem !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-mark-row {
+  min-height:
+    1.15rem;
+
+  margin-bottom:
+    0.4rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-mark {
+  width:
+    1.2rem;
+
+  height:
+    1.2rem;
+
+  border:
+    1px solid
+    rgba(201, 173, 80, 0.28);
+
+  border-radius:
+    0.43rem;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(201, 173, 80, 0.15),
+      rgba(201, 173, 80, 0.055)
+    );
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.055),
+    0 5px 18px
+    rgba(0, 0, 0, 0.24);
+
+  font-size:
+    0.5rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+p,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+li {
+  color:
+    rgba(248, 248, 250, 0.94);
+
+  line-height:
+    1.68;
+}
+
+/* Contextual actions:
+ * Copy remains immediately visible.
+ * Everything else lives in the frosted tray.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-contextual-message-actions {
+  display:
+    flex !important;
+
+  width:
+    fit-content;
+
+  min-height:
+    2.1rem;
+
+  margin-top:
+    0.45rem !important;
+
+  padding:
+    0;
+
+  align-items:
+    center;
+
+  gap:
+    0.25rem;
+
+  border:
+    1px solid
+    transparent;
+
+  border-radius:
+    1rem;
+
+  background:
+    transparent;
+
+  box-shadow:
+    none;
+
+  transition:
+    padding 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-secondary-message-actions {
+  display:
+    none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button {
+  display:
+    none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  display:
+    inline-grid !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  width:
+    2.05rem !important;
+
+  height:
+    2.05rem !important;
+
+  padding:
+    0 !important;
+
+  place-items:
+    center;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.075) !important;
+
+  border-radius:
+    0.78rem !important;
+
+  background:
+    rgba(255, 255, 255, 0.025) !important;
+
+  color:
+    rgba(226, 228, 232, 0.74) !important;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.025) !important;
+
+  opacity:
+    0.88;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+]:hover,
+.studysnap-general-ai-fullscreen
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+]:hover {
+  border-color:
+    rgba(201, 173, 80, 0.28) !important;
+
+  background:
+    rgba(201, 173, 80, 0.08) !important;
+
+  color:
+    #e4d68d !important;
+
+  opacity:
+    1;
+}
+
+/* Open glass tray */
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-contextual-message-actions {
+  width:
+    fit-content;
+
+  max-width:
+    100%;
+
+  padding:
+    0.3rem;
+
+  border-color:
+    var(--studysnap-glass-border);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(37, 37, 40, 0.8),
+      rgba(16, 16, 18, 0.74)
+    );
+
+  box-shadow:
+    0 14px 40px
+    rgba(0, 0, 0, 0.34),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.055);
+
+  backdrop-filter:
+    blur(26px)
+    saturate(135%);
+
+  -webkit-backdrop-filter:
+    blur(26px)
+    saturate(135%);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-secondary-message-actions,
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-primary-message-actions {
+  display:
+    flex !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-primary-message-actions
+> button {
+  display:
+    inline-grid !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-contextual-message-actions
+button {
+  width:
+    2.15rem;
+
+  height:
+    2.15rem;
+
+  min-width:
+    2.15rem;
+
+  min-height:
+    2.15rem;
+
+  padding:
+    0 !important;
+
+  border-radius:
+    0.78rem !important;
+
+  border-color:
+    rgba(255, 255, 255, 0.075) !important;
+
+  background:
+    rgba(255, 255, 255, 0.035) !important;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.035) !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-actions-open
+.studysnap-contextual-message-actions
+button:hover {
+  background:
+    rgba(255, 255, 255, 0.075) !important;
+
+  border-color:
+    rgba(201, 173, 80, 0.24) !important;
+}
+
+/* Desktop hover reveals the same glass tray. */
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-contextual-message-actions {
+    width:
+      fit-content;
+
+    max-width:
+      100%;
+
+    padding:
+      0.3rem;
+
+    border-color:
+      var(--studysnap-glass-border);
+
+    background:
+      linear-gradient(
+        145deg,
+        rgba(37, 37, 40, 0.8),
+        rgba(16, 16, 18, 0.74)
+      );
+
+    box-shadow:
+      0 14px 40px
+      rgba(0, 0, 0, 0.34),
+      inset 0 1px 0
+      rgba(255, 255, 255, 0.055);
+
+    backdrop-filter:
+      blur(26px)
+      saturate(135%);
+
+    -webkit-backdrop-filter:
+      blur(26px)
+      saturate(135%);
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-central-action-context,
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-secondary-message-actions,
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-primary-message-actions {
+    display:
+      flex !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-chat-message:hover
+  .studysnap-primary-message-actions
+  > button {
+    display:
+      inline-grid !important;
+  }
+}
+
+/* Floating glass composer */
+
+.studysnap-general-ai-fullscreen
+.studysnap-ai-composer-dock {
+  padding:
+    0.75rem 0.75rem
+    max(
+      0.65rem,
+      env(safe-area-inset-bottom)
+    ) !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      transparent,
+      rgba(0, 0, 0, 0.7) 45%,
+      #000 82%
+    ) !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer {
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.115) !important;
+
+  border-radius:
+    1.7rem !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(39, 39, 42, 0.76),
+      rgba(18, 18, 20, 0.72)
+    ) !important;
+
+  box-shadow:
+    0 18px 55px
+    rgba(0, 0, 0, 0.48),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.065) !important;
+
+  backdrop-filter:
+    blur(30px)
+    saturate(140%);
+
+  -webkit-backdrop-filter:
+    blur(30px)
+    saturate(140%);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer:focus-within {
+  border-color:
+    rgba(201, 173, 80, 0.3) !important;
+
+  box-shadow:
+    0 20px 62px
+    rgba(0, 0, 0, 0.52),
+    0 0 0 3px
+    rgba(201, 173, 80, 0.055),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.07) !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer-input-row
+> button:first-child {
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.085);
+
+  background:
+    rgba(255, 255, 255, 0.05) !important;
+
+  color:
+    rgba(244, 244, 246, 0.92);
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.04);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer-input-row
+> button:last-child {
+  background:
+    linear-gradient(
+      145deg,
+      #d1b75c,
+      #9c8437
+    ) !important;
+
+  box-shadow:
+    0 8px 24px
+    rgba(201, 173, 80, 0.18),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.22);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer textarea {
+  color:
+    rgba(250, 250, 252, 0.96) !important;
+
+  caret-color:
+    #d7bd63;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-composer textarea::placeholder {
+  color:
+    rgba(175, 175, 183, 0.7) !important;
+}
+
+/* Glass tools popover and history */
+
+.studysnap-general-ai-fullscreen
+.studysnap-tools-popover {
+  border-color:
+    var(--studysnap-glass-border) !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(34, 34, 37, 0.88),
+      rgba(12, 12, 14, 0.84)
+    ) !important;
+
+  box-shadow:
+    0 25px 75px
+    rgba(0, 0, 0, 0.56),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.06) !important;
+
+  backdrop-filter:
+    blur(32px)
+    saturate(140%);
+
+  -webkit-backdrop-filter:
+    blur(32px)
+    saturate(140%);
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-fullscreen-header {
+    width:
+      calc(100% - 0.8rem);
+
+    margin-top:
+      0.4rem;
+
+    border-radius:
+      1.15rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll {
+    padding:
+      1.15rem 1rem
+      1.35rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-user-message {
+    max-width:
+      82%;
+
+    padding:
+      0.72rem 0.95rem !important;
+
+    border-radius:
+      1.15rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-composer-dock {
+    padding:
+      0.65rem 0.65rem
+      max(
+        0.55rem,
+        env(safe-area-inset-bottom)
+      ) !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius:
+      1.62rem !important;
+  }
+}
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6D_GLASS_END */
+
+
+/* STUDYSNAP_PHASE_6D_CHATGPT_COPY_POSITION */
+/*
+ * Copy sits immediately beneath the assistant response,
+ * flush-left like ChatGPT.
+ *
+ * It remains visible without opening the full action tray.
+ */
+
+/* Keep the action row directly below the response text. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+> .studysnap-contextual-message-actions {
+  display:
+    flex !important;
+
+  width:
+    fit-content !important;
+
+  max-width:
+    100% !important;
+
+  min-height:
+    2rem;
+
+  margin:
+    0.4rem 0 0 0 !important;
+
+  padding:
+    0 !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    0.3rem !important;
+
+  border:
+    0 !important;
+
+  border-radius:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+
+  backdrop-filter:
+    none !important;
+
+  -webkit-backdrop-filter:
+    none !important;
+}
+
+/* Copy group always comes first. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions {
+  order:
+    -100;
+
+  display:
+    flex !important;
+
+  align-items:
+    center;
+
+  gap:
+    0.25rem;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+/* Closed response: show Copy only. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button {
+  display:
+    none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  display:
+    inline-grid !important;
+}
+
+/* Make Copy a quiet standalone symbol—not a large card. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  order:
+    -100;
+
+  display:
+    inline-grid !important;
+
+  width:
+    2rem !important;
+
+  height:
+    2rem !important;
+
+  min-width:
+    2rem !important;
+
+  min-height:
+    2rem !important;
+
+  padding:
+    0 !important;
+
+  place-items:
+    center;
+
+  border:
+    0 !important;
+
+  border-radius:
+    0.65rem !important;
+
+  background:
+    transparent !important;
+
+  color:
+    rgba(220, 222, 228, 0.72) !important;
+
+  box-shadow:
+    none !important;
+
+  opacity:
+    0.9;
+
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+]:hover,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+]:hover {
+  background:
+    rgba(255, 255, 255, 0.07) !important;
+
+  color:
+    rgba(248, 248, 250, 0.96) !important;
+
+  opacity:
+    1;
+}
+
+/* Keep the remaining tools after Copy. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-central-action-context {
+  order:
+    10;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-secondary-message-actions {
+  order:
+    20;
+}
+
+/* Closed response: extra tools stay hidden. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-secondary-message-actions {
+  display:
+    none !important;
+}
+
+/* Open response: reveal compact glass tool groups after Copy. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-message-actions-open
+.studysnap-central-action-context,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-message-actions-open
+.studysnap-secondary-message-actions {
+  display:
+    flex !important;
+
+  align-items:
+    center;
+
+  padding:
+    0.22rem;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.09);
+
+  border-radius:
+    0.85rem;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(39, 39, 42, 0.74),
+      rgba(17, 17, 19, 0.7)
+    );
+
+  box-shadow:
+    0 10px 28px
+    rgba(0, 0, 0, 0.28),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.05);
+
+  backdrop-filter:
+    blur(24px);
+
+  -webkit-backdrop-filter:
+    blur(24px);
+}
+
+/* Desktop hover reveals the tools without moving Copy. */
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  > .studysnap-contextual-message-actions {
+    margin-left:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    border:
+      0 !important;
+
+    background:
+      transparent !important;
+
+    box-shadow:
+      none !important;
+
+    backdrop-filter:
+      none !important;
+
+    -webkit-backdrop-filter:
+      none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message
+  > .studysnap-contextual-message-actions {
+    margin-top:
+      0.32rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message
+  .studysnap-primary-message-actions
+  > button[
+    aria-label*="copy" i
+  ],
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message
+  .studysnap-primary-message-actions
+  > button[
+    title*="copy" i
+  ] {
+    width:
+      1.9rem !important;
+
+    height:
+      1.9rem !important;
+
+    min-width:
+      1.9rem !important;
+
+    min-height:
+      1.9rem !important;
+  }
+}
+
+/* STUDYSNAP_PHASE_6D_CHATGPT_COPY_POSITION_END */
+
+
+/* STUDYSNAP_GENERAL_AI_COPY_CORNER_V1 */
+/*
+ * Keep Copy permanently in the upper-right corner of the
+ * assistant response, matching the ChatGPT placement.
+ */
+
+/* Reserve space so answer text never touches the Copy button. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message {
+  position:
+    relative !important;
+
+  padding-right:
+    2.75rem !important;
+}
+
+/* Closed response:
+ * collapse the lower action container because Copy is now floating.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+> .studysnap-contextual-message-actions {
+  display:
+    block !important;
+
+  width:
+    0 !important;
+
+  height:
+    0 !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+
+  overflow:
+    visible !important;
+
+  backdrop-filter:
+    none !important;
+
+  -webkit-backdrop-filter:
+    none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions {
+  display:
+    block !important;
+
+  width:
+    0 !important;
+
+  height:
+    0 !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+
+  overflow:
+    visible !important;
+}
+
+/* Hide every closed primary action except Copy. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button {
+  display:
+    none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message:not(
+  .studysnap-message-actions-open
+)
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  display:
+    grid !important;
+}
+
+/* Position Copy in the upper-right corner. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  position:
+    absolute !important;
+
+  top:
+    0.05rem !important;
+
+  right:
+    0 !important;
+
+  z-index:
+    12;
+
+  display:
+    grid !important;
+
+  width:
+    2.15rem !important;
+
+  height:
+    2.15rem !important;
+
+  min-width:
+    2.15rem !important;
+
+  min-height:
+    2.15rem !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  place-items:
+    center;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.1) !important;
+
+  border-radius:
+    0.8rem !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(42, 42, 45, 0.72),
+      rgba(19, 19, 21, 0.68)
+    ) !important;
+
+  color:
+    rgba(232, 233, 238, 0.82) !important;
+
+  box-shadow:
+    0 9px 25px
+    rgba(0, 0, 0, 0.3),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.055) !important;
+
+  opacity:
+    0.92;
+
+  backdrop-filter:
+    blur(22px)
+    saturate(125%);
+
+  -webkit-backdrop-filter:
+    blur(22px)
+    saturate(125%);
+
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+]:hover,
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+]:hover {
+  border-color:
+    rgba(201, 173, 80, 0.32) !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(201, 173, 80, 0.15),
+      rgba(28, 27, 22, 0.75)
+    ) !important;
+
+  color:
+    #eadf9f !important;
+
+  opacity:
+    1;
+
+  transform:
+    translateY(-1px);
+}
+
+/* When tapped, place only the remaining actions underneath.
+ * Copy stays in its upper-right corner.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-message-actions-open
+> .studysnap-contextual-message-actions {
+  width:
+    fit-content !important;
+
+  max-width:
+    calc(100% + 2.75rem) !important;
+
+  margin:
+    0.5rem -2.75rem
+    0 0 !important;
+
+  padding:
+    0.3rem !important;
+
+  align-items:
+    center;
+
+  gap:
+    0.3rem;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.1) !important;
+
+  border-radius:
+    1rem !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(37, 37, 40, 0.8),
+      rgba(16, 16, 18, 0.74)
+    ) !important;
+
+  box-shadow:
+    0 14px 40px
+    rgba(0, 0, 0, 0.34),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.055) !important;
+
+  backdrop-filter:
+    blur(26px)
+    saturate(135%);
+
+  -webkit-backdrop-filter:
+    blur(26px)
+    saturate(135%);
+}
+
+/* Do not repeat Copy in the lower tray. */
+
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-message-actions-open
+.studysnap-primary-message-actions
+> button[
+  aria-label*="copy" i
+],
+.studysnap-general-ai-fullscreen
+.studysnap-assistant-message
+.studysnap-message-actions-open
+.studysnap-primary-message-actions
+> button[
+  title*="copy" i
+] {
+  position:
+    absolute !important;
+
+  top:
+    0.05rem !important;
+
+  right:
+    0 !important;
+}
+
+/* Desktop hover reveals other actions below without moving Copy. */
+
+@media (hover: hover) and (pointer: fine) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message:hover
+  > .studysnap-contextual-message-actions {
+    width:
+      fit-content !important;
+
+    max-width:
+      calc(100% + 2.75rem) !important;
+
+    height:
+      auto !important;
+
+    min-height:
+      0 !important;
+
+    margin:
+      0.5rem -2.75rem
+      0 0 !important;
+
+    padding:
+      0.3rem !important;
+
+    overflow:
+      visible !important;
+
+    border:
+      1px solid
+      rgba(255, 255, 255, 0.1) !important;
+
+    border-radius:
+      1rem !important;
+
+    background:
+      linear-gradient(
+        145deg,
+        rgba(37, 37, 40, 0.8),
+        rgba(16, 16, 18, 0.74)
+      ) !important;
+
+    box-shadow:
+      0 14px 40px
+      rgba(0, 0, 0, 0.34),
+      inset 0 1px 0
+      rgba(255, 255, 255, 0.055) !important;
+
+    backdrop-filter:
+      blur(26px)
+      saturate(135%);
+
+    -webkit-backdrop-filter:
+      blur(26px)
+      saturate(135%);
+  }
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message {
+    padding-right:
+      2.55rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message
+  .studysnap-primary-message-actions
+  > button[
+    aria-label*="copy" i
+  ],
+  .studysnap-general-ai-fullscreen
+  .studysnap-assistant-message
+  .studysnap-primary-message-actions
+  > button[
+    title*="copy" i
+  ] {
+    top:
+      0 !important;
+
+    width:
+      2rem !important;
+
+    height:
+      2rem !important;
+
+    min-width:
+      2rem !important;
+
+    min-height:
+      2rem !important;
+
+    border-radius:
+      0.72rem !important;
+  }
+}
+
+/* STUDYSNAP_GENERAL_AI_COPY_CORNER_V1_END */
+
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6E_ENTRY */
+/*
+ * Premium entry experience shown only before the first message.
+ * It reuses the General AI brain instead of introducing new tools.
+ */
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-starts {
+  display:
+    flex;
+
+  width:
+    100%;
+
+  max-width:
+    42rem;
+
+  margin:
+    0.9rem auto 0;
+
+  padding:
+    0 0.25rem;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  gap:
+    0.5rem;
+
+  overflow-x:
+    auto;
+
+  overscroll-behavior-x:
+    contain;
+
+  scrollbar-width:
+    none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-starts::-webkit-scrollbar {
+  display:
+    none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-start {
+  display:
+    inline-flex;
+
+  min-height:
+    2.75rem;
+
+  flex:
+    0 0 auto;
+
+  align-items:
+    center;
+
+  gap:
+    0.55rem;
+
+  padding:
+    0.5rem 0.8rem
+    0.5rem 0.55rem;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.095);
+
+  border-radius:
+    1rem;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(37, 37, 40, 0.72),
+      rgba(17, 17, 19, 0.66)
+    );
+
+  color:
+    rgba(235, 236, 240, 0.9);
+
+  box-shadow:
+    0 10px 30px
+    rgba(0, 0, 0, 0.28),
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.05);
+
+  backdrop-filter:
+    blur(24px)
+    saturate(130%);
+
+  -webkit-backdrop-filter:
+    blur(24px)
+    saturate(130%);
+
+  font-size:
+    0.75rem;
+
+  font-weight:
+    760;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-start:hover {
+  transform:
+    translateY(-1px);
+
+  border-color:
+    rgba(201, 173, 80, 0.28);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(201, 173, 80, 0.12),
+      rgba(22, 21, 18, 0.72)
+    );
+
+  color:
+    #f2e9b2;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-start:active {
+  transform:
+    scale(0.98);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-start:disabled {
+  cursor:
+    not-allowed;
+
+  opacity:
+    0.45;
+
+  transform:
+    none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-empty-quick-start-icon {
+  display:
+    grid;
+
+  width:
+    1.72rem;
+
+  height:
+    1.72rem;
+
+  place-items:
+    center;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.075);
+
+  border-radius:
+    0.65rem;
+
+  background:
+    rgba(255, 255, 255, 0.045);
+
+  color:
+    #d7c674;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.04);
+
+  font-size:
+    0.78rem;
+
+  font-weight:
+    900;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-empty-quick-starts {
+    justify-content:
+      flex-start;
+
+    margin-top:
+      0.75rem;
+
+    padding:
+      0 0.15rem 0.25rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-empty-quick-start {
+    min-height:
+      2.55rem;
+
+    padding:
+      0.42rem 0.7rem
+      0.42rem 0.45rem;
+
+    border-radius:
+      0.9rem;
+
+    font-size:
+      0.7rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-empty-quick-start-icon {
+    width:
+      1.6rem;
+
+    height:
+      1.6rem;
+
+    border-radius:
+      0.58rem;
+  }
+}
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6E_ENTRY_END */
+
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6F_RESEARCH */
+
+.studysnap-general-ai-fullscreen
+.studysnap-header-activity {
+  display:
+    flex;
+
+  max-width:
+    min(15rem, 34vw);
+
+  min-width:
+    0;
+
+  align-items:
+    center;
+
+  justify-content:
+    flex-end;
+
+  overflow:
+    hidden;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-document-card {
+  width:
+    fit-content;
+
+  max-width:
+    min(14rem, 100%);
+
+  min-height:
+    3.25rem;
+
+  padding:
+    0.65rem 0.75rem !important;
+
+  border-color:
+    rgba(255, 255, 255, 0.085) !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(39, 39, 42, 0.68),
+      rgba(18, 18, 20, 0.64)
+    ) !important;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255, 255, 255, 0.04);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-document-card
+> span {
+  font-size:
+    1.1rem !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-message-document-card
+p {
+  max-width:
+    10rem;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-header-activity {
+    display:
+      none !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-message-document-card {
+    max-width:
+      12rem;
+  }
+}
+
+/* STUDYSNAP_CLEAN_GENERAL_AI_V1_PHASE_6F_RESEARCH_END */
+
+
+/* STUDYSNAP_GENERAL_AI_PHASE_6I_MOBILE_POLISH */
+.studysnap-general-ai-fullscreen
+.studysnap-scroll {
+  scroll-padding-bottom:
+    calc(
+      7.5rem
+      + env(safe-area-inset-bottom)
+    );
+}
+
+.studysnap-general-ai-fullscreen
+[data-studysnap-generated-image="true"] {
+  width: 100%;
+  max-width: 46rem;
+}
+
+.studysnap-general-ai-fullscreen
+[data-studysnap-generated-image="true"]
+img {
+  display: block;
+  width: 100%;
+  max-height: min(68vh, 46rem);
+  object-fit: contain;
+  border-radius: 1rem;
+  background: #0b0b0b;
+}
+
+.studysnap-general-ai-fullscreen
+[data-studysnap-message-role="user"]
+img {
+  max-height: 18rem;
+  object-fit: cover;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-fullscreen-header {
+    min-height:
+      calc(
+        3.2rem
+        + env(safe-area-inset-top)
+      ) !important;
+    padding:
+      max(
+        0.3rem,
+        env(safe-area-inset-top)
+      )
+      0.65rem
+      0.3rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll {
+    padding:
+      0.8rem
+      0.75rem
+      1.25rem !important;
+    row-gap: 0.95rem;
+    scroll-padding-bottom:
+      calc(
+        8.5rem
+        + env(safe-area-inset-bottom)
+      );
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-ai-composer-dock {
+    position: relative;
+    z-index: 45;
+    padding:
+      0.35rem
+      0.5rem
+      max(
+        0.5rem,
+        env(safe-area-inset-bottom)
+      ) !important;
+    background:
+      linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.99),
+        rgba(0, 0, 0, 0.94)
+      );
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-composer {
+    border-radius: 1.35rem !important;
+    box-shadow:
+      0 12px 40px
+      rgba(0, 0, 0, 0.42);
+  }
+
+  .studysnap-general-ai-fullscreen
+  [data-studysnap-generated-image="true"] {
+    max-width: 100%;
+    padding-bottom: 0.35rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  [data-studysnap-generated-image="true"]
+  img {
+    max-height: 62vh;
+    border-radius: 0.9rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  [data-studysnap-message-role="user"] {
+    max-width: 88% !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  [data-studysnap-message-role="user"]
+  img {
+    max-height: 13rem;
+    border-radius: 0.8rem;
+  }
+}
+
+/* STUDYSNAP_GENERAL_AI_PHASE_6I_MOBILE_POLISH_END */
+
+
+/* STUDYSNAP_GENERAL_AI_INLINE_IMAGE_ATTACHMENT_CSS_V1 */
+.studysnap-general-ai-fullscreen
+.studysnap-inline-message-image {
+  width: min(18rem, 72vw);
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-inline-message-image-button {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-inline-message-image
+img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 21rem;
+  object-fit: contain;
+  border-radius: 0.9rem;
+  background: transparent;
+}
+
+.studysnap-general-ai-fullscreen
+[data-studysnap-message-role="user"]
+.studysnap-message-attachment-gallery {
+  margin-bottom: 0.55rem;
+}
+
+.studysnap-general-ai-fullscreen
+[data-studysnap-message-role="user"]:has(
+  .studysnap-inline-message-image
+) {
+  max-width: min(88%, 22rem) !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-inline-message-image {
+    width: min(16.5rem, 70vw);
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-inline-message-image
+  img {
+    max-height: 18rem;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_INLINE_IMAGE_ATTACHMENT_CSS_V1_END */
+
+
+/* STUDYSNAP_GENERAL_AI_LOCAL_COMMERCE_CARDS_CSS_V3 */
+.studysnap-general-ai-fullscreen
+.studysnap-user-image-message {
+  width: min(94%, 30rem) !important;
+  max-width: min(94%, 30rem) !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-image-message
+.studysnap-message-attachment-gallery {
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-image-message
+.studysnap-inline-message-image {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+  box-shadow: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-image-message
+.studysnap-inline-message-image-button {
+  width: 100% !important;
+  max-width: 100% !important;
+  border: 0 !important;
+  background: #000 !important;
+  box-shadow: none !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-user-image-message
+.studysnap-inline-message-image
+img {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: 70vh !important;
+  object-fit: contain !important;
+  border-radius: 1rem;
+  background: #000 !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-inline-image-question {
+  width: fit-content;
+  max-width: 92%;
+  margin: 0.55rem 0 0 auto;
+  padding: 0.2rem 0;
+  text-align: right;
+  color: #f4f4f5;
+  background: transparent !important;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-commerce-results-v3 {
+  color: #f4f4f5;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll {
+    padding-bottom: 8.5rem !important;
+    scroll-padding-bottom: 8.5rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-user-image-message {
+    width: 96% !important;
+    max-width: 96% !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-commerce-results-v3 {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_LOCAL_COMMERCE_CARDS_CSS_V3_END */
+
+
+/* STUDYSNAP_GENERAL_AI_MULTI_IMAGE_COMPARISON_CSS_V2 */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.studysnap-general-ai-fullscreen,
+.studysnap-general-ai-fullscreen
+.studysnap-scroll,
+.studysnap-general-ai-fullscreen
+.studysnap-chat-message {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.studysnap-message-image-carousel-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.studysnap-message-image-carousel {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.studysnap-message-image-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.studysnap-message-image-slide {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 100%;
+  overflow: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  border-radius: 1rem;
+  background: #000;
+  contain: layout paint;
+}
+
+.studysnap-message-image-slide
+.studysnap-inline-message-image-button,
+.studysnap-message-image-slide
+.studysnap-inline-message-image-button > * {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  border: 0 !important;
+  background: #000 !important;
+  box-shadow: none !important;
+}
+
+.studysnap-message-image-slide img {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: 70vh !important;
+  object-fit: contain !important;
+  background: #000 !important;
+}
+
+.studysnap-image-option-label {
+  position: absolute;
+  z-index: 2;
+  top: 0.65rem;
+  left: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  background: rgba(0, 0, 0, 0.76);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+}
+
+.studysnap-image-carousel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.55rem;
+}
+
+.studysnap-image-carousel-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.studysnap-image-carousel-dot {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  transition:
+    width 160ms ease,
+    background 160ms ease;
+}
+
+.studysnap-image-carousel-dot.is-active {
+  width: 1rem;
+  background: #c9ad50;
+}
+
+.studysnap-image-carousel-count {
+  color: #a1a1aa;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.studysnap-inline-message-file-list {
+  display: flex;
+  max-width: 100%;
+  gap: 0.55rem;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.studysnap-comparison-result {
+  width: 100%;
+  max-width: 44rem;
+}
+
+.studysnap-comparison-verdict {
+  border: 1px solid rgba(201, 173, 80, 0.24);
+  border-radius: 1rem;
+  padding: 0.9rem;
+  background: #050400;
+}
+
+.studysnap-comparison-verdict > p:first-child {
+  margin: 0 0 0.25rem;
+  color: #c9ad50;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.studysnap-comparison-verdict h3 {
+  margin: 0;
+  color: #fafafa;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.studysnap-comparison-reason {
+  margin: 0.45rem 0 0;
+  color: #c7c7cc;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.studysnap-comparison-option-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+  gap: 0.65rem;
+  margin-top: 0.7rem;
+}
+
+.studysnap-comparison-option-card {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1rem;
+  padding: 0.8rem;
+  background: #000;
+}
+
+.studysnap-comparison-option-card.is-winner {
+  border-color: rgba(201, 173, 80, 0.36);
+  box-shadow:
+    inset 0 0 0 1px
+    rgba(201, 173, 80, 0.08);
+}
+
+.studysnap-comparison-option-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.studysnap-comparison-option-top h4 {
+  margin: 0;
+  color: #fafafa;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.studysnap-comparison-option-top span {
+  border-radius: 999px;
+  padding: 0.22rem 0.45rem;
+  background: rgba(201, 173, 80, 0.14);
+  color: #eadf9f;
+  font-size: 0.58rem;
+  font-weight: 900;
+}
+
+.studysnap-comparison-facts {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.7rem 0 0;
+}
+
+.studysnap-comparison-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.studysnap-comparison-facts dt {
+  color: #71717a;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.studysnap-comparison-facts dd {
+  margin: 0;
+  color: #e4e4e7;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.studysnap-comparison-highlights {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studysnap-comparison-highlights li {
+  position: relative;
+  padding-left: 0.8rem;
+  color: #bdbdc3;
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.studysnap-comparison-highlights li::before {
+  content: "";
+  position: absolute;
+  top: 0.48rem;
+  left: 0;
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #c9ad50;
+}
+
+.studysnap-comparison-no-details {
+  margin: 0.7rem 0 0;
+  color: #71717a;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.studysnap-general-ai-fullscreen
+article[data-studysnap-comparison-result="true"]
+.studysnap-assistant-mark-row,
+.studysnap-general-ai-fullscreen
+article[data-studysnap-comparison-result="true"]
+.studysnap-contextual-message-actions {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-scroll {
+    padding-top: 1rem !important;
+    padding-bottom: 8.75rem !important;
+    scroll-padding-top: 6.5rem;
+    scroll-padding-bottom: 8.75rem;
+  }
+
+  .studysnap-comparison-option-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+    gap: 0.5rem;
+  }
+
+  .studysnap-comparison-option-card {
+    padding: 0.7rem;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_MULTI_IMAGE_COMPARISON_CSS_V2_END */
+
+
+/* STUDYSNAP_GENERAL_AI_COMPARISON_LABEL_LAYOUT_V2_10_3 */
+.studysnap-general-ai-fullscreen
+.studysnap-comparison-facts > div {
+  grid-template-columns:
+    minmax(5rem, 5.75rem)
+    minmax(0, 1fr) !important;
+  align-items: start;
+  column-gap: 0.7rem;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-comparison-facts dt {
+  min-width: 5rem;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-comparison-facts dd {
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+/* STUDYSNAP_GENERAL_AI_COMPARISON_LABEL_LAYOUT_V2_10_3_END */
+
+
+/* STUDYSNAP_GENERAL_AI_LIVE_IMAGE_JUMP_V1 */
+/* STUDYSNAP_GENERAL_AI_SIMPLE_LATEST_JUMP_V1_3 */
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button {
+  position: absolute;
+  z-index: 48;
+  left: 50%;
+  top: 0;
+  display: grid;
+  width: 2.55rem;
+  height: 2.55rem;
+  place-items: center;
+  border: 1px solid
+    rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background:
+    rgba(20, 20, 20, 0.94);
+  color:
+    rgba(244, 244, 245, 0.94);
+  box-shadow:
+    0 10px 28px
+    rgba(0, 0, 0, 0.42);
+  transform:
+    translate(
+      -50%,
+      calc(-100% - 0.55rem)
+    );
+  backdrop-filter:
+    blur(14px);
+  -webkit-backdrop-filter:
+    blur(14px);
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button:hover {
+  border-color:
+    rgba(201, 173, 80, 0.48);
+  background:
+    rgba(31, 31, 31, 0.98);
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button:active {
+  transform:
+    translate(
+      -50%,
+      calc(-100% - 0.45rem)
+    )
+    scale(0.96);
+}
+
+/* STUDYSNAP_GENERAL_AI_SIMPLE_LATEST_JUMP_V1_3_END */
+/* STUDYSNAP_GENERAL_AI_LIVE_IMAGE_JUMP_V1_END */
+
+/* STUDYSNAP_GENERAL_AI_MOBILE_COMPARISON_LAYOUT_V1_1 */
+@media (max-width: 640px) {
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-option-grid {
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-option-card {
+    width: 100%;
+    min-width: 0;
+    padding: 0.9rem !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-facts {
+    gap: 0.75rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-facts > div {
+    display: grid !important;
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 0.2rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-facts dt {
+    min-width: 0 !important;
+    color: #8b8b95;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    white-space: normal !important;
+    text-align: left;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-facts dd {
+    width: 100%;
+    min-width: 0;
+    color: #f0f0f2;
+    font-size: 0.79rem;
+    font-weight: 760;
+    line-height: 1.5;
+    text-align: left !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    hyphens: none !important;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-option-top {
+    margin-bottom: 0.75rem;
+  }
+
+  .studysnap-general-ai-fullscreen
+  .studysnap-comparison-highlights li {
+    font-size: 0.75rem;
+    line-height: 1.55;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_MOBILE_COMPARISON_LAYOUT_V1_1_END */
+
+/* STUDYSNAP_GENERAL_AI_SHARP_LATEST_ARROW_V1_1 */
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button {
+  width: 2.7rem;
+  height: 2.7rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.32);
+  background: rgba(15, 15, 15, 0.99);
+  color: #ffffff;
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.58),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform:
+    translate3d(
+      -50%,
+      calc(-100% - 0.65rem),
+      0
+    );
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  shape-rendering: geometricPrecision;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button path {
+  stroke-width: 2.3;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button:hover {
+  border-color: rgba(201, 173, 80, 0.72);
+  background: rgba(27, 27, 27, 1);
+}
+/* STUDYSNAP_GENERAL_AI_SHARP_LATEST_ARROW_V1_1_END */
+
+/* STUDYSNAP_GENERAL_AI_SHARP_ARROW_TAP_V1 */
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button {
+  transform-origin: center;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button:active {
+  transform:
+    translate3d(
+      -50%,
+      calc(-100% - 0.6rem),
+      0
+    ) !important;
+  filter: none;
+}
+
+.studysnap-general-ai-fullscreen
+.studysnap-jump-latest-button:active svg {
+  transform: none;
+  filter: none;
+}
+/* STUDYSNAP_GENERAL_AI_SHARP_ARROW_TAP_V1_END */

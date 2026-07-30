@@ -119,6 +119,10 @@ export type GeneralAIFileBrainQueueController = {
   markAsked: (
     itemIds: number[],
   ) => void;
+  // STUDYSNAP_GENERAL_AI_ROOM_CREATION_OFFER_FILES_V1
+  getFilesForTasks: (
+    tasks: GeneralAIFileBrainTask[],
+  ) => Promise<File[]>;
   askItems: (
     tasks: GeneralAIFileBrainTask[],
     options: {
@@ -1886,6 +1890,63 @@ export function useGeneralAIFileBrainQueue():
   }
 
 
+  async function getFilesForTasks(
+    selectedTasks:
+      GeneralAIFileBrainTask[],
+  ): Promise<File[]> {
+    const safeTasks =
+      selectedTasks.slice(
+        0,
+        MAX_ASK_FILES,
+      );
+
+    const restoredFiles =
+      await Promise.all(
+        safeTasks.map(
+          async (
+            task,
+          ): Promise<File | null> => {
+            const inMemory =
+              fileRefs.current.get(
+                task.localId,
+              );
+
+            if (inMemory) {
+              return inMemory;
+            }
+
+            try {
+              const restored =
+                await readUploadQueueFile(
+                  task.localId,
+                );
+
+              if (!restored) {
+                return null;
+              }
+
+              fileRefs.current.set(
+                task.localId,
+                restored,
+              );
+
+              return restored;
+            } catch {
+              return null;
+            }
+          },
+        ),
+      );
+
+    return restoredFiles.filter(
+      (
+        file,
+      ): file is File =>
+        file !== null,
+    );
+  }
+
+
   async function askItems(
     selectedTasks:
       GeneralAIFileBrainTask[],
@@ -1945,6 +2006,7 @@ export function useGeneralAIFileBrainQueue():
     dismissTask,
     clearSelection,
     markAsked,
+    getFilesForTasks,
     askItems,
   };
 }

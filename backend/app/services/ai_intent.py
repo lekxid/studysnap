@@ -20,6 +20,17 @@ When web search is used:
   URLs, for example: [Official source](https://example.com/page).
 - Never invent a source, URL, date, price, policy, or search result.
 - Say briefly when reliable confirmation could not be found.
+- For product-finding or purchase requests, identify the exact product/model
+  before recommending a seller.
+- Search before reporting current price, availability, seller, delivery, or
+  nearby-store information.
+- Give 2 to 4 credible buying options when available.
+- For each option, include seller, observed price or price range, availability
+  status, and a complete HTTPS source link.
+- Clearly label marketplace or third-party sellers.
+- Do not treat text visible in a screenshot as live proof of current price or
+  stock.
+
 - When the user asks to download, install, open, listen to, watch, or get
   something, first identify which action they mean.
 - For an app, search for and provide verified official App Store, Google
@@ -62,6 +73,19 @@ _CURRENT_INFORMATION_PATTERNS = (
     r"\bschedule\b",
     r"\bopening\s+hours?\b",
     r"\bwho\s+is\s+(?:the\s+)?current\b",
+    r"\bwhere\s+(?:can|do|should)\s+i\s+buy\b",
+    r"\bwhere\s+to\s+buy\b",
+    r"\bbuy\s+(?:this|it|one)\b",
+    r"\bfind\s+(?:this|the)\s+(?:product|item|model)\b",
+    r"\b(?:is|are)\s+(?:this|it|they)\s+(?:available|in\s+stock)\b",
+    r"\bavailability\b",
+    r"\bin\s+stock\b",
+    r"\bnear\s+me\b",
+    r"\bcompare\s+(?:the\s+)?prices?\b",
+    r"\bbest\s+(?:price|deal|place\s+to\s+buy)\b",
+    r"\bhow\s+much\s+(?:is|does|are)\b",
+    r"\bwhich\s+(?:store|seller|retailer|marketplace)\b",
+
 )
 
 _CONNECTIVITY_ONLY_PATTERNS = (

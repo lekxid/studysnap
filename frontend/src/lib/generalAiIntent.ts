@@ -25,6 +25,19 @@ const currentInformationPatterns = [
   /\bschedule\b/i,
   /\bopening\s+hours?\b/i,
   /\bwho\s+is\s+(?:the\s+)?current\b/i,
+
+  /\bwhere\s+(?:can|do|should)\s+i\s+buy\b/i,
+  /\bwhere\s+to\s+buy\b/i,
+  /\bbuy\s+(?:this|it|one)\b/i,
+  /\bfind\s+(?:this|the)\s+(?:product|item|model)\b/i,
+  /\b(?:is|are)\s+(?:this|it|they)\s+(?:available|in\s+stock)\b/i,
+  /\bavailability\b/i,
+  /\bin\s+stock\b/i,
+  /\bnear\s+me\b/i,
+  /\bcompare\s+(?:the\s+)?prices?\b/i,
+  /\bbest\s+(?:price|deal|place\s+to\s+buy)\b/i,
+  /\bhow\s+much\s+(?:is|does|are)\b/i,
+  /\bwhich\s+(?:store|seller|retailer|marketplace)\b/i,
 ];
 
 const connectivityOnlyPatterns = [

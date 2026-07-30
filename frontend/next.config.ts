@@ -7,6 +7,7 @@ const backendInternalUrl = (
 ).replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   output: "standalone",
   experimental: {
     proxyClientMaxBodySize: "105mb",

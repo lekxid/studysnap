@@ -904,6 +904,7 @@ export type GenerateAIImageOptions = {
   size?: GenerateAIImageSize;
   quality?: GenerateAIImageQuality;
   signal?: AbortSignal;
+  requestId?: string;
   contextMessages?: string[];
 };
 
@@ -978,6 +979,36 @@ export async function getAIAttachmentDataUrl(
 }
 
 
+export async function cancelAIImage(
+  requestId: string
+): Promise<{
+  request_id: string;
+  cancelled: boolean;
+}> {
+  const cleanRequestId = requestId.trim();
+
+  if (!cleanRequestId) {
+    return {
+      request_id: "",
+      cancelled: false,
+    };
+  }
+
+  return apiFetch(
+    "/api/ai/images/cancel",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        request_id: cleanRequestId,
+      }),
+    }
+  ) as Promise<{
+    request_id: string;
+    cancelled: boolean;
+  }>;
+}
+
+
 export async function generateAIImage(
   prompt: string,
   options: GenerateAIImageOptions = {}
@@ -995,6 +1026,7 @@ export async function generateAIImage(
     signal: options.signal,
     body: JSON.stringify({
       prompt: cleanPrompt,
+      request_id: options.requestId || null,
       conversation_id:
         typeof options.conversationId === "number"
           ? options.conversationId
@@ -1088,6 +1120,13 @@ export async function editAIImage(
    * API request. Use the dedicated same-origin
    * route instead of the general /backend rewrite.
    */
+  if (options.requestId) {
+    formData.append(
+      "request_id",
+      options.requestId
+    );
+  }
+
   const token = getToken();
 
   const headers =

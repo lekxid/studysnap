@@ -56,6 +56,7 @@ from app.services.artifact_service import (
     resolve_artifact_export_request,
     suggest_artifact_title,
 )
+from app.services.ai_intent import should_use_web_search
 from app.services.context.builder import build_study_room_context
 from app.services.context.providers.conversation import build_conversation_context
 from app.services.rooms.access import require_room_ai
@@ -644,6 +645,7 @@ class AskAIRequest(BaseModel):
 class GenerateImageRequest(BaseModel):
     context_messages: list[str] | None = None
     prompt: str
+    request_id: str | None = None
     conversation_id: int | None = None
     study_room_id: int | None = None
     size: Literal[
@@ -694,6 +696,10 @@ class CreateMessageRequest(BaseModel):
 
 
 class CancelMessageRequest(BaseModel):
+    request_id: str
+
+
+class CancelImageRequest(BaseModel):
     request_id: str
 
 
@@ -824,6 +830,27 @@ def build_recent_attachment_context(
                 "image/"
             )
         ):
+            image_name = (
+                message.attachment_filename
+                or "uploaded image"
+            )
+
+            associated_message = " ".join(
+                (message.content or "").split()
+            ).strip()
+
+            sections.append(
+                "Stored image reference "
+                "(latest image task remains active):\n"
+                f"Name: {image_name}\n"
+                f"Associated message: "
+                f"{associated_message or 'Image attachment'}\n"
+                "For short follow-ups, continue the most "
+                "recent image task. Do not switch to an "
+                "older unrelated subject. Do not claim a "
+                "fresh visual inspection unless image bytes "
+                "are supplied again."
+            )
             continue
 
         source_key = (
@@ -907,6 +934,55 @@ def build_conversation_history_context(
     context_override: str = "",
 ) -> str:
     sections: list[str] = []
+
+    # STUDYSNAP_GENERAL_AI_MULTI_IMAGE_COMPARISON_V2_4_CONTEXT
+    recent_messages = (
+        db.query(AIMessage)
+        .filter(
+            AIMessage.conversation_id
+            == conversation.id,
+        )
+        .order_by(
+            AIMessage.id.desc()
+        )
+        .limit(8)
+        .all()
+    )
+
+    recent_messages.reverse()
+
+    recent_exchange: list[str] = []
+
+    for recent_message in recent_messages:
+        recent_content = " ".join(
+            (recent_message.content or "").split()
+        ).strip()
+
+        attachment_note = ""
+
+        if recent_message.attachment_filename:
+            attachment_note = (
+                " [Attachment: "
+                + recent_message.attachment_filename
+                + "]"
+            )
+
+        recent_exchange.append(
+            recent_message.role.upper()
+            + ": "
+            + (
+                recent_content
+                or "(attachment message)"
+            )
+            + attachment_note
+        )
+
+    if recent_exchange:
+        sections.append(
+            "Most recent active exchange "
+            "(highest priority for short follow-ups):\n"
+            + "\n".join(recent_exchange)
+        )
 
     history = build_conversation_context(
         db=db,
@@ -1115,6 +1191,17 @@ You are {identity}.
 Use the conversation history to understand follow-up questions,
 short references, typos, and combined requests.
 
+The most recent active exchange has priority over older history.
+A short follow-up such as "tell me more", "continue", "which one",
+"what about the other one", "compare them again", or "based only
+on image quality" must continue the latest active image, file, or
+comparison task. Never switch to an older unrelated study topic.
+
+When the latest task involved images but the image bytes are not
+present in the current request, continue only from the latest
+confirmed answer and attachment references. Do not invent a new
+visual inspection.
+
 Keep unrelated subjects separated.
 
 Context boundary:
@@ -1210,6 +1297,75 @@ def build_contextual_image_prompt(
     )
 
 
+
+# STUDYSNAP_GENERAL_AI_PHASE_6I_IMAGE_CANCELLATION
+_CANCELLED_IMAGE_REQUESTS: set[
+    tuple[int, str]
+] = set()
+
+
+def prepare_image_request(
+    owner_id: int,
+    request_id: str,
+) -> None:
+    _CANCELLED_IMAGE_REQUESTS.discard(
+        (owner_id, request_id)
+    )
+
+
+def cancel_image_request(
+    owner_id: int,
+    request_id: str,
+) -> bool:
+    if len(_CANCELLED_IMAGE_REQUESTS) >= 2048:
+        _CANCELLED_IMAGE_REQUESTS.clear()
+
+    _CANCELLED_IMAGE_REQUESTS.add(
+        (owner_id, request_id)
+    )
+
+    return True
+
+
+def ensure_image_request_active(
+    owner_id: int,
+    request_id: str,
+) -> None:
+    key = (owner_id, request_id)
+
+    if key not in _CANCELLED_IMAGE_REQUESTS:
+        return
+
+    _CANCELLED_IMAGE_REQUESTS.discard(key)
+
+    raise HTTPException(
+        status_code=409,
+        detail="Image generation stopped.",
+    )
+
+
+@router.post("/images/cancel")
+def cancel_image_generation(
+    data: CancelImageRequest,
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    request_id = clean_ai_request_id(
+        data.request_id
+    )
+
+    cancelled = cancel_image_request(
+        current_user.id,
+        request_id,
+    )
+
+    return {
+        "request_id": request_id,
+        "cancelled": cancelled,
+    }
+
+
 @router.post("/generate-image")
 def generate_image(
     data: GenerateImageRequest,
@@ -1223,6 +1379,15 @@ def generate_image(
     through StudySnap's secure attachment storage so it remains available
     when the conversation is reopened.
     """
+
+    image_request_id = clean_ai_request_id(
+        data.request_id
+    )
+
+    prepare_image_request(
+        current_user.id,
+        image_request_id,
+    )
 
     clean_prompt = data.prompt.strip()
 
@@ -1370,6 +1535,11 @@ Resolved student request:
                 "The generated image was too large to save."
             )
 
+        ensure_image_request_active(
+            current_user.id,
+            image_request_id,
+        )
+
         saved_user_message = None
         saved_ai_message = None
 
@@ -1427,6 +1597,11 @@ Resolved student request:
                 )
 
             conversation.updated_at = utc_now()
+
+            ensure_image_request_active(
+                current_user.id,
+                image_request_id,
+            )
 
             db.commit()
             db.refresh(saved_user_message)
@@ -1486,27 +1661,57 @@ Resolved student request:
 
 
 
-_ACTIVE_IMAGE_EDIT_REQUESTS: set[
-    tuple[int, int]
-] = set()
+# STUDYSNAP_GENERAL_AI_PHASE_6I_CONTINUE_SUPERSESSION
+_ACTIVE_IMAGE_EDIT_REQUESTS: dict[
+    tuple[int, int],
+    str,
+] = {}
+
+_LEGACY_IMAGE_EDIT_REQUEST_ID = (
+    "__legacy_image_edit_request__"
+)
 
 
 def begin_image_edit_request(
     owner_id: int,
     conversation_id: int,
+    request_id: str | None = None,
 ) -> bool:
-    # Reserve one image edit per user conversation.
+    # A new request ID supersedes an older
+    # stopped request still finishing remotely.
     key = (
         owner_id,
         conversation_id,
     )
 
-    if key in _ACTIVE_IMAGE_EDIT_REQUESTS:
-        return False
-
-    _ACTIVE_IMAGE_EDIT_REQUESTS.add(
-        key
+    active_request_id = (
+        _ACTIVE_IMAGE_EDIT_REQUESTS.get(
+            key
+        )
     )
+
+    if request_id is None:
+        if active_request_id is not None:
+            return False
+
+        next_request_id = (
+            _LEGACY_IMAGE_EDIT_REQUEST_ID
+        )
+    else:
+        next_request_id = (
+            request_id.strip()
+            or _LEGACY_IMAGE_EDIT_REQUEST_ID
+        )
+
+        if (
+            active_request_id
+            == next_request_id
+        ):
+            return False
+
+    _ACTIVE_IMAGE_EDIT_REQUESTS[
+        key
+    ] = next_request_id
 
     return True
 
@@ -1514,12 +1719,38 @@ def begin_image_edit_request(
 def finish_image_edit_request(
     owner_id: int,
     conversation_id: int,
+    request_id: str | None = None,
 ) -> None:
-    _ACTIVE_IMAGE_EDIT_REQUESTS.discard(
-        (
-            owner_id,
-            conversation_id,
+    # A late stopped worker must not release
+    # the newer Continue request lock.
+    key = (
+        owner_id,
+        conversation_id,
+    )
+
+    if request_id is None:
+        _ACTIVE_IMAGE_EDIT_REQUESTS.pop(
+            key,
+            None,
         )
+        return
+
+    clean_request_id = (
+        request_id.strip()
+        or _LEGACY_IMAGE_EDIT_REQUEST_ID
+    )
+
+    if (
+        _ACTIVE_IMAGE_EDIT_REQUESTS.get(
+            key
+        )
+        != clean_request_id
+    ):
+        return
+
+    _ACTIVE_IMAGE_EDIT_REQUESTS.pop(
+        key,
+        None,
     )
 
 
@@ -1560,7 +1791,8 @@ async def edit_ai_image(
     current_user: User = Depends(
         get_current_user
     ),
-):
+
+    request_id: str | None = Form(default=None),):
     """
     Edit an image while preserving the
     original person's recognizable identity.
@@ -1577,6 +1809,15 @@ async def edit_ai_image(
     from app.services.openai_instrumentation import OpenAI
 
     from app.config import settings as app_settings
+
+    image_request_id = clean_ai_request_id(
+        request_id
+    )
+
+    prepare_image_request(
+        current_user.id,
+        image_request_id,
+    )
 
     clean_prompt = prompt.strip()
 
@@ -1647,7 +1888,7 @@ async def edit_ai_image(
                 # unnecessary conversion and upload
                 # delay. Preserve image detail while
                 # limiting excessive dimensions.
-                maximum_input_dimension = 2048
+                maximum_input_dimension = 3072
 
                 if (
                     max(prepared.size)
@@ -1777,38 +2018,52 @@ async def edit_ai_image(
             "gpt-image-1"
         )
 
-    identity_instruction = (
-        "IDENTITY PRESERVATION IS THE "
-        "HIGHEST PRIORITY. Preserve the "
-        "exact recognizable identity of "
-        "the person in Image 1, including "
-        "facial proportions, eye shape and "
-        "spacing, eyebrows, nose, mouth, "
-        "jawline, skin tone, hairline, "
-        "facial hair, age, and natural "
-        "expression. Do not beautify, "
-        "replace, reinterpret, or create "
-        "a different face. Apply only the "
-        "changes requested by the user. "
+    # STUDYSNAP_GENERAL_AI_PHASE_6H_ADAPTIVE_EDIT_PROFILE
+    premium_edit_instruction = (
+        "You are StudySnap's premium image editor. "
+        "Inspect the source image and automatically use the correct "
+        "editing profile. Follow the user's request strongly rather "
+        "than returning an almost unchanged copy. "
+
+        "PORTRAIT OR PERSON PROFILE: Preserve the exact recognizable "
+        "identity, facial geometry, skin tone, age, ethnicity, body "
+        "proportions, hairline, facial hair, and natural expression. "
+        "When the user asks for a nicer, better, professional, studio, "
+        "HD, high-quality, or best-quality result, perform a meaningful "
+        "premium portrait enhancement: balance exposure and white "
+        "balance; recover natural facial, eye, hair, and clothing detail; "
+        "improve local contrast, dynamic range, colour depth, sharpness, "
+        "noise, background separation, and composition when helpful. "
+        "Keep realistic pores and natural skin texture. Avoid plastic "
+        "skin, artificial eyes, excessive smoothing, warped anatomy, "
+        "or a different face. The result should resemble a carefully "
+        "retouched professional DSLR or studio portrait while remaining "
+        "authentic to the original person. "
+
+        "DOCUMENT, SCREENSHOT, OR DIAGRAM PROFILE: Preserve every word, "
+        "number, label, spelling, symbol, object relationship, and layout "
+        "unless the user explicitly asks to change it. Improve clarity "
+        "without inventing or replacing content. "
+
+        "CREATIVE EDIT PROFILE: Make the requested creative changes while "
+        "preserving any person or protected content that the user did not "
+        "ask to alter. Do not add watermarks or unrelated text. "
     )
 
     if identity_bytes is not None:
         edit_prompt = (
-            identity_instruction
-            + "Image 1 is the original "
-            + "identity reference. Image 2 "
-            + "is the current edited image. "
-            + "Keep the identity from Image 1 "
-            + "while modifying Image 2. "
+            premium_edit_instruction
+            + "Image 1 is the original identity reference. "
+            + "Image 2 is the current image to improve. "
+            + "Use Image 1 to keep the person exactly recognizable "
+            + "while applying the requested improvements to Image 2. "
             + "User request: "
             + clean_prompt
         )
     else:
         edit_prompt = (
-            identity_instruction
-            + "The uploaded image is both "
-            + "the identity reference and "
-            + "the image to edit. "
+            premium_edit_instruction
+            + "The uploaded image is the source and identity reference. "
             + "User request: "
             + clean_prompt
         )
@@ -1909,6 +2164,7 @@ async def edit_ai_image(
                 if not begin_image_edit_request(
                     current_user.id,
                     conversation.id,
+                    image_request_id,
                 ):
                     raise HTTPException(
                         status_code=409,
@@ -1944,6 +2200,7 @@ async def edit_ai_image(
                     finish_image_edit_request(
                         current_user.id,
                         conversation.id,
+                        image_request_id,
                     )
 
                 used_model = candidate_model
@@ -1998,6 +2255,11 @@ async def edit_ai_image(
             "no image data."
         )
 
+    ensure_image_request_active(
+        current_user.id,
+        image_request_id,
+    )
+
     generated_bytes = (
         base64_module.b64decode(
             generated_base64
@@ -2033,7 +2295,7 @@ async def edit_ai_image(
     )
 
     generated_filename = (
-        "studysnap-recreated-"
+        "studysnap-premium-edit-"
         + uuid_module.uuid4().hex[:12]
         + ".png"
     )
@@ -2079,7 +2341,9 @@ async def edit_ai_image(
         role="assistant",
         content=(
             "[Generated image] "
-            + clean_prompt
+            "Your enhanced image is ready. "
+            "StudySnap preserved the original identity and important "
+            "details while applying the requested premium-quality edit."
         ),
         attachment_filename=(
             generated_filename
@@ -2113,6 +2377,11 @@ async def edit_ai_image(
             )
 
         conversation.updated_at = utc_now()
+
+        ensure_image_request_active(
+            current_user.id,
+            image_request_id,
+        )
 
         db.commit()
 
@@ -2410,6 +2679,64 @@ async def ask_ai_with_files(
             for item in prepared_attachments
         )
 
+        comparison_contract = ""
+
+        if len(image_inputs) >= 2:
+            comparison_contract = """
+# STUDYSNAP_GENERAL_AI_ADAPTIVE_IMAGE_COMPARISON_V2_9_1
+MULTI-IMAGE COMPARISON CONTRACT:
+- Image 1 is Option A.
+- Image 2 is Option B.
+- Keep evidence from each image strictly separate.
+- Never copy a detail from one option to the other.
+- Mark unreadable or unsupported details as "Not confirmed".
+- First classify the task as PRODUCT or PHOTO.
+- Use PRODUCT for products, listings, devices, screenshots of items,
+  prices, specifications, condition, or purchase decisions.
+- Use PHOTO for ordinary photos, selfies, portraits, scenery, rooms,
+  documents photographed as images, or general visual quality.
+- For photos containing people, compare only photo quality and
+  presentation such as clarity, lighting, framing, expression visibility,
+  and background distraction. Never rank attractiveness, body shape,
+  skin tone, ethnicity, age, or personal worth.
+- When the user asks which is better, choose Option A or Option B when
+  visible evidence supports a choice.
+- Use Tie or Insufficient evidence only when appropriate.
+- Start with exactly one verdict line:
+  VERDICT: Option A
+  VERDICT: Option B
+  VERDICT: Tie
+  or VERDICT: Insufficient evidence
+- Then write exactly one mode line:
+  MODE: PRODUCT
+  or MODE: PHOTO
+- For MODE: PRODUCT, use these exact sections:
+  OPTION A:
+  Price:
+  Screen:
+  Highlights:
+  Concerns:
+  OPTION B:
+  Price:
+  Screen:
+  Highlights:
+  Concerns:
+- For MODE: PHOTO, use these exact sections:
+  OPTION A:
+  Clarity:
+  Lighting:
+  Framing:
+  Highlights:
+  Concerns:
+  OPTION B:
+  Clarity:
+  Lighting:
+  Framing:
+  Highlights:
+  Concerns:
+- End with one concise REASON line explaining the verdict.
+"""
+
         prompt = f"""
 You are StudySnap AI.
 
@@ -2420,6 +2747,8 @@ The student uploaded {len(prepared_attachments)} files:
 
 Student question:
 {clean_question}
+
+{comparison_contract}
 
 Read and compare all attached material together.
 
@@ -2819,6 +3148,36 @@ Extracted file content:
         ) from exc
 
 
+
+# STUDYSNAP_GENERAL_AI_PHASE_6G_IMAGE_QUESTION_NORMALIZATION
+_IMAGE_DOCUMENT_DEFAULT_PATTERN = re.compile(
+    r"^summari[sz]e\s+this\s+uploaded\s+file\s+clearly\.?$",
+    flags=re.IGNORECASE,
+)
+
+
+def normalize_direct_image_question(
+    value: str | None,
+) -> str:
+    clean = " ".join(
+        (value or "").strip().split()
+    )
+
+    if (
+        not clean
+        or _IMAGE_DOCUMENT_DEFAULT_PATTERN.fullmatch(
+            clean
+        )
+    ):
+        return (
+            "Describe this image clearly. Identify what is visible, "
+            "read important text when present, and answer naturally "
+            "without treating an ordinary photo like a document."
+        )
+
+    return clean
+
+
 @router.post("/ask-image")
 async def ask_ai_with_image(
     question: str = Form(default="Describe this image clearly."),
@@ -2946,7 +3305,7 @@ async def ask_ai_with_image(
         f"{encoded_image}"
     )
 
-    clean_question = question.strip() or "Describe this image clearly."
+    clean_question = normalize_direct_image_question(question)
 
     study_room_context = ""
     conversation = None
@@ -3035,6 +3394,46 @@ User question:
         )
 
         answer = getattr(response, "output_text", "") or "I could not read the image response."
+
+        # MULTIMODAL_COMMERCE_RESEARCH_V1
+        used_web_search = should_use_web_search(
+            clean_question,
+        )
+
+        if used_web_search:
+            visual_facts = answer.strip()
+
+            research_question = f"""
+        The user supplied an image and asked:
+        {clean_question}
+
+        The vision model extracted these visual facts:
+        {visual_facts}
+
+        Search the live web before answering.
+
+        Requirements:
+        - Identify the exact product or closest reliable match.
+        - Do not assume a screenshot price is still current.
+        - Compare credible sellers and clearly mark marketplace sellers.
+        - Include current observed prices, availability, delivery details when
+          supported, and complete HTTPS links.
+        - Include a concise Sources section.
+        - Make every seller name a complete Markdown HTTPS link that can
+          be opened directly from StudySnap.
+        - End with a visible "## Sources" section containing the most
+          useful seller or manufacturer links.
+        - State whether the result is an exact product match or the
+          closest reliable match.
+        - Include a short "Checked now" note and never present an
+          unverified screenshot price as current.
+        - Say when an exact match or reliable current price cannot be verified.
+        """
+
+            answer = generate_studysnap_answer(
+                research_question,
+            )
+
 
         saved_user_message = None
         saved_ai_message = None
