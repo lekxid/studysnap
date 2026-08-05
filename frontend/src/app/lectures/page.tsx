@@ -1,5 +1,7 @@
 "use client";
 
+// STUDYSNAP_LECTURE_AI_TRANSCRIPT_HANDOFF_V1_2_2
+
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -145,6 +147,7 @@ export default function LecturesPage() {
   const [liveBookmarks, setLiveBookmarks] = useState<LectureBookmark[]>([]);
 
   const [transcribingId, setTranscribingId] = useState<number | null>(null);
+  const [handoffId, setHandoffId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [creatingNoteId, setCreatingNoteId] = useState<number | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<number | null>(null);
@@ -630,33 +633,67 @@ export default function LecturesPage() {
   }
 
   async function askStudyAI(record: LectureRecord) {
+    if (handoffId !== null) return;
+
     try {
+      setHandoffId(record.material.id);
       setError("");
-      let file: File;
+      setNotice(
+        record.material.preview_available
+          ? "Opening the lecture transcript in Study AI…"
+          : "Transcribing the lecture before opening Study AI…",
+      );
+
+      let transcript = "";
 
       if (record.material.preview_available) {
         const preview = await getStudyMaterialPreview(record.material.id);
-        file = new File(
-          [preview.text],
-          `${record.metadata.title || "lecture"}-transcript.txt`,
-          { type: "text/plain" },
-        );
+        transcript = preview.text.trim();
       } else {
-        const blob = await getStudyMaterialBlob(record.material.id);
-        file = new File([blob], record.material.original_filename, {
-          type: record.material.content_type || blob.type || "audio/webm",
-        });
+        const result = await transcribeLectureMaterial(record.material.id);
+        transcript = result.transcript.trim();
       }
 
-      setPendingAIAttachment(file);
+      if (!transcript) {
+        throw new Error(
+          "Study AI needs a transcript before it can work with this lecture.",
+        );
+      }
+
+      const safeTitle =
+        record.metadata.title
+          .trim()
+          .replace(/[^a-z0-9]+/gi, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase() || "lecture";
+
+      const lectureContext = [
+        `Lecture: ${record.metadata.title || "Recorded lecture"}`,
+        `Recorded: ${record.metadata.recorded_at || "Not recorded"}`,
+        `Duration: ${formatDuration(record.metadata.duration_seconds)}`,
+        "",
+        "Transcript:",
+        transcript,
+      ].join("\n");
+
+      const transcriptFile = new File(
+        [lectureContext],
+        `${safeTitle}-transcript.txt`,
+        { type: "text/plain" },
+      );
+
+      setPendingAIAttachment(transcriptFile);
       saveProjectRoomId(record.material.study_room_id);
       router.push(`/general-ai?roomId=${record.material.study_room_id}`);
     } catch (handoffError) {
+      setNotice("");
       setError(
         handoffError instanceof Error
           ? handoffError.message
-          : "The lecture could not be sent to Study AI.",
+          : "The lecture transcript could not be sent to Study AI.",
       );
+    } finally {
+      setHandoffId(null);
     }
   }
 
@@ -1064,10 +1101,16 @@ export default function LecturesPage() {
                         )}
                         <button
                           type="button"
+                          disabled={handoffId !== null}
                           onClick={() => void askStudyAI(record)}
-                          className="rounded-xl bg-[#d6b84a] px-3.5 py-2 text-xs font-black text-[#11100a] transition hover:bg-[#e3c85f]"
+                          title="Study AI receives the lecture transcript, never an unsupported audio attachment."
+                          className="rounded-xl bg-[#d6b84a] px-3.5 py-2 text-xs font-black text-[#11100a] transition hover:bg-[#e3c85f] disabled:cursor-wait disabled:opacity-60"
                         >
-                          Ask Study AI
+                          {handoffId === record.material.id
+                            ? record.material.preview_available
+                              ? "Opening Study AI…"
+                              : "Transcribing…"
+                            : "Ask Study AI"}
                         </button>
                         {transcribed ? (
                           <button
