@@ -20,8 +20,10 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from openai import OpenAI
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.storage import storage_path
 from app.models.study_material import StudyMaterial
@@ -69,6 +71,20 @@ class StartResumableUploadRequest(BaseModel):
     filename: str
     file_size: int = Field(gt=0)
     content_type: str = "application/octet-stream"
+
+
+class LectureBookmark(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    offset_seconds: int = Field(ge=0)
+    label: str = Field(default="Bookmark", max_length=160)
+
+
+class LectureMetadataUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    duration_seconds: int = Field(default=0, ge=0, le=24 * 60 * 60)
+    recorded_at: str | None = Field(default=None, max_length=80)
+    consent_confirmed: bool = False
+    bookmarks: list[LectureBookmark] = Field(default_factory=list, max_length=500)
 
 
 def resumable_session_directory(
@@ -435,6 +451,95 @@ def extract_safe_text(
             "utf-8",
             errors="replace",
         )[:500_000]
+
+
+def lecture_metadata_path(material: StudyMaterial) -> Path:
+    return Path(f"{material.file_path}.lecture.json")
+
+
+def default_lecture_metadata(material: StudyMaterial) -> dict:
+    stem = Path(material.original_filename).stem
+    title = re.sub(r"[-_]+", " ", stem).strip() or "Recorded lecture"
+
+    return {
+        "material_id": material.id,
+        "title": title,
+        "duration_seconds": 0,
+        "recorded_at": (
+            material.created_at.isoformat()
+            if material.created_at
+            else None
+        ),
+        "consent_confirmed": False,
+        "bookmarks": [],
+    }
+
+
+def read_lecture_metadata(material: StudyMaterial) -> dict:
+    metadata = default_lecture_metadata(material)
+    path = lecture_metadata_path(material)
+
+    if not path.is_file():
+        return metadata
+
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return metadata
+
+    if not isinstance(stored, dict):
+        return metadata
+
+    metadata.update({
+        key: value
+        for key, value in stored.items()
+        if key in metadata
+    })
+    metadata["material_id"] = material.id
+
+    return metadata
+
+
+def write_lecture_metadata(
+    material: StudyMaterial,
+    payload: LectureMetadataUpdate,
+) -> dict:
+    path = lecture_metadata_path(material)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    metadata = {
+        "material_id": material.id,
+        "title": payload.title.strip(),
+        "duration_seconds": payload.duration_seconds,
+        "recorded_at": payload.recorded_at,
+        "consent_confirmed": payload.consent_confirmed,
+        "bookmarks": [
+            bookmark.model_dump()
+            for bookmark in payload.bookmarks
+        ],
+    }
+
+    temporary_path = Path(f"{path}.tmp")
+    temporary_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    os.replace(temporary_path, path)
+
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+    return metadata
+
+
+def ensure_lecture_material(material: StudyMaterial) -> None:
+    if material.material_type not in {"audio", "video"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Only recorded audio or video can be used as a lecture.",
+        )
 
 
 def serialize_material(material: StudyMaterial) -> dict:
@@ -1222,6 +1327,171 @@ def list_room_materials(
     }
 
 
+@router.get("/{material_id}/lecture-metadata")
+def get_lecture_metadata(
+    material_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    material = get_material_or_404(
+        db=db,
+        material_id=material_id,
+    )
+
+    require_room_view(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+    )
+    ensure_lecture_material(material)
+
+    return read_lecture_metadata(material)
+
+
+@router.put("/{material_id}/lecture-metadata")
+def update_lecture_metadata(
+    material_id: int,
+    payload: LectureMetadataUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    material = get_material_or_404(
+        db=db,
+        material_id=material_id,
+    )
+
+    require_room_contributor(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+    )
+    ensure_lecture_material(material)
+
+    material.purpose_category = "lecture"
+    material.content_category = "lecture_recording"
+    db.add(material)
+    db.commit()
+
+    return write_lecture_metadata(material, payload)
+
+
+@router.post("/{material_id}/transcribe")
+def transcribe_lecture_material(
+    material_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    material = get_material_or_404(
+        db=db,
+        material_id=material_id,
+    )
+
+    require_room_contributor(
+        db=db,
+        room_id=material.study_room_id,
+        user_id=current_user.id,
+    )
+    ensure_lecture_material(material)
+
+    if not settings.openai_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Lecture transcription is not configured yet.",
+        )
+
+    file_path = Path(material.file_path)
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="The recorded lecture audio could not be found.",
+        )
+
+    max_bytes = max(
+        1,
+        min(
+            int(os.getenv("STUDYSNAP_TRANSCRIPTION_MAX_MB", "100")),
+            500,
+        ),
+    ) * 1024 * 1024
+
+    if material.file_size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "This recording is too large for one transcription request. "
+                "Split the lecture into smaller recordings and try again."
+            ),
+        )
+
+    material.intelligence_status = "processing"
+    material.intelligence_error = None
+    db.add(material)
+    db.commit()
+
+    model = os.getenv(
+        "STUDYSNAP_TRANSCRIPTION_MODEL",
+        "gpt-4o-mini-transcribe",
+    ).strip() or "gpt-4o-mini-transcribe"
+
+    try:
+        client = OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=300.0,
+        )
+
+        with file_path.open("rb") as recording:
+            result = client.audio.transcriptions.create(
+                model=model,
+                file=recording,
+            )
+
+        transcript = (
+            result
+            if isinstance(result, str)
+            else getattr(result, "text", "")
+        )
+        transcript = str(transcript or "").strip()
+
+        if not transcript:
+            raise RuntimeError("The transcription service returned no text.")
+
+        material.extracted_text = transcript[:500_000]
+        material.purpose_category = "lecture"
+        material.content_category = "lecture_recording"
+        material.intelligence_status = "ready"
+        material.intelligence_error = None
+        material.analyzed_at = datetime.now(timezone.utc)
+        db.add(material)
+        db.commit()
+        db.refresh(material)
+
+        response = serialize_material(material)
+        response["transcript"] = material.extracted_text
+        return response
+    except HTTPException:
+        raise
+    except Exception as error:
+        logger.exception(
+            "Lecture transcription failed for material %s",
+            material.id,
+        )
+        material.intelligence_status = "failed"
+        material.intelligence_error = (
+            "Lecture transcription failed. The recording is still saved."
+        )
+        db.add(material)
+        db.commit()
+
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "StudySnap saved the recording, but transcription failed. "
+                "Try again from the Lecture Library."
+            ),
+        ) from error
+
+
 @router.post("/{material_id}/analyze")
 def analyze_existing_material(
     material_id: int,
@@ -1360,6 +1630,7 @@ def delete_material(
 
     try:
         file_path.unlink(missing_ok=True)
+        lecture_metadata_path(material).unlink(missing_ok=True)
     except OSError:
         pass
 

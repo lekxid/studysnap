@@ -68,6 +68,11 @@ const primaryNavItems: NavItem[] = [
 
 const studyToolNavItems: NavItem[] = [
   {
+    href: "/lectures",
+    label: "Lectures",
+    icon: "◉",
+  },
+  {
     href: "/notes",
     label: "Notes",
     icon: "▣",
@@ -202,6 +207,7 @@ const mobileNavItems: MobileNavItem[] = [
 ];
 
 const projectAwareNavHrefs = new Set([
+  "/lectures",
   "/notes",
   "/flashcards",
   "/quizzes",
@@ -276,6 +282,10 @@ function getPageKicker(pathname: string) {
 
   if (pathname.startsWith("/study-rooms")) {
     return "StudySnap Projects";
+  }
+
+  if (pathname.startsWith("/lectures")) {
+    return "Lecture Capture";
   }
 
   if (pathname.startsWith("/notes")) {

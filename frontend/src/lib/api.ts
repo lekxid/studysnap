@@ -2175,6 +2175,106 @@ export async function getStudyMaterials(
   ) as Promise<StudyMaterialListResponse>;
 }
 
+export type LectureBookmark = {
+  id: string;
+  offset_seconds: number;
+  label: string;
+};
+
+export type LectureMetadata = {
+  material_id: number;
+  title: string;
+  duration_seconds: number;
+  recorded_at: string | null;
+  consent_confirmed: boolean;
+  bookmarks: LectureBookmark[];
+};
+
+export type LectureMetadataInput = Omit<
+  LectureMetadata,
+  "material_id"
+>;
+
+export async function getLectureMetadata(
+  materialId: number
+): Promise<LectureMetadata> {
+  return apiFetch(
+    `/api/materials/${materialId}/lecture-metadata`
+  ) as Promise<LectureMetadata>;
+}
+
+export async function updateLectureMetadata(
+  materialId: number,
+  metadata: LectureMetadataInput
+): Promise<LectureMetadata> {
+  return apiFetch(
+    `/api/materials/${materialId}/lecture-metadata`,
+    {
+      method: "PUT",
+      body: JSON.stringify(metadata),
+    }
+  ) as Promise<LectureMetadata>;
+}
+
+export async function transcribeLectureMaterial(
+  materialId: number
+): Promise<StudyMaterialItem & { transcript: string }> {
+  return apiFetch(
+    `/api/materials/${materialId}/transcribe`,
+    {
+      method: "POST",
+    }
+  ) as Promise<StudyMaterialItem & { transcript: string }>;
+}
+
+export async function getStudyMaterialPreview(
+  materialId: number
+): Promise<{
+  id: number;
+  filename: string;
+  material_type: string;
+  text: string;
+}> {
+  return apiFetch(
+    `/api/materials/${materialId}/preview`
+  ) as Promise<{
+    id: number;
+    filename: string;
+    material_type: string;
+    text: string;
+  }>;
+}
+
+export async function getStudyMaterialBlob(
+  materialId: number
+): Promise<Blob> {
+  const token = getToken();
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/materials/${materialId}/download`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  if (!response.ok) {
+    const message = await readResponseError(
+      response,
+      "The lecture recording could not be loaded."
+    );
+
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
 export async function openStudyMaterial(
   materialId: number,
   fallbackFilename: string
