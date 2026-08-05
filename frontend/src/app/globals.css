@@ -5174,3 +5174,268 @@ article[data-studysnap-comparison-result="true"]
   filter: none;
 }
 /* STUDYSNAP_GENERAL_AI_SHARP_ARROW_TAP_V1_END */
+
+/* STUDYSNAP_GENERAL_AI_HIGH_QUALITY_FAST_IMAGE_V1_1 */
+.studysnap-hq-image-workspace {
+  width: min(100%, 34rem);
+  display: grid;
+  gap: 0.72rem;
+}
+
+.studysnap-hq-image-status-row {
+  min-height: 2.1rem;
+  display: flex;
+  align-items: center;
+}
+
+.studysnap-hq-image-canvas {
+  position: relative;
+  isolation: isolate;
+  min-height: 20rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(38, 38, 41, 0.97),
+      rgba(21, 21, 23, 0.99)
+    );
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+/* STUDYSNAP_GENERAL_AI_IMAGE_ORBIT_DOTS_V1 */
+.studysnap-hq-image-orbit {
+  position: absolute;
+  inset: 0.42rem;
+  z-index: 8;
+  width: calc(100% - 0.84rem);
+  height: calc(100% - 0.84rem);
+  overflow: visible;
+  pointer-events: none;
+  filter:
+    drop-shadow(
+      0 0 0.24rem
+      rgba(216, 200, 120, 0.3)
+    );
+}
+
+.studysnap-hq-image-orbit rect {
+  fill: none;
+  stroke: rgba(228, 216, 146, 0.84);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-dasharray: 0.85 2.3;
+  stroke-dashoffset: 0;
+  animation:
+    studysnap-hq-image-orbit-roll
+    2.4s linear infinite;
+}
+
+@keyframes studysnap-hq-image-orbit-roll {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_IMAGE_ORBIT_DOTS_V1_END */
+
+.studysnap-hq-image-source {
+  position: absolute;
+  inset: 0;
+  z-index: -4;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter:
+    brightness(0.42)
+    saturate(0.78)
+    blur(1.2px);
+  transform: scale(1.025);
+}
+
+.studysnap-hq-image-dots {
+  position: absolute;
+  inset: 0;
+  z-index: -4;
+  opacity: 0.52;
+  background-image:
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.13) 1px,
+      transparent 1.25px
+    );
+  background-size: 1.1rem 1.1rem;
+  mask-image:
+    radial-gradient(
+      ellipse at center,
+      black 8%,
+      transparent 74%
+    );
+  animation:
+    studysnap-hq-image-drift
+    7s linear infinite;
+}
+
+.studysnap-hq-image-dim {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      transparent 0,
+      rgba(0, 0, 0, 0.08) 46%,
+      rgba(0, 0, 0, 0.5) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.12),
+      rgba(0, 0, 0, 0.43)
+    );
+}
+
+.studysnap-hq-image-scan {
+  position: absolute;
+  inset: -45% -20%;
+  z-index: -2;
+  width: 42%;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(234, 223, 159, 0.1),
+      transparent
+    );
+  transform:
+    translateX(-140%)
+    rotate(14deg);
+  animation:
+    studysnap-hq-image-scan
+    3.8s ease-in-out infinite;
+}
+
+.studysnap-hq-image-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding:
+    1.3rem 1.35rem 0;
+  color: #f5f5f5;
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: -0.018em;
+}
+
+.studysnap-hq-image-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding-top: 0.2rem;
+}
+
+.studysnap-hq-image-typing i {
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: #d8c878;
+  opacity: 0.35;
+  animation:
+    studysnap-hq-image-dot
+    1.15s ease-in-out infinite;
+}
+
+.studysnap-hq-image-typing i:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.studysnap-hq-image-typing i:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.studysnap-hq-image-subtitle {
+  position: absolute;
+  left: 1.35rem;
+  right: 1.35rem;
+  bottom: 1.15rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+@keyframes studysnap-hq-image-dot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translateY(-0.18rem);
+  }
+}
+
+@keyframes studysnap-hq-image-scan {
+  0%,
+  18% {
+    transform:
+      translateX(-150%)
+      rotate(14deg);
+  }
+
+  72%,
+  100% {
+    transform:
+      translateX(390%)
+      rotate(14deg);
+  }
+}
+
+@keyframes studysnap-hq-image-drift {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position:
+      1.1rem 1.1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .studysnap-hq-image-workspace {
+    width: 100%;
+  }
+
+  .studysnap-hq-image-canvas {
+    min-height: min(58vh, 25rem);
+    border-radius: 1.5rem;
+  }
+
+  .studysnap-hq-image-heading {
+    padding:
+      1.1rem 1.1rem 0;
+    font-size: 0.94rem;
+  }
+
+  .studysnap-hq-image-subtitle {
+    left: 1.1rem;
+    right: 1.1rem;
+    bottom: 0.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studysnap-hq-image-dots,
+  .studysnap-hq-image-scan,
+  .studysnap-hq-image-typing i,
+  .studysnap-hq-image-orbit rect {
+    animation: none !important;
+  }
+}
+/* STUDYSNAP_GENERAL_AI_HIGH_QUALITY_FAST_IMAGE_V1_1_END */

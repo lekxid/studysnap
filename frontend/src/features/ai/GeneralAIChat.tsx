@@ -47,6 +47,7 @@ import {
   uploadUniversalMaterial,
   deleteAIAttachment,
   editAIImage,
+  quickEditAIImage,
   generateAIImage,
   deleteAIConversation,
   getAIMessages,
@@ -2910,6 +2911,70 @@ function asksForComparisonImageEdit(
 }
 
 
+// STUDYSNAP_GENERAL_AI_LATEST_IMAGE_NATURAL_EDIT_V1
+function asksForLatestImageEdit(
+  value: string,
+): boolean {
+  const text = value.trim();
+
+  if (!text) {
+    return false;
+  }
+
+  const editSignal =
+    asksToEditImage(text)
+    || /\b(?:brighten|brighter|lighten|darken|sharpen|sharper|clearer|enhance|improve|retouch|crop|reframe|remove|replace|change|adjust|fix|clean|blur|background|colour|color)\b/i.test(
+      text
+    );
+
+  const imageReferenceSignal =
+    /\b(?:it|this|that|same|last|latest|previous|recent|image|photo|picture|pic|background)\b/i.test(
+      text
+    );
+
+  const conciseEditSignal =
+    text.split(/\s+/).filter(Boolean).length <= 10
+    && /^(?:please\s+)?(?:make\s+)?(?:it\s+)?(?:brighter|darker|lighter|sharper|clearer|cleaner|better|nicer|professional|remove|replace|crop|fix|enhance|improve)\b/i.test(
+      text
+    );
+
+  const explicitlyNewImage =
+    /\b(?:from\s+scratch|brand[-\s]?new|new\s+scene|another\s+image|different\s+image)\b/i.test(
+      text
+    );
+
+  return (
+    editSignal
+    && (imageReferenceSignal || conciseEditSignal)
+    && !explicitlyNewImage
+  );
+}
+
+function cleanLatestImageEditPrompt(
+  value: string,
+): string {
+  const cleaned =
+    value
+      .replace(
+        /^\s*(?:create|generate)\s+(?:an?\s+)?image\s*:\s*/i,
+        "",
+      )
+      .replace(
+        /^\s*yes(?:\s*[,.:;-]\s*|\s+)/i,
+        "",
+      )
+      .trim();
+
+  return (
+    cleaned
+    || (
+      "Improve the latest image while preserving "
+      + "its original subject and important details."
+    )
+  );
+}
+
+
 function asksToEditImage(
   value: string,
 ) {
@@ -3004,6 +3069,7 @@ function asksAboutExistingImage(
 
 
 // STUDYSNAP_GENERAL_AI_PHASE_6H_PREMIUM_IMAGE_QUALITY
+// STUDYSNAP_GENERAL_AI_PROFESSIONAL_IMAGE_EXPERIENCE_V1_1
 async function resolveBestImageEditSize(
   file: File,
 ): Promise<GenerateAIImageSize> {
@@ -3033,7 +3099,7 @@ async function resolveBestImageEditSize(
           image.naturalHeight || image.height;
 
         if (!width || !height) {
-          finish("1024x1024");
+          finish("1792x1792");
           return;
         }
 
@@ -3041,25 +3107,92 @@ async function resolveBestImageEditSize(
           width / height;
 
         if (ratio <= 0.9) {
-          finish("1024x1536");
+          finish("1536x2048");
           return;
         }
 
         if (ratio >= 1.1) {
-          finish("1536x1024");
+          finish("2048x1536");
           return;
         }
 
-        finish("1024x1024");
+        finish("1792x1792");
       };
 
       image.onerror = () => {
-        finish("1024x1024");
+        finish("1792x1792");
       };
 
       image.src = objectUrl;
     },
   );
+}
+
+
+// STUDYSNAP_GENERAL_AI_QUICK_EDIT_ENGINE_V1_2
+function shouldUseStudySnapQuickEdit(
+  prompt: string,
+): boolean {
+  const normalized = prompt
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  const requiresGenerativeEdit =
+    /\b(?:add|insert|remove|erase|replace|swap|background|object|person|people|clothes?|outfit|hair|face|eyes?|body|pose|location|scene|cartoon|anime|painting|illustration|style|turn\s+into|transform\s+into|change\s+the\s+(?:background|person|face|clothes?|object|scene))\b/i.test(
+      normalized
+    );
+
+  if (requiresGenerativeEdit) {
+    return false;
+  }
+
+  return /\b(?:brighter|brighten|lighten|darker|darken|brightness|lighting|contrast|saturation|more\s+colou?r|less\s+colou?r|vibrant|warmer|warmth|cooler|sharper|sharpen|clearer|crisper|clarity|black\s*(?:and|&)\s*white|grayscale|greyscale|monochrome|make\s+it(?:\s+look)?\s+(?:nice|nicer|better|professional)|enhance\s+(?:it|this|the\s+(?:photo|image))|improve\s+(?:it|this|the\s+(?:photo|image))|clean\s+(?:it|this)\s+up|professional\s+photo\s+edit)\b/i.test(
+    normalized
+  );
+}
+
+
+// STUDYSNAP_GENERAL_AI_ADAPTIVE_IMAGE_SPEED_V1_3
+function asksForMaximumImageQuality(
+  prompt: string,
+): boolean {
+  return /\b(?:maximum\s+quality|highest\s+quality|best\s+possible\s+quality|ultra[\s-]?hd|4k|8k|print[\s-]?ready|full[\s-]?resolution|maximum[\s-]?resolution|final[\s-]?master)\b/i.test(
+    prompt
+  );
+}
+
+function standardImageEditSize(
+  size:
+    | "1024x1024"
+    | "1536x1024"
+    | "1024x1536"
+    | "1792x1792"
+    | "2048x1536"
+    | "1536x2048",
+):
+  | "1024x1024"
+  | "1536x1024"
+  | "1024x1536" {
+  if (
+    size === "2048x1536"
+    || size === "1536x1024"
+  ) {
+    return "1536x1024";
+  }
+
+  if (
+    size === "1536x2048"
+    || size === "1024x1536"
+  ) {
+    return "1024x1536";
+  }
+
+  return "1024x1024";
 }
 
 
@@ -3088,6 +3221,389 @@ async function imageSourceToFile(
     }
   );
 }
+
+// STUDYSNAP_GENERAL_AI_HIGH_QUALITY_FAST_IMAGE_V1_1
+type PreparedImageEditSource = {
+  file: File;
+  preview: string;
+  changed: boolean;
+};
+
+const preparedImageEditCache =
+  new Map<
+    string,
+    Promise<PreparedImageEditSource>
+  >();
+
+function preparedImageEditKey(
+  file: File,
+): string {
+  return [
+    file.name,
+    file.type,
+    file.size,
+    file.lastModified,
+  ].join(
+    "::"
+  );
+}
+
+async function blobToImagePreview(
+  blob: Blob,
+): Promise<string> {
+  return await new Promise<string>(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
+
+      reader.onload = () => {
+        if (
+          typeof reader.result === "string"
+          && reader.result
+        ) {
+          resolve(
+            reader.result
+          );
+
+          return;
+        }
+
+        reject(
+          new Error(
+            "StudySnap could not prepare the image preview."
+          )
+        );
+      };
+
+      reader.onerror = () => {
+        reject(
+          reader.error
+          || new Error(
+            "StudySnap could not prepare the image preview."
+          )
+        );
+      };
+
+      reader.readAsDataURL(
+        blob
+      );
+    },
+  );
+}
+
+async function prepareImageForFastHighQualityEdit(
+  file: File,
+  fallbackPreview: string,
+): Promise<PreparedImageEditSource> {
+  const key =
+    preparedImageEditKey(
+      file
+    );
+
+  const cached =
+    preparedImageEditCache.get(
+      key
+    );
+
+  if (cached) {
+    return await cached;
+  }
+
+  const preparation =
+    (async (): Promise<PreparedImageEditSource> => {
+      const extension =
+        file.name
+          .split(".")
+          .pop()
+          ?.toLowerCase()
+        || "";
+
+      const isHeic =
+        extension === "heic"
+        || extension === "heif"
+        || file.type === "image/heic"
+        || file.type === "image/heif"
+        || file.type === "image/heic-sequence"
+        || file.type === "image/heif-sequence";
+
+      let sourceFile =
+        file;
+
+      let changed =
+        false;
+
+      if (isHeic) {
+        const heicModule =
+          await import(
+            "heic2any"
+          );
+
+        const convertedResult =
+          await heicModule.default({
+            blob:
+              file,
+            toType:
+              "image/jpeg",
+            quality:
+              0.96,
+          });
+
+        const convertedBlob =
+          Array.isArray(
+            convertedResult
+          )
+            ? convertedResult[0]
+            : convertedResult;
+
+        sourceFile =
+          new File(
+            [
+              convertedBlob,
+            ],
+            file.name.replace(
+              /\.(?:heic|heif)$/i,
+              "",
+            )
+            + ".jpg",
+            {
+              type:
+                "image/jpeg",
+              lastModified:
+                file.lastModified,
+            },
+          );
+
+        changed =
+          true;
+      }
+
+      if (
+        typeof createImageBitmap === "undefined"
+        || typeof document === "undefined"
+      ) {
+        return {
+          file:
+            sourceFile,
+          preview:
+            changed
+              ? await blobToImagePreview(
+                  sourceFile
+                )
+              : fallbackPreview,
+          changed,
+        };
+      }
+
+      let bitmap:
+        ImageBitmap | null =
+        null;
+
+      try {
+        bitmap =
+          await createImageBitmap(
+            sourceFile
+          );
+
+        const longestEdge =
+          Math.max(
+            bitmap.width,
+            bitmap.height,
+          );
+
+        const maximumEdge =
+          2560;
+
+        const shouldResize =
+          longestEdge > maximumEdge
+          || sourceFile.size
+            > 6 * 1024 * 1024;
+
+        if (!shouldResize) {
+          return {
+            file:
+              sourceFile,
+            preview:
+              changed
+                ? await blobToImagePreview(
+                    sourceFile
+                  )
+                : fallbackPreview,
+            changed,
+          };
+        }
+
+        const scale =
+          Math.min(
+            1,
+            maximumEdge / longestEdge,
+          );
+
+        const width =
+          Math.max(
+            1,
+            Math.round(
+              bitmap.width
+              * scale
+            ),
+          );
+
+        const height =
+          Math.max(
+            1,
+            Math.round(
+              bitmap.height
+              * scale
+            ),
+          );
+
+        const canvas =
+          document.createElement(
+            "canvas"
+          );
+
+        canvas.width =
+          width;
+
+        canvas.height =
+          height;
+
+        const context =
+          canvas.getContext(
+            "2d",
+            {
+              alpha:
+                sourceFile.type === "image/png",
+            },
+          );
+
+        if (!context) {
+          return {
+            file:
+              sourceFile,
+            preview:
+              changed
+                ? await blobToImagePreview(
+                    sourceFile
+                  )
+                : fallbackPreview,
+            changed,
+          };
+        }
+
+        context.imageSmoothingEnabled =
+          true;
+
+        context.imageSmoothingQuality =
+          "high";
+
+        context.drawImage(
+          bitmap,
+          0,
+          0,
+          width,
+          height,
+        );
+
+        const outputType =
+          sourceFile.type === "image/png"
+            ? "image/png"
+            : "image/jpeg";
+
+        const outputBlob =
+          await new Promise<Blob | null>(
+            (resolve) => {
+              canvas.toBlob(
+                resolve,
+                outputType,
+                0.96,
+              );
+            },
+          );
+
+        if (!outputBlob) {
+          return {
+            file:
+              sourceFile,
+            preview:
+              changed
+                ? await blobToImagePreview(
+                    sourceFile
+                  )
+                : fallbackPreview,
+            changed,
+          };
+        }
+
+        const outputName =
+          outputType === "image/png"
+            ? sourceFile.name.replace(
+                /\.[^.]+$/,
+                "",
+              )
+              + ".png"
+            : sourceFile.name.replace(
+                /\.[^.]+$/,
+                "",
+              )
+              + ".jpg";
+
+        const preparedFile =
+          new File(
+            [
+              outputBlob,
+            ],
+            outputName,
+            {
+              type:
+                outputType,
+              lastModified:
+                sourceFile.lastModified,
+            },
+          );
+
+        return {
+          file:
+            preparedFile,
+          preview:
+            await blobToImagePreview(
+              preparedFile
+            ),
+          changed:
+            true,
+        };
+      } catch {
+        return {
+          file:
+            sourceFile,
+          preview:
+            changed
+              ? await blobToImagePreview(
+                  sourceFile
+                )
+              : fallbackPreview,
+          changed,
+        };
+      } finally {
+        bitmap?.close();
+      }
+    })();
+
+  preparedImageEditCache.set(
+    key,
+    preparation,
+  );
+
+  try {
+    return await preparation;
+  } catch (error) {
+    preparedImageEditCache.delete(
+      key
+    );
+
+    throw error;
+  }
+}
+
 
 // STUDYSNAP_GENERAL_AI_LIVE_IMAGE_JUMP_V1
 async function fileToLiveImagePreview(
@@ -3367,6 +3883,131 @@ function getAIActivityVisual(
     fallbackLabel: "Thinking",
   };
 }
+
+function highQualityImageActivityTitle(
+  label: string,
+): string {
+  const normalized =
+    label
+      .trim()
+      .toLowerCase();
+
+  if (
+    normalized.includes("edit")
+    || normalized.includes("enhanc")
+    || normalized.includes("detail")
+    || normalized.includes("prepar")
+  ) {
+    return "Applying your edit";
+  }
+
+  if (
+    normalized.includes("finish")
+    || normalized.includes("ready")
+  ) {
+    return "Finishing the image";
+  }
+
+  if (
+    normalized.includes("creat")
+    || normalized.includes("generat")
+    || normalized.includes("render")
+  ) {
+    return "Sketching it out";
+  }
+
+  return "Working on your image";
+}
+
+function HighQualityImageActivityCanvas({
+  label,
+  preview,
+}: {
+  label: string;
+  preview?: string;
+}) {
+  const title =
+    highQualityImageActivityTitle(
+      label
+    );
+
+  return (
+    <div
+      className="studysnap-hq-image-workspace"
+      role="status"
+      aria-live="polite"
+      aria-label={`${label}. ${title}.`}
+    >
+      <div className="studysnap-hq-image-status-row">
+        <AIActivityIndicator
+          label={label}
+        />
+      </div>
+
+      <div className="studysnap-hq-image-canvas">
+        {/* STUDYSNAP_GENERAL_AI_IMAGE_ORBIT_DOTS_V1 */}
+        <svg
+          className="studysnap-hq-image-orbit"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <rect
+            x="1.4"
+            y="1.4"
+            width="97.2"
+            height="97.2"
+            rx="5.5"
+            ry="5.5"
+            pathLength="100"
+          />
+        </svg>
+
+        {preview ? (
+          <img
+            src={preview}
+            alt=""
+            aria-hidden="true"
+            className="studysnap-hq-image-source"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="studysnap-hq-image-dots"
+          />
+        )}
+
+        <div
+          aria-hidden="true"
+          className="studysnap-hq-image-dim"
+        />
+
+        <div
+          aria-hidden="true"
+          className="studysnap-hq-image-scan"
+        />
+
+        <div className="studysnap-hq-image-heading">
+          <span>{title}</span>
+
+          <span
+            aria-hidden="true"
+            className="studysnap-hq-image-typing"
+          >
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
+
+        <p className="studysnap-hq-image-subtitle">
+          Professional image processing is active. You can stop at any time.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 function AIActivityIndicator({
   label,
@@ -6190,6 +6831,163 @@ export default function GeneralAIChat({
 
 
   // STUDYSNAP_GENERAL_AI_COMPARISON_OPTION_EDIT_V2_10_5
+  async function resolveLatestImageForEdit(
+  ): Promise<ComparisonImageEditSource | null> {
+    const isImageFile = (
+      file: File,
+    ) =>
+      file.type.toLowerCase().startsWith("image/")
+      || /\.(?:png|jpe?g|webp|gif|heic|heif)$/i.test(
+        file.name
+      );
+
+    if (
+      selectedImage
+      && isImageFile(selectedImage)
+    ) {
+      return {
+        file: selectedImage,
+        preview: selectedImagePreview || "",
+        name: selectedImage.name || "selected-image.png",
+      };
+    }
+
+    const activeComposerImages =
+      pendingAttachments.filter(
+        (attachment) =>
+          attachment.kind === "image"
+          && isImageFile(attachment.file)
+      );
+
+    const activeComposerImage =
+      activeComposerImages[
+        activeComposerImages.length - 1
+      ];
+
+    if (activeComposerImage) {
+      return {
+        file: activeComposerImage.file,
+        preview: activeComposerImage.preview || "",
+        name:
+          activeComposerImage.name
+          || activeComposerImage.file.name
+          || "attached-image.png",
+      };
+    }
+
+    const selectedQueueTasks =
+      fileBrainQueue.tasks.filter(
+        (task) =>
+          task.selectedForAsk
+          && task.status !== "cancelled"
+      );
+
+    if (selectedQueueTasks.length > 0) {
+      try {
+        const queuedFiles =
+          await fileBrainQueue.getFilesForTasks(
+            selectedQueueTasks
+          );
+
+        const queuedImages =
+          queuedFiles.filter(isImageFile);
+
+        const queuedImage =
+          queuedImages[queuedImages.length - 1];
+
+        if (queuedImage) {
+          const matchingTask =
+            [...selectedQueueTasks]
+              .reverse()
+              .find(
+                (task) =>
+                  task.filename === queuedImage.name
+              );
+
+          return {
+            file: queuedImage,
+            preview: matchingTask?.previewUrl || "",
+            name: queuedImage.name || "included-image.png",
+          };
+        }
+      } catch {
+        // Continue to persisted recent messages.
+      }
+    }
+
+    const recentMessages =
+      messages.slice(-8);
+
+    for (
+      let index = recentMessages.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const message = recentMessages[index];
+
+      const imageAttachments =
+        message.attachments?.filter(
+          (attachment) =>
+            attachment.kind === "image"
+            && Boolean(attachment.preview)
+        )
+        || [];
+
+      const latestAttachment =
+        imageAttachments[
+          imageAttachments.length - 1
+        ];
+
+      const preview =
+        latestAttachment?.preview
+        || message.imagePreview
+        || "";
+
+      if (!preview) {
+        continue;
+      }
+
+      const name =
+        latestAttachment?.name
+        || message.imageName
+        || "studysnap-latest-image.png";
+
+      try {
+        const file =
+          await imageSourceToFile(
+            preview,
+            name,
+          );
+
+        return {
+          file,
+          preview,
+          name: name || file.name,
+        };
+      } catch {
+        // Keep looking inside the recent exchange.
+      }
+    }
+
+    const roomImages =
+      roomCreationOffer?.files.filter(isImageFile)
+      || [];
+
+    const roomImage =
+      roomImages[roomImages.length - 1];
+
+    if (roomImage) {
+      return {
+        file: roomImage,
+        preview: "",
+        name: roomImage.name || "recent-upload.png",
+      };
+    }
+
+    return null;
+  }
+
+
   async function resolveComparisonImageForEdit(
     index: 0 | 1,
   ): Promise<ComparisonImageEditSource | null> {
@@ -6484,6 +7282,25 @@ export default function GeneralAIChat({
           : ""
       );
 
+    const quickImageEditRequested =
+      Boolean(
+        referenceImage
+        && shouldUseStudySnapQuickEdit(
+          prompt
+        )
+      );
+
+    const maximumImageQuality =
+      asksForMaximumImageQuality(
+        prompt
+      );
+
+    const imageRequestQuality:
+      "medium" | "high" =
+        maximumImageQuality
+          ? "high"
+          : "medium";
+
     if (!prompt || loading) {
       return;
     }
@@ -6534,6 +7351,38 @@ export default function GeneralAIChat({
     activeImageAssistantIdRef.current =
       assistantMessageId;
 
+    // STUDYSNAP_GENERAL_AI_IMAGE_PROGRESS_COMPLETION_V1
+    const imageStageTimers: number[] = [];
+
+    const queueImageStage = (
+      delayMs: number,
+      label: string,
+      detail: string,
+    ) => {
+      const timer =
+        window.setTimeout(
+          () => {
+            if (
+              imageController.signal.aborted
+              || imageRequestRef.current
+                !== imageController
+            ) {
+              return;
+            }
+
+            recordActivity({
+              label,
+              detail,
+            });
+          },
+          delayMs,
+        );
+
+      imageStageTimers.push(
+        timer
+      );
+    };
+
     try {
       setLoading(true);
       setCanStopCurrent(true);
@@ -6542,16 +7391,74 @@ export default function GeneralAIChat({
 
       startActivitySession();
 
+      queueImageStage(
+        12_000,
+        referenceImage
+          ? "Preparing your edit"
+          : "Preparing your image",
+        referenceImage
+          ? "StudySnap is preparing the source image and your requested change."
+          : "StudySnap is preparing the image request.",
+      );
+
+      queueImageStage(
+        30_000,
+        "Creating the result",
+        "The image request is still active. You can stop it at any time.",
+      );
+
+      queueImageStage(
+        55_000,
+        "Refining details",
+        "StudySnap is waiting for the finished image and keeping this task active.",
+      );
+
+      queueImageStage(
+        90_000,
+        "Still working",
+        "This image is taking longer than usual, but the request is still active.",
+      );
+
+      queueImageStage(
+        150_000,
+        "Finalizing your image",
+        "The request is still running. StudySnap will show the result as soon as it arrives.",
+      );
+
+      const preparedReferencePromise =
+        referenceImage
+          ? quickImageEditRequested
+            ? Promise.resolve({
+                file: referenceImage,
+                preview:
+                  referencePreview,
+                changed: false,
+              })
+            : prepareImageForFastHighQualityEdit(
+                referenceImage,
+                referencePreview,
+              )
+          : Promise.resolve(
+              null
+            );
+
       recordActivity({
-        label: referenceImage
-          ? "Preparing image"
-          : "Creating image",
-        detail: referenceImage
+        label: quickImageEditRequested
+          ? "Applying quick edit"
+          : referenceImage
+            ? "Preparing image"
+            : "Creating image",
+        detail: quickImageEditRequested
           ? (
-              "StudySnap is preparing the original image "
-              + "for a premium-quality edit."
+              "StudySnap is applying the requested "
+              + "pixel-preserving adjustment locally."
             )
-          : "Generating a new image at high quality.",
+          : referenceImage
+            ? (
+                "StudySnap is preparing the original image "
+                + "for a generative edit."
+              )
+            : "Generating a new image.",
       });
 
       const conversationId =
@@ -6591,51 +7498,116 @@ export default function GeneralAIChat({
 
       scrollToBottom();
 
-      recordActivity({
-        label: referenceImage
-          ? "Enhancing details"
-          : "Creating image",
-        detail: referenceImage
-          ? (
-              "Improving lighting, detail, colour, texture, "
-              + "and overall finish while preserving identity."
+      const preparedReference =
+        await preparedReferencePromise;
+
+      const requestReferenceImage =
+        preparedReference?.file
+        || referenceImage;
+
+      const requestReferencePreview =
+        preparedReference?.preview
+        || referencePreview;
+
+      if (
+        referenceImage
+        && requestReferencePreview
+        && requestReferencePreview !== referencePreview
+      ) {
+        setMessages(
+          (current) =>
+            current.map(
+              (message) =>
+                message.id === userMessageId
+                  ? {
+                      ...message,
+                      imagePreview:
+                        requestReferencePreview,
+                      imageName:
+                        requestReferenceImage?.name
+                        || referenceName,
+                    }
+                  : message
             )
-          : "Rendering the finished high-quality result.",
+        );
+      }
+
+      recordActivity({
+        label: quickImageEditRequested
+          ? "Finishing quick edit"
+          : referenceImage
+            ? "Enhancing details"
+            : "Creating image",
+        detail: quickImageEditRequested
+          ? (
+              "Preserving the original dimensions, "
+              + "identity, composition, and image structure."
+            )
+          : referenceImage
+            ? (
+                "The generative editor is applying "
+                + "the requested visual change."
+              )
+            : "Rendering the finished image.",
       });
 
       const resolvedImageSize =
-        referenceImage
+        requestReferenceImage
           ? await resolveBestImageEditSize(
-              referenceImage,
+              requestReferenceImage,
             )
           : imageSize;
 
-      const result = referenceImage
-        ? await editAIImage(
-            prompt,
-            referenceImage,
-            {
-              conversationId,
-              size: resolvedImageSize,
-              quality: "high",
-              signal: imageController.signal,
-              requestId: imageRequestId,
-              identityImage:
-                identityImageForRequest &&
-                identityImageForRequest !==
-                  referenceImage
-                  ? identityImageForRequest
-                  : null,
-            }
-          )
+      const requestImageSize =
+        requestReferenceImage
+        && !maximumImageQuality
+          ? standardImageEditSize(
+              resolvedImageSize
+            )
+          : resolvedImageSize;
+
+      const result = requestReferenceImage
+        ? quickImageEditRequested
+          ? await quickEditAIImage(
+              prompt,
+              requestReferenceImage,
+              {
+                conversationId,
+                studyRoomId:
+                  activeStudyRoomId,
+                signal:
+                  imageController.signal,
+              }
+            )
+          : await editAIImage(
+              prompt,
+              requestReferenceImage,
+              {
+                conversationId,
+                size: requestImageSize,
+                quality: imageRequestQuality,
+                signal:
+                  imageController.signal,
+                requestId:
+                  imageRequestId,
+                identityImage:
+                  identityImageForRequest
+                  && identityImageForRequest
+                    !== referenceImage
+                    ? identityImageForRequest
+                    : null,
+              }
+            )
         : await generateAIImage(
             prompt,
             {
               conversationId,
               size: imageSize,
-              quality: "high",
-              signal: imageController.signal,
-              requestId: imageRequestId,
+              quality: imageRequestQuality,
+              signal:
+                imageController.signal,
+              requestId:
+                imageRequestId,
               contextMessages:
                 buildRecentImageContext(
                   messages
@@ -6643,11 +7615,22 @@ export default function GeneralAIChat({
             }
           );
 
-      recordActivity({
-        label: "Saving image",
-        detail:
-          "The image model finished. StudySnap is preparing the result for immediate display.",
-      });
+      // STUDYSNAP_GENERAL_AI_QUICK_EDIT_PROGRESS_COMPAT_V1
+      if (quickImageEditRequested) {
+        recordActivity({
+          label: "Saving quick edit",
+          detail:
+            "Quick Edit finished. StudySnap is "
+            + "saving it into this conversation.",
+        });
+      } else {
+        recordActivity({
+          label: "Almost done",
+          detail:
+            "The image result is ready. StudySnap is "
+            + "preparing it for immediate display.",
+        });
+      }
 
       const imageSource =
         result.image_data_url ||
@@ -6855,6 +7838,48 @@ export default function GeneralAIChat({
 
       focusLatestMessageAfterRender();
 
+      imageStageTimers.forEach(
+        (timer) =>
+          window.clearTimeout(
+            timer
+          )
+      );
+
+      recordActivity({
+        label: "Image ready",
+        detail: referenceImage
+          ? "Your edited image is ready."
+          : "Your new image is ready.",
+      });
+
+      if (
+        imageRequestRef.current ===
+          imageController
+      ) {
+        imageRequestRef.current = null;
+      }
+
+      if (
+        activeImageAssistantIdRef.current ===
+          assistantMessageId
+      ) {
+        activeImageAssistantIdRef.current =
+          null;
+      }
+
+      if (
+        activeImageRequestIdRef.current ===
+          imageRequestId
+      ) {
+        activeImageRequestIdRef.current =
+          null;
+      }
+
+      setCanStopCurrent(false);
+      setLoading(false);
+      clearActivityAfter(2_800);
+      inputRef.current?.focus();
+
       activeImageTaskRef.current =
         null;
 
@@ -6875,8 +7900,10 @@ export default function GeneralAIChat({
               finishedAt -
               imageStartedAt
             ),
-          size: resolvedImageSize,
-          quality: "high",
+          size: requestImageSize,
+          quality: quickImageEditRequested
+            ? "local"
+            : imageRequestQuality,
         }
       );
 
@@ -6896,8 +7923,15 @@ export default function GeneralAIChat({
         );
       }
 
-      await refreshTrails(
+      void refreshTrails(
         conversationId
+      ).catch(
+        (refreshError) => {
+          console.warn(
+            "[StudySnap image trail refresh]",
+            refreshError,
+          );
+        }
       );
 
       focusLatestMessageAfterRender();
@@ -6959,6 +7993,12 @@ export default function GeneralAIChat({
 
       setError(message);
     } finally {
+      imageStageTimers.forEach(
+        (timer) =>
+          window.clearTimeout(
+            timer
+          )
+      );
       if (
         imageRequestRef.current ===
         imageController
@@ -7893,11 +8933,23 @@ export default function GeneralAIChat({
           )
         : null;
 
+    const latestImageEditRequested =
+      requestedComparisonIndex === null
+      && asksForLatestImageEdit(
+        cleanInput
+      );
+
+    const latestImageToEdit =
+      latestImageEditRequested
+        ? await resolveLatestImageForEdit()
+        : null;
+
     const hasCurrentImage =
       selectedImage !== null ||
       queuedImage !== null ||
       lastGeneratedImage !== null ||
-      comparisonImageToEdit !== null;
+      comparisonImageToEdit !== null ||
+      latestImageToEdit !== null;
     if (
       comparisonImageEditRequested
       && requestedComparisonIndex !== null
@@ -7988,6 +9040,32 @@ export default function GeneralAIChat({
 
       setCreateImageMode(false);
       await sendMessage();
+      return;
+    }
+
+    if (
+      latestImageEditRequested
+    ) {
+      if (!latestImageToEdit) {
+        setError(
+          "StudySnap could not reopen the latest recent image. "
+          + "Upload that image again and retry the edit."
+        );
+
+        return;
+      }
+
+      setCreateImageMode(false);
+
+      await createGeneratedImage(
+        cleanLatestImageEditPrompt(
+          cleanInput
+        ),
+        false,
+        true,
+        latestImageToEdit,
+      );
+
       return;
     }
 
@@ -10610,6 +11688,31 @@ export default function GeneralAIChat({
                         )
                       : null;
 
+                  const assistantImageActivity =
+                    loading
+                    && canStopCurrent
+                    && activeImageAssistantIdRef.current === message.id
+                    && Boolean(
+                      assistantActivity
+                    )
+                    && /\b(?:image|photo|picture|visual|edit|enhanc|render|creat|generat|prepar|detail)\b/i.test(
+                      assistantActivity || ""
+                    );
+
+                  const assistantActivityPreview =
+                    previousUserMessage?.imagePreview
+                    || previousUserMessage
+                      ?.attachments
+                      ?.find(
+                        (attachment) =>
+                          attachment.kind === "image"
+                          && Boolean(
+                            attachment.preview
+                          )
+                      )
+                      ?.preview
+                    || undefined;
+
                   return (
                     <article
                       key={message.id}
@@ -10741,11 +11844,22 @@ export default function GeneralAIChat({
 
                       {message.role === "assistant" ? (
                         assistantActivity ? (
-                          <AIActivityIndicator
-                            label={
-                              assistantActivity
-                            }
-                          />
+                          assistantImageActivity ? (
+                            <HighQualityImageActivityCanvas
+                              label={
+                                assistantActivity
+                              }
+                              preview={
+                                assistantActivityPreview
+                              }
+                            />
+                          ) : (
+                            <AIActivityIndicator
+                              label={
+                                assistantActivity
+                              }
+                            />
+                          )
                         ) : commerceResult ? (
                           <LocalCommerceCards
                             result={commerceResult}

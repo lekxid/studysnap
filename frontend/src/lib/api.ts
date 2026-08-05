@@ -887,10 +887,14 @@ export type AIMessage = {
   attachment?: AIAttachment | null;
 };
 
+// STUDYSNAP_GENERAL_AI_PROFESSIONAL_IMAGE_EXPERIENCE_V1_1
 export type GenerateAIImageSize =
   | "1024x1024"
   | "1536x1024"
-  | "1024x1536";
+  | "1024x1536"
+  | "1792x1792"
+  | "2048x1536"
+  | "1536x2048";
 
 export type GenerateAIImageQuality =
   | "low"
@@ -1036,7 +1040,7 @@ export async function generateAIImage(
           ? options.studyRoomId
           : null,
       size: options.size || "1024x1024",
-      quality: options.quality || "medium",
+      quality: options.quality || "high",
       context_messages:
         options.contextMessages
           ?.slice(-8) || [],
@@ -1049,6 +1053,71 @@ export type EditAIImageOptions =
   GenerateAIImageOptions & {
     identityImage?: File | null;
   };
+
+// STUDYSNAP_GENERAL_AI_QUICK_EDIT_ENGINE_V1_2
+export type QuickEditAIImageOptions = {
+  conversationId: number;
+  studyRoomId?: number | null;
+  signal?: AbortSignal;
+};
+
+export async function quickEditAIImage(
+  prompt: string,
+  image: File,
+  options: QuickEditAIImageOptions,
+): Promise<GenerateAIImageResponse> {
+  const cleanPrompt = prompt.trim();
+
+  if (!cleanPrompt) {
+    throw new Error(
+      "Describe the quick adjustment you want."
+    );
+  }
+
+  if (!image.size) {
+    throw new Error(
+      "The selected image is empty."
+    );
+  }
+
+  const formData = new FormData();
+
+  formData.append(
+    "prompt",
+    cleanPrompt,
+  );
+
+  formData.append(
+    "image",
+    image,
+    image.name,
+  );
+
+  formData.append(
+    "conversation_id",
+    String(options.conversationId),
+  );
+
+  if (
+    typeof options.studyRoomId
+    === "number"
+  ) {
+    formData.append(
+      "study_room_id",
+      String(options.studyRoomId),
+    );
+  }
+
+  return apiFetch(
+    "/api/ai/quick-edit-image",
+    {
+      method: "POST",
+      signal: options.signal,
+      body: formData,
+    }
+  ) as Promise<GenerateAIImageResponse>;
+}
+
 
 export async function editAIImage(
   prompt: string,

@@ -652,13 +652,16 @@ class GenerateImageRequest(BaseModel):
         "1024x1024",
         "1536x1024",
         "1024x1536",
+        "1792x1792",
+        "2048x1536",
+        "1536x2048",
     ] = "1024x1024"
     quality: Literal[
         "low",
         "medium",
         "high",
         "auto",
-    ] = "medium"
+    ] = "high"
 
 
 class GenerateFlashcardsRequest(BaseModel):
@@ -1441,9 +1444,10 @@ def generate_image(
         )
     )
 
+    # STUDYSNAP_GENERAL_AI_PROFESSIONAL_IMAGE_EXPERIENCE_V1_1
     image_model = (
         os.getenv("OPENAI_IMAGE_MODEL")
-        or "gpt-image-1"
+        or "gpt-image-2"
     )
 
     generation_prompt = f"""
@@ -1455,6 +1459,11 @@ clean spacing, and readable labels.
 Do not add unrelated logos, watermarks, or decorative text.
 When the request is ambiguous, create the most useful
 student-friendly interpretation.
+For portraits or personal photos, default to a polished,
+professional, realistic result with balanced exposure, natural
+skin texture, accurate identity, clean colour, and strong composition.
+Avoid artificial skin, face changes, warped anatomy, or excessive
+beauty filtering.
 
 Resolved student request:
 {resolved_image_prompt}
@@ -1770,6 +1779,626 @@ async def run_image_edit_in_worker(
     )
 
 
+
+# STUDYSNAP_GENERAL_AI_QUICK_EDIT_ENGINE_V1_2
+def _quick_image_edit_plan(
+    prompt: str,
+) -> dict[str, float | bool] | None:
+    import re as re_module
+
+    normalized = re_module.sub(
+        r"\s+",
+        " ",
+        prompt.lower(),
+    ).strip()
+
+    if not normalized:
+        return None
+
+    generative_change = re_module.search(
+        r"\b(?:add|insert|remove|erase|replace|swap|"
+        r"background|object|person|people|clothes?|outfit|"
+        r"hair|face|eyes?|body|pose|location|scene|"
+        r"cartoon|anime|painting|illustration|style|"
+        r"turn\s+into|transform\s+into|change\s+the\s+"
+        r"(?:background|person|face|clothes?|object|scene))\b",
+        normalized,
+    )
+
+    if generative_change:
+        return None
+
+    slight = bool(
+        re_module.search(
+            r"\b(?:slightly|a\s+little|a\s+bit|subtle|gently)\b",
+            normalized,
+        )
+    )
+
+    strong = bool(
+        re_module.search(
+            r"\b(?:much|more|strongly|dramatically|significantly)\b",
+            normalized,
+        )
+    )
+
+    scale = (
+        0.55
+        if slight
+        else 1.35
+        if strong
+        else 1.0
+    )
+
+    plan: dict[str, float | bool] = {}
+
+    if re_module.search(
+        r"\b(?:brighter|brighten|lighten|increase\s+(?:the\s+)?brightness|"
+        r"improve\s+(?:the\s+)?lighting|fix\s+(?:the\s+)?lighting)\b",
+        normalized,
+    ):
+        plan["brightness"] = 1.0 + (0.16 * scale)
+
+    if re_module.search(
+        r"\b(?:darker|darken|lower\s+(?:the\s+)?brightness|"
+        r"reduce\s+(?:the\s+)?brightness)\b",
+        normalized,
+    ):
+        plan["brightness"] = max(
+            0.55,
+            1.0 - (0.16 * scale),
+        )
+
+    if re_module.search(
+        r"\b(?:more\s+contrast|increase\s+(?:the\s+)?contrast|"
+        r"boost\s+(?:the\s+)?contrast|better\s+contrast)\b",
+        normalized,
+    ):
+        plan["contrast"] = 1.0 + (0.14 * scale)
+
+    if re_module.search(
+        r"\b(?:less\s+contrast|lower\s+(?:the\s+)?contrast|"
+        r"reduce\s+(?:the\s+)?contrast)\b",
+        normalized,
+    ):
+        plan["contrast"] = max(
+            0.6,
+            1.0 - (0.14 * scale),
+        )
+
+    if re_module.search(
+        r"\b(?:more\s+colour|more\s+color|richer\s+colou?r|"
+        r"increase\s+(?:the\s+)?saturation|boost\s+(?:the\s+)?"
+        r"(?:colour|color|saturation)|more\s+vibrant)\b",
+        normalized,
+    ):
+        plan["color"] = 1.0 + (0.14 * scale)
+
+    if re_module.search(
+        r"\b(?:less\s+colour|less\s+color|reduce\s+(?:the\s+)?saturation|"
+        r"desaturate|muted\s+colou?r)\b",
+        normalized,
+    ):
+        plan["color"] = max(
+            0.25,
+            1.0 - (0.20 * scale),
+        )
+
+    if re_module.search(
+        r"\b(?:warmer|add\s+warmth|warm\s+(?:the\s+)?"
+        r"(?:photo|image|colou?rs?|tones?))\b",
+        normalized,
+    ):
+        plan["warmth"] = min(
+            1.22,
+            1.0 + (0.08 * scale),
+        )
+
+    if re_module.search(
+        r"\b(?:cooler|cool\s+(?:the\s+)?"
+        r"(?:photo|image|colou?rs?|tones?)|reduce\s+warmth)\b",
+        normalized,
+    ):
+        plan["warmth"] = max(
+            0.78,
+            1.0 - (0.08 * scale),
+        )
+
+    if re_module.search(
+        r"\b(?:sharper|sharpen|clearer|crisper|"
+        r"improve\s+(?:the\s+)?clarity|increase\s+(?:the\s+)?clarity)\b",
+        normalized,
+    ):
+        plan["sharpness"] = 1.0 + (0.42 * scale)
+
+    if re_module.search(
+        r"\b(?:black\s*(?:and|&)\s*white|grayscale|greyscale|monochrome)\b",
+        normalized,
+    ):
+        plan["grayscale"] = True
+
+    auto_enhance = re_module.search(
+        r"\b(?:make\s+it(?:\s+look)?\s+(?:nice|nicer|better|professional)|"
+        r"enhance\s+(?:it|this|the\s+(?:photo|image))|"
+        r"improve\s+(?:it|this|the\s+(?:photo|image))|"
+        r"clean\s+(?:it|this)\s+up|professional\s+photo\s+edit)\b",
+        normalized,
+    )
+
+    if auto_enhance and not plan:
+        plan.update(
+            {
+                "brightness": 1.055,
+                "contrast": 1.075,
+                "color": 1.045,
+                "sharpness": 1.22,
+            }
+        )
+
+    return plan or None
+
+
+def _apply_quick_image_edit_plan(
+    image,
+    plan: dict[str, float | bool],
+):
+    from PIL import (
+        Image as PILImage,
+        ImageEnhance,
+        ImageFilter,
+        ImageOps,
+    )
+
+    prepared = ImageOps.exif_transpose(
+        image
+    ).convert("RGBA")
+
+    alpha = prepared.getchannel("A")
+    working = prepared.convert("RGB")
+    applied: list[str] = []
+
+    brightness = plan.get("brightness")
+
+    if isinstance(
+        brightness,
+        (float, int),
+    ):
+        working = ImageEnhance.Brightness(
+            working
+        ).enhance(
+            float(brightness)
+        )
+        applied.append("brightness")
+
+    contrast = plan.get("contrast")
+
+    if isinstance(
+        contrast,
+        (float, int),
+    ):
+        working = ImageEnhance.Contrast(
+            working
+        ).enhance(
+            float(contrast)
+        )
+        applied.append("contrast")
+
+    color = plan.get("color")
+
+    if isinstance(
+        color,
+        (float, int),
+    ):
+        working = ImageEnhance.Color(
+            working
+        ).enhance(
+            float(color)
+        )
+        applied.append("colour")
+
+    warmth = plan.get("warmth")
+
+    if isinstance(
+        warmth,
+        (float, int),
+    ):
+        warmth_value = float(warmth)
+        red_factor = warmth_value
+        blue_factor = max(
+            0.72,
+            2.0 - warmth_value,
+        )
+
+        red, green, blue = working.split()
+
+        red = red.point(
+            lambda value: min(
+                255,
+                round(value * red_factor),
+            )
+        )
+
+        blue = blue.point(
+            lambda value: min(
+                255,
+                round(value * blue_factor),
+            )
+        )
+
+        working = PILImage.merge(
+            "RGB",
+            (
+                red,
+                green,
+                blue,
+            ),
+        )
+        applied.append(
+            "warmth"
+            if warmth_value >= 1.0
+            else "cooler tone"
+        )
+
+    sharpness = plan.get("sharpness")
+
+    if isinstance(
+        sharpness,
+        (float, int),
+    ):
+        working = ImageEnhance.Sharpness(
+            working
+        ).enhance(
+            float(sharpness)
+        )
+
+        if float(sharpness) > 1.25:
+            working = working.filter(
+                ImageFilter.UnsharpMask(
+                    radius=1.25,
+                    percent=70,
+                    threshold=3,
+                )
+            )
+
+        applied.append("clarity")
+
+    if plan.get("grayscale") is True:
+        working = ImageOps.grayscale(
+            working
+        ).convert("RGB")
+        applied.append("black and white")
+
+    result = working.convert("RGBA")
+    result.putalpha(alpha)
+
+    return result, applied
+
+
+@router.post("/quick-edit-image")
+async def quick_edit_ai_image(
+    prompt: str = Form(...),
+    image: UploadFile = File(...),
+    conversation_id: int = Form(...),
+    study_room_id: int | None = Form(
+        default=None
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    import base64 as base64_module
+    import io as io_module
+    import uuid as uuid_module
+    from pathlib import Path as LocalPath
+
+    from PIL import Image as PILImage
+
+    clean_prompt = prompt.strip()
+
+    if not clean_prompt:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Describe the quick adjustment "
+                "you want StudySnap to apply."
+            ),
+        )
+
+    plan = _quick_image_edit_plan(
+        clean_prompt
+    )
+
+    if plan is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "This change needs the generative "
+                "image editor instead of Quick Edit."
+            ),
+        )
+
+    conversation = verify_conversation(
+        db,
+        conversation_id,
+        current_user.id,
+    )
+
+    if study_room_id is not None:
+        verify_study_room(
+            db,
+            study_room_id,
+            current_user.id,
+        )
+
+        if (
+            conversation.study_room_id
+            is not None
+            and conversation.study_room_id
+            != study_room_id
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "The selected conversation "
+                    "belongs to another room."
+                ),
+            )
+
+    source_bytes = await image.read()
+
+    if not source_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="The selected image is empty.",
+        )
+
+    if len(source_bytes) > 30 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Quick Edit supports images "
+                "up to 30 MB."
+            ),
+        )
+
+    try:
+        with PILImage.open(
+            io_module.BytesIO(
+                source_bytes
+            )
+        ) as opened:
+            edited, applied = (
+                _apply_quick_image_edit_plan(
+                    opened,
+                    plan,
+                )
+            )
+
+            original = (
+                __import__(
+                    "PIL.ImageOps",
+                    fromlist=["ImageOps"],
+                )
+                .exif_transpose(
+                    opened
+                )
+                .convert("RGBA")
+            )
+
+            original_output = io_module.BytesIO()
+            original.save(
+                original_output,
+                format="PNG",
+                compress_level=3,
+            )
+
+            edited_output = io_module.BytesIO()
+            edited.save(
+                edited_output,
+                format="PNG",
+                compress_level=3,
+            )
+
+            persisted_reference_bytes = (
+                original_output.getvalue()
+            )
+
+            generated_bytes = (
+                edited_output.getvalue()
+            )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "StudySnap could not open this image. "
+                "Try JPG, PNG, WEBP, HEIC, or HEIF."
+            ),
+        ) from exc
+
+    if not generated_bytes:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Quick Edit produced an empty image."
+            ),
+        )
+
+    source_stem = LocalPath(
+        image.filename
+        or "studysnap-image"
+    ).stem[:90]
+
+    reference_filename = (
+        source_stem
+        + "-source.png"
+    )
+
+    generated_filename = (
+        source_stem
+        + "-quick-edit-"
+        + uuid_module.uuid4().hex[:10]
+        + ".png"
+    )
+
+    (
+        reference_stored_filename,
+        reference_path,
+    ) = store_ai_attachment(
+        data=persisted_reference_bytes,
+        filename=reference_filename,
+        owner_id=current_user.id,
+        conversation_id=conversation.id,
+        content_type="image/png",
+    )
+
+    (
+        generated_stored_filename,
+        generated_path,
+    ) = store_ai_attachment(
+        data=generated_bytes,
+        filename=generated_filename,
+        owner_id=current_user.id,
+        conversation_id=conversation.id,
+        content_type="image/png",
+    )
+
+    applied_text = (
+        ", ".join(applied)
+        if applied
+        else "the requested adjustment"
+    )
+
+    user_message = AIMessage(
+        conversation_id=conversation.id,
+        role="user",
+        content=(
+            "[Edit image] "
+            + clean_prompt
+        ),
+        attachment_filename=(
+            reference_filename
+        ),
+        attachment_stored_filename=(
+            reference_stored_filename
+        ),
+        attachment_file_path=(
+            reference_path
+        ),
+        attachment_file_size=len(
+            persisted_reference_bytes
+        ),
+        attachment_content_type=(
+            "image/png"
+        ),
+        attachment_kind="image",
+    )
+
+    assistant_message = AIMessage(
+        conversation_id=conversation.id,
+        role="assistant",
+        content=(
+            "[Generated image] "
+            "Quick edit ready. StudySnap adjusted "
+            + applied_text
+            + " without reconstructing the image."
+        ),
+        attachment_filename=(
+            generated_filename
+        ),
+        attachment_stored_filename=(
+            generated_stored_filename
+        ),
+        attachment_file_path=(
+            generated_path
+        ),
+        attachment_file_size=len(
+            generated_bytes
+        ),
+        attachment_content_type=(
+            "image/png"
+        ),
+        attachment_kind="image",
+    )
+
+    try:
+        db.add(user_message)
+        db.add(assistant_message)
+
+        if (
+            conversation.title
+            == "New Conversation"
+        ):
+            conversation.title = (
+                clean_prompt[:50]
+                or "Quick image edit"
+            )
+
+        conversation.updated_at = utc_now()
+
+        db.commit()
+
+        db.refresh(user_message)
+        db.refresh(assistant_message)
+        db.refresh(conversation)
+
+    except Exception:
+        db.rollback()
+
+        for stored_path in (
+            reference_path,
+            generated_path,
+        ):
+            try:
+                LocalPath(
+                    stored_path
+                ).unlink(
+                    missing_ok=True
+                )
+            except OSError:
+                pass
+
+        raise
+
+    generated_base64 = (
+        base64_module.b64encode(
+            generated_bytes
+        ).decode("ascii")
+    )
+
+    return {
+        "image_data_url": (
+            "data:image/png;base64,"
+            + generated_base64
+        ),
+        "image_url": None,
+        "mime_type": "image/png",
+        "model": (
+            "studysnap-quick-edit-v1"
+        ),
+        "prompt": clean_prompt,
+        "revised_prompt": None,
+        "conversation": (
+            serialize_conversation(
+                conversation
+            )
+        ),
+        "user_message": (
+            serialize_ai_message(
+                user_message
+            )
+        ),
+        "assistant_message": (
+            serialize_ai_message(
+                assistant_message
+            )
+        ),
+    }
+
+
 @router.post("/edit-image")
 async def edit_ai_image(
     prompt: str = Form(...),
@@ -1834,12 +2463,32 @@ async def edit_ai_image(
         "1024x1024",
         "1536x1024",
         "1024x1536",
-    }
+            "1792x1792",
+        "2048x1536",
+        "1536x2048",
+}
 
     clean_size = (
         size
         if size in allowed_sizes
         else "1024x1024"
+    )
+
+    # STUDYSNAP_GENERAL_AI_ADAPTIVE_IMAGE_SPEED_V1_3
+    requested_quality = (
+        quality
+        or "medium"
+    ).strip().lower()
+
+    clean_quality = (
+        requested_quality
+        if requested_quality
+        in {
+            "low",
+            "medium",
+            "high",
+        }
+        else "medium"
     )
 
     maximum_size = 25 * 1024 * 1024
@@ -2024,6 +2673,10 @@ async def edit_ai_image(
         "Inspect the source image and automatically use the correct "
         "editing profile. Follow the user's request strongly rather "
         "than returning an almost unchanged copy. "
+        "When the request is vague, such as make it nice, make it "
+        "better, or like the last one, automatically apply a polished "
+        "professional photo treatment while preserving the exact person, "
+        "scene, clothing, and important details. "
 
         "PORTRAIT OR PERSON PROFILE: Preserve the exact recognizable "
         "identity, facial geometry, skin tone, age, ethnicity, body "
@@ -2142,12 +2795,24 @@ async def edit_ai_image(
                     else input_files[0]
                 )
 
+                candidate_size = clean_size
+
+                if candidate_model != "gpt-image-2":
+                    candidate_size = {
+                        "1792x1792": "1024x1024",
+                        "2048x1536": "1536x1024",
+                        "1536x2048": "1024x1536",
+                    }.get(
+                        clean_size,
+                        clean_size,
+                    )
+
                 edit_arguments = {
                     "model": candidate_model,
                     "image": image_input,
                     "prompt": edit_prompt,
-                    "size": clean_size,
-                    "quality": "high",
+                    "size": candidate_size,
+                    "quality": clean_quality,
                 }
 
                 # GPT Image 2 always processes
