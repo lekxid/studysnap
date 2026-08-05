@@ -20,7 +20,6 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -29,6 +28,10 @@ from app.storage import storage_path
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.services.material_intelligence import analyze_material
+from app.services.lecture_transcription import (
+    LectureTranscriptionError,
+    transcribe_lecture_audio,
+)
 from app.services.rooms.access import (
     require_room_contributor,
     require_room_item_change,
@@ -1433,30 +1436,19 @@ def transcribe_lecture_material(
         "STUDYSNAP_TRANSCRIPTION_MODEL",
         "gpt-4o-mini-transcribe",
     ).strip() or "gpt-4o-mini-transcribe"
+    language = os.getenv("STUDYSNAP_TRANSCRIPTION_LANGUAGE", "").strip() or None
 
     try:
-        client = OpenAI(
+        transcription = transcribe_lecture_audio(
+            file_path=file_path,
+            original_filename=material.original_filename,
+            content_type=material.content_type,
             api_key=settings.openai_api_key,
-            timeout=300.0,
+            configured_model=model,
+            language=language,
         )
 
-        with file_path.open("rb") as recording:
-            result = client.audio.transcriptions.create(
-                model=model,
-                file=recording,
-            )
-
-        transcript = (
-            result
-            if isinstance(result, str)
-            else getattr(result, "text", "")
-        )
-        transcript = str(transcript or "").strip()
-
-        if not transcript:
-            raise RuntimeError("The transcription service returned no text.")
-
-        material.extracted_text = transcript[:500_000]
+        material.extracted_text = transcription.text[:500_000]
         material.purpose_category = "lecture"
         material.content_category = "lecture_recording"
         material.intelligence_status = "ready"
@@ -1468,28 +1460,39 @@ def transcribe_lecture_material(
 
         response = serialize_material(material)
         response["transcript"] = material.extracted_text
+        response["transcription_model"] = transcription.model
+        response["normalized_audio"] = transcription.normalized_audio
         return response
-    except HTTPException:
-        raise
-    except Exception as error:
-        logger.exception(
-            "Lecture transcription failed for material %s",
+    except LectureTranscriptionError as error:
+        logger.warning(
+            "Lecture transcription failed for material %s: %s",
             material.id,
+            error.reason,
         )
         material.intelligence_status = "failed"
-        material.intelligence_error = (
-            "Lecture transcription failed. The recording is still saved."
-        )
+        material.intelligence_error = error.user_message[:1000]
         db.add(material)
         db.commit()
 
         raise HTTPException(
-            status_code=502,
-            detail=(
-                "StudySnap saved the recording, but transcription failed. "
-                "Try again from the Lecture Library."
-            ),
+            status_code=error.status_code,
+            detail=error.user_message,
         ) from error
+    except Exception as error:
+        logger.exception(
+            "Unexpected lecture transcription failure for material %s",
+            material.id,
+        )
+        message = (
+            "StudySnap saved the recording, but the transcription service could not finish. "
+            "The recording is still safe."
+        )
+        material.intelligence_status = "failed"
+        material.intelligence_error = message
+        db.add(material)
+        db.commit()
+
+        raise HTTPException(status_code=502, detail=message) from error
 
 
 @router.post("/{material_id}/analyze")
