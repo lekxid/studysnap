@@ -241,6 +241,93 @@ def _configured_text_model() -> str:
     )
 
 
+# STUDYSNAP_GENERAL_AI_LOCAL_ROUTING_V1
+def _latest_student_message_for_web_intent(
+    value: str,
+) -> str:
+    text = (value or "").strip()
+
+    for marker in (
+        "\nNew student message:\n",
+        "New student message:\n",
+        "CURRENT STUDENT MESSAGE:\n",
+        "\nStudent question:\n",
+        "Student question:\n",
+        "\nUser question:\n",
+        "User question:\n",
+        "\nLATEST STUDENT MESSAGE:\n",
+        "LATEST STUDENT MESSAGE:\n",
+    ):
+        if marker in text:
+            text = text.rsplit(marker, 1)[-1].strip()
+            break
+
+    for end_marker in (
+        "\n\nSTUDYSNAP REFERENCE CONTEXT:\n",
+        "\n\nRECENT CONTEXT:\n",
+    ):
+        if end_marker in text:
+            text = text.split(
+                end_marker,
+                1,
+            )[0].strip()
+
+    return text or (value or "").strip()
+
+
+def _openai_credit_unavailable(
+    exc: Exception,
+) -> bool:
+    status_code = getattr(
+        exc,
+        "status_code",
+        None,
+    )
+    code = str(
+        getattr(
+            exc,
+            "code",
+            "",
+        )
+        or ""
+    ).lower()
+    message = str(exc).lower()
+
+    quota_markers = (
+        "insufficient_quota",
+        "credit_balance_exhausted",
+        "no credits remaining",
+        "billing",
+    )
+
+    return (
+        status_code == 429
+        and (
+            code in {
+                "insufficient_quota",
+                "credit_balance_exhausted",
+            }
+            or any(
+                marker in message
+                for marker in quota_markers
+            )
+        )
+    )
+
+
+def _offline_web_fallback_question(
+    question: str,
+) -> str:
+    return (
+        "Live web search is unavailable because cloud API "
+        "credits are not active. Answer using local knowledge, "
+        "be clear that current details may have changed, and "
+        "do not invent live results.\n\n"
+        "Student question:\n"
+        + question.strip()
+    )
+
+
 def _generate_current_web_answer(
     *,
     mode: str,
@@ -287,13 +374,31 @@ def generate_studysnap_answer(
     context: str = "",
 ) -> str:
     mode, clean_question = detect_mode(question)
-
-    if should_use_web_search(clean_question, context):
-        return _generate_current_web_answer(
-            mode=mode,
-            clean_question=clean_question,
-            context=context,
+    intent_question = (
+        _latest_student_message_for_web_intent(
+            clean_question
         )
+    )
+
+    if should_use_web_search(intent_question):
+        original_prompt = clean_question
+
+        try:
+            return _generate_current_web_answer(
+                mode=mode,
+                clean_question=intent_question,
+                context=context or original_prompt,
+            )
+        except Exception as exc:
+            if not _openai_credit_unavailable(exc):
+                raise
+
+            context = context or original_prompt
+            clean_question = (
+                _offline_web_fallback_question(
+                    intent_question
+                )
+            )
 
     result = complete_text(
         messages=[
@@ -330,17 +435,32 @@ def stream_studysnap_answer(
     context: str = "",
 ):
     mode, clean_question = detect_mode(question)
-
-    if should_use_web_search(clean_question, context):
-        # Web-enabled Responses API calls are returned as one
-        # completed answer. StreamingResponse can still send
-        # this answer through the existing SSE route safely.
-        yield _generate_current_web_answer(
-            mode=mode,
-            clean_question=clean_question,
-            context=context,
+    intent_question = (
+        _latest_student_message_for_web_intent(
+            clean_question
         )
-        return
+    )
+
+    if should_use_web_search(intent_question):
+        original_prompt = clean_question
+
+        try:
+            yield _generate_current_web_answer(
+                mode=mode,
+                clean_question=intent_question,
+                context=context or original_prompt,
+            )
+            return
+        except Exception as exc:
+            if not _openai_credit_unavailable(exc):
+                raise
+
+            context = context or original_prompt
+            clean_question = (
+                _offline_web_fallback_question(
+                    intent_question
+                )
+            )
 
     yield from stream_text(
         messages=[
