@@ -1,4 +1,6 @@
 import json
+import threading
+from time import monotonic, sleep
 from functools import lru_cache
 
 from app.services.openai_instrumentation import OpenAI
@@ -315,6 +317,279 @@ def _openai_credit_unavailable(
     )
 
 
+# STUDYSNAP_GENERAL_AI_AUTO_CLOUD_UPGRADE_V1
+_CLOUD_GENERAL_STATE_LOCK = threading.Lock()
+_CLOUD_GENERAL_PROBE_STARTED = False
+_CLOUD_GENERAL_AVAILABLE = False
+_CLOUD_GENERAL_NEXT_PROBE_AT = 0.0
+_CLOUD_GENERAL_RETRY_SECONDS = 120.0
+_CLOUD_GENERAL_HEALTHY_RECHECK_SECONDS = 1800.0
+
+
+def _cloud_general_has_api_key() -> bool:
+    return bool(
+        (settings.openai_api_key or "").strip()
+    )
+
+
+def _cloud_general_is_available() -> bool:
+    with _CLOUD_GENERAL_STATE_LOCK:
+        return bool(
+            _CLOUD_GENERAL_AVAILABLE
+        )
+
+
+def _mark_cloud_general_available() -> None:
+    global _CLOUD_GENERAL_AVAILABLE
+    global _CLOUD_GENERAL_NEXT_PROBE_AT
+
+    with _CLOUD_GENERAL_STATE_LOCK:
+        _CLOUD_GENERAL_AVAILABLE = True
+        _CLOUD_GENERAL_NEXT_PROBE_AT = (
+            monotonic()
+            + _CLOUD_GENERAL_HEALTHY_RECHECK_SECONDS
+        )
+
+
+def _mark_cloud_general_unavailable() -> None:
+    global _CLOUD_GENERAL_AVAILABLE
+    global _CLOUD_GENERAL_NEXT_PROBE_AT
+
+    with _CLOUD_GENERAL_STATE_LOCK:
+        _CLOUD_GENERAL_AVAILABLE = False
+        _CLOUD_GENERAL_NEXT_PROBE_AT = (
+            monotonic()
+            + _CLOUD_GENERAL_RETRY_SECONDS
+        )
+
+
+def _cloud_general_fallback_allowed(
+    exc: Exception,
+) -> bool:
+    if _openai_credit_unavailable(exc):
+        return True
+
+    status_code = getattr(
+        exc,
+        "status_code",
+        None,
+    )
+
+    if status_code in {
+        401,
+        403,
+        408,
+        409,
+        429,
+        500,
+        502,
+        503,
+        504,
+    }:
+        return True
+
+    error_name = type(exc).__name__.casefold()
+
+    if any(
+        marker in error_name
+        for marker in (
+            "connection",
+            "timeout",
+            "ratelimit",
+        )
+    ):
+        return True
+
+    message = str(exc).casefold()
+
+    return any(
+        marker in message
+        for marker in (
+            "api key",
+            "connection",
+            "timed out",
+            "timeout",
+            "temporarily unavailable",
+        )
+    )
+
+
+def _cloud_general_messages(
+    *,
+    mode: str,
+    question: str,
+    context: str,
+) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": build_studysnap_system_prompt(
+                mode
+            ),
+        },
+        {
+            "role": "user",
+            "content": build_studysnap_user_prompt(
+                question,
+                context,
+            ),
+        },
+    ]
+
+
+def _cloud_general_answer(
+    *,
+    mode: str,
+    question: str,
+    context: str,
+) -> str:
+    response = (
+        get_openai_client()
+        .chat.completions.create(
+            model=_configured_text_model(),
+            messages=_cloud_general_messages(
+                mode=mode,
+                question=question,
+                context=context,
+            ),
+            temperature=0.7,
+            max_tokens=1200,
+        )
+    )
+
+    answer = (
+        response.choices[0].message.content
+        if response.choices
+        else ""
+    )
+    answer = (answer or "").strip()
+
+    if not answer:
+        raise RuntimeError(
+            "OpenAI returned an empty General AI answer."
+        )
+
+    _mark_cloud_general_available()
+    return answer
+
+
+def _stream_cloud_general_answer(
+    *,
+    mode: str,
+    question: str,
+    context: str,
+):
+    stream = (
+        get_openai_client()
+        .chat.completions.create(
+            model=_configured_text_model(),
+            stream=True,
+            messages=_cloud_general_messages(
+                mode=mode,
+                question=question,
+                context=context,
+            ),
+            temperature=0.7,
+            max_tokens=1200,
+        )
+    )
+
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+
+        delta = chunk.choices[0].delta.content
+
+        if delta:
+            yield delta
+
+
+def _probe_cloud_general_once() -> None:
+    if not _cloud_general_has_api_key():
+        _mark_cloud_general_unavailable()
+        return
+
+    try:
+        response = (
+            get_openai_client()
+            .chat.completions.create(
+                model=_configured_text_model(),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Reply only with OK.",
+                    },
+                ],
+                temperature=0,
+                max_tokens=2,
+            )
+        )
+
+        answer = (
+            response.choices[0].message.content
+            if response.choices
+            else ""
+        )
+
+        if not (answer or "").strip():
+            raise RuntimeError(
+                "OpenAI cloud probe returned no text."
+            )
+    except Exception:
+        # The background probe never interrupts a student request.
+        _mark_cloud_general_unavailable()
+        return
+
+    _mark_cloud_general_available()
+
+
+def _cloud_general_probe_worker() -> None:
+    while True:
+        if not _cloud_general_has_api_key():
+            sleep(60)
+            continue
+
+        with _CLOUD_GENERAL_STATE_LOCK:
+            next_probe_at = (
+                _CLOUD_GENERAL_NEXT_PROBE_AT
+            )
+
+        remaining = (
+            next_probe_at - monotonic()
+        )
+
+        if remaining > 0:
+            sleep(
+                min(
+                    max(remaining, 1.0),
+                    30.0,
+                )
+            )
+            continue
+
+        _probe_cloud_general_once()
+
+
+def _ensure_cloud_general_probe_worker() -> None:
+    global _CLOUD_GENERAL_PROBE_STARTED
+
+    if not _cloud_general_has_api_key():
+        return
+
+    with _CLOUD_GENERAL_STATE_LOCK:
+        if _CLOUD_GENERAL_PROBE_STARTED:
+            return
+
+        _CLOUD_GENERAL_PROBE_STARTED = True
+
+    worker = threading.Thread(
+        target=_cloud_general_probe_worker,
+        name="studysnap-openai-auto-upgrade",
+        daemon=True,
+    )
+    worker.start()
+
+
 # STUDYSNAP_GENERAL_AI_INSTANT_CONVERSATION_V1
 def _normalize_small_talk_message(
     value: str,
@@ -526,6 +801,23 @@ def generate_studysnap_answer(
                 intent_question
             )
 
+    _ensure_cloud_general_probe_worker()
+
+    if _cloud_general_is_available():
+        try:
+            return _cloud_general_answer(
+                mode=mode,
+                question=clean_question,
+                context=context,
+            )
+        except Exception as exc:
+            if not _cloud_general_fallback_allowed(
+                exc
+            ):
+                raise
+
+            _mark_cloud_general_unavailable()
+
     result = complete_text(
         messages=[
             {
@@ -595,6 +887,36 @@ def stream_studysnap_answer(
                 intent_question
             )
             return
+
+    _ensure_cloud_general_probe_worker()
+
+    if _cloud_general_is_available():
+        emitted_cloud_text = False
+
+        try:
+            for delta in _stream_cloud_general_answer(
+                mode=mode,
+                question=clean_question,
+                context=context,
+            ):
+                emitted_cloud_text = True
+                yield delta
+        except Exception as exc:
+            if (
+                emitted_cloud_text
+                or not _cloud_general_fallback_allowed(
+                    exc
+                )
+            ):
+                raise
+
+            _mark_cloud_general_unavailable()
+        else:
+            if emitted_cloud_text:
+                _mark_cloud_general_available()
+                return
+
+            _mark_cloud_general_unavailable()
 
     yield from stream_text(
         messages=[
