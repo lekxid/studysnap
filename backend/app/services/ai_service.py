@@ -315,6 +315,116 @@ def _openai_credit_unavailable(
     )
 
 
+# STUDYSNAP_GENERAL_AI_INSTANT_CONVERSATION_V1
+def _normalize_small_talk_message(
+    value: str,
+) -> str:
+    cleaned = "".join(
+        character
+        if character.isalnum() or character.isspace()
+        else " "
+        for character in (value or "").casefold()
+    )
+    return " ".join(cleaned.split())
+
+
+def _instant_conversation_answer(
+    question: str,
+) -> str | None:
+    message = _normalize_small_talk_message(
+        question
+    )
+
+    greetings = {
+        "hi",
+        "hii",
+        "hello",
+        "hey",
+        "hey there",
+        "hello there",
+        "yo",
+    }
+
+    if message in greetings:
+        return "Hi! How can I help?"
+
+    if message in {
+        "good morning",
+        "morning",
+    }:
+        return "Good morning! How can I help?"
+
+    if message in {
+        "good afternoon",
+        "afternoon",
+    }:
+        return "Good afternoon! How can I help?"
+
+    if message in {
+        "good evening",
+        "evening",
+    }:
+        return "Good evening! How can I help?"
+
+    if message in {
+        "how are you",
+        "how are you doing",
+        "how are u",
+        "how are u doing",
+        "how r you",
+        "how r u",
+    }:
+        return (
+            "I’m doing well and ready to help. "
+            "How are you?"
+        )
+
+    if message in {
+        "whats up",
+        "what is up",
+        "sup",
+    }:
+        return "I’m ready to help. What’s up?"
+
+    if message in {
+        "thanks",
+        "thank you",
+        "thank you so much",
+        "thanks a lot",
+    }:
+        return "You’re welcome!"
+
+    if message in {
+        "bye",
+        "goodbye",
+        "see you",
+        "see you later",
+    }:
+        return "Bye! Come back anytime."
+
+    if message in {
+        "who are you",
+        "what are you",
+    }:
+        return (
+            "I’m StudySnap AI, your learning "
+            "and study assistant."
+        )
+
+    if message in {
+        "what can you do",
+        "how can you help me",
+    }:
+        return (
+            "I can explain topics, answer questions, "
+            "work with your notes and files, create "
+            "study materials, and help you plan what "
+            "to study."
+        )
+
+    return None
+
+
 # STUDYSNAP_GENERAL_AI_HONEST_OFFLINE_WEB_V1
 def _offline_web_unavailable_answer(
     question: str,
@@ -390,6 +500,15 @@ def generate_studysnap_answer(
         )
     )
 
+    instant_answer = (
+        _instant_conversation_answer(
+            intent_question
+        )
+    )
+
+    if instant_answer is not None:
+        return instant_answer
+
     if should_use_web_search(intent_question):
         original_prompt = clean_question
 
@@ -447,6 +566,16 @@ def stream_studysnap_answer(
             clean_question
         )
     )
+
+    instant_answer = (
+        _instant_conversation_answer(
+            intent_question
+        )
+    )
+
+    if instant_answer is not None:
+        yield instant_answer
+        return
 
     if should_use_web_search(intent_question):
         original_prompt = clean_question
