@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     openai_vision_model: str = "gpt-4o-mini"
 
+    # STUDYSNAP_BASE_AI_PROVIDER_V1
+    studysnap_base_ai_policy: str = "local_first"
+    studysnap_local_ai_enabled: bool = True
+    studysnap_local_ai_url: str = "http://127.0.0.1:8081/v1"
+    studysnap_local_ai_model: str = "studysnap-base-mini"
+    studysnap_local_ai_timeout_seconds: float = 180.0
+    studysnap_local_ai_max_input_chars: int = 12000
+
     # Current-awareness defaults for StudySnap AI.
     studysnap_timezone: str = "America/Toronto"
     web_search_enabled: bool = True

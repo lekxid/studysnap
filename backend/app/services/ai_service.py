@@ -2,6 +2,10 @@ import json
 from functools import lru_cache
 
 from app.services.openai_instrumentation import OpenAI
+from app.services.base_ai_provider import (
+    complete_text,
+    stream_text,
+)
 from app.config import settings
 from app.services.ai_intent import (
     WEB_SOURCE_INSTRUCTIONS,
@@ -291,8 +295,7 @@ def generate_studysnap_answer(
             context=context,
         )
 
-    response = get_openai_client().chat.completions.create(
-        model=_configured_text_model(),
+    result = complete_text(
         messages=[
             {
                 "role": "system",
@@ -311,12 +314,11 @@ def generate_studysnap_answer(
         ],
         temperature=0.7,
         max_tokens=1200,
+        cloud_model=_configured_text_model(),
+        purpose="general_answer",
     )
 
-    return (
-        response.choices[0].message.content
-        or "No answer returned."
-    )
+    return result.text
 
 
 # ============================================================
@@ -340,9 +342,7 @@ def stream_studysnap_answer(
         )
         return
 
-    stream = get_openai_client().chat.completions.create(
-        model=_configured_text_model(),
-        stream=True,
+    yield from stream_text(
         messages=[
             {
                 "role": "system",
@@ -361,16 +361,9 @@ def stream_studysnap_answer(
         ],
         temperature=0.7,
         max_tokens=1200,
+        cloud_model=_configured_text_model(),
+        purpose="general_stream",
     )
-
-    for chunk in stream:
-        if not chunk.choices:
-            continue
-
-        delta = chunk.choices[0].delta.content
-
-        if delta:
-            yield delta
 
 
 # ============================================================

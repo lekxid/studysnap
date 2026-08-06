@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import app.services.base_ai_provider as provider
+
+
+class FakeCompletions:
+    def __init__(self, text="Local answer", fail=False):
+        self.text = text
+        self.fail = fail
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.fail:
+            raise RuntimeError("provider failed")
+
+        if kwargs.get("stream"):
+            return iter([
+                SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(content="Local ")
+                        )
+                    ]
+                ),
+                SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(content="stream")
+                        )
+                    ]
+                ),
+            ])
+
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=self.text)
+                )
+            ],
+            model=kwargs.get("model"),
+        )
+
+
+def fake_client(completions):
+    return SimpleNamespace(
+        chat=SimpleNamespace(completions=completions)
+    )
+
+
+def configure(monkeypatch):
+    monkeypatch.setattr(
+        provider.settings,
+        "studysnap_base_ai_policy",
+        "local_first",
+    )
+    monkeypatch.setattr(
+        provider.settings,
+        "studysnap_local_ai_enabled",
+        True,
+    )
+    monkeypatch.setattr(
+        provider.settings,
+        "studysnap_local_ai_model",
+        "studysnap-base-mini",
+    )
+    monkeypatch.setattr(
+        provider.settings,
+        "studysnap_local_ai_max_input_chars",
+        12000,
+    )
+    monkeypatch.setattr(
+        provider.settings,
+        "openai_api_key",
+        "test-key",
+    )
+
+
+def test_local_provider_is_primary(monkeypatch):
+    configure(monkeypatch)
+    local = FakeCompletions("StudySnap local answer")
+    cloud = FakeCompletions("Cloud answer")
+
+    monkeypatch.setattr(
+        provider,
+        "_local_client",
+        lambda: fake_client(local),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_cloud_client",
+        lambda: fake_client(cloud),
+    )
+
+    result = provider.complete_text(
+        messages=[{"role": "user", "content": "Hello"}],
+        purpose="test",
+    )
+
+    assert result.provider == "studysnap-local"
+    assert result.text == "StudySnap local answer"
+    assert len(local.calls) == 1
+    assert cloud.calls == []
+
+
+def test_cloud_fallback_after_local_failure(monkeypatch):
+    configure(monkeypatch)
+    local = FakeCompletions(fail=True)
+    cloud = FakeCompletions("Fallback answer")
+
+    monkeypatch.setattr(
+        provider,
+        "_local_client",
+        lambda: fake_client(local),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_cloud_client",
+        lambda: fake_client(cloud),
+    )
+
+    result = provider.complete_text(
+        messages=[{"role": "user", "content": "Hello"}],
+        cloud_model="test-cloud",
+        purpose="test",
+    )
+
+    assert result.provider == "openai"
+    assert result.model == "test-cloud"
+    assert result.text == "Fallback answer"
+
+
+def test_stream_uses_local(monkeypatch):
+    configure(monkeypatch)
+    local = FakeCompletions()
+    cloud = FakeCompletions()
+
+    monkeypatch.setattr(
+        provider,
+        "_local_client",
+        lambda: fake_client(local),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_cloud_client",
+        lambda: fake_client(cloud),
+    )
+
+    result = "".join(
+        provider.stream_text(
+            messages=[{"role": "user", "content": "Hello"}],
+            purpose="test",
+        )
+    )
+
+    assert result == "Local stream"
+    assert cloud.calls == []
