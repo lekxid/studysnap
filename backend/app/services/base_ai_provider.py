@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # STUDYSNAP_BASE_AI_PROVIDER_V1
+# STUDYSNAP_BASE_AI_EMPTY_STREAM_FIX_V1
 # StudySnap owns provider selection, streaming, memory handoff, and fallback.
 
 import logging
@@ -60,16 +61,112 @@ def _message_text(messages: list[dict[str, Any]]) -> str:
     )
 
 
-def _local_eligible(messages: list[dict[str, Any]]) -> bool:
+def _local_prompt_budget() -> int:
     try:
-        limit = int(_setting("studysnap_local_ai_max_input_chars", 12000))
+        configured = int(
+            _setting(
+                "studysnap_local_ai_max_input_chars",
+                12000,
+            )
+        )
     except (TypeError, ValueError):
-        limit = 12000
+        configured = 12000
 
+    # The current local runtime has a 4096-token context. A 9000-character
+    # prompt leaves safe room for tokenization differences and the answer.
+    return max(3000, min(configured, 9000))
+
+
+def _compact_text(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+
+    notice = (
+        "\n\n[StudySnap compacted older context "
+        "for the local model.]\n\n"
+    )
+
+    usable = max(limit - len(notice), 200)
+    head = int(usable * 0.55)
+    tail = usable - head
+
+    return value[:head] + notice + value[-tail:]
+
+
+def _compact_local_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    budget = _local_prompt_budget()
+
+    if len(_message_text(messages)) <= budget:
+        return messages
+
+    system_messages = [
+        item
+        for item in messages
+        if item.get("role") == "system"
+    ]
+    other_messages = [
+        item
+        for item in messages
+        if item.get("role") != "system"
+    ]
+
+    compacted: list[dict[str, Any]] = []
+    remaining = budget
+
+    if system_messages:
+        system = dict(system_messages[0])
+        system_limit = min(
+            int(budget * 0.62),
+            remaining,
+        )
+        system_content = _compact_text(
+            str(system.get("content", "")),
+            system_limit,
+        )
+        system["content"] = system_content
+        compacted.append(system)
+        remaining -= len(system_content)
+
+    selected: list[dict[str, Any]] = []
+
+    for item in reversed(other_messages):
+        if remaining <= 50:
+            break
+
+        message = dict(item)
+        content = _compact_text(
+            str(message.get("content", "")),
+            remaining,
+        )
+        message["content"] = content
+        selected.append(message)
+        remaining -= len(content)
+
+    compacted.extend(reversed(selected))
+
+    if not compacted:
+        return [
+            {
+                "role": "user",
+                "content": _compact_text(
+                    _message_text(messages),
+                    budget,
+                ),
+            }
+        ]
+
+    return compacted
+
+
+def _local_eligible(messages: list[dict[str, Any]]) -> bool:
+    # Large StudySnap prompts are compacted before local inference instead
+    # of silently skipping local AI and falling into an unavailable cloud
+    # provider.
     return (
         bool(_setting("studysnap_local_ai_enabled", True))
         and bool(_local_model())
-        and len(_message_text(messages)) <= max(2000, min(limit, 50000))
     )
 
 
@@ -145,7 +242,7 @@ def complete_text(
                 model = _local_model()
                 response = _local_client().chat.completions.create(
                     model=model,
-                    messages=messages,
+                    messages=_compact_local_messages(messages),
                     temperature=min(max(float(temperature), 0.0), 1.0),
                     max_tokens=min(max(int(max_tokens), 1), 700),
                     extra_body=_local_extra_body(),
@@ -218,7 +315,7 @@ def _provider_stream(
     if provider == "local":
         stream = _local_client().chat.completions.create(
             model=_local_model(),
-            messages=messages,
+            messages=_compact_local_messages(messages),
             temperature=min(max(float(temperature), 0.0), 1.0),
             max_tokens=min(max(int(max_tokens), 1), 700),
             stream=True,

@@ -157,3 +157,54 @@ def test_stream_uses_local(monkeypatch):
 
     assert result == "Local stream"
     assert cloud.calls == []
+
+
+
+def test_large_real_prompt_compacts_and_stays_local(monkeypatch):
+    configure(monkeypatch)
+    local = FakeCompletions("Compacted local answer")
+    cloud = FakeCompletions("Cloud answer")
+
+    monkeypatch.setattr(
+        provider,
+        "_local_client",
+        lambda: fake_client(local),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_cloud_client",
+        lambda: fake_client(cloud),
+    )
+
+    latest = "LATEST QUESTION: Explain active recall simply."
+
+    result = provider.complete_text(
+        messages=[
+            {
+                "role": "system",
+                "content": "StudySnap rules. " * 1200,
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Older conversation context. " * 1200
+                    + latest
+                ),
+            },
+        ],
+        purpose="real_prompt_test",
+    )
+
+    assert result.provider == "studysnap-local"
+    assert result.text == "Compacted local answer"
+    assert cloud.calls == []
+    assert len(local.calls) == 1
+
+    sent_messages = local.calls[0]["messages"]
+    sent_text = "\\n".join(
+        str(item.get("content", ""))
+        for item in sent_messages
+    )
+
+    assert len(sent_text) <= 9050
+    assert latest in sent_text
