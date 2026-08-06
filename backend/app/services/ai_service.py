@@ -590,6 +590,43 @@ def _ensure_cloud_general_probe_worker() -> None:
     worker.start()
 
 
+# STUDYSNAP_GENERAL_AI_PROVIDER_STATUS_UI_V1
+def general_ai_provider_status() -> dict[str, object]:
+    _ensure_cloud_general_probe_worker()
+
+    cloud_available = (
+        _cloud_general_is_available()
+    )
+    api_key_configured = (
+        _cloud_general_has_api_key()
+    )
+
+    return {
+        "provider": (
+            "openai"
+            if cloud_available
+            else "local"
+        ),
+        "label": (
+            "Cloud AI"
+            if cloud_available
+            else "Local AI"
+        ),
+        "cloud_available": cloud_available,
+        "api_key_configured": api_key_configured,
+        "automatic_upgrade": True,
+        "detail": (
+            "OpenAI is active for normal answers."
+            if cloud_available
+            else (
+                "StudySnap Base Mini is active. "
+                "OpenAI will activate automatically "
+                "when API credits are available."
+            )
+        ),
+    }
+
+
 # STUDYSNAP_GENERAL_AI_INSTANT_CONVERSATION_V1
 def _normalize_small_talk_message(
     value: str,

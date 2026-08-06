@@ -1409,6 +1409,24 @@ export async function recordAIConversationExchange(
   });
 }
 
+// STUDYSNAP_GENERAL_AI_PROVIDER_STATUS_UI_V1
+export type GeneralAIProviderStatus = {
+  provider: "local" | "openai";
+  label: "Local AI" | "Cloud AI";
+  cloud_available: boolean;
+  api_key_configured: boolean;
+  automatic_upgrade: boolean;
+  detail: string;
+};
+
+export async function getGeneralAIProviderStatus(
+): Promise<GeneralAIProviderStatus> {
+  return apiFetch(
+    "/api/ai/provider-status"
+  ) as Promise<GeneralAIProviderStatus>;
+}
+
+
 export async function cancelAIMessage(
   requestId: string
 ) {

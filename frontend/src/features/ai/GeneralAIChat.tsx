@@ -63,6 +63,7 @@ import {
   type AIMessage,
   type GenerateAIImageSize,
   type StudyRoom,
+  getGeneralAIProviderStatus,
 } from "@/lib/api";
 
 type PendingAttachment = {
@@ -4060,6 +4061,88 @@ function AIActivityIndicator({
         </span>
       </span>
     </div>
+  );
+}
+
+
+// STUDYSNAP_GENERAL_AI_PROVIDER_STATUS_UI_V1
+function GeneralAIProviderBadge() {
+  const [status, setStatus] = useState<
+    Awaited<
+      ReturnType<
+        typeof getGeneralAIProviderStatus
+      >
+    > | null
+  >(null);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | null = null;
+
+    const loadStatus = async () => {
+      try {
+        const next =
+          await getGeneralAIProviderStatus();
+
+        if (active) {
+          setStatus(next);
+        }
+      } catch {
+        // Provider status never interrupts chat.
+      } finally {
+        if (active) {
+          timer = window.setTimeout(
+            loadStatus,
+            20000,
+          );
+        }
+      }
+    };
+
+    void loadStatus();
+
+    return () => {
+      active = false;
+
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, []);
+
+  if (!status) {
+    return null;
+  }
+
+  const isCloud =
+    status.provider === "openai";
+
+  return (
+    <span
+      className={[
+        "hidden shrink-0 items-center gap-1.5",
+        "rounded-full border px-2 py-1",
+        "text-[10px] font-bold tracking-wide",
+        "sm:inline-flex",
+        isCloud
+          ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
+          : "border-white/10 bg-white/[0.04] text-slate-400",
+      ].join(" ")}
+      title={status.detail}
+      aria-label={`Current answer provider: ${status.label}`}
+      data-studysnap-provider={status.provider}
+    >
+      <span
+        aria-hidden="true"
+        className={[
+          "h-1.5 w-1.5 rounded-full",
+          isCloud
+            ? "bg-amber-300"
+            : "bg-slate-500",
+        ].join(" ")}
+      />
+      {status.label}
+    </span>
   );
 }
 
@@ -10917,7 +11000,8 @@ export default function GeneralAIChat({
             />
           </svg>
 </button>
-      </header>
+              <GeneralAIProviderBadge />
+</header>
 
       {aiToolsOpen ? (
         <div className="fixed inset-0 z-[230]">

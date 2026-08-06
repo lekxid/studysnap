@@ -44,6 +44,7 @@ from app.models.ai_message import AIMessage
 from app.services.ai_service import (
     generate_studysnap_answer,
     stream_studysnap_answer,
+    general_ai_provider_status,
     generate_basic_flashcards,
     generate_basic_quiz,
 )
@@ -4689,6 +4690,17 @@ def record_conversation_exchange(
             conversation
         ),
     }
+
+
+# STUDYSNAP_GENERAL_AI_PROVIDER_STATUS_UI_V1
+@router.get("/provider-status")
+def get_general_ai_provider_status(
+    current_user: User = Depends(
+        get_current_user
+    ),
+):
+    del current_user
+    return general_ai_provider_status()
 
 
 @router.post("/messages/cancel")
