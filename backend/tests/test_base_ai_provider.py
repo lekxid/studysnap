@@ -208,3 +208,33 @@ def test_large_real_prompt_compacts_and_stays_local(monkeypatch):
 
     assert len(sent_text) <= 9050
     assert latest in sent_text
+
+
+
+def test_real_general_prompt_uses_fast_local_shape():
+    latest = "Explain active recall in three simple steps."
+    messages = [
+        {
+            "role": "system",
+            "content": "Long StudySnap rules. " * 500,
+        },
+        {
+            "role": "user",
+            "content": (
+                "Conversation and learning context:\n"
+                + ("Older context. " * 500)
+                + "\nNew student message:\n"
+                + latest
+            ),
+        },
+    ]
+
+    compacted = provider._compact_local_messages(messages)
+    combined = "\n".join(
+        str(item.get("content", ""))
+        for item in compacted
+    )
+
+    assert latest in combined
+    assert len(combined) < 3000
+    assert len(compacted) == 2
