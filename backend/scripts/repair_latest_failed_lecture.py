@@ -38,10 +38,6 @@ def main() -> int:
             print("NO_FAILED_LECTURE")
             return 0
 
-        if not settings.openai_api_key.strip():
-            print("TRANSCRIPTION_NOT_CONFIGURED")
-            return 3
-
         model = os.getenv(
             "STUDYSNAP_TRANSCRIPTION_MODEL",
             "gpt-4o-mini-transcribe",

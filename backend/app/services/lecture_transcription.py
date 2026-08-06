@@ -327,7 +327,7 @@ def _create_transcription(
     return transcript
 
 
-def transcribe_lecture_audio(
+def _transcribe_lecture_audio_api_primary(
     *,
     file_path: Path,
     original_filename: str,
@@ -465,3 +465,315 @@ def transcribe_lecture_audio(
     finally:
         if normalized_directory is not None:
             normalized_directory.cleanup()
+
+
+# STUDYSNAP_LOCAL_FIRST_LECTURE_V1_1
+#
+# StudySnap owns the primary lecture-transcription path through its local
+# whisper.cpp engine. External APIs remain optional fallbacks. The resulting
+# text continues through the existing shared StudyMaterial and General AI
+# handoff instead of creating a separate transcript silo.
+
+import os as _studysnap_os
+import tempfile as _studysnap_tempfile
+
+
+def _studysnap_env_enabled(name: str, default: bool = True) -> bool:
+    value = _studysnap_os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+        "disabled",
+    }
+
+
+def _studysnap_local_paths() -> tuple[Path, Path]:
+    root = Path.home() / "studysnap-tools" / "whisper.cpp"
+
+    binary = Path(
+        _studysnap_os.getenv(
+            "STUDYSNAP_WHISPER_CPP_BINARY",
+            str(root / "build" / "bin" / "whisper-cli"),
+        )
+    ).expanduser()
+
+    model = Path(
+        _studysnap_os.getenv(
+            "STUDYSNAP_WHISPER_CPP_MODEL",
+            str(root / "models" / "ggml-base.en.bin"),
+        )
+    ).expanduser()
+
+    return binary, model
+
+
+def _studysnap_local_threads() -> int:
+    default_threads = min(max(_studysnap_os.cpu_count() or 1, 1), 8)
+    raw = _studysnap_os.getenv(
+        "STUDYSNAP_LOCAL_TRANSCRIPTION_THREADS",
+        "",
+    ).strip()
+
+    try:
+        return min(max(int(raw), 1), 16) if raw else default_threads
+    except ValueError:
+        return default_threads
+
+
+def _studysnap_local_timeout() -> float:
+    raw = _studysnap_os.getenv(
+        "STUDYSNAP_LOCAL_TRANSCRIPTION_TIMEOUT_SECONDS",
+        "",
+    ).strip()
+
+    try:
+        return (
+            min(max(float(raw), 60.0), 14_400.0)
+            if raw
+            else 7_200.0
+        )
+    except ValueError:
+        return 7_200.0
+
+
+def _studysnap_local_language_supported(
+    language: str | None,
+    model_path: Path,
+) -> bool:
+    selected = (language or "").strip().lower()
+
+    if ".en." in model_path.name.lower():
+        return selected in {"", "en", "eng", "english"}
+
+    return True
+
+
+def _studysnap_run_local_transcription(
+    *,
+    file_path: Path,
+    language: str | None,
+    ffmpeg_binary: str | None,
+    run_command: Callable[..., subprocess.CompletedProcess[Any]],
+) -> LectureTranscriptionResult:
+    binary, model = _studysnap_local_paths()
+
+    if not binary.is_file() or not _studysnap_os.access(
+        binary,
+        _studysnap_os.X_OK,
+    ):
+        raise LectureTranscriptionError(
+            "StudySnap's local transcription engine is not installed.",
+            status_code=503,
+            reason="local_unavailable",
+        )
+
+    if not model.is_file() or model.stat().st_size <= 0:
+        raise LectureTranscriptionError(
+            "StudySnap's local transcription model is not installed.",
+            status_code=503,
+            reason="local_unavailable",
+        )
+
+    if not _studysnap_local_language_supported(language, model):
+        raise LectureTranscriptionError(
+            "The installed StudySnap local model does not support the selected language.",
+            status_code=503,
+            reason="local_language_unsupported",
+        )
+
+    normalizer = ffmpeg_binary or shutil.which("ffmpeg")
+    if not normalizer:
+        raise LectureTranscriptionError(
+            "FFmpeg is required for StudySnap local transcription.",
+            status_code=503,
+            reason="local_unavailable",
+        )
+
+    with _studysnap_tempfile.TemporaryDirectory(
+        prefix="studysnap-local-lecture-",
+    ) as directory:
+        wav_path = Path(directory) / "lecture-normalized.wav"
+
+        normalize_result = run_command(
+            [
+                normalizer,
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                str(file_path),
+                "-map",
+                "0:a:0",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                str(wav_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600.0,
+            check=False,
+        )
+
+        if (
+            normalize_result.returncode != 0
+            or not wav_path.is_file()
+            or wav_path.stat().st_size <= 44
+        ):
+            diagnostic = (
+                normalize_result.stderr
+                or normalize_result.stdout
+                or "FFmpeg normalization failed"
+            ).strip()
+
+            raise LectureTranscriptionError(
+                "StudySnap could not prepare this recording for local transcription. "
+                "The recording is still saved.",
+                status_code=422,
+                reason="local_normalization_failed",
+                original_error=RuntimeError(diagnostic[:700]),
+            )
+
+        selected_language = (language or "").strip()
+        if not selected_language and ".en." in model.name.lower():
+            selected_language = "en"
+
+        command = [
+            str(binary),
+            "--model",
+            str(model),
+            "--file",
+            str(wav_path),
+            "--threads",
+            str(_studysnap_local_threads()),
+            "--no-timestamps",
+        ]
+
+        if selected_language:
+            command.extend(["--language", selected_language])
+
+        result = run_command(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=_studysnap_local_timeout(),
+            check=False,
+        )
+
+        transcript = "\n".join(
+            line.strip()
+            for line in (result.stdout or "").splitlines()
+            if line.strip()
+        ).strip()
+
+        if result.returncode != 0:
+            diagnostic = (
+                result.stderr
+                or result.stdout
+                or "whisper.cpp transcription failed"
+            ).strip()
+
+            raise LectureTranscriptionError(
+                "StudySnap could not finish local transcription. "
+                "The recording is still saved.",
+                status_code=503,
+                reason="local_failed",
+                original_error=RuntimeError(diagnostic[:700]),
+            )
+
+        if not transcript:
+            raise LectureTranscriptionError(
+                "StudySnap's local model returned no readable transcript. "
+                "The recording is still saved.",
+                status_code=422,
+                reason="empty_local_transcript",
+            )
+
+        model_name = model.stem
+        if model_name.startswith("ggml-"):
+            model_name = model_name[5:]
+
+        return LectureTranscriptionResult(
+            text=transcript,
+            model=f"studysnap-local/whisper.cpp/{model_name}",
+            normalized_audio=True,
+        )
+
+
+def transcribe_lecture_audio(
+    *,
+    file_path: Path,
+    original_filename: str,
+    content_type: str | None,
+    api_key: str,
+    configured_model: str = "gpt-4o-mini-transcribe",
+    language: str | None = None,
+    timeout_seconds: float = 300.0,
+    client: Any | None = None,
+    ffmpeg_binary: str | None = None,
+    run_command: Callable[
+        ...,
+        subprocess.CompletedProcess[Any],
+    ] = subprocess.run,
+) -> LectureTranscriptionResult:
+    local_error: LectureTranscriptionError | None = None
+
+    local_enabled = _studysnap_env_enabled(
+        "STUDYSNAP_LOCAL_TRANSCRIPTION_ENABLED",
+        True,
+    )
+
+    force_local_with_client = _studysnap_env_enabled(
+        "STUDYSNAP_LOCAL_TRANSCRIPTION_FORCE_WITH_CLIENT",
+        False,
+    )
+
+    should_try_local = local_enabled and (
+        client is None or force_local_with_client
+    )
+
+    if should_try_local:
+        try:
+            return _studysnap_run_local_transcription(
+                file_path=file_path,
+                language=language,
+                ffmpeg_binary=ffmpeg_binary,
+                run_command=run_command,
+            )
+        except LectureTranscriptionError as error:
+            local_error = error
+
+    try:
+        return _transcribe_lecture_audio_api_primary(
+            file_path=file_path,
+            original_filename=original_filename,
+            content_type=content_type,
+            api_key=api_key,
+            configured_model=configured_model,
+            language=language,
+            timeout_seconds=timeout_seconds,
+            client=client,
+            ffmpeg_binary=ffmpeg_binary,
+            run_command=run_command,
+        )
+    except LectureTranscriptionError as api_error:
+        if local_error is None:
+            raise
+
+        if api_error.reason == "not_configured":
+            raise local_error from local_error.original_error
+
+        raise LectureTranscriptionError(
+            "StudySnap could not finish transcription with its local engine "
+            "or the configured external provider. The recording is still saved.",
+            status_code=503,
+            reason="all_providers_failed",
+            original_error=api_error,
+        ) from api_error
