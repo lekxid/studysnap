@@ -315,17 +315,27 @@ def _openai_credit_unavailable(
     )
 
 
-def _offline_web_fallback_question(
+# STUDYSNAP_GENERAL_AI_HONEST_OFFLINE_WEB_V1
+def _offline_web_unavailable_answer(
     question: str,
 ) -> str:
-    return (
-        "Live web search is unavailable because cloud API "
-        "credits are not active. Answer using local knowledge, "
-        "be clear that current details may have changed, and "
-        "do not invent live results.\n\n"
-        "Student question:\n"
-        + question.strip()
+    clean_question = " ".join(
+        (question or "").split()
+    ).strip()
+
+    answer = (
+        "I can’t verify live information right now because "
+        "web/API access is unavailable. I won’t guess or "
+        "invent current details."
     )
+
+    if clean_question:
+        answer += (
+            "\n\nRequested live information: "
+            + clean_question
+        )
+
+    return answer
 
 
 def _generate_current_web_answer(
@@ -393,11 +403,8 @@ def generate_studysnap_answer(
             if not _openai_credit_unavailable(exc):
                 raise
 
-            context = context or original_prompt
-            clean_question = (
-                _offline_web_fallback_question(
-                    intent_question
-                )
+            return _offline_web_unavailable_answer(
+                intent_question
             )
 
     result = complete_text(
@@ -455,12 +462,10 @@ def stream_studysnap_answer(
             if not _openai_credit_unavailable(exc):
                 raise
 
-            context = context or original_prompt
-            clean_question = (
-                _offline_web_fallback_question(
-                    intent_question
-                )
+            yield _offline_web_unavailable_answer(
+                intent_question
             )
+            return
 
     yield from stream_text(
         messages=[
